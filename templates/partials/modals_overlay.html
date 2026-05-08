@@ -29,13 +29,22 @@
       <button class="skills-cat-tab" data-cat="other">Other</button>
       <button class="skills-cat-tab" data-cat="application">Application</button>
     </div>
-    <!-- Search -->
-    <div class="skills-catalog-search">
-      <input type="text"
-             id="skills-catalog-search-input"
-             placeholder="Search skills…"
-             autocomplete="off">
-      <span class="skills-search-clear" id="skills-search-clear">✕</span>
+    <!-- Search and Actions -->
+    <div class="skills-catalog-search" style="display: flex; gap: 12px; align-items: center;">
+      <div style="position: relative; flex: 1;">
+        <input type="text"
+               id="skills-catalog-search-input"
+               placeholder="Search skills…"
+               autocomplete="off"
+               style="width: 100%;">
+        <span class="skills-search-clear" id="skills-search-clear">✕</span>
+      </div>
+      <button class="btn btn-primary btn-sm" id="btn-create-mini-app" style="white-space: nowrap;">
+        <svg class="ic" width="14" height="14" style="margin-right: 6px;">
+          <use href="#icon-plus"></use>
+        </svg>
+        Création de mini application
+      </button>
     </div>
     <!-- Skills grid -->
     <div class="skills-catalog-grid" id="skills-catalog-grid">

@@ -49,6 +49,24 @@ class SkillCatalog {
         this._renderGrid();
       });
     }
+
+    const btnCreateMiniApp = document.getElementById('btn-create-mini-app');
+    if (btnCreateMiniApp) {
+      btnCreateMiniApp.addEventListener('click', () => {
+        const appTab = this._tabs ? this._tabs.querySelector('[data-cat="application"]') : null;
+        if (appTab) {
+          this._tabs.querySelectorAll('.skills-cat-tab').forEach(t => t.classList.remove('active'));
+          appTab.classList.add('active');
+          this._activeFilter = 'application';
+          this._renderGrid();
+        }
+        if (window.AppBuilderPanel) {
+          setTimeout(() => {
+            window.AppBuilderPanel.showCreate();
+          }, 50);
+        }
+      });
+    }
   }
 
   async open() {

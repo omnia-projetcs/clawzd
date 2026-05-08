@@ -58,7 +58,7 @@ const AppBuilderPanel = (() => {
         <div class="ab-empty">
           <div class="ab-empty-icon">🏗️</div>
           <p>No apps yet. Create your first mini-app!</p>
-          <button class="ab-btn ab-btn-primary" onclick="AppBuilderPanel.showCreate()">Create App</button>
+          <button class="ab-btn ab-btn-primary" onclick="AppBuilderPanel.showCreate()">Création de mini application</button>
         </div>
       `;
       return;
@@ -67,7 +67,7 @@ const AppBuilderPanel = (() => {
     body.innerHTML = `
       <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:16px;">
         <h3 style="margin:0; font-size:16px;">🏗️ Your Apps</h3>
-        <button class="ab-btn ab-btn-primary" onclick="AppBuilderPanel.showCreate()">+ New App</button>
+        <button class="ab-btn ab-btn-primary" onclick="AppBuilderPanel.showCreate()">Création de mini application</button>
       </div>
       <div class="ab-grid">
         ${_apps.map(a => _renderAppCard(a)).join('')}
