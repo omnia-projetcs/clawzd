@@ -764,12 +764,11 @@
       if (!this.streaming) {
         this.streaming = true; this.text = ''; this.bubble = this.addMsg('assistant', ''); this.status('streaming');
         if (this.stopBtn) { this.stopBtn.style.display = ''; this.sendBtn.style.display = 'none'; }
-        // StreamingParser disabled — needs more testing before activation.
-        // The legacy throttled renderMd() path is used instead.
-        // TODO: Re-enable after fixing block categorization bugs.
-        // if (window.StreamingParser && this.bubble) {
-        //   this._streamParser = new StreamingParser(this.bubble, { showCursor: true });
-        // }
+        // StreamingParser v2 — hybrid approach:
+        // Uses lightweight livePreview during streaming, then full renderMd on finish()
+        if (window.StreamingParser && this.bubble) {
+          this._streamParser = new StreamingParser(this.bubble, { showCursor: true });
+        }
       }
       if (tok === '[DONE]') {
         // Cancel any pending throttled render and do a final render in finish()
@@ -11150,6 +11149,11 @@
   document.addEventListener('DOMContentLoaded', () => {
     // File Tree
     window.ft = new FileTree($('#file-tree'));
+
+    // Expose renderMd/highlightAll for StreamingParser v2 hybrid render
+    window._clawzdRenderMd = renderMd;
+    window._clawzdHighlightAll = highlightAll;
+
     // Chat
     window.chat = new Chat();
     window.chat.fileTree = window.ft;
