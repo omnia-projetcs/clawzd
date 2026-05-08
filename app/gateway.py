@@ -161,6 +161,14 @@ async def startup():
     except Exception as exc:
         logger.warning("Plugin discovery failed: %s", exc)
 
+    # Initialize upload store
+    try:
+        from app.core.upload_store import init_store
+        init_store(DATA_DIR)
+        logger.info("Upload store initialized")
+    except Exception as exc:
+        logger.warning("Upload store init failed: %s", exc)
+
     # Load dynamic skills from data/skills/
     registry = get_registry()
     count = registry.load_all()
@@ -1035,6 +1043,18 @@ async def _process_chat(session_id: str, data: dict) -> dict:
                     except Exception:
                         pass  # Notifications are non-critical
 
+                    # Record tool call for replay (debugging & workflow export)
+                    try:
+                        from app.core.tool_replay import record_tool_call
+                        _exec_end = __import__('time').time()
+                        record_tool_call(
+                            session_id, resolved or tool_name, params, result,
+                            duration_ms=(_exec_end - _exec_end) * 1000,  # approximate
+                            round_num=round_num,
+                        )
+                    except Exception:
+                        pass  # Replay recording is non-critical
+
                     # Measure raw result size for token savings analytics
                     import json as _json_metrics
                     try:
@@ -1451,6 +1471,95 @@ async def toggle_plugin_endpoint(plugin_name: str):
         raise HTTPException(404, f"Plugin '{plugin_name}' not found")
     plugin.enabled = not plugin.enabled
     return {"name": plugin.name, "enabled": plugin.enabled}
+
+
+# --- Upload Store API (OpenClaw OS-inspired) ---
+
+@app.get("/uploads")
+async def list_uploads(category: str = "", session_id: str = "", limit: int = 50):
+    """List files in the upload store."""
+    from app.core.upload_store import list_files
+    return list_files(
+        category=category or None,
+        session_id=session_id or None,
+        limit=limit,
+    )
+
+
+@app.get("/uploads/stats")
+async def upload_stats():
+    """Get upload store statistics."""
+    from app.core.upload_store import get_store_stats
+    return get_store_stats()
+
+
+@app.get("/uploads/{file_id}")
+async def get_upload(file_id: str):
+    """Get file metadata by ID."""
+    from app.core.upload_store import get_file
+    meta = get_file(file_id)
+    if not meta:
+        raise HTTPException(404, "File not found")
+    return meta
+
+
+@app.delete("/uploads/{file_id}")
+async def delete_upload(file_id: str):
+    """Remove a file from the upload store."""
+    from app.core.upload_store import delete_file
+    deleted = delete_file(file_id)
+    if not deleted:
+        raise HTTPException(404, "File not found")
+    return {"status": "deleted", "id": file_id}
+
+
+# --- Structured UI API ---
+
+@app.get("/ui/components")
+async def get_ui_components():
+    """Get available structured UI component schemas."""
+    from app.core.structured_ui import COMPONENT_SCHEMAS
+    return COMPONENT_SCHEMAS
+
+
+# --- Tool Replay API (OpenClaw OS-inspired) ---
+
+@app.get("/replays")
+async def list_replays_endpoint(limit: int = 20):
+    """List all available replay sessions."""
+    from app.core.tool_replay import list_replays
+    return list_replays(limit=limit)
+
+
+@app.get("/replays/{session_id}")
+async def get_replay_endpoint(session_id: str):
+    """Get the full tool replay log for a session."""
+    from app.core.tool_replay import get_session_replay
+    return get_session_replay(session_id)
+
+
+@app.get("/replays/{session_id}/summary")
+async def replay_summary_endpoint(session_id: str):
+    """Get a summary of a session's tool replay."""
+    from app.core.tool_replay import get_replay_summary
+    return get_replay_summary(session_id)
+
+
+@app.get("/replays/{session_id}/workflow")
+async def replay_workflow_endpoint(session_id: str):
+    """Export a replay as a reusable workflow definition."""
+    from app.core.tool_replay import export_as_workflow
+    return export_as_workflow(session_id)
+
+
+@app.delete("/replays/{session_id}")
+async def delete_replay_endpoint(session_id: str):
+    """Delete a replay log."""
+    from app.core.tool_replay import delete_replay
+    deleted = delete_replay(session_id)
+    if not deleted:
+        raise HTTPException(404, "Replay not found")
+    return {"status": "deleted", "session_id": session_id}
 
 
 # --- Battle Arena API ---

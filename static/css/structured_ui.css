@@ -1,0 +1,206 @@
+/* ========================================
+   Clawzd — Structured UI Components
+   Styles for interactive LLM-generated components
+   ======================================== */
+
+/* ── Chart ───────────────────────────── */
+.sui-chart-wrapper {
+  margin: 16px 0;
+  padding: 16px;
+  background: var(--bg-secondary, #1e293b);
+  border: 1px solid var(--border, #334155);
+  border-radius: 12px;
+}
+.sui-chart-title {
+  font-weight: 600;
+  font-size: 14px;
+  color: var(--text-primary, #e2e8f0);
+  margin-bottom: 12px;
+}
+
+/* ── Table ───────────────────────────── */
+.sui-table-wrapper {
+  margin: 16px 0;
+  background: var(--bg-secondary, #1e293b);
+  border: 1px solid var(--border, #334155);
+  border-radius: 12px;
+  overflow: hidden;
+}
+.sui-table-title {
+  font-weight: 600;
+  font-size: 14px;
+  color: var(--text-primary, #e2e8f0);
+  padding: 12px 16px 0;
+}
+.sui-table-scroll {
+  overflow-x: auto;
+}
+.sui-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+}
+.sui-table th {
+  background: var(--bg-tertiary, #0f172a);
+  color: var(--text-secondary, #94a3b8);
+  font-weight: 600;
+  text-transform: uppercase;
+  font-size: 11px;
+  letter-spacing: 0.5px;
+  padding: 10px 16px;
+  text-align: left;
+  border-bottom: 1px solid var(--border, #334155);
+}
+.sui-table td {
+  padding: 10px 16px;
+  color: var(--text-primary, #e2e8f0);
+  border-bottom: 1px solid var(--border-light, rgba(51, 65, 85, 0.5));
+}
+.sui-table tbody tr:hover {
+  background: rgba(99, 102, 241, 0.05);
+}
+.sui-table tbody tr:last-child td {
+  border-bottom: none;
+}
+
+/* ── Progress ────────────────────────── */
+.sui-progress {
+  margin: 12px 0;
+  padding: 12px 16px;
+  background: var(--bg-secondary, #1e293b);
+  border: 1px solid var(--border, #334155);
+  border-radius: 10px;
+}
+.sui-progress-label {
+  display: flex;
+  justify-content: space-between;
+  font-size: 13px;
+  color: var(--text-secondary, #94a3b8);
+  margin-bottom: 8px;
+}
+.sui-progress-bar {
+  height: 8px;
+  background: var(--bg-tertiary, #0f172a);
+  border-radius: 4px;
+  overflow: hidden;
+}
+.sui-progress-fill {
+  height: 100%;
+  border-radius: 4px;
+  transition: width 0.6s ease;
+}
+.sui-info    { background: linear-gradient(90deg, #6366f1, #818cf8); }
+.sui-success { background: linear-gradient(90deg, #10b981, #34d399); }
+.sui-warning { background: linear-gradient(90deg, #f59e0b, #fbbf24); }
+.sui-error   { background: linear-gradient(90deg, #ef4444, #f87171); }
+
+/* ── Card ────────────────────────────── */
+.sui-card {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  margin: 12px 0;
+  padding: 16px;
+  background: var(--bg-secondary, #1e293b);
+  border: 1px solid var(--border, #334155);
+  border-radius: 12px;
+  border-left: 4px solid #6366f1;
+}
+.sui-card-blue  { border-left-color: #6366f1; }
+.sui-card-green { border-left-color: #10b981; }
+.sui-card-red   { border-left-color: #ef4444; }
+.sui-card-yellow { border-left-color: #f59e0b; }
+.sui-card-icon {
+  font-size: 24px;
+  flex-shrink: 0;
+}
+.sui-card-title {
+  font-weight: 600;
+  font-size: 14px;
+  color: var(--text-primary, #e2e8f0);
+  margin-bottom: 4px;
+}
+.sui-card-content {
+  font-size: 13px;
+  color: var(--text-secondary, #94a3b8);
+  line-height: 1.5;
+}
+
+/* ── Alert ───────────────────────────── */
+.sui-alert {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  margin: 12px 0;
+  padding: 12px 16px;
+  border-radius: 10px;
+  font-size: 13px;
+  line-height: 1.5;
+}
+.sui-alert-icon { font-size: 18px; flex-shrink: 0; }
+.sui-alert-info    { background: rgba(99, 102, 241, 0.1); border: 1px solid rgba(99, 102, 241, 0.3); color: #a5b4fc; }
+.sui-alert-success { background: rgba(16, 185, 129, 0.1); border: 1px solid rgba(16, 185, 129, 0.3); color: #6ee7b7; }
+.sui-alert-warning { background: rgba(245, 158, 11, 0.1); border: 1px solid rgba(245, 158, 11, 0.3); color: #fcd34d; }
+.sui-alert-error   { background: rgba(239, 68, 68, 0.1); border: 1px solid rgba(239, 68, 68, 0.3); color: #fca5a5; }
+
+/* ── Artifact ────────────────────────── */
+.sui-artifact {
+  margin: 12px 0;
+  background: var(--bg-secondary, #1e293b);
+  border: 1px solid var(--border, #334155);
+  border-radius: 12px;
+  overflow: hidden;
+  cursor: pointer;
+  transition: border-color 0.2s;
+}
+.sui-artifact:hover {
+  border-color: #6366f1;
+}
+.sui-artifact-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 12px 16px;
+}
+.sui-artifact-icon { font-size: 18px; }
+.sui-artifact-title {
+  font-weight: 600;
+  font-size: 13px;
+  color: var(--text-primary, #e2e8f0);
+  flex: 1;
+}
+.sui-badge {
+  font-size: 11px;
+  padding: 2px 8px;
+  border-radius: 6px;
+  background: rgba(99, 102, 241, 0.15);
+  color: #a5b4fc;
+  font-weight: 500;
+}
+.sui-artifact-version {
+  font-size: 11px;
+  color: var(--text-muted, #64748b);
+}
+.sui-artifact-preview {
+  margin: 0;
+  padding: 12px 16px;
+  background: var(--bg-tertiary, #0f172a);
+  font-size: 12px;
+  border-top: 1px solid var(--border, #334155);
+  max-height: 120px;
+  overflow: hidden;
+}
+.sui-artifact-preview code {
+  color: var(--text-secondary, #94a3b8);
+}
+
+/* ── Error ───────────────────────────── */
+.sui-error {
+  padding: 8px 12px;
+  background: rgba(239, 68, 68, 0.1);
+  border: 1px solid rgba(239, 68, 68, 0.3);
+  border-radius: 8px;
+  color: #fca5a5;
+  font-size: 12px;
+  margin: 8px 0;
+}

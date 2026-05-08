@@ -117,6 +117,11 @@
     h = h.replace(/<br>\s*(<\/?(?:ul|ol|li|h[2-4]|hr|blockquote|div|pre|details))/g, '$1');
     h = h.replace(/(<\/(?:ul|ol|li|h[2-4]|blockquote|div|pre|details)>)\s*<br>/g, '$1');
 
+    // Structured UI components (charts, tables, progress, cards, alerts)
+    if (window.StructuredUI) {
+      h = window.StructuredUI.renderComponents(h);
+    }
+
     return h;
   }
 
