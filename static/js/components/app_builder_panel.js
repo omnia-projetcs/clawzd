@@ -15,47 +15,20 @@
  */
 
 const AppBuilderPanel = (() => {
-  let _overlayEl = null;
   let _apps = [];
   let _templates = {};
 
   function init() {
-    _createOverlay();
-  }
-
-  function _createOverlay() {
-    _overlayEl = document.createElement('div');
-    _overlayEl.id = 'app-builder-overlay';
-    _overlayEl.className = 'ab-overlay';
-    _overlayEl.innerHTML = `
-      <div class="ab-modal">
-        <div class="ab-header">
-          <h3>🏗️ App Builder</h3>
-          <div class="ab-header-actions">
-            <button class="ab-btn ab-btn-primary" onclick="AppBuilderPanel.showCreate()">+ New App</button>
-            <button class="ab-btn-close" onclick="AppBuilderPanel.close()">&times;</button>
-          </div>
-        </div>
-        <div class="ab-body" id="ab-body">
-          <div class="ab-loading">Loading...</div>
-        </div>
-      </div>
-    `;
-    _overlayEl.addEventListener('click', (e) => {
-      if (e.target === _overlayEl) close();
-    });
-    document.body.appendChild(_overlayEl);
+    // No overlay creation needed anymore
   }
 
   async function open() {
-    if (!_overlayEl) return;
-    _overlayEl.classList.add('ab-open');
     await Promise.all([_loadApps(), _loadTemplates()]);
     _renderList();
   }
 
   function close() {
-    if (_overlayEl) _overlayEl.classList.remove('ab-open');
+    // Left for compatibility, but no-op since it's inside SkillCatalog
   }
 
   async function _loadApps() {
@@ -92,6 +65,10 @@ const AppBuilderPanel = (() => {
     }
 
     body.innerHTML = `
+      <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:16px;">
+        <h3 style="margin:0; font-size:16px;">🏗️ Your Apps</h3>
+        <button class="ab-btn ab-btn-primary" onclick="AppBuilderPanel.showCreate()">+ New App</button>
+      </div>
       <div class="ab-grid">
         ${_apps.map(a => _renderAppCard(a)).join('')}
       </div>

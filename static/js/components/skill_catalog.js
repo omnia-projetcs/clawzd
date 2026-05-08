@@ -76,6 +76,25 @@ class SkillCatalog {
 
   _renderGrid() {
     let filtered = this._skills;
+    const abBody = document.getElementById('ab-body');
+    const searchContainer = this._searchInput ? this._searchInput.parentElement : null;
+
+    if (this._activeFilter === 'application') {
+      this._grid.style.display = 'none';
+      if (searchContainer) searchContainer.style.display = 'none';
+      if (abBody) {
+        abBody.style.display = 'block';
+        if (window.AppBuilderPanel && !abBody.dataset.loaded) {
+          window.AppBuilderPanel.open();
+          abBody.dataset.loaded = 'true';
+        }
+      }
+      return;
+    } else {
+      this._grid.style.display = '';
+      if (searchContainer) searchContainer.style.display = '';
+      if (abBody) abBody.style.display = 'none';
+    }
 
     // Category filter
     if (this._activeFilter !== 'all') {
