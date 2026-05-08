@@ -1734,22 +1734,49 @@ async def api_transcribe(file: UploadFile = File(...)):
 @app.get("/api/rag-profil/{filename}")
 async def api_get_rag_profil(filename: str):
     import os
+    from config import PROFILES_DIR
     if filename not in ["USER.md", "MEMORY.md"]:
         raise HTTPException(400, "Invalid filename")
-    path = os.path.join(DATA_DIR, "rag", "profil", filename)
-    if os.path.exists(path):
-        with open(path, "r", encoding="utf-8") as f:
-            return {"content": f.read()}
-    return {"content": ""}
+    profil_dir = os.path.join(PROFILES_DIR, "user")
+    os.makedirs(profil_dir, exist_ok=True)
+    path = os.path.join(profil_dir, filename)
+    if not os.path.exists(path):
+        # Auto-create with default template
+        defaults = {
+            "USER.md": (
+                "# User Profile\n\n"
+                "## Preferences\n"
+                "- Language: \n"
+                "- Communication style: \n\n"
+                "## Expertise\n"
+                "- \n\n"
+                "## Goals\n"
+                "- \n"
+            ),
+            "MEMORY.md": (
+                "# Agent Memory\n\n"
+                "## Environment\n"
+                "- \n\n"
+                "## Project Notes\n"
+                "- \n\n"
+                "## Lessons Learned\n"
+                "- \n"
+            ),
+        }
+        with open(path, "w", encoding="utf-8") as f:
+            f.write(defaults.get(filename, ""))
+    with open(path, "r", encoding="utf-8") as f:
+        return {"content": f.read()}
 
 @app.post("/api/rag-profil/{filename}")
 async def api_save_rag_profil(filename: str, request: Request):
     import os
+    from config import PROFILES_DIR
     if filename not in ["USER.md", "MEMORY.md"]:
         raise HTTPException(400, "Invalid filename")
     data = await request.json()
     content = data.get("content", "")
-    profil_dir = os.path.join(DATA_DIR, "rag", "profil")
+    profil_dir = os.path.join(PROFILES_DIR, "user")
     os.makedirs(profil_dir, exist_ok=True)
     path = os.path.join(profil_dir, filename)
     with open(path, "w", encoding="utf-8") as f:
