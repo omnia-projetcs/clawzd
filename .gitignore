@@ -221,3 +221,7 @@ __marimo__/
 data/*
 profil/user/*
 *.db
+node_modules/*
+
+static/dist/
+package-lock.json
