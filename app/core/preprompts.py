@@ -99,6 +99,13 @@ _FRAG_README = (
     "install steps, config, usage, file structure.\n"
 )
 
+_FRAG_MERMAID = (
+    "MERMAID RULES: When generating ```mermaid diagrams, ensure strict syntax validity. "
+    "For `erDiagram`, relationships must use quotes for labels: `A ||--o{ B : \"label\"`. "
+    "Entity attributes inside `{}` must strictly follow `type name` format (e.g. `string id`). "
+    "DO NOT use 'note', 'constraint', or any unsupported features inside ER diagrams.\n"
+)
+
 
 # ---------------------------------------------------------------------------
 # Pre-prompt definitions
@@ -118,6 +125,7 @@ PREPROMPTS: dict[str, dict] = {
             + _FRAG_SECURITY
             + _FRAG_CODE_QUALITY
             + _FRAG_README
+            + _FRAG_MERMAID
         ),
     },
 
@@ -166,6 +174,7 @@ PREPROMPTS: dict[str, dict] = {
             + _FRAG_SECURITY
             + _FRAG_CODE_QUALITY
             + _FRAG_UI_EXCELLENCE
+            + _FRAG_MERMAID
             + _FRAG_TOOL_FORMAT
         ),
     },
@@ -190,6 +199,7 @@ PREPROMPTS: dict[str, dict] = {
             "FORMAT: Clear headings + bullet points. Describe WHAT and WHERE to change, "
             "never output full files. If asked to implement, create a plan and tell "
             "the user to switch to Build mode.\n"
+            + _FRAG_MERMAID
             + _FRAG_TOOL_FORMAT
         ),
     },
@@ -213,6 +223,7 @@ PREPROMPTS: dict[str, dict] = {
             + _FRAG_UI_EXCELLENCE
             + _FRAG_FILE_RULES
             + _FRAG_README
+            + _FRAG_MERMAID
             + "File structure described MUST match generated files exactly.\n"
             + _FRAG_TOOL_FORMAT
         ),
@@ -232,6 +243,7 @@ PREPROMPTS: dict[str, dict] = {
             "- Use ```mermaid diagrams to illustrate architectures.\n"
             "- Consider security, monitoring, deployment.\n"
             "- Provide concrete, actionable recommendations.\n"
+            + _FRAG_MERMAID
         ),
     },
 
