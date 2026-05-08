@@ -1,0 +1,95 @@
+<!-- ======== Header ======== -->
+<header class="app-header" id="app-header">
+  <div class="header-left">
+    <button class="icon-btn" id="btn-toggle-sidebar" title="Toggle sidebar">☰</button>
+    <a href="/"
+       class="app-logo"
+       id="app-logo-link"
+       style="text-decoration:none;
+              color:inherit;
+              cursor:pointer">
+      <img src="/static/img/icon.png"
+           alt="Clawzd"
+           width="22"
+           height="22"
+           style="border-radius:4px">
+    Clawzd</a>
+  </div>
+  <div class="header-center">
+    <div class="mode-toggle" id="mode-toggle">
+      <button class="mode-btn active" data-mode="chat" id="mode-btn-chat">
+        <svg class="ic" width="16" height="16">
+          <use href="#icon-chat"></use>
+        </svg>
+        Chat
+      </button>
+      <button class="mode-btn" data-mode="editor" id="mode-btn-editor">
+        <svg class="ic" width="16" height="16">
+          <use href="#icon-monitor"></use>
+        </svg>
+        Editor
+      </button>
+      <button class="mode-btn" data-mode="automation" id="mode-btn-automation">
+        <svg class="ic" width="16" height="16">
+          <use href="#icon-bot"></use>
+        </svg>
+        Automation
+      </button>
+      <button class="mode-btn" data-mode="research" id="mode-btn-research">
+        <svg class="ic" width="16" height="16">
+          <use href="#icon-search"></use>
+        </svg>
+        Research
+      </button>
+      <button class="mode-btn" data-mode="media" id="mode-btn-media">
+        <svg class="ic" width="16" height="16">
+          <use href="#icon-image-icon"></use>
+        </svg>
+        Media
+      </button>
+      <button class="mode-btn" data-mode="presentation" id="mode-btn-presentation">
+        <svg class="ic" width="16" height="16">
+          <use href="#icon-layout"></use>
+        </svg>
+        Presentation
+      </button>
+      <button class="mode-btn" data-mode="project" id="mode-btn-project">
+        <svg class="ic" width="16" height="16">
+          <use href="#icon-clipboard-check"></use>
+        </svg>
+        Project
+      </button>
+    </div>
+  </div>
+  <div class="header-right">
+    <div class="token-counter" id="token-counter" style="display:none"></div>
+    <button class="icon-btn" id="btn-theme-toggle" title="Toggle Light/Dark Mode">
+      <svg class="ic"
+           width="16"
+           height="16"
+           id="theme-icon-dark"
+           style="display:none">
+        <use href="#icon-moon"></use>
+      </svg>
+      <svg class="ic" width="16" height="16" id="theme-icon-light">
+        <use href="#icon-sun"></use>
+      </svg>
+    </button>
+    <button class="icon-btn" id="btn-models" title="Local Models">
+      <svg class="ic" width="16" height="16">
+        <use href="#icon-sparkles2"></use>
+      </svg>
+    </button>
+    <button class="icon-btn" id="btn-skills-catalog" title="Skill Catalog">
+      <svg class="ic" width="16" height="16">
+        <use href="#icon-grid"></use>
+      </svg>
+      <span class="skill-badge" id="skill-badge" style="display:none">0</span>
+    </button>
+    <button class="icon-btn" id="btn-settings" title="Settings">
+      <svg class="ic" width="16" height="16">
+        <use href="#icon-settings"></use>
+      </svg>
+    </button>
+  </div>
+</header>

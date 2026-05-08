@@ -1,0 +1,234 @@
+/* ---- Spec Studio CSS ---- */
+
+/* Container */
+.spec-studio {
+  display: flex; flex-direction: column; gap: 16px; padding: 16px;
+  flex: 1; overflow-y: auto;
+}
+
+/* Header row */
+.spec-header {
+  display: flex; align-items: center; justify-content: space-between;
+  gap: 12px; flex-wrap: wrap;
+}
+.spec-title {
+  font-size: 16px; font-weight: 700; color: var(--text-primary);
+  display: flex; align-items: center; gap: 8px;
+}
+.spec-title-icon {
+  width: 20px; height: 20px; border-radius: 4px;
+  background: linear-gradient(135deg, #7c5cfc, #c084fc);
+  display: flex; align-items: center; justify-content: center;
+  font-size: 12px; color: #fff;
+}
+.spec-actions { display: flex; gap: 8px; }
+
+/* Change list */
+.spec-changes {
+  display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  gap: 12px;
+}
+.spec-change-card {
+  background: var(--bg-elevated); border: 1px solid var(--border);
+  border-radius: var(--radius-md); padding: 14px; cursor: pointer;
+  transition: border-color var(--transition), box-shadow var(--transition);
+}
+.spec-change-card:hover {
+  border-color: var(--accent);
+  box-shadow: 0 2px 12px rgba(124, 92, 252, 0.12);
+}
+.spec-change-card.active { border-color: var(--accent); }
+.spec-change-name {
+  font-size: 14px; font-weight: 600; color: var(--text-primary);
+  margin-bottom: 6px;
+}
+.spec-change-meta {
+  font-size: 11px; color: var(--text-muted);
+  display: flex; align-items: center; gap: 10px;
+}
+.spec-change-status {
+  padding: 2px 8px; border-radius: 10px; font-weight: 600;
+  font-size: 10px; text-transform: uppercase; letter-spacing: 0.5px;
+}
+.spec-change-status.draft { background: rgba(255,255,255,0.06); color: var(--text-muted); }
+.spec-change-status.in-progress { background: rgba(59,130,246,0.15); color: #60a5fa; }
+.spec-change-status.ready { background: rgba(34,197,94,0.15); color: #4ade80; }
+.spec-change-status.verified { background: rgba(168,85,247,0.15); color: #c084fc; }
+.spec-change-status.archived { background: rgba(255,255,255,0.04); color: var(--text-muted); }
+.spec-change-progress {
+  display: flex; align-items: center; gap: 6px;
+}
+.spec-change-progress-bar {
+  width: 60px; height: 4px; background: rgba(255,255,255,0.06);
+  border-radius: 2px; overflow: hidden;
+}
+.spec-change-progress-fill {
+  height: 100%; background: var(--accent); border-radius: 2px;
+  transition: width 0.3s ease;
+}
+
+/* Empty state */
+.spec-empty {
+  text-align: center; padding: 48px 16px; color: var(--text-muted);
+  font-size: 13px; line-height: 1.6;
+}
+.spec-empty-icon { font-size: 36px; margin-bottom: 12px; opacity: 0.5; }
+
+/* Artifact flow (detail view) */
+.spec-detail {
+  display: flex; flex-direction: column; gap: 16px;
+}
+.spec-detail-header {
+  display: flex; align-items: center; justify-content: space-between;
+  gap: 12px;
+}
+.spec-detail-title {
+  font-size: 15px; font-weight: 700; color: var(--text-primary);
+}
+.spec-back-btn {
+  font-size: 12px; color: var(--text-muted); cursor: pointer;
+  background: none; border: 1px solid var(--border);
+  border-radius: var(--radius-sm); padding: 4px 10px;
+  transition: all var(--transition);
+}
+.spec-back-btn:hover { border-color: var(--accent); color: var(--accent); }
+
+/* DAG flow */
+.spec-dag {
+  display: flex; align-items: flex-start; gap: 8px;
+  padding: 12px; background: var(--bg-elevated);
+  border: 1px solid var(--border); border-radius: var(--radius-md);
+  overflow-x: auto;
+}
+.spec-dag-node {
+  display: flex; flex-direction: column; align-items: center;
+  gap: 6px; min-width: 100px; cursor: pointer;
+  transition: transform var(--transition);
+}
+.spec-dag-node:hover { transform: translateY(-2px); }
+.spec-dag-node-box {
+  width: 90px; height: 44px; border-radius: var(--radius-sm);
+  display: flex; align-items: center; justify-content: center;
+  font-size: 11px; font-weight: 600; text-transform: uppercase;
+  letter-spacing: 0.5px; border: 2px solid transparent;
+  transition: all var(--transition);
+}
+.spec-dag-node-box.blocked {
+  background: rgba(255,255,255,0.04); color: var(--text-muted);
+  border-color: rgba(255,255,255,0.06);
+}
+.spec-dag-node-box.ready {
+  background: rgba(59,130,246,0.12); color: #60a5fa;
+  border-color: rgba(59,130,246,0.3);
+}
+.spec-dag-node-box.done {
+  background: rgba(34,197,94,0.12); color: #4ade80;
+  border-color: rgba(34,197,94,0.3);
+}
+.spec-dag-node.active .spec-dag-node-box {
+  border-color: var(--accent); box-shadow: 0 0 12px rgba(124,92,252,0.25);
+}
+.spec-dag-label {
+  font-size: 10px; color: var(--text-muted); text-transform: capitalize;
+}
+.spec-dag-arrow {
+  display: flex; align-items: center; color: var(--text-muted);
+  font-size: 16px; padding-top: 10px;
+}
+
+/* Artifact editor */
+.spec-editor-wrap {
+  display: flex; flex-direction: column; gap: 10px; flex: 1;
+}
+.spec-editor-toolbar {
+  display: flex; align-items: center; justify-content: space-between;
+  gap: 8px;
+}
+.spec-editor-artifact-name {
+  font-size: 13px; font-weight: 600; color: var(--text-primary);
+  text-transform: capitalize;
+}
+.spec-editor-actions { display: flex; gap: 6px; }
+.spec-editor-textarea {
+  flex: 1; min-height: 280px; background: var(--bg-primary);
+  color: var(--text-primary); border: 1px solid var(--border);
+  border-radius: var(--radius-sm); padding: 14px;
+  font-family: 'JetBrains Mono', monospace; font-size: 12.5px;
+  line-height: 1.6; resize: vertical; outline: none;
+  transition: border-color var(--transition);
+}
+.spec-editor-textarea:focus { border-color: var(--accent); }
+.spec-editor-textarea.loading {
+  opacity: 0.5; pointer-events: none;
+}
+
+/* Verification panel */
+.spec-verify-panel {
+  background: var(--bg-elevated); border: 1px solid var(--border);
+  border-radius: var(--radius-md); padding: 14px;
+  display: flex; flex-direction: column; gap: 10px;
+}
+.spec-verify-title {
+  font-size: 13px; font-weight: 700; color: var(--text-primary);
+}
+.spec-verify-scores {
+  display: flex; gap: 12px; flex-wrap: wrap;
+}
+.spec-verify-score {
+  display: flex; flex-direction: column; align-items: center;
+  gap: 4px; min-width: 70px;
+}
+.spec-verify-score-value {
+  font-size: 18px; font-weight: 700;
+}
+.spec-verify-score-label {
+  font-size: 10px; color: var(--text-muted); text-transform: capitalize;
+}
+.spec-verify-issues {
+  display: flex; flex-direction: column; gap: 4px;
+  max-height: 200px; overflow-y: auto;
+}
+.spec-verify-issue {
+  font-size: 11px; padding: 4px 8px; border-radius: 4px;
+  display: flex; align-items: flex-start; gap: 6px;
+}
+.spec-verify-issue.critical {
+  background: rgba(239,68,68,0.1); color: #f87171;
+}
+.spec-verify-issue.warning {
+  background: rgba(245,158,11,0.1); color: #fbbf24;
+}
+.spec-verify-issue.suggestion {
+  background: rgba(59,130,246,0.1); color: #60a5fa;
+}
+.spec-verify-badge {
+  font-size: 9px; font-weight: 700; text-transform: uppercase;
+  padding: 1px 4px; border-radius: 3px; flex-shrink: 0;
+}
+
+/* Main specs section */
+.spec-main-specs {
+  background: var(--bg-elevated); border: 1px solid var(--border);
+  border-radius: var(--radius-md); padding: 14px;
+}
+.spec-main-specs-header {
+  display: flex; align-items: center; justify-content: space-between;
+  margin-bottom: 10px;
+}
+.spec-main-specs-title {
+  font-size: 13px; font-weight: 700; color: var(--text-primary);
+}
+
+/* Archive list */
+.spec-archive-list {
+  display: flex; flex-direction: column; gap: 6px;
+}
+.spec-archive-item {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 8px 12px; background: rgba(255,255,255,0.02);
+  border-radius: var(--radius-sm); font-size: 12px;
+  color: var(--text-secondary); cursor: pointer;
+  transition: background var(--transition);
+}
+.spec-archive-item:hover { background: rgba(255,255,255,0.05); }
+.spec-archive-date { font-size: 10px; color: var(--text-muted); }

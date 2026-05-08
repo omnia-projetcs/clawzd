@@ -1,0 +1,285 @@
+<!-- ---- Project Studio Layout ---- -->
+      <div class="project-layout" id="project-layout" style="display:none">
+        <!-- Left: Project List -->
+        <div class="proj-sidebar" id="proj-sidebar">
+          <div class="proj-sidebar-header">
+            <span class="proj-sidebar-title">Projects</span>
+            <button class="icon-btn" id="proj-btn-new" title="New Project">
+              <svg class="ic" width="14" height="14"><use href="#icon-plus"></use></svg>
+            </button>
+          </div>
+          <div class="proj-list" id="proj-list">
+            <div class="proj-list-empty">No projects yet.<br>Click + to create one.</div>
+          </div>
+          <!-- Members section -->
+          <div class="proj-sidebar-divider"></div>
+          <div class="proj-sidebar-header">
+            <span class="proj-sidebar-title">Members</span>
+            <button class="icon-btn" id="proj-btn-add-member" title="Add Member">
+              <svg class="ic" width="14" height="14"><use href="#icon-plus"></use></svg>
+            </button>
+          </div>
+          <div class="proj-members" id="proj-members">
+            <div class="proj-members-empty">No members assigned.</div>
+          </div>
+        </div>
+
+        <!-- Center: Main Area -->
+        <div class="proj-center">
+          <!-- Top bar -->
+          <div class="proj-topbar">
+            <div class="proj-topbar-left" style="display:flex; align-items:center; gap: 8px;">
+              <input type="text" id="proj-name-input" class="proj-name-input" placeholder="Project Name" value="">
+              <button class="btn btn-primary btn-sm" id="proj-btn-save-name" style="display:none;">Appliquer</button>
+            </div>
+            <div class="proj-topbar-center">
+              <div class="proj-view-toggle" id="proj-view-toggle">
+                <button class="proj-view-btn active" data-view="kanban" id="proj-view-kanban" title="Kanban View">
+                  <svg class="ic" width="14" height="14"><use href="#icon-kanban"></use></svg>
+                  Kanban
+                </button>
+                <button class="proj-view-btn" data-view="table" id="proj-view-table" title="Table View">
+                  <svg class="ic" width="14" height="14"><use href="#icon-table-icon"></use></svg>
+                  Table
+                </button>
+                <button class="proj-view-btn" data-view="timeline" id="proj-view-timeline" title="Timeline View">
+                  <svg class="ic" width="14" height="14"><use href="#icon-timeline"></use></svg>
+                  Timeline
+                </button>
+                <button class="proj-view-btn" data-view="specs" id="proj-view-specs" title="Specs View">
+                  <svg class="ic" width="14" height="14"><use href="#icon-sparkles2"></use></svg>
+                  Specs
+                </button>
+              </div>
+            </div>
+            <div class="proj-topbar-right">
+              <input type="file" id="proj-import-txt-input" accept=".txt,.md,.todo" style="display:none">
+              <button class="btn btn-secondary btn-sm" id="proj-btn-add-col" title="Add Column">
+                <svg class="ic" width="12" height="12"><use href="#icon-plus"></use></svg>
+                Column
+              </button>
+              <button class="btn btn-primary btn-sm" id="proj-btn-add-task" title="Add Task">
+                <svg class="ic" width="12" height="12"><use href="#icon-plus"></use></svg>
+                Task
+              </button>
+
+              <div class="proj-export-dropdown" id="proj-actions-dropdown">
+                <button class="btn btn-secondary btn-sm" id="proj-btn-actions">
+                  Actions ▾
+                </button>
+                <div class="proj-export-menu" id="proj-actions-menu">
+                  <button class="proj-export-item" id="proj-btn-import-txt" title="Import tasks from a .txt file (one task per line)">
+                    <svg class="ic" width="14" height="14"><use href="#icon-import-txt"></use></svg>
+                    Import .txt
+                  </button>
+                  <button class="proj-export-item" id="proj-btn-github" title="GitHub Sync">
+                    <svg class="ic" width="14" height="14"><use href="#icon-github"></use></svg>
+                    GitHub Sync
+                  </button>
+                  <button class="proj-export-item" id="proj-btn-sync-editor" title="Sync tasks done in Editor to Review">
+                    <svg class="ic" width="14" height="14"><use href="#icon-refresh"></use></svg>
+                    Sync with Editor
+                  </button>
+                  <button class="proj-export-item" id="proj-btn-trivy" title="Run Trivy security scan on workspace">
+                    <svg class="ic" width="14" height="14"><use href="#icon-shield"></use></svg>
+                    Trivy Security Scan
+                  </button>
+                  <button class="proj-export-item" id="proj-btn-research" title="Internet research for project context">
+                    <svg class="ic" width="14" height="14"><use href="#icon-search"></use></svg>
+                    Internet Research
+                  </button>
+                  <div style="height:1px;background:var(--border);margin:4px 0;"></div>
+                  <button class="proj-export-item" id="proj-btn-to-editor" title="Transfer project to Editor as code">
+                    <svg class="ic" width="14" height="14"><use href="#icon-code"></use></svg>
+                    To Editor
+                  </button>
+                  <button class="proj-export-item" id="proj-export-excel">
+                    <svg class="ic" width="14" height="14"><use href="#icon-table-icon"></use></svg>
+                    Export Excel
+                  </button>
+                  <button class="proj-export-item" id="proj-export-pres">
+                    <svg class="ic" width="14" height="14"><use href="#icon-monitor"></use></svg>
+                    Export Presentation
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- AI Generator Bar -->
+          <div class="presentation-ai-bar" style="display:flex; justify-content:space-between; align-items:center; gap: 16px; padding: 10px 16px; border-bottom: 1px solid var(--border);" id="proj-ai-bar">
+            <div class="pt-ai-input-wrap" style="flex: 1;">
+              <span class="pt-ai-icon">
+                <svg class="ic" width="16" height="16"><use href="#icon-sparkles2"></use></svg>
+              </span>
+              <input type="text" id="proj-ai-prompt" class="pt-ai-input" placeholder="Describe your project to generate tasks with AI (e.g. 'Mobile app launch for Q3')..." autocomplete="off">
+              <button class="pt-ai-generate-btn" id="proj-btn-ai-generate" title="Generate with AI">
+                <span class="pt-ai-gen-label">Generate</span>
+                <span class="pt-ai-gen-spinner"></span>
+              </button>
+            </div>
+          </div>
+
+          <!-- View containers -->
+          <div class="proj-views" id="proj-views">
+            <!-- Kanban view -->
+            <div class="proj-kanban-view active" id="proj-kanban-view">
+              <div class="proj-kanban" id="proj-kanban">
+                <!-- Columns rendered by JS -->
+              </div>
+            </div>
+
+            <!-- Table view -->
+            <div class="proj-table-view" id="proj-table-view">
+              <div class="proj-table-wrap">
+                <table class="proj-table" id="proj-table">
+                  <thead>
+                    <tr>
+                      <th data-sort="title">Title <span class="sort-arrow">↕</span></th>
+                      <th data-sort="status">Status <span class="sort-arrow">↕</span></th>
+                      <th data-sort="assignee">Assignee <span class="sort-arrow">↕</span></th>
+                      <th data-sort="priority">Priority <span class="sort-arrow">↕</span></th>
+                      <th data-sort="progress">Progress <span class="sort-arrow">↕</span></th>
+                      <th data-sort="deadline">Deadline <span class="sort-arrow">↕</span></th>
+                      <th data-sort="estimated_hours">Hours <span class="sort-arrow">↕</span></th>
+                      <th data-sort="estimated_cost">Cost <span class="sort-arrow">↕</span></th>
+                      <th>Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody id="proj-table-body">
+                  </tbody>
+                </table>
+              </div>
+            </div>
+
+            <!-- Timeline view -->
+            <div class="proj-timeline-view" id="proj-timeline-view">
+              <div class="proj-timeline" id="proj-timeline">
+                <!-- Gantt chart rendered by JS -->
+              </div>
+            </div>
+
+            <!-- Specs view (OpenSpec SDD) -->
+            <div class="proj-specs-view" id="proj-specs-view" style="display:none; flex:1; overflow-y:auto;">
+              <div id="spec-studio-container"></div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Task Detail Modal (slide-in) -->
+        <div class="proj-task-overlay" id="proj-task-overlay">
+          <div class="proj-task-modal" id="proj-task-modal">
+            <div class="proj-task-modal-header">
+              <span class="proj-task-modal-title">Task Details</span>
+              <button class="icon-btn" id="proj-task-close" title="Close">
+                <svg class="ic" width="16" height="16"><use href="#icon-x"></use></svg>
+              </button>
+            </div>
+            <div class="proj-task-modal-body">
+              <div class="proj-task-field">
+                <label class="proj-task-label">Title</label>
+                <input type="text" id="proj-task-title" class="proj-task-input">
+              </div>
+              <div class="proj-task-field">
+                <label class="proj-task-label">Description</label>
+                <textarea id="proj-task-desc" class="proj-task-textarea" rows="3"></textarea>
+              </div>
+              <div class="proj-task-row">
+                <div class="proj-task-field">
+                  <label class="proj-task-label">Status</label>
+                  <select id="proj-task-status" class="proj-task-select"></select>
+                </div>
+                <div class="proj-task-field">
+                  <label class="proj-task-label">Assignee</label>
+                  <input type="text" id="proj-task-assignee" class="proj-task-input" placeholder="Name">
+                </div>
+              </div>
+              <div class="proj-task-row">
+                <div class="proj-task-field">
+                  <label class="proj-task-label">Priority</label>
+                  <select id="proj-task-priority" class="proj-task-select">
+                    <option value="critical">🔴 Critical</option>
+                    <option value="high">🟠 High</option>
+                    <option value="medium" selected>🔵 Medium</option>
+                    <option value="low">⚪ Low</option>
+                  </select>
+                </div>
+                <div class="proj-task-field">
+                  <label class="proj-task-label">Progress</label>
+                  <div class="proj-task-progress-wrap">
+                    <input type="range" id="proj-task-progress" min="0" max="100" value="0" class="proj-task-range">
+                    <span id="proj-task-progress-val">0%</span>
+                  </div>
+                </div>
+              </div>
+              <div class="proj-task-row">
+                <div class="proj-task-field">
+                  <label class="proj-task-label">Start Date</label>
+                  <input type="date" id="proj-task-start" class="proj-task-input">
+                </div>
+                <div class="proj-task-field">
+                  <label class="proj-task-label">Deadline</label>
+                  <input type="date" id="proj-task-deadline" class="proj-task-input">
+                </div>
+              </div>
+              <div class="proj-task-row">
+                <div class="proj-task-field">
+                  <label class="proj-task-label">Estimated Hours</label>
+                  <input type="number" id="proj-task-hours" class="proj-task-input" min="0" step="0.5">
+                </div>
+                <div class="proj-task-field">
+                  <label class="proj-task-label">Estimated Cost ($)</label>
+                  <input type="number" id="proj-task-cost" class="proj-task-input" min="0" step="10">
+                </div>
+              </div>
+              <div class="proj-task-field">
+                <label class="proj-task-label">Tags</label>
+                <input type="text" id="proj-task-tags" class="proj-task-input" placeholder="Comma-separated tags">
+              </div>
+            </div>
+            <div class="proj-task-modal-footer">
+              <button class="btn btn-danger btn-sm" id="proj-task-delete">
+                <svg class="ic" width="12" height="12"><use href="#icon-trash"></use></svg>
+                Delete
+              </button>
+              <button class="btn btn-primary btn-sm" id="proj-task-save">Save</button>
+            </div>
+          </div>
+        </div>
+
+        <!-- GitHub Sync Modal -->
+        <div class="proj-github-overlay" id="proj-github-overlay">
+          <div class="proj-github-modal">
+            <div class="proj-task-modal-header">
+              <span class="proj-task-modal-title">
+                <svg class="ic" width="16" height="16"><use href="#icon-github"></use></svg>
+                GitHub Sync
+              </span>
+              <button class="icon-btn" id="proj-github-close" title="Close">
+                <svg class="ic" width="16" height="16"><use href="#icon-x"></use></svg>
+              </button>
+            </div>
+            <div class="proj-task-modal-body">
+              <div class="proj-task-field">
+                <label class="proj-task-label">Repository (owner/repo)</label>
+                <input type="text" id="proj-github-repo" class="proj-task-input" placeholder="e.g. octocat/Hello-World">
+              </div>
+              <div class="proj-task-field">
+                <label class="proj-task-label">Personal Access Token</label>
+                <input type="password" id="proj-github-token" class="proj-task-input" placeholder="ghp_...">
+                <small class="proj-field-hint">Requires <code>repo</code> scope. Stored only in this session.</small>
+              </div>
+            </div>
+            <div class="proj-task-modal-footer">
+              <button class="btn btn-secondary btn-sm" id="proj-github-import">
+                <svg class="ic" width="12" height="12"><use href="#icon-import-txt"></use></svg>
+                Import Issues
+              </button>
+              <button class="btn btn-primary btn-sm" id="proj-github-push">
+                <svg class="ic" width="12" height="12"><use href="#icon-download"></use></svg>
+                Push to GitHub
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>

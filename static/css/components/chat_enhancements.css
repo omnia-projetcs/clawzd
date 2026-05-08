@@ -1,0 +1,144 @@
+/* ==========================================================
+   Clawzd — Chat Enhancements CSS
+   Styles for: Enhance Prompt, Suggestion Chips, Mode Switch Hint
+   ========================================================== */
+
+/* ---- Enhance Prompt Button ---- */
+.enhance-prompt-btn {
+  position: relative;
+  color: var(--text-muted, #888);
+  transition: color .2s, transform .2s;
+}
+
+.enhance-prompt-btn:hover {
+  color: var(--accent, #7c6aef);
+  transform: scale(1.15);
+}
+
+.enhance-prompt-btn.enhancing {
+  pointer-events: none;
+}
+
+.enhance-prompt-btn.enhancing .ic {
+  animation: enhance-spin 0.8s linear infinite;
+}
+
+@keyframes enhance-spin {
+  from {
+    transform: rotate(0deg);
+  }
+
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+/* ---- Suggestion Chips ---- */
+.suggestion-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  padding: 10px 16px 6px;
+  animation: chips-in 0.35s ease-out;
+}
+
+@keyframes chips-in {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.suggestion-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 6px 14px;
+  font-size: 0.82rem;
+  font-weight: 500;
+  color: var(--accent, #7c6aef);
+  background: color-mix(in srgb, var(--accent, #7c6aef) 10%, transparent);
+  border: 1px solid color-mix(in srgb, var(--accent, #7c6aef) 25%, transparent);
+  border-radius: 20px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  white-space: nowrap;
+  max-width: 280px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.suggestion-chip:hover {
+  background: color-mix(in srgb, var(--accent, #7c6aef) 20%, transparent);
+  border-color: var(--accent, #7c6aef);
+  transform: translateY(-1px);
+  box-shadow: 0 2px 8px rgba(124, 106, 239, 0.15);
+}
+
+.suggestion-chip:active {
+  transform: translateY(0);
+  box-shadow: none;
+}
+
+/* ---- Mode Switch Hint ---- */
+.mode-switch-hint {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 16px;
+  margin: 6px 16px 2px;
+  background: color-mix(in srgb, var(--warning, #f0ad4e) 8%, transparent);
+  border: 1px solid color-mix(in srgb, var(--warning, #f0ad4e) 25%, transparent);
+  border-radius: 10px;
+  animation: chips-in 0.35s ease-out;
+  transition: opacity .3s, transform .3s;
+}
+
+.mode-switch-hint.dismissing {
+  opacity: 0;
+  transform: translateY(-6px);
+}
+
+.mode-switch-label {
+  flex: 1;
+  font-size: 0.85rem;
+  color: var(--text, #e0e0e0);
+}
+
+.mode-switch-btn {
+  padding: 4px 14px;
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: #fff;
+  background: var(--accent, #7c6aef);
+  border: none;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: background .2s, transform .15s;
+}
+
+.mode-switch-btn:hover {
+  background: color-mix(in srgb, var(--accent, #7c6aef) 85%, #fff);
+  transform: scale(1.04);
+}
+
+.mode-switch-dismiss {
+  background: none;
+  border: none;
+  color: var(--text-muted, #888);
+  cursor: pointer;
+  font-size: 0.9rem;
+  padding: 2px 6px;
+  border-radius: 4px;
+  transition: color .2s, background .2s;
+}
+
+.mode-switch-dismiss:hover {
+  color: var(--text, #e0e0e0);
+  background: rgba(255, 255, 255, 0.08);
+}

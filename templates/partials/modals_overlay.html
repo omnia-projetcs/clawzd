@@ -1,0 +1,1031 @@
+<!-- ======== Skill Catalog Modal ======== -->
+<div class="skills-catalog-overlay" id="skills-catalog-overlay">
+  <div class="skills-catalog-modal" id="skills-catalog-modal">
+    <div class="skills-catalog-header">
+      <div class="skills-catalog-header-left">
+        <h2>
+          <svg class="ic" width="14" height="14" style="margin-right: 6px;">
+            <use href="#icon-bolt"></use>
+          </svg>
+          Skill Catalog
+        </h2>
+        <span class="skills-catalog-subtitle" id="skills-catalog-subtitle">Loading…</span>
+      </div>
+      <button class="icon-btn" id="skills-catalog-close">
+        <svg class="ic" width="14" height="14">
+          <use href="#icon-x"></use>
+        </svg>
+      </button>
+    </div>
+    <!-- Category tabs -->
+    <div class="skills-catalog-tabs" id="skills-catalog-tabs">
+      <button class="skills-cat-tab active" data-cat="all">All</button>
+      <button class="skills-cat-tab" data-cat="code">Code</button>
+      <button class="skills-cat-tab" data-cat="data">Data</button>
+      <button class="skills-cat-tab" data-cat="web">Web</button>
+      <button class="skills-cat-tab" data-cat="media">Media</button>
+      <button class="skills-cat-tab" data-cat="automation">Automation</button>
+      <button class="skills-cat-tab" data-cat="integration">Integration</button>
+      <button class="skills-cat-tab" data-cat="other">Other</button>
+    </div>
+    <!-- Search -->
+    <div class="skills-catalog-search">
+      <input type="text"
+             id="skills-catalog-search-input"
+             placeholder="Search skills…"
+             autocomplete="off">
+      <span class="skills-search-clear" id="skills-search-clear">✕</span>
+    </div>
+    <!-- Skills grid -->
+    <div class="skills-catalog-grid" id="skills-catalog-grid">
+      <!-- populated by JS -->
+    </div>
+  </div>
+</div>
+<!-- ======== Settings Drawer ======== -->
+<div class="settings-overlay" id="settings-overlay">
+  <div class="settings-drawer" id="settings-drawer">
+    <div class="settings-header">
+      <h2>Settings</h2>
+      <button class="icon-btn" id="settings-close">
+        <svg class="ic" width="14" height="14">
+          <use href="#icon-x"></use>
+        </svg>
+      </button>
+    </div>
+    <div class="settings-body">
+      <div class="settings-group">
+        <label class="settings-label">Default Provider</label>
+        <select id="settings-provider" class="settings-input">
+          <option value="google">Google Gemini</option>
+          <option value="grok">Grok (xAI)</option>
+          <option value="groq">Groq</option>
+          <option value="huggingface">HuggingFace</option>
+          <option value="mistral">Mistral</option>
+          <option value="ollama" selected>Ollama</option>
+          <option value="openai">OpenAI</option>
+          <option value="openrouter">OpenRouter</option>
+        </select>
+      </div>
+      <div class="settings-group">
+        <label class="settings-label">Default Pre-prompt</label>
+        <select id="settings-preprompt" class="settings-input">
+          <option value="none">None</option>
+        </select>
+      </div>
+      <div class="settings-group">
+        <label class="settings-label">Code Execution Timeout (seconds)</label>
+        <input type="number"
+               id="settings-timeout"
+               class="settings-input"
+               value="30"
+               min="5"
+               max="300">
+      </div>
+      <div class="settings-group">
+        <label class="settings-label">Max Memory for Code Execution (MB)</label>
+        <input type="number"
+               id="settings-memory"
+               class="settings-input"
+               value="512"
+               min="64"
+               max="4096">
+      </div>
+      <div class="settings-group">
+        <label class="settings-label">Command Execution</label>
+        <div class="settings-row" style="justify-content: flex-start; gap: 8px;">
+          <input type="checkbox" id="settings-confirm-commands" checked>
+          <label for="settings-confirm-commands"
+                 style="font-size: 13px;
+                        cursor: pointer">Ask for confirmation before running risky commands</label>
+        </div>
+      </div>
+      <div class="settings-group" style="margin-top: 12px;">
+        <label class="settings-label">Prompt Enrichment</label>
+        <div class="settings-row" style="justify-content: flex-start; gap: 8px;">
+          <input type="checkbox" id="settings-auto-enrich" checked>
+          <label for="settings-auto-enrich" style="font-size: 13px; cursor: pointer;">
+            Automatically enrich main chat prompt with project and active file context
+          </label>
+        </div>
+      </div>
+      <div class="settings-divider"></div>
+      <div class="settings-group">
+        <label class="settings-label">Tool Visibility (Header)</label>
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px;">
+          <label style="display:flex;
+                        align-items:center;
+                        gap:8px;
+                        font-size:13px;
+                        cursor:pointer">
+            <input type="checkbox" id="settings-show-editor" checked>
+            Editor
+          </label>
+          <label style="display:flex;
+                        align-items:center;
+                        gap:8px;
+                        font-size:13px;
+                        cursor:pointer">
+            <input type="checkbox" id="settings-show-automation" checked>
+            Automation
+          </label>
+          <label style="display:flex;
+                        align-items:center;
+                        gap:8px;
+                        font-size:13px;
+                        cursor:pointer">
+            <input type="checkbox" id="settings-show-research" checked>
+            Research
+          </label>
+          <label style="display:flex;
+                        align-items:center;
+                        gap:8px;
+                        font-size:13px;
+                        cursor:pointer">
+            <input type="checkbox" id="settings-show-media" checked>
+            Media
+          </label>
+          <label style="display:flex;
+                        align-items:center;
+                        gap:8px;
+                        font-size:13px;
+                        cursor:pointer">
+            <input type="checkbox" id="settings-show-presentation" checked>
+            Presentation
+          </label>
+          <label style="display:flex;
+                        align-items:center;
+                        gap:8px;
+                        font-size:13px;
+                        cursor:pointer">
+            <input type="checkbox" id="settings-show-project" checked>
+            Project
+          </label>
+        </div>
+      </div>
+      <div class="settings-divider"></div>
+      <div class="settings-group">
+        <label class="settings-label">Environment Variables (.env)</label>
+        <button class="btn btn-secondary"
+                id="btn-open-env-modal"
+                style="width:100%;
+                       justify-content:center">
+          <svg class="ic" width="14" height="14" style="margin-right: 8px;">
+            <use href="#icon-settings"></use>
+          </svg>
+          Manage Tokens / Environment Variables
+        </button>
+      </div>
+      <div class="settings-divider"></div>
+      <div class="settings-group">
+        <label class="settings-label">
+          <svg class="ic" width="14" height="14" style="margin-right: 6px;">
+            <use href="#icon-layers"></use>
+          </svg>
+          Knowledge Base (RAG)
+        </label>
+        <div style="font-size:11px; color:var(--text-muted); margin-bottom:8px;">
+          Upload documents or place files in <code>data/rag/</code> to build your knowledge base. Supports: md, csv, docx, pptx, xlsx, txt, pdf, code files.
+        </div>
+        <!-- Stats row -->
+        <div class="settings-row" style="margin-bottom:8px;">
+          <span id="rag-stats" style="font-size:12px;">Loading...</span>
+        </div>
+        <!-- Action buttons -->
+        <div style="display:flex; gap:6px; margin-bottom:10px; flex-wrap:wrap;">
+          <label class="btn btn-secondary btn-sm" style="cursor:pointer;">
+            <svg class="ic" width="14" height="14" style="margin-right: 6px;">
+              <use href="#icon-plus"></use>
+            </svg>
+            Upload Files
+            <input type="file"
+                   id="rag-upload"
+                   multiple
+                   accept=".txt,.md,.csv,.pdf,.docx,.pptx,.xlsx,.py,.js,.ts,.jsx,.tsx,.java,.go,.rs,.c,.cpp,.h,.rb,.php,.sh,.sql,.json,.xml,.yaml,.yml,.html,.css,.log,.toml,.ini,.zip,.tar,.gz"
+                   hidden>
+          </label>
+          <button class="btn btn-secondary btn-sm"
+                  id="rag-scan-btn"
+                  title="Scan data/rag/ folder for new files">
+            <svg class="ic" width="14" height="14" style="margin-right: 6px;">
+              <use href="#icon-search"></use>
+            </svg>
+            Scan Folder
+          </button>
+          <button class="btn btn-danger btn-sm"
+                  id="rag-clear-btn"
+                  title="Clear entire knowledge base"
+                  style="margin-left:auto">
+            <svg class="ic" width="14" height="14">
+              <use href="#icon-trash"></use>
+            </svg>
+          </button>
+        </div>
+        <!-- Sources list -->
+        <div id="rag-sources-list"
+             style="max-height:200px;
+                    overflow-y:auto;
+                    display:flex;
+                    flex-direction:column;
+                    gap:4px">
+          <div style="color:var(--text-muted); font-size:12px;">No sources indexed yet.</div>
+        </div>
+      </div>
+      <div class="settings-divider"></div>
+      <div class="settings-group">
+        <label class="settings-label">
+          <svg class="ic" width="14" height="14" style="margin-right: 6px;">
+            <use href="#icon-smile"></use>
+          </svg>
+          Knowledge & Memory (RAG Profil)
+        </label>
+        <div style="font-size:11px; color:var(--text-muted); margin-bottom:6px;">
+          Your user profile and AI memory are stored as markdown files in <code>profiles/</code>. The AI reads them automatically to understand you and the project context.
+        </div>
+        <div style="display:flex; flex-direction:column; gap:8px; margin-top:6px;">
+          <button class="btn btn-secondary btn-sm"
+                  id="btn-open-user-md"
+                  style="justify-content:flex-start">
+            <svg class="ic" width="14" height="14" style="margin-right: 6px;">
+              <use href="#icon-file-text"></use>
+            </svg>
+            Open USER.md
+          </button>
+          <button class="btn btn-secondary btn-sm"
+                  id="btn-open-memory-md"
+                  style="justify-content:flex-start">
+            <svg class="ic" width="14" height="14" style="margin-right: 6px;">
+              <use href="#icon-file-text"></use>
+            </svg>
+            Open MEMORY.md
+          </button>
+          <div style="margin-top: 12px; font-size:11px; color:var(--text-muted);">
+            The AI runs a daily background task to synthesize and compress all <code>.md</code> files in <code>profiles/</code>. You can trigger this optimization manually below.
+          </div>
+          <button class="btn btn-accent btn-sm"
+                  id="btn-optimize-rag-profil"
+                  style="justify-content:flex-start">
+            <svg class="ic" width="14" height="14" style="margin-right: 6px;">
+              <use href="#icon-cpu"></use>
+            </svg>
+            Optimize Now (Synthesize Data)
+          </button>
+        </div>
+      </div>
+      <div class="settings-divider"></div>
+      <div class="settings-group">
+        <label class="settings-label">
+          <svg class="ic" width="14" height="14" style="margin-right: 6px;">
+            <use href="#icon-clock"></use>
+          </svg>
+          Chat History Management
+        </label>
+        <div style="font-size:11px; color:var(--text-muted); margin-bottom:6px;">
+          Manage all your chat sessions and messages stored in the database.
+        </div>
+        <div style="display:flex; gap:6px;">
+          <button class="btn btn-danger btn-sm"
+                  id="btn-clear-all-history"
+                  style="flex:1">
+            <svg class="ic" width="14" height="14" style="margin-right: 6px;">
+              <use href="#icon-trash"></use>
+            </svg>
+            Clear All History
+          </button>
+        </div>
+      </div>
+      <div class="settings-divider"></div>
+      <div class="settings-group">
+        <label class="settings-label">
+          <svg class="ic" width="14" height="14" style="margin-right: 6px;">
+            <use href="#icon-bar-chart"></use>
+          </svg>
+          Performance & Usage
+        </label>
+        <div style="font-size:11px; color:var(--text-muted); margin-bottom:6px;">
+          View LLM latency, token usage, API agents utilization, and your current credit/subscription status.
+        </div>
+        <button class="btn btn-secondary btn-block" id="btn-open-performance">
+          <svg class="ic" width="14" height="14" style="margin-right: 6px;">
+            <use href="#icon-activity"></use>
+          </svg>
+          View Performance Dashboard
+        </button>
+      </div>
+      <div class="settings-divider"></div>
+      <button class="btn btn-primary btn-block" id="btn-save-settings">Save Settings</button>
+    </div>
+  </div>
+</div>
+<!-- ======== Model Manager Modal ======== -->
+<div class="models-overlay" id="models-overlay">
+  <div class="models-modal" id="models-modal">
+    <div class="models-header">
+      <div class="models-header-left">
+        <h2>
+          <svg class="ic" width="14" height="14" style="margin-right: 6px;">
+            <use href="#icon-sparkles"></use>
+          </svg>
+          Model Manager
+        </h2>
+        <span class="models-subtitle" id="models-hw-info">Detecting hardware...</span>
+      </div>
+      <button class="icon-btn" id="models-close">
+        <svg class="ic" width="14" height="14">
+          <use href="#icon-x"></use>
+        </svg>
+      </button>
+    </div>
+    <!-- Download progress bar (hidden by default) -->
+    <div class="models-download-bar"
+         id="models-download-bar"
+         style="display:none">
+      <div class="download-info">
+        <span id="dl-filename">—</span>
+        <span id="dl-stats">—</span>
+      </div>
+      <div class="download-track">
+        <div class="download-fill" id="dl-fill" style="width:0%"></div>
+      </div>
+      <button class="btn btn-sm btn-danger" id="dl-cancel">
+        <svg class="ic" width="14" height="14">
+          <use href="#icon-x"></use>
+        </svg>
+        Cancel
+      </button>
+    </div>
+    <!-- Vendor tabs (dynamically populated from catalog) -->
+    <div class="models-tabs" id="models-tabs">
+      <button class="models-tab active" data-vendor="all">All</button>
+      <!-- Additional tabs generated by JS from catalog vendors -->
+    </div>
+    <!-- Model cards grid -->
+    <div class="models-grid" id="models-grid">
+      <!-- populated by JS -->
+    </div>
+  </div>
+</div>
+<!-- ======== Project Context Modal ======== -->
+<div class="context-overlay" id="context-overlay">
+  <div class="context-container">
+    <div class="context-header">
+      <h3>
+        <svg class="ic" width="16" height="16">
+          <use href="#icon-file-text-icon"></use>
+        </svg>
+        Project Context — clawzd.md
+      </h3>
+      <button class="icon-btn" id="context-close">
+        <svg class="ic" width="14" height="14">
+          <use href="#icon-x"></use>
+        </svg>
+      </button>
+    </div>
+    <div class="context-body">
+      <textarea class="context-textarea"
+                id="context-textarea"
+                placeholder="# Project Context\n\nDescribe your project here. The AI will use this as persistent context for all interactions.\n\n## Tech Stack\n- Python 3.11+\n- FastAPI\n\n## Coding Standards\n- Use type hints\n- Write docstrings"></textarea>
+      <div class="context-hint">
+        <svg class="ic"
+             width="14"
+             height="14"
+             style="margin-right: 6px;
+                    color:var(--accent)">
+          <use href="#icon-help-circle"></use>
+        </svg>
+        This file is saved as <code>clawzd.md</code> in your workspace. The AI reads it automatically to understand your project.
+      </div>
+    </div>
+    <div class="context-footer">
+      <button class="btn btn-secondary" id="context-cancel">Cancel</button>
+      <button class="btn btn-primary" id="context-save">
+        <svg class="ic" width="14" height="14" style="margin-right: 6px;">
+          <use href="#icon-save"></use>
+        </svg>
+        Save Context
+      </button>
+    </div>
+  </div>
+</div>
+<!-- ======== Diff Viewer Modal ======== -->
+<div class="editor-diff-overlay" id="editor-diff-overlay">
+  <div class="editor-diff-container">
+    <div class="editor-diff-header">
+      <span class="editor-diff-title" id="diff-title">Changes</span>
+      <div style="display:flex;gap:6px;align-items:center;">
+        <button class="btn btn-primary btn-sm" id="diff-accept">
+          <svg class="ic" width="14" height="14">
+            <use href="#icon-check"></use>
+          </svg>
+          Accept
+        </button>
+        <button class="btn btn-secondary btn-sm" id="diff-reject">
+          <svg class="ic" width="14" height="14">
+            <use href="#icon-x"></use>
+          </svg>
+          Reject
+        </button>
+        <button class="icon-btn" id="diff-close">
+          <svg class="ic" width="14" height="14">
+            <use href="#icon-x"></use>
+          </svg>
+        </button>
+      </div>
+    </div>
+    <div class="editor-diff-body" id="diff-body"></div>
+  </div>
+</div>
+<!-- ======== Audit Report Modal ======== -->
+<div class="audit-overlay" id="audit-overlay">
+  <div class="audit-container">
+    <div class="audit-header">
+      <div class="audit-header-left">
+        <svg class="ic" width="18" height="18">
+          <use href="#icon-shield"></use>
+        </svg>
+        <h3 id="audit-title">Project Audit Report</h3>
+      </div>
+      <div class="audit-header-actions">
+        <button class="btn btn-secondary btn-sm"
+                id="audit-history-btn"
+                title="View past audits">
+          <svg class="ic" width="14" height="14" style="margin-right: 6px;">
+            <use href="#icon-clock"></use>
+          </svg>
+          History
+        </button>
+        <button class="btn btn-accent btn-sm"
+                id="audit-copy-prompt"
+                title="Copy correction prompt">
+          <svg class="ic" width="14" height="14" style="margin-right: 6px;">
+            <use href="#icon-clipboard"></use>
+          </svg>
+          Copy Prompt
+        </button>
+        <button class="btn btn-accent btn-sm"
+                id="audit-export-html"
+                title="Export HTML report"
+                style="display:none">
+          <svg class="ic" width="14" height="14" style="margin-right: 6px;">
+            <use href="#icon-file-text"></use>
+          </svg>
+          Export HTML
+        </button>
+        <button class="btn btn-primary btn-sm"
+                id="audit-send-prompt"
+                title="Send correction prompt to Chat">
+          <svg class="ic" width="14" height="14" style="margin-right: 6px;">
+            <use href="#icon-send"></use>
+          </svg>
+          Send to Chat
+        </button>
+        <button class="icon-btn" id="audit-close" title="Close">
+          <svg class="ic" width="14" height="14">
+            <use href="#icon-x"></use>
+          </svg>
+        </button>
+      </div>
+    </div>
+    <div class="audit-body" id="audit-body">
+      <!-- Populated by JS -->
+    </div>
+  </div>
+</div>
+<!-- ======== Audit History Modal ======== -->
+<div class="audit-history-overlay" id="audit-history-overlay">
+  <div class="audit-history-container">
+    <div class="audit-history-header">
+      <div class="audit-history-header-left">
+        <svg class="ic" width="18" height="18">
+          <use href="#icon-clock"></use>
+        </svg>
+        <h3>Audit History</h3>
+      </div>
+      <button class="icon-btn" id="audit-history-close" title="Close">
+        <svg class="ic" width="14" height="14">
+          <use href="#icon-x"></use>
+        </svg>
+      </button>
+    </div>
+    <div class="audit-history-body" id="audit-history-body">
+      <div class="audit-loading">
+        <div class="spinner"></div>
+        <div>Loading audit history…</div>
+      </div>
+    </div>
+  </div>
+</div>
+<!-- ======== Git Clone Modal ======== -->
+<div class="git-clone-overlay" id="git-clone-overlay">
+  <div class="git-clone-container">
+    <div class="git-clone-header">
+      <h3>
+        <svg class="ic" width="16" height="16">
+          <use href="#icon-link"></use>
+        </svg>
+        Clone Git Repository
+      </h3>
+      <button class="icon-btn" id="git-clone-close">
+        <svg class="ic" width="14" height="14">
+          <use href="#icon-x"></use>
+        </svg>
+      </button>
+    </div>
+    <div class="git-clone-body">
+      <div class="git-clone-field">
+        <label>Repository URL</label>
+        <input type="text"
+               id="git-clone-url"
+               placeholder="https://github.com/user/repo.git">
+      </div>
+      <div class="git-clone-field">
+        <label>Target folder (optional)</label>
+        <input type="text"
+               id="git-clone-folder"
+               placeholder="Leave empty for repo name">
+        <span class="git-clone-hint">Cloned into workspace/ directory</span>
+      </div>
+      <div class="git-clone-field">
+        <label>Branch (optional)</label>
+        <input type="text" id="git-clone-branch" placeholder="main">
+      </div>
+      <details class="git-clone-auth-section" id="git-clone-auth-section">
+        <summary class="git-clone-auth-toggle">
+          <svg class="ic" width="14" height="14" style="margin-right: 6px;">
+            <use href="#icon-shield"></use>
+          </svg>
+          Authentication (optional)
+        </summary>
+        <div class="git-clone-auth-fields">
+          <div class="git-clone-field">
+            <label>Username</label>
+            <input type="text"
+                   id="git-clone-username"
+                   placeholder="GitHub username"
+                   autocomplete="username">
+          </div>
+          <div class="git-clone-field">
+            <label>Token / PAT</label>
+            <input type="password"
+                   id="git-clone-token"
+                   placeholder="ghp_xxxxxxxxxxxx"
+                   autocomplete="current-password">
+            <span class="git-clone-hint">Personal Access Token — never stored, used once for this operation</span>
+          </div>
+        </div>
+      </details>
+    </div>
+    <div class="git-clone-progress" id="git-clone-progress">
+      <div class="git-clone-progress-text" id="git-clone-progress-text">Cloning...</div>
+      <div class="git-clone-progress-bar">
+        <div class="git-clone-progress-fill" id="git-clone-progress-fill"></div>
+      </div>
+    </div>
+    <div class="git-clone-footer">
+      <button class="btn btn-secondary" id="git-clone-cancel">Cancel</button>
+      <button class="btn btn-primary" id="git-clone-submit">
+        <svg class="ic" width="16" height="16">
+          <use href="#icon-link"></use>
+        </svg>
+        Clone
+      </button>
+    </div>
+  </div>
+</div>
+<!-- Export Dialog Modal -->
+<div class="settings-overlay"
+     id="pt-export-modal"
+     style="display:none;
+            z-index:9999;
+            justify-content:center;
+            align-items:center">
+  <div class="settings-drawer"
+       style="width:400px;
+              border-radius:8px;
+              height:auto;
+              box-shadow:var(--shadow-lg);
+              animation:none;
+              margin:0;
+              border:1px solid var(--border)">
+    <div class="settings-header">
+      <h2>Export Presentation</h2>
+      <button class="icon-btn" id="pt-export-close">✕</button>
+    </div>
+    <div class="settings-body">
+      <div class="settings-group">
+        <label class="settings-label">Format</label>
+        <select id="pt-export-format" class="settings-input">
+          <option value="pptx">PowerPoint (.pptx)</option>
+          <option value="pdf">PDF Document (.pdf)</option>
+          <option value="pdf-cmyk">PDF High Quality CMYK (.pdf)</option>
+          <option value="docx">Word Document (.docx)</option>
+          <option value="png">Images (.png / .zip)</option>
+        </select>
+      </div>
+      <div class="settings-group">
+        <label class="settings-label">Pages to Export</label>
+        <div style="margin-bottom:10px;">
+          <label style="display:flex; align-items:center; gap:8px;">
+            <input type="radio" name="pt-export-pages" value="all" checked>
+            All Pages
+          </label>
+          <label style="display:flex; align-items:center; gap:8px; margin-top:8px;">
+            <input type="radio" name="pt-export-pages" value="current">
+            Current Page Only
+          </label>
+          <label style="display:flex; align-items:center; gap:8px; margin-top:8px;">
+            <input type="radio" name="pt-export-pages" value="custom">
+            Custom Pages (e.g., 1,3,4-6)
+          </label>
+        </div>
+        <input type="text"
+               id="pt-export-custom-pages"
+               class="settings-input"
+               placeholder="1,3,4-6"
+               disabled>
+      </div>
+      <div style="margin-top:20px; display:flex; justify-content:flex-end;">
+        <button class="btn btn-primary" id="pt-export-confirm">Export Now</button>
+      </div>
+    </div>
+  </div>
+</div>
+<!-- Presentation Element Context Menu -->
+<div id="pt-context-menu"
+     class="context-menu"
+     style="display:none;
+            position:fixed;
+            z-index:9999;
+            background:var(--bg-elevated);
+            border:1px solid var(--border);
+            border-radius:6px;
+            box-shadow:0 4px 16px rgba(0,0,0,0.5);
+            padding:4px 0;
+            min-width:200px;
+            flex-direction:column;
+            font-size:12px">
+  <button class="context-menu-item"
+          id="pt-ctx-copy"
+          style="padding:8px 12px;
+                 text-align:left;
+                 background:none;
+                 border:none;
+                 color:var(--text-primary);
+                 cursor:pointer;
+                 width:100%;
+                 display:flex;
+                 justify-content:space-between;
+                 align-items:center">
+    Copy<span style="opacity:0.5; font-size:11px; margin-left:16px;">Ctrl+C</span>
+  </button>
+  <button class="context-menu-item"
+          id="pt-ctx-cut"
+          style="padding:8px 12px;
+                 text-align:left;
+                 background:none;
+                 border:none;
+                 color:var(--text-primary);
+                 cursor:pointer;
+                 width:100%;
+                 display:flex;
+                 justify-content:space-between;
+                 align-items:center">
+    Cut<span style="opacity:0.5; font-size:11px; margin-left:16px;">Ctrl+X</span>
+  </button>
+  <button class="context-menu-item"
+          id="pt-ctx-paste"
+          style="padding:8px 12px;
+                 text-align:left;
+                 background:none;
+                 border:none;
+                 color:var(--text-primary);
+                 cursor:pointer;
+                 width:100%;
+                 display:flex;
+                 justify-content:space-between;
+                 align-items:center">
+    Paste<span style="opacity:0.5; font-size:11px; margin-left:16px;">Ctrl+V</span>
+  </button>
+  <button class="context-menu-item"
+          id="pt-ctx-duplicate"
+          style="padding:8px 12px;
+                 text-align:left;
+                 background:none;
+                 border:none;
+                 color:var(--text-primary);
+                 cursor:pointer;
+                 width:100%;
+                 display:flex;
+                 justify-content:space-between;
+                 align-items:center">
+    Duplicate<span style="opacity:0.5; font-size:11px; margin-left:16px;">Ctrl+D</span>
+  </button>
+  <div style="height:1px; background:var(--border); margin:4px 0;"></div>
+  <button class="context-menu-item"
+          id="pt-ctx-forward"
+          style="padding:8px 12px;
+                 text-align:left;
+                 background:none;
+                 border:none;
+                 color:var(--text-primary);
+                 cursor:pointer;
+                 width:100%">Bring Forward</button>
+  <button class="context-menu-item"
+          id="pt-ctx-backward"
+          style="padding:8px 12px;
+                 text-align:left;
+                 background:none;
+                 border:none;
+                 color:var(--text-primary);
+                 cursor:pointer;
+                 width:100%">Send Backward</button>
+  <div style="height:1px; background:var(--border); margin:4px 0;"></div>
+  <button class="context-menu-item"
+          id="pt-ctx-front"
+          style="padding:8px 12px;
+                 text-align:left;
+                 background:none;
+                 border:none;
+                 color:var(--text-primary);
+                 cursor:pointer;
+                 width:100%">Bring to Front</button>
+  <button class="context-menu-item"
+          id="pt-ctx-back"
+          style="padding:8px 12px;
+                 text-align:left;
+                 background:none;
+                 border:none;
+                 color:var(--text-primary);
+                 cursor:pointer;
+                 width:100%">Send to Back</button>
+  <div style="height:1px; background:var(--border); margin:4px 0;"></div>
+  <button class="context-menu-item"
+          id="pt-ctx-bg"
+          style="padding:8px 12px;
+                 text-align:left;
+                 background:none;
+                 border:none;
+                 color:var(--text-primary);
+                 cursor:pointer;
+                 width:100%">Set as Background</button>
+  <div style="height:1px; background:var(--border); margin:4px 0;"></div>
+  <button class="context-menu-item"
+          id="pt-ctx-delete"
+          style="padding:8px 12px;
+                 text-align:left;
+                 background:none;
+                 border:none;
+                 color:var(--red);
+                 cursor:pointer;
+                 width:100%">Delete</button>
+</div>
+<!-- ======== Performance Dashboard Modal ======== -->
+<div class="settings-overlay"
+     id="performance-overlay"
+     style="display:none;
+            z-index:10000;
+            justify-content:center;
+            align-items:center">
+  <div class="settings-drawer"
+       style="width:800px;
+              max-width:90vw;
+              height:80vh;
+              max-height:800px;
+              display:flex;
+              flex-direction:column;
+              border-radius:12px;
+              box-shadow:var(--shadow-xl);
+              border:1px solid var(--border)">
+    <div class="settings-header" style="flex:0 0 auto;">
+      <div style="display:flex; align-items:center; gap:8px;">
+        <h2>Performance & Usage Dashboard</h2>
+      </div>
+      <button class="icon-btn" id="performance-close">
+        <svg class="ic" width="14" height="14">
+          <use href="#icon-x"></use>
+        </svg>
+      </button>
+    </div>
+    <div class="settings-body"
+         style="flex:1 1 auto;
+                overflow-y:auto;
+                padding:24px;
+                display:flex;
+                flex-direction:column;
+                gap:24px;
+                background:var(--bg-default)">
+      <!-- Summary Stats -->
+      <div style="display:grid;
+                  grid-template-columns:repeat(auto-fit, minmax(200px, 1fr));
+                  gap:16px">
+        <div style="background:var(--bg-elevated);
+                    padding:16px;
+                    border-radius:8px;
+                    border:1px solid var(--border)">
+          <div style="font-size:12px; color:var(--text-muted); margin-bottom:4px;">Total Tokens Processed</div>
+          <div id="perf-total-tokens"
+               style="font-size:24px;
+                      font-weight:bold;
+                      color:var(--accent)">--</div>
+          <div style="font-size:11px; color:var(--text-muted); margin-top:4px;">Input & Output combined</div>
+        </div>
+        <div style="background:var(--bg-elevated);
+                    padding:16px;
+                    border-radius:8px;
+                    border:1px solid var(--border)">
+          <div style="font-size:12px; color:var(--text-muted); margin-bottom:4px;">Tokens Saved</div>
+          <div id="perf-tokens-saved"
+               style="font-size:24px;
+                      font-weight:bold;
+                      color:var(--green)">--</div>
+          <div id="perf-savings-pct"
+               style="font-size:11px;
+                      color:var(--green);
+                      margin-top:4px">--% reduction</div>
+        </div>
+        <div style="background:var(--bg-elevated);
+                    padding:16px;
+                    border-radius:8px;
+                    border:1px solid var(--border)">
+          <div style="font-size:12px; color:var(--text-muted); margin-bottom:4px;">API Agents / Tools Called</div>
+          <div id="perf-total-tools"
+               style="font-size:24px;
+                      font-weight:bold;
+                      color:var(--text-primary)">--</div>
+          <div style="font-size:11px; color:var(--text-muted); margin-top:4px;">Total successful executions</div>
+        </div>
+      </div>
+      <!-- Cloud Providers Configuration -->
+      <div style="background:var(--bg-elevated);
+                  padding:16px;
+                  border-radius:8px;
+                  border:1px solid var(--border)">
+        <h3 style="font-size:14px;
+                   margin-bottom:12px;
+                   display:flex;
+                   align-items:center;
+                   justify-content:space-between;
+                   gap:8px">
+          <span>
+            <svg class="ic" width="14" height="14" style="margin-right: 6px;">
+              <use href="#icon-cloud"></use>
+            </svg>
+          Cloud Providers Configuration</span>
+          <button class="btn btn-primary btn-sm" id="btn-save-perf-env">Save Provider Settings</button>
+        </h3>
+        <div id="perf-providers-container"
+             style="display:flex;
+                    flex-direction:column;
+                    gap:12px">
+          <div style="color:var(--text-muted); font-size:12px;">Loading providers settings...</div>
+        </div>
+      </div>
+      <!-- Latency by Model -->
+      <div>
+        <h3 style="font-size:14px; margin-bottom:12px;">
+          <svg class="ic" width="14" height="14" style="margin-right: 6px;">
+            <use href="#icon-bolt"></use>
+          </svg>
+          Average Response Time (per Model / Provider)
+        </h3>
+        <div id="perf-model-latency-list"
+             style="display:flex;
+                    flex-direction:column;
+                    gap:8px">
+          <!-- Populated by JS -->
+          <div style="color:var(--text-muted); font-size:12px;">Loading...</div>
+        </div>
+      </div>
+      <!-- Usage by Tool -->
+      <div>
+        <h3 style="font-size:14px; margin-bottom:12px;">
+          <svg class="ic" width="14" height="14" style="margin-right: 6px;">
+            <use href="#icon-settings"></use>
+          </svg>
+          Usage & Token Savings (per Tool / Agent)
+        </h3>
+        <div id="perf-tool-usage-list"
+             style="display:flex;
+                    flex-direction:column;
+                    gap:8px">
+          <!-- Populated by JS -->
+          <div style="color:var(--text-muted); font-size:12px;">Loading...</div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+<!-- ======== RAG Profil Editor Modal ======== -->
+<div class="settings-overlay"
+     id="rag-profil-editor-overlay"
+     style="display:none;
+            z-index:10001;
+            justify-content:center;
+            align-items:center">
+  <div class="settings-drawer"
+       style="width:600px;
+              max-width:95vw;
+              height:80vh;
+              max-height:800px;
+              display:flex;
+              flex-direction:column;
+              border-radius:12px;
+              box-shadow:var(--shadow-xl);
+              border:1px solid var(--border)">
+    <div class="settings-header" style="flex:0 0 auto;">
+      <div style="display:flex; align-items:center; gap:8px;">
+        <h2 id="rag-profil-editor-title">Edit Profile</h2>
+      </div>
+      <button class="icon-btn" id="rag-profil-editor-close">
+        <svg class="ic" width="14" height="14">
+          <use href="#icon-x"></use>
+        </svg>
+      </button>
+    </div>
+    <div class="settings-body"
+         style="flex:1 1 auto;
+                padding:16px;
+                display:flex;
+                flex-direction:column;
+                background:var(--bg-default)">
+      <textarea id="rag-profil-editor-textarea"
+                style="flex:1 1 auto;
+                       width:100%;
+                       border:1px solid var(--border);
+                       border-radius:6px;
+                       padding:12px;
+                       font-family:var(--font-mono);
+                       font-size:13px;
+                       background:var(--bg-elevated);
+                       color:var(--text-primary);
+                       resize:none"
+                placeholder="File content will appear here..."></textarea>
+      <div style="flex:0 0 auto;
+                  display:flex;
+                  justify-content:flex-end;
+                  gap:8px;
+                  margin-top:16px">
+        <button class="btn btn-secondary" id="rag-profil-editor-cancel">Cancel</button>
+        <button class="btn btn-primary" id="rag-profil-editor-save">
+          <svg class="ic" width="14" height="14" style="margin-right: 6px;">
+            <use href="#icon-save"></use>
+          </svg>
+          Save
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
+<!-- ======== Env Settings Editor Modal ======== -->
+<div class="settings-overlay"
+     id="env-modal-overlay"
+     style="display:none;
+            z-index:10002;
+            justify-content:center;
+            align-items:center">
+  <div class="settings-drawer"
+       style="width:800px;
+              max-width:95vw;
+              height:80vh;
+              max-height:800px;
+              display:flex;
+              flex-direction:column;
+              border-radius:12px;
+              box-shadow:var(--shadow-xl);
+              border:1px solid var(--border)">
+    <div class="settings-header" style="flex:0 0 auto;">
+      <div style="display:flex; align-items:center; gap:8px;">
+        <h2>Tokens & Environment Variables</h2>
+      </div>
+      <button class="icon-btn" id="env-modal-close">
+        <svg class="ic" width="14" height="14">
+          <use href="#icon-x"></use>
+        </svg>
+      </button>
+    </div>
+    <div class="settings-body"
+         style="flex:1 1 auto;
+                padding:24px;
+                display:flex;
+                flex-direction:column;
+                background:var(--bg-default);
+                overflow-y:auto">
+      <div id="env-modal-table-container">
+        <div style="color:var(--text-muted); font-size:12px;">Loading...</div>
+      </div>
+      <div style="flex:0 0 auto;
+                  display:flex;
+                  justify-content:flex-end;
+                  gap:8px;
+                  margin-top:24px">
+        <button class="btn btn-secondary" id="env-modal-cancel">Cancel</button>
+        <button class="btn btn-primary" id="env-modal-save">
+          <svg class="ic" width="14" height="14" style="margin-right: 6px;">
+            <use href="#icon-save"></use>
+          </svg>
+          Save Changes
+        </button>
+      </div>
+    </div>
+  </div>
+</div>

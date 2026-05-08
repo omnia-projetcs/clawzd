@@ -1,0 +1,53 @@
+<!-- ---- Left Sidebar: Chat History + Files ---- -->
+        <aside class="sidebar" id="sidebar">
+          <div class="sidebar-tabs">
+            <button class="sidebar-tab active" data-tab="history" id="tab-history">
+              <svg class="ic" width="16" height="16"><use href="#icon-chat"></use></svg>
+              Chats
+            </button>
+            <button class="sidebar-tab" data-tab="files" id="tab-files">
+              <svg class="ic" width="16" height="16"><use href="#icon-folder"></use></svg>
+              Files
+            </button>
+          </div>
+          <!-- Chat History Panel -->
+          <div class="sidebar-panel active" id="panel-history">
+            <div class="sidebar-panel-header">
+              <button class="btn btn-primary btn-sm btn-block" id="btn-new-chat">
+                <svg class="ic" width="14" height="14"><use href="#icon-plus"></use></svg>
+                New Chat
+              </button>
+            </div>
+            <div class="sidebar-search">
+              <input type="text" placeholder="Search chats..." id="chat-search">
+              <button class="search-clear" id="search-clear" title="Clear search">
+                <svg class="ic" width="14" height="14"><use href="#icon-x"></use></svg>
+              </button>
+            </div>
+            <div class="session-list" id="session-list">
+              <!-- Sessions populated by JS -->
+            </div>
+          </div>
+          <!-- Files Panel -->
+          <div class="sidebar-panel" id="panel-files">
+            <div class="sidebar-panel-header">
+              <span class="sidebar-label">Project Files</span>
+              <div class="sidebar-actions">
+                <button class="icon-btn" id="btn-new-file" title="New file">
+                  <svg class="ic" width="14" height="14"><use href="#icon-plus"></use></svg>
+                </button>
+              </div>
+            </div>
+            <div class="file-tree" id="file-tree"></div>
+            <div class="sidebar-footer" style="display:flex;flex-direction:column;gap:6px;">
+              <button class="btn btn-secondary btn-sm btn-block" id="btn-transfer-editor">
+                <svg class="ic" width="14" height="14"><use href="#icon-monitor"></use></svg>
+                Transfer to Editor
+              </button>
+              <button class="btn btn-accent btn-sm btn-block" id="btn-export">
+                <svg class="ic" width="14" height="14"><use href="#icon-download"></use></svg>
+                Export ZIP
+              </button>
+            </div>
+          </div>
+        </aside>

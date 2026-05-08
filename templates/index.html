@@ -1,0 +1,48 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8">
+    <title>Clawzd — AI Assistant</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="description"
+          content="Clawzd — Local-first AI assistant with code editor, file management, and multi-provider LLM support">
+    <link rel="stylesheet" href="/static/css/style.css?v=3">
+    <link rel="stylesheet" href="/static/css/components/chat_enhancements.css">
+    <link rel="stylesheet" href="/static/css/studios/_spec.css">
+    <link id="hljs-theme"
+          rel="stylesheet"
+          href="/static/css/github-dark.min.css">
+    <link rel="icon" type="image/png" href="/static/img/icon.png">
+    <script src="/static/js/highlight.min.js"></script>
+    <script src="/static/js/mermaid.min.js"></script>
+    <script src="/static/js/chart.min.js"></script>
+    <script src="/static/js/cm6.bundle.js"></script>
+  </head>
+  <body>
+    <!-- Inject the SVG Sprite here -->
+    {% include 'partials/icons.html' %}
+    <div id="app">
+      {% include 'partials/header.html' %}
+      <main class="app-main" id="app-main">
+        {% include 'partials/sidebar.html' %}
+        {% include 'partials/chat_panel.html' %}
+        {% include 'partials/editor_layout.html' %}
+        {% include 'partials/presentation_studio.html' %}
+        {% include 'partials/automation_studio.html' %}
+        {% include 'partials/research_studio.html' %}
+        {% include 'partials/media_studio.html' %}
+        {% include 'partials/project_studio.html' %}
+      </main>
+      {% include 'partials/modals_overlay.html' %}
+      {% include 'partials/status_bar.html' %}
+    </div>
+    <script src="/static/js/icons.js"></script>
+    <script src="/static/js/lucide.min.js"></script>
+    <script src="/static/js/project_studio.js"></script>
+    <script src="/static/js/studios/spec.js"></script>
+    <script src="/static/js/studios/research.js"></script>
+    <script src="/static/js/components/token_tracker.js"></script>
+    <script src="/static/js/components/chat_enhancements.js"></script>
+    <script src="/static/js/app.js?v=3"></script>
+  </body>
+</html>

@@ -1,0 +1,285 @@
+<!-- ---- Research Studio Layout (V2) ---- -->
+<div class="research-layout" id="research-layout" style="display:none">
+  <!-- Left: Project List -->
+  <div class="rs-sidebar" id="rs-sidebar">
+    <div class="rs-sidebar-header">
+      <span class="rs-sidebar-title">Research</span>
+      <button class="icon-btn" id="rs-btn-new" title="New Research">
+        <svg class="ic" width="14" height="14">
+          <use href="#icon-plus"></use>
+        </svg>
+      </button>
+    </div>
+    <div class="rs-search-wrap">
+      <input type="text"
+             id="rs-search"
+             class="auto-search-input"
+             placeholder="Search projects..."
+             autocomplete="off">
+    </div>
+    <div class="rs-project-list" id="rs-project-list">
+      <div class="rs-empty">
+        No research projects yet.
+        <br>
+        Click + to start.
+      </div>
+    </div>
+  </div>
+  <!-- Center: Workspace -->
+  <div class="rs-center">
+    <!-- AI Prompt Bar with Profile Selector -->
+    <div class="rs-prompt-bar">
+      <span class="pt-ai-icon">
+        <svg class="ic" width="16" height="16">
+          <use href="#icon-search"></use>
+        </svg>
+      </span>
+      <input type="text"
+             id="rs-query-input"
+             class="pt-ai-input"
+             placeholder="Describe your research topic..."
+             autocomplete="off">
+      <select id="rs-profile-select"
+              class="rs-provider-select"
+              title="Research Profile">
+        <option value="">Select a Profile...</option>
+        <!-- Profiles loaded dynamically -->
+      </select>
+      <select id="rs-provider-select"
+              class="rs-provider-select"
+              title="LLM Provider">
+        <option value="">System Default</option>
+        <option value="ollama">Ollama</option>
+        <option value="google">Google Gemini</option>
+        <option value="openai">OpenAI</option>
+        <option value="groq">Groq</option>
+        <option value="mistral">Mistral</option>
+        <option value="openrouter">OpenRouter</option>
+      </select>
+      <button class="pt-ai-generate-btn" id="rs-btn-start" title="Start Research">
+        <span class="pt-ai-gen-label">Research</span>
+        <span class="pt-ai-gen-spinner"></span>
+      </button>
+    </div>
+    <!-- Tabs -->
+    <div class="rs-tabs">
+      <button class="rs-tab active" data-rs-tab="process" id="rs-tab-process">
+        <svg class="ic" width="14" height="14">
+          <use href="#icon-settings"></use>
+        </svg>
+        Process
+      </button>
+      <button class="rs-tab" data-rs-tab="log" id="rs-tab-log">
+        <svg class="ic" width="14" height="14">
+          <use href="#icon-terminal"></use>
+        </svg>
+        Live Log
+      </button>
+      <button class="rs-tab" data-rs-tab="sandbox" id="rs-tab-sandbox">
+        <svg class="ic" width="14" height="14">
+          <use href="#icon-code"></use>
+        </svg>
+        Sandbox
+      </button>
+      <button class="rs-tab" data-rs-tab="results" id="rs-tab-results">
+        <svg class="ic" width="14" height="14">
+          <use href="#icon-list"></use>
+        </svg>
+        Results
+      </button>
+      <button class="rs-tab" data-rs-tab="report" id="rs-tab-report">
+        <svg class="ic" width="14" height="14">
+          <use href="#icon-file-text"></use>
+        </svg>
+        Report
+      </button>
+      <button class="rs-tab" data-rs-tab="assets" id="rs-tab-assets">
+        <svg class="ic" width="14" height="14">
+          <use href="#icon-folder"></use>
+        </svg>
+        Assets
+      </button>
+    </div>
+    <!-- Tab Panels -->
+    <div class="rs-panel active" id="rs-panel-process">
+      <div class="rs-process-editor-wrap">
+        <textarea id="rs-process-editor"
+                  class="rs-process-textarea"
+                  placeholder="Research process markdown..."></textarea>
+        <div class="rs-process-actions">
+          <button class="btn btn-sm" id="rs-btn-save-process">Save Process</button>
+        </div>
+      </div>
+    </div>
+    <div class="rs-panel" id="rs-panel-log">
+      <div class="rs-log" id="rs-log">
+        <div class="rs-log-empty">
+          <svg class="ic" width="40" height="40" style="opacity:0.3">
+            <use href="#icon-search"></use>
+          </svg>
+          <p>Start a research project to see live progress here.</p>
+        </div>
+      </div>
+    </div>
+    <div class="rs-panel" id="rs-panel-sandbox">
+      <div class="rs-sandbox-wrap">
+        <div class="rs-sandbox-header">
+          <span class="rs-sandbox-title">Python Sandbox</span>
+          <div class="rs-sandbox-actions">
+            <button class="btn btn-sm"
+                    id="rs-btn-install-deps"
+                    title="Install Pip Packages">
+              <svg class="ic" width="12" height="12">
+                <use href="#icon-download"></use>
+              </svg>
+              Pip Install
+            </button>
+            <button class="btn btn-sm btn-primary" id="rs-btn-run-code">
+              <svg class="ic" width="12" height="12">
+                <use href="#icon-play"></use>
+              </svg>
+              Run
+            </button>
+          </div>
+        </div>
+        <div class="rs-sandbox-editor" id="rs-sandbox-editor"></div>
+        <div class="rs-sandbox-console" id="rs-sandbox-console">
+          <div class="rs-console-empty">Ready. Output will appear here.</div>
+        </div>
+      </div>
+    </div>
+    <div class="rs-panel" id="rs-panel-results">
+      <div class="rs-results-wrap" id="rs-results-wrap">
+        <div class="rs-log-empty">
+          <svg class="ic" width="40" height="40" style="opacity:0.3">
+            <use href="#icon-list"></use>
+          </svg>
+          <p>Collected results and sources will appear here.</p>
+        </div>
+      </div>
+    </div>
+    <div class="rs-panel" id="rs-panel-report">
+      <div class="rs-report" id="rs-report">
+        <div class="rs-log-empty">
+          <svg class="ic" width="40" height="40" style="opacity:0.3">
+            <use href="#icon-file-text"></use>
+          </svg>
+          <p>The research report will appear here once generated.</p>
+        </div>
+      </div>
+    </div>
+    <div class="rs-panel" id="rs-panel-assets">
+      <div class="rs-assets-grid" id="rs-assets-grid">
+        <div class="rs-log-empty">
+          <svg class="ic" width="40" height="40" style="opacity:0.3">
+            <use href="#icon-folder"></use>
+          </svg>
+          <p>Downloaded PDFs, images, and documents will appear here.</p>
+        </div>
+      </div>
+    </div>
+  </div>
+  <!-- Right: Details -->
+  <div class="rs-details" id="rs-details">
+    <div class="rs-details-section">
+      <h4 class="rs-details-title">Status</h4>
+      <div class="rs-status-badge" id="rs-status-badge">Idle</div>
+    </div>
+    <div class="rs-details-section">
+      <h4 class="rs-details-title">Score</h4>
+      <div class="rs-score-wrap">
+        <div class="rs-score-bar">
+          <div class="rs-score-fill" id="rs-score-fill" style="width:0%"></div>
+        </div>
+        <span class="rs-score-label" id="rs-score-label">0%</span>
+      </div>
+    </div>
+    <div class="rs-details-section">
+      <h4 class="rs-details-title">Iteration</h4>
+      <span id="rs-iteration-label">0 / 10</span>
+    </div>
+    <div class="rs-details-section">
+      <h4 class="rs-details-title">Settings</h4>
+      <label class="rs-setting-label">
+        Target Score
+        <input type="number"
+               id="rs-target-score"
+               class="rs-setting-input"
+               value="0.7"
+               min="0"
+               max="1"
+               step="0.1">
+      </label>
+      <label class="rs-setting-label">
+        Max Iterations
+        <input type="number"
+               id="rs-max-iter"
+               class="rs-setting-input"
+               value="10"
+               min="1"
+               max="50">
+      </label>
+    </div>
+    <div class="rs-details-section">
+      <h4 class="rs-details-title">Actions</h4>
+      <button class="btn btn-primary btn-sm btn-block"
+              id="rs-btn-resume"
+              style="display:none">
+        <svg class="ic" width="14" height="14">
+          <use href="#icon-play"></use>
+        </svg>
+        Resume
+      </button>
+      <button class="btn btn-secondary btn-sm btn-block"
+              id="rs-btn-pause"
+              style="display:none">
+        <svg class="ic" width="14" height="14">
+          <use href="#icon-pause"></use>
+        </svg>
+        Pause
+      </button>
+      <button class="btn btn-secondary btn-sm btn-block"
+              id="rs-btn-evaluate"
+              style="display:none">
+        <svg class="ic" width="14" height="14">
+          <use href="#icon-sparkles2"></use>
+        </svg>
+        Re-evaluate
+      </button>
+    </div>
+    <div class="rs-details-section">
+      <h4 class="rs-details-title">Export</h4>
+      <div class="rs-export-btns">
+        <button class="btn btn-sm btn-block"
+                id="rs-export-md"
+                title="Export Markdown">.md</button>
+        <button class="btn btn-sm btn-block" id="rs-export-docx" title="Export Word">.docx</button>
+        <button class="btn btn-sm btn-block" id="rs-export-pdf" title="Export PDF">.pdf</button>
+      </div>
+      <button class="btn btn-accent btn-sm btn-block"
+              id="rs-export-zip"
+              style="margin-top:6px">
+        <svg class="ic" width="14" height="14">
+          <use href="#icon-download"></use>
+        </svg>
+        Export ZIP
+      </button>
+    </div>
+    <div class="rs-details-section">
+      <h4 class="rs-details-title">Assets</h4>
+      <div class="rs-asset-list" id="rs-asset-list">
+        <span style="opacity:0.5;font-size:12px">No assets yet</span>
+      </div>
+    </div>
+    <div class="rs-details-section" style="margin-top:auto">
+      <button class="btn btn-sm btn-block"
+              id="rs-btn-delete"
+              style="color:var(--red)">
+        <svg class="ic" width="14" height="14">
+          <use href="#icon-x"></use>
+        </svg>
+        Delete Project
+      </button>
+    </div>
+  </div>
+</div>

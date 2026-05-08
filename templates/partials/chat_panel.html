@@ -1,0 +1,168 @@
+<!-- ---- Center: Chat Panel ---- -->
+<section class="chat-panel" id="chat-panel">
+  <div class="chat-messages" id="chat-messages">
+    <div class="arena-container" id="arena-container" style="display:none"></div>
+    <div class="arena-eval-panel" id="arena-eval-panel" style="display:none">
+      <button class="arena-eval-btn" id="arena-eval-btn">Ask AI to Judge</button>
+    </div>
+    <div class="chat-welcome" id="chat-welcome">
+      <div class="welcome-glow"></div>
+      <div class="chat-welcome-icon">
+        <svg class="ic" width="16" height="16">
+          <use href="#icon-bolt"></use>
+        </svg>
+      </div>
+      <h1>Clawzd</h1>
+      <p>Your local-first AI assistant. Ask anything, generate code, and export full projects.</p>
+      <div class="welcome-cards">
+        <div class="welcome-card"
+             data-prompt="Write a Python FastAPI server with CRUD endpoints">
+          <span class="welcome-card-icon">
+            <svg class="ic" width="16" height="16">
+              <use href="#icon-monitor"></use>
+            </svg>
+          </span>
+          <span>Build a FastAPI server</span>
+        </div>
+        <div class="welcome-card"
+             data-prompt="Design a modern dark-themed dashboard layout in HTML/CSS">
+          <span class="welcome-card-icon">
+            <svg class="ic" width="16" height="16">
+              <use href="#icon-palette"></use>
+            </svg>
+          </span>
+          <span>Design a dashboard</span>
+        </div>
+        <div class="welcome-card"
+             data-prompt="Explain microservices architecture with a Mermaid diagram">
+          <span class="welcome-card-icon">
+            <svg class="ic" width="16" height="16">
+              <use href="#icon-layers"></use>
+            </svg>
+          </span>
+          <span>Explain architecture</span>
+        </div>
+        <div class="welcome-card"
+             data-prompt="Review this code for security vulnerabilities and best practices">
+          <span class="welcome-card-icon">
+            <svg class="ic" width="16" height="16">
+              <use href="#icon-search"></use>
+            </svg>
+          </span>
+          <span>Audit my code</span>
+        </div>
+      </div>
+    </div>
+  </div>
+  <!-- ======== Redesigned Chat Input (Claude-style) ======== -->
+  <div class="chat-input-area" id="chat-input-area">
+    <div class="chat-input-wrapper">
+      <!-- Main text row -->
+      <div class="input-text-row">
+        <textarea class="chat-input"
+                  id="chat-input"
+                  placeholder="Send a message…"
+                  rows="1"></textarea>
+      </div>
+      <!-- Bottom toolbar row: attach + model picker | voice + send -->
+      <div class="input-toolbar">
+        <div class="input-toolbar-left">
+          <button class="input-tool-btn" id="btn-attach" title="Attach file">
+            <svg class="ic" width="16" height="16">
+              <use href="#icon-plus"></use>
+            </svg>
+          </button>
+          <input type="file"
+                 id="chat-file-input"
+                 multiple
+                 accept=".txt,.md,.py,.js,.ts,.html,.css,.json,.csv,.xml,.yaml,.yml,.sh,.sql,.go,.rs,.java,.c,.cpp,.rb,.php,.log,.env,.toml,.ini,.png,.jpg,.jpeg,.gif,.webp,.pdf,.docx,.pptx,.xlsx"
+                 hidden>
+          <!-- Action Mode Select -->
+          <select class="action-mode-select" id="action-mode-select" title="Chat Mode">
+            <option value="none">💬 Chat</option>
+            <option value="developer">💻 Code</option>
+            <option value="writer">✏️ Write</option>
+            <option value="auditor">🔍 Audit</option>
+            <option value="architect">🏗️ Architect</option>
+            <option value="designer">🎨 Design</option>
+            <hr style="background:var(--border); width:100%; height:1px;">
+            <option value="auto">🤖 Auto</option>
+            <option value="step-by-step">📋 Step by Step</option>
+            <hr style="background:var(--border); width:100%; height:1px;">
+            <option value="rag">📚 RAG</option>
+            <option value="jailbreak">🔓 Jailbreak</option>
+            <option value="arena">⚔️ Arena</option>
+          </select>
+          <!-- Inline model/provider picker -->
+          <div class="input-model-picker" id="input-model-picker">
+            <button class="model-picker-btn" id="model-picker-btn" title="Change model">
+              <span class="model-picker-label" id="model-picker-label">Ollama</span>
+              <svg class="ic" width="10" height="10">
+                <use href="#icon-chevron-down"></use>
+              </svg>
+            </button>
+            <!-- Hidden dropdown -->
+            <div class="model-picker-dropdown" id="model-picker-dropdown">
+              <div class="mpd-section-title">Provider</div>
+              <div class="mpd-options" id="mpd-provider-list">
+                <!-- populated by JS -->
+              </div>
+              <div class="mpd-divider"></div>
+              <div class="mpd-section-title">Model</div>
+              <div class="mpd-options" id="mpd-model-list">
+                <!-- populated by JS -->
+              </div>
+            </div>
+          </div>
+          <!-- Skill catalog indicator -->
+          <button class="input-skill-indicator"
+                  id="input-skill-indicator"
+                  title="Active Skills"
+                  style="display:none">
+            <svg class="ic" width="12" height="12">
+              <use href="#icon-bolt"></use>
+            </svg>
+            <span id="input-skill-count">0</span>
+          </button>
+        </div>
+        <div class="input-toolbar-right">
+          <button class="input-tool-btn" id="btn-voice" title="Voice input">
+            <svg class="ic" width="16" height="16">
+              <use href="#icon-mic"></use>
+            </svg>
+          </button>
+          <button class="chat-stop-btn"
+                  id="chat-stop"
+                  title="Stop generation"
+                  style="display:none">
+            <svg class="ic" width="18" height="18">
+              <use href="#icon-square"></use>
+            </svg>
+          </button>
+          <button class="chat-send-btn" id="chat-send" title="Send">
+            <svg class="ic" width="18" height="18">
+              <use href="#icon-send"></use>
+            </svg>
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+  <!-- Hidden selects for backward compat -->
+  <select id="provider-select" style="display:none" title="LLM Provider">
+    <option value="google">Google Gemini</option>
+    <option value="grok">Grok (xAI)</option>
+    <option value="groq">Groq</option>
+    <option value="huggingface">HuggingFace</option>
+    <option value="mistral">Mistral</option>
+    <option value="ollama" selected>Ollama</option>
+    <option value="openai">OpenAI</option>
+    <option value="openrouter">OpenRouter</option>
+  </select>
+  <select id="model-select" style="display:none" title="Model">
+    <option value="">Default</option>
+  </select>
+  <select id="preprompt-select" style="display:none" title="Pre-prompt">
+    <option value="none">None</option>
+  </select>
+</section>

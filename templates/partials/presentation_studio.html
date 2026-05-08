@@ -1,0 +1,983 @@
+<!-- ---- Presentation Mode Layout ---- -->
+<div class="presentation-layout"
+     id="presentation-layout"
+     style="display:none">
+  <div class="presentation-sidebar-left">
+    <div class="presentation-tools">
+      <div class="presentation-shapes-section-label">Basics</div>
+      <div class="presentation-shapes-grid" style="margin-bottom: 6px;">
+        <button class="presentation-shape-tile" id="pt-add-text" title="Add Text">
+          <svg class="ic" width="16" height="16"><use href="#icon-presentation-icon"></use></svg>
+        </button>
+        <button class="presentation-shape-tile" id="pt-add-image" title="Add Image">
+          <svg class="ic" width="16" height="16"><use href="#icon-image-icon"></use></svg>
+        </button>
+        <button class="presentation-shape-tile" id="pt-add-table" title="Add Table">
+          <svg class="ic" width="16" height="16"><use href="#icon-table-icon"></use></svg>
+        </button>
+        <button class="presentation-shape-tile"
+                id="pt-show-library"
+                title="Icon Library">
+          <svg class="ic" width="16" height="16"><use href="#icon-smile"></use></svg>
+        </button>
+        <button class="presentation-shape-tile"
+                id="pt-show-illustrations"
+                title="SVG Illustrations">
+          <svg class="ic" width="16" height="16"><use href="#icon-pen-tool"></use></svg>
+        </button>
+        <button class="presentation-shape-tile"
+                id="pt-show-stock-photos"
+                title="Stock Photos">
+          <svg class="ic" width="16" height="16"><use href="#icon-camera"></use></svg>
+        </button>
+      </div>
+      <div style="height:1px; background:var(--border); margin:6px 0;"></div>
+      <div class="presentation-shapes-section-label"
+           id="pt-shapes-toggle"
+           style="cursor: pointer;
+                  display: flex;
+                  align-items: center;
+                  justify-content: space-between;
+                  padding-top: 8px"
+           title="Toggle Shapes">
+        <span>Shapes</span>
+        <svg class="ic" width="12" height="12" style="transition: transform 0.2s"><use href="#icon-chevron-down"></use></svg>
+      </div>
+      <div class="presentation-shapes-grid" id="pt-shapes-grid">
+        <!-- Basic Shapes -->
+        <button class="presentation-shape-tile" id="pt-add-rect" title="Rectangle">
+          <svg class="ic" width="16" height="16"><use href="#icon-square"></use></svg>
+        </button>
+        <button class="presentation-shape-tile"
+                id="pt-add-rounded-rect"
+                title="Rounded Rectangle">
+          <svg class="ic" width="16" height="16"><use href="#icon-rectangle"></use></svg>
+        </button>
+        <button class="presentation-shape-tile" id="pt-add-circle" title="Circle">
+          <svg class="ic" width="16" height="16"><use href="#icon-circle-icon"></use></svg>
+        </button>
+        <button class="presentation-shape-tile" id="pt-add-triangle" title="Triangle">
+          <svg class="ic" width="16" height="16"><use href="#icon-triangle"></use></svg>
+        </button>
+        <!-- Extended Shapes -->
+        <button class="presentation-shape-tile" id="pt-add-diamond" title="Diamond">
+          <svg class="ic" width="16" height="16"><use href="#icon-diamond"></use></svg>
+        </button>
+        <button class="presentation-shape-tile" id="pt-add-pentagon" title="Pentagon">
+          <svg class="ic" width="16" height="16"><use href="#icon-pentagon"></use></svg>
+        </button>
+        <button class="presentation-shape-tile" id="pt-add-hexagon" title="Hexagon">
+          <svg class="ic" width="16" height="16"><use href="#icon-hexagon"></use></svg>
+        </button>
+        <button class="presentation-shape-tile" id="pt-add-star" title="Star">
+          <svg class="ic" width="16" height="16"><use href="#icon-star"></use></svg>
+        </button>
+        <button class="presentation-shape-tile" id="pt-add-heart" title="Heart">
+          <svg class="ic" width="16" height="16"><use href="#icon-heart"></use></svg>
+        </button>
+        <button class="presentation-shape-tile"
+                id="pt-add-cross"
+                title="Cross / Plus">
+          <svg class="ic" width="16" height="16"><use href="#icon-cross"></use></svg>
+        </button>
+        <button class="presentation-shape-tile" id="pt-add-arrow" title="Arrow">
+          <svg class="ic" width="16" height="16"><use href="#icon-arrow-right"></use></svg>
+        </button>
+        <button class="presentation-shape-tile" id="pt-add-chevron" title="Chevron">
+          <svg class="ic" width="16" height="16"><use href="#icon-chevron-right-icon"></use></svg>
+        </button>
+        <button class="presentation-shape-tile" id="pt-add-cloud" title="Cloud">
+          <svg class="ic" width="16" height="16"><use href="#icon-cloud-icon"></use></svg>
+        </button>
+        <button class="presentation-shape-tile"
+                id="pt-add-speech-bubble"
+                title="Speech Bubble">
+          <svg class="ic" width="16" height="16"><use href="#icon-chat"></use></svg>
+        </button>
+        <button class="presentation-shape-tile"
+                id="pt-add-parallelogram"
+                title="Parallelogram">
+          <svg class="ic" width="16" height="16"><use href="#icon-trapezoid"></use></svg>
+        </button>
+        <button class="presentation-shape-tile"
+                id="pt-add-trapezoid"
+                title="Trapezoid">
+          <svg class="ic" width="16" height="16"><use href="#icon-parallelogram"></use></svg>
+        </button>
+        <button class="presentation-shape-tile" id="pt-add-ring" title="Ring">
+          <svg class="ic" width="16" height="16"><use href="#icon-double-circle"></use></svg>
+        </button>
+      </div>
+      <div style="height:1px; background:var(--border); margin:6px 0;"></div>
+
+      <!-- New Templates Section -->
+      <div class="presentation-shapes-section-label"
+           id="pt-templates-toggle"
+           style="cursor: pointer;
+                  display: flex;
+                  align-items: center;
+                  justify-content: space-between;
+                  padding-top: 8px"
+           title="Toggle Templates">
+        <span>Templates</span>
+        <svg class="ic" width="12" height="12" style="transition: transform 0.2s; transform: rotate(180deg)"><use href="#icon-chevron-down"></use></svg>
+      </div>
+      <div class="presentation-templates-grid" 
+           id="pt-templates-grid" 
+           style="overflow-y: auto; max-height: 400px; padding-bottom: 10px;">
+        <div id="pt-templates-list" 
+             style="display: grid; grid-template-columns: 1fr 1fr; gap: 6px; padding: 4px;">
+           <!-- Templates will be loaded here -->
+        </div>
+      </div>
+      <div style="height:1px; background:var(--border); margin:6px 0;"></div>
+
+      <!-- Document Generation Section (CV / Business Card) -->
+      <div class="presentation-shapes-section-label"
+           id="pt-docgen-toggle"
+           style="cursor: pointer;
+                  display: flex;
+                  align-items: center;
+                  justify-content: space-between;
+                  padding-top: 8px"
+           title="Toggle Document Generator">
+        <span>CV & Carte de Visite</span>
+        <svg class="ic" width="12" height="12" style="transition: transform 0.2s; transform: rotate(180deg)"><use href="#icon-chevron-down"></use></svg>
+      </div>
+      <div class="presentation-docgen-panel" 
+           id="pt-docgen-panel" 
+           style="display: none; padding: 10px 4px; flex-direction: column; gap: 10px; overflow-y: auto; max-height: 400px;">
+        <!-- Template Sub-mode -->
+        <div class="media-form-group" id="pt-tpl-submode-group">
+          <label class="media-form-label">Type de Template</label>
+          <div class="media-type-toggle" id="pt-tpl-submode-toggle" style="margin-bottom:8px;">
+            <button class="media-type-btn active" data-tplmode="business_card" style="flex:1; padding:4px;">📇 Carte</button>
+            <button class="media-type-btn" data-tplmode="cv" style="flex:1; padding:4px;">📄 CV</button>
+          </div>
+        </div>
+        <!-- Template Style -->
+        <div class="media-form-group" id="pt-tpl-style-group">
+          <label class="media-form-label">Style</label>
+          <select class="media-form-select" id="pt-tpl-style">
+            <option value="modern" selected>✨ Moderne</option>
+            <option value="minimalist">◻️ Minimaliste</option>
+            <option value="corporate">🏢 Corporate</option>
+            <option value="creative">🎨 Créatif</option>
+            <option value="luxury">👑 Luxe</option>
+          </select>
+        </div>
+        <!-- CV Style (separate options) -->
+        <div class="media-form-group" id="pt-tpl-cv-style-group" style="display:none">
+          <label class="media-form-label">Style CV</label>
+          <select class="media-form-select" id="pt-tpl-cv-style">
+            <option value="professional" selected>💼 Professionnel</option>
+            <option value="modern">✨ Moderne</option>
+            <option value="creative">🎨 Créatif</option>
+            <option value="ats_optimized">🤖 Optimisé ATS</option>
+          </select>
+        </div>
+        <!-- LinkedIn URL (CV only) -->
+        <div class="media-form-group" id="pt-tpl-linkedin-group" style="display:none">
+          <label class="media-form-label">Profil LinkedIn (optionnel)</label>
+          <div style="display:flex;gap:6px;">
+            <input type="text" class="media-form-input" id="pt-tpl-linkedin-url"
+                   placeholder="https://linkedin.com/in/prenom" style="flex:1;">
+            <button class="media-generate-btn" id="pt-tpl-linkedin-fetch"
+                    style="padding:8px 10px;font-size:11px;white-space:nowrap;background:var(--accent);">
+              🔍 Fetch
+            </button>
+          </div>
+          <div id="pt-tpl-linkedin-status" style="display:none;font-size:11px;margin-top:6px;padding:8px;border-radius:8px;background:rgba(0,0,0,0.15);"></div>
+        </div>
+        <!-- Target Role (CV SEO) -->
+        <div class="media-form-group" id="pt-tpl-target-role-group" style="display:none">
+          <label class="media-form-label">Poste visé (pour SEO)</label>
+          <input type="text" class="media-form-input" id="pt-tpl-target-role"
+                 placeholder="Ex: Développeur Full-Stack...">
+        </div>
+        <!-- Common Fields: Name, Title -->
+        <div class="media-form-group" id="pt-tpl-name-group">
+          <label class="media-form-label">Nom complet *</label>
+          <input type="text" class="media-form-input" id="pt-tpl-name" placeholder="Jean Dupont">
+        </div>
+        <div class="media-form-group" id="pt-tpl-title-group">
+          <label class="media-form-label">Titre / Poste</label>
+          <input type="text" class="media-form-input" id="pt-tpl-title" placeholder="Directeur Marketing">
+        </div>
+        <!-- Business Card Fields -->
+        <div class="media-form-group" id="pt-tpl-company-group">
+          <label class="media-form-label">Entreprise</label>
+          <input type="text" class="media-form-input" id="pt-tpl-company" placeholder="Nom de l'entreprise">
+        </div>
+        <div class="media-form-group" id="pt-tpl-email-group">
+          <label class="media-form-label">Email</label>
+          <input type="email" class="media-form-input" id="pt-tpl-email" placeholder="email@example.com">
+        </div>
+        <div class="media-form-group" id="pt-tpl-phone-group">
+          <label class="media-form-label">Téléphone</label>
+          <input type="tel" class="media-form-input" id="pt-tpl-phone" placeholder="+33 6 12 34 56 78">
+        </div>
+        <div class="media-form-group" id="pt-tpl-website-group">
+          <label class="media-form-label">Site web</label>
+          <input type="text" class="media-form-input" id="pt-tpl-website" placeholder="www.monsite.com">
+        </div>
+        <!-- CV-only Fields -->
+        <div class="media-form-group" id="pt-tpl-summary-group" style="display:none">
+          <label class="media-form-label">Résumé professionnel</label>
+          <textarea class="media-form-input" id="pt-tpl-summary" rows="3"
+                    placeholder="Décrivez votre profil..."></textarea>
+        </div>
+        <div class="media-form-group" id="pt-tpl-skills-group" style="display:none">
+          <label class="media-form-label">Compétences (virgules)</label>
+          <input type="text" class="media-form-input" id="pt-tpl-skills"
+                 placeholder="Python, React, SQL...">
+        </div>
+        <div class="media-form-group" id="pt-tpl-location-group" style="display:none">
+          <label class="media-form-label">Localisation</label>
+          <input type="text" class="media-form-input" id="pt-tpl-location" placeholder="Paris, France">
+        </div>
+        <!-- LinkedIn Preview -->
+        <div class="media-form-group" id="pt-tpl-linkedin-preview" style="display:none">
+          <label class="media-form-label">📋 Données importées</label>
+          <div id="pt-tpl-linkedin-data" style="font-size:11px;padding:10px;border-radius:8px;background:rgba(0,0,0,0.15);line-height:1.6;"></div>
+        </div>
+        <!-- Generate Button -->
+        <button class="media-generate-btn" id="pt-tpl-generate-btn" style="margin-top: 10px;">
+          <span class="gen-spinner"></span>
+          <span class="gen-label"><span class="media-icon" data-icon="sparkles"></span> Générer</span>
+        </button>
+      </div>
+      <div style="height:1px; background:var(--border); margin:6px 0;"></div>
+    </div>
+    <div class="presentation-gallery-browser"
+         id="presentation-gallery-browser"
+         style="display:none;
+                position:absolute;
+                top:0;
+                left:250px;
+                width:300px;
+                height:100%;
+                background:var(--bg-surface);
+                border-right:1px solid var(--border);
+                z-index:100;
+                flex-direction:column;
+                box-shadow: 4px 0 10px rgba(0,0,0,0.2)">
+      <div style="padding: 10px;
+                  font-weight: bold;
+                  border-bottom: 1px solid var(--border);
+                  display: flex;
+                  justify-content: space-between;
+                  align-items: center">
+        <span>Gallery</span>
+        <div style="display:flex; align-items:center; gap:4px;">
+          <button class="icon-btn"
+                  id="pt-gallery-upload"
+                  title="Upload local image"
+                  style="display:flex;
+                         align-items:center;
+                         justify-content:center">
+            <svg class="ic" width="16" height="16"><use href="#icon-import-txt"></use></svg>
+          </button>
+          <input type="file"
+                 id="pt-upload-input"
+                 accept="image/*"
+                 style="display:none">
+          <button class="icon-btn" id="pt-gallery-close" title="Close">
+            <svg class="ic" width="16" height="16"><use href="#icon-x"></use></svg>
+          </button>
+        </div>
+      </div>
+      <div class="pt-gallery-grid"
+           id="pt-gallery-grid"
+           style="overflow-y:auto;
+                  padding:10px;
+                  display:grid;
+                  grid-template-columns:1fr 1fr;
+                  gap:10px"></div>
+    </div>
+    <div class="presentation-library-browser"
+         id="presentation-library-browser"
+         style="display:none;
+                position:absolute;
+                top:0;
+                left:250px;
+                width:300px;
+                height:100%;
+                background:var(--bg-surface);
+                border-right:1px solid var(--border);
+                z-index:100;
+                flex-direction:column;
+                box-shadow: 4px 0 10px rgba(0,0,0,0.2)">
+      <div style="padding: 10px;
+                  font-weight: bold;
+                  border-bottom: 1px solid var(--border);
+                  display: flex;
+                  justify-content: space-between;
+                  align-items: center">
+        <span>Icon Library (lucide-icon)</span>
+        <button class="icon-btn" id="pt-library-close" title="Close">
+          <svg class="ic" width="16" height="16"><use href="#icon-x"></use></svg>
+        </button>
+      </div>
+      <div style="padding: 10px; border-bottom: 1px solid var(--border);">
+        <input type="text"
+               id="pt-library-search"
+               class="media-form-input"
+               placeholder="Search icons..."
+               style="width: 100%;
+                      height: 32px;
+                      padding: 4px 10px">
+      </div>
+      <div class="pt-library-grid"
+           id="pt-library-grid"
+           style="overflow-y:auto;
+                  padding:10px;
+                  display:grid;
+                  grid-template-columns:repeat(4, 1fr);
+                  gap:10px"></div>
+    </div>
+    <!-- SVG Illustrations Browser -->
+    <div id="presentation-illustrations-browser"
+         style="display:none;
+                position:absolute;
+                top:0;
+                left:250px;
+                width:340px;
+                height:100%;
+                background:var(--bg-surface);
+                border-right:1px solid var(--border);
+                z-index:100;
+                flex-direction:column;
+                box-shadow: 4px 0 10px rgba(0,0,0,0.2)">
+      <div style="padding: 10px;
+                  font-weight: bold;
+                  border-bottom: 1px solid var(--border);
+                  display: flex;
+                  justify-content: space-between;
+                  align-items: center">
+        <span>
+          <svg class="ic" width="14" height="14"><use href="#icon-pen-tool"></use></svg>
+          SVG Illustrations
+        </span>
+        <button class="icon-btn" id="pt-illustrations-close" title="Close">
+          <svg class="ic" width="16" height="16"><use href="#icon-x"></use></svg>
+        </button>
+      </div>
+      <div style="padding: 10px; border-bottom: 1px solid var(--border);">
+        <input type="text"
+               id="pt-illustrations-search"
+               class="media-form-input"
+               placeholder="Search illustrations..."
+               style="width: 100%;
+                      height: 32px;
+                      padding: 4px 10px">
+      </div>
+      <div id="pt-illustrations-grid"
+           style="overflow-y:auto;
+                  padding:10px;
+                  display:grid;
+                  grid-template-columns:repeat(3, 1fr);
+                  gap:8px"></div>
+    </div>
+    <!-- Stock Photo Search Browser -->
+    <div id="presentation-stock-browser"
+         style="display:none;
+                position:absolute;
+                top:0;
+                left:250px;
+                width:380px;
+                height:100%;
+                background:var(--bg-surface);
+                border-right:1px solid var(--border);
+                z-index:100;
+                flex-direction:column;
+                box-shadow: 4px 0 10px rgba(0,0,0,0.2)">
+      <div style="padding: 10px;
+                  font-weight: bold;
+                  border-bottom: 1px solid var(--border);
+                  display: flex;
+                  justify-content: space-between;
+                  align-items: center">
+        <span>
+          <svg class="ic" width="14" height="14"><use href="#icon-camera"></use></svg>
+          Open Source Images
+        </span>
+        <button class="icon-btn" id="pt-stock-close" title="Close">
+          <svg class="ic" width="16" height="16"><use href="#icon-x"></use></svg>
+        </button>
+      </div>
+      <div style="padding: 10px; border-bottom: 1px solid var(--border); display:flex; gap:6px;">
+        <input type="text"
+               id="pt-stock-search-input"
+               class="media-form-input"
+               placeholder="Search images (e.g. business, nature)..."
+               style="flex: 1;
+                      height: 32px;
+                      padding: 4px 10px">
+        <button class="btn btn-primary btn-sm"
+                id="pt-stock-search-btn"
+                style="padding: 4px 12px; display:flex; align-items:center; gap:4px;">
+          <svg class="ic" width="14" height="14"><use href="#icon-search"></use></svg>
+          Filter
+        </button>
+      </div>
+      <div id="pt-stock-grid"
+           style="overflow-y:auto;
+                  padding:10px;
+                  column-count:2;
+                  column-gap:8px">
+        <div style="color:var(--text-muted); column-span: all; text-align:center; font-size:12px; padding:20px;">
+          Click to load the open-source image library.
+          <br><small style="opacity:0.6">Run <code>python scripts/download_stock_images.py</code> to download images.</small>
+        </div>
+      </div>
+    </div>
+  </div>
+  <div class="presentation-center">
+    <!-- Unified Presentation Bar -->
+    <div class="presentation-ai-bar"
+         id="pt-ai-bar"
+         style="display:flex;
+                justify-content:space-between;
+                align-items:center;
+                gap: 16px">
+      <!-- AI Generation / Enrichment (Left) -->
+      <div class="pt-ai-input-wrap" style="flex: 1;">
+        <span class="pt-ai-icon">
+          <svg class="ic" width="16" height="16"><use href="#icon-bolt"></use></svg>
+        </span>
+        <input type="text"
+               id="pt-ai-prompt"
+               class="pt-ai-input"
+               placeholder="Describe a presentation to generate with AI..."
+               autocomplete="off">
+        <button class="pt-ai-generate-btn"
+                id="pt-ai-generate"
+                title="Generate with AI">
+          <span class="pt-ai-gen-label">Generate</span>
+          <span class="pt-ai-gen-spinner"></span>
+        </button>
+        <button class="pt-ai-generate-btn"
+                id="pt-ai-enrich"
+                title="Enrich current presentation with AI"
+                style="margin-left: 8px;
+                       background: linear-gradient(135deg, #10b981, #3b82f6)">
+          <span class="pt-ai-gen-label"
+                style="display:flex;
+                       align-items:center;
+                       gap:4px">
+            Enrich
+            <svg class="ic" width="14" height="14"><use href="#icon-bolt"></use></svg>
+          </span>
+          <span class="pt-ai-gen-spinner" id="pt-ai-enrich-spinner"></span>
+        </button>
+      </div>
+      <!-- Tools & Settings (Right) -->
+      <div class="presentation-toolbar-actions"
+           style="display:flex;
+                  align-items:center;
+                  gap: 8px">
+        <!-- Undo / Redo Buttons -->
+        <button class="icon-btn"
+                id="pt-btn-undo"
+                title="Annuler"
+                style="padding:6px;
+                       display:flex;
+                       align-items:center;
+                       justify-content:center">
+          <svg class="ic" width="16" height="16"><use href="#icon-undo-icon"></use></svg>
+        </button>
+        <button class="icon-btn"
+                id="pt-btn-redo"
+                title="Refaire"
+                style="padding:6px;
+                       display:flex;
+                       align-items:center;
+                       justify-content:center">
+          <svg class="ic" width="16" height="16"><use href="#icon-redo-icon"></use></svg>
+        </button>
+        <div style="width:1px;
+                    height:20px;
+                    background:var(--border);
+                    margin:0 4px"></div>
+        <!-- Folding Menu (Settings) -->
+        <div class="dropdown" style="position: relative;">
+          <button class="btn btn-secondary dropdown-toggle"
+                  id="pt-menu-toggle"
+                  style="display:flex;
+                         align-items:center;
+                         gap:6px">
+            <svg class="ic" width="16" height="16"><use href="#icon-settings-icon"></use></svg>
+            Menu
+          </button>
+          <div class="dropdown-menu"
+               id="pt-menu-dropdown"
+               style="display:none;
+                      position:absolute;
+                      right:0;
+                      top:calc(100% + 5px);
+                      background:var(--bg-surface);
+                      border:1px solid var(--border);
+                      border-radius:6px;
+                      padding:12px;
+                      z-index:100;
+                      box-shadow:0 4px 12px rgba(0,0,0,0.2);
+                      width: max-content;
+                      flex-direction:column;
+                      gap:12px">
+            <!-- Format & View Section -->
+            <div style="display:flex; flex-direction:column; gap:6px;">
+              <label style="font-size:10px;
+                            text-transform:uppercase;
+                            color:var(--text-muted);
+                            font-weight:bold">Format & Affichage</label>
+              <div style="display:flex; gap:8px; align-items:center;">
+                <select id="pt-format-select" class="media-form-select" style="width: 150px;">
+                  <option value="16:9">Slide (16:9)</option>
+                  <option value="4:3">Slide (4:3)</option>
+                  <option value="portrait">Portrait (9:16)</option>
+                  <option value="A4">Document (A4)</option>
+                  <option value="IG">Instagram Post (1:1)</option>
+                  <option value="YT">YouTube Thumb (16:9)</option>
+                  <option value="card">Business Card (85×55mm)</option>
+                </select>
+                <button class="icon-btn pt-grid-toggle"
+                        id="pt-grid-toggle"
+                        title="Toggle Grid Snap"
+                        style="padding:6px;
+                               display:flex;
+                               align-items:center;
+                               justify-content:center">
+                  <svg class="ic" width="16" height="16"><use href="#icon-grid"></use></svg>
+                </button>
+                <select id="pt-zoom-select" class="media-form-select" style="width: 80px;">
+                  <option value="fit">Fit</option>
+                  <option value="50">50%</option>
+                  <option value="75">75%</option>
+                  <option value="100" selected>100%</option>
+                  <option value="150">150%</option>
+                  <option value="200">200%</option>
+                </select>
+              </div>
+            </div>
+            <div style="height:1px; background:var(--border);"></div>
+            <!-- Actions Section -->
+            <div style="display:flex; flex-direction:column; gap:6px;">
+              <label style="font-size:10px;
+                            text-transform:uppercase;
+                            color:var(--text-muted);
+                            font-weight:bold">Actions Document</label>
+              <div style="display:flex; gap:8px; align-items:center;">
+                <button class="btn btn-secondary"
+                        id="pt-btn-new"
+                        title="New blank presentation"
+                        style="display:flex;
+                               align-items:center;
+                               gap:6px;
+                               padding:6px 12px">
+                  <svg class="ic" width="14" height="14"><use href="#icon-file"></use></svg>
+                  New
+                </button>
+                <input type="text"
+                       id="pt-pres-title"
+                       class="media-form-input"
+                       placeholder="Presentation Title"
+                       style="width: 150px;
+                              height: 32px;
+                              padding: 4px 10px"
+                       value="My Presentation">
+                <button class="btn btn-secondary"
+                        id="pt-btn-save"
+                        style="display:flex;
+                               align-items:center;
+                               gap:6px;
+                               padding:6px 12px">
+                  <svg class="ic" width="14" height="14"><use href="#icon-save"></use></svg>
+                  Save
+                </button>
+                <button class="btn btn-primary"
+                        id="pt-btn-export-dialog"
+                        style="padding:6px 12px">Export...</button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="presentation-canvas-container"
+         id="presentation-canvas-container">
+      <div id="presentation-canvas-wrapper"
+           style="position: relative;
+                  transition: width 0.2s, height 0.2s">
+        <div class="presentation-canvas"
+             id="presentation-canvas"
+             style="width: 960px;
+                    height: 540px;
+                    transform-origin: top left">
+          <!-- Elements injected by JS -->
+        </div>
+      </div>
+    </div>
+    <div class="presentation-bottombar">
+      <div class="pt-pages-list" id="pt-pages-list">
+        <!-- Page thumbnails -->
+      </div>
+      <button class="icon-btn"
+              id="pt-add-page"
+              title="Add Page"
+              style="margin-left: 10px">
+        <svg class="ic" width="24" height="24"><use href="#icon-plus"></use></svg>
+      </button>
+    </div>
+  </div>
+  <div class="presentation-sidebar-right"
+       id="presentation-sidebar-right"
+       style="display:none;
+              overflow-y: auto">
+    <div class="pt-properties-panel"
+         id="pt-properties-panel"
+         style="display:none">
+      <div class="pt-prop-group"
+           style="padding-bottom:10px;
+                  border-bottom:1px solid var(--border);
+                  margin-bottom:10px">
+        <div style="display:flex;
+                    justify-content:space-between;
+                    align-items:center">
+          <label style="margin:0;">Z-Index</label>
+          <div style="display:flex; gap:4px;">
+            <button class="icon-btn"
+                    id="pt-prop-layer-down"
+                    title="Move Back"
+                    style="padding:4px;
+                           display:flex;
+                           align-items:center;
+                           justify-content:center">
+              <svg class="ic" width="16" height="16"><use href="#icon-arrow-down"></use></svg>
+            </button>
+            <button class="icon-btn"
+                    id="pt-prop-layer-up"
+                    title="Move Forward"
+                    style="padding:4px;
+                           display:flex;
+                           align-items:center;
+                           justify-content:center">
+              <svg class="ic" width="16" height="16"><use href="#icon-arrow-up"></use></svg>
+            </button>
+          </div>
+        </div>
+      </div>
+      <div class="pt-prop-group" id="pt-prop-content-group">
+        <label>Content / Text</label>
+        <textarea id="pt-prop-content"
+                  rows="3"
+                  style="width:100%;
+                         background:var(--bg-tertiary);
+                         color:white;
+                         border:1px solid var(--border);
+                         padding:5px;
+                         border-radius:4px"></textarea>
+        <button class="btn btn-secondary btn-sm"
+                id="pt-prop-ai-enhance"
+                style="margin-top: 5px;
+                       border-color: var(--accent);
+                       color: var(--accent);
+                       display:flex;
+                       align-items:center;
+                       justify-content:center;
+                       gap:4px">
+          <svg class="ic" width="14" height="14"><use href="#icon-bolt"></use></svg>
+          Enhance with AI
+        </button>
+      </div>
+      <div class="pt-prop-group" id="pt-prop-text-format-group">
+        <label>Text Formatting</label>
+        <div style="display:flex; gap:5px; align-items:center;">
+          <button class="icon-btn"
+                  id="pt-prop-bold"
+                  title="Bold"
+                  style="font-weight:bold">B</button>
+          <button class="icon-btn"
+                  id="pt-prop-italic"
+                  title="Italic"
+                  style="font-style:italic;
+                         font-family:serif">I</button>
+          <button class="icon-btn"
+                  id="pt-prop-underline"
+                  title="Underline"
+                  style="text-decoration:underline">U</button>
+          <button class="icon-btn"
+                  id="pt-prop-strikethrough"
+                  title="Strikethrough"
+                  style="text-decoration:line-through">S</button>
+          <div style="width:1px;
+                      height:20px;
+                      background:var(--border);
+                      margin:0 5px"></div>
+          <button class="icon-btn" id="pt-prop-list" title="Bulleted List">
+            <svg class="ic" width="16" height="16"><use href="#icon-list"></use></svg>
+          </button>
+        </div>
+      </div>
+      <div class="pt-prop-group" id="pt-prop-fontfamily-group">
+        <label>Font Family</label>
+        <select id="pt-prop-fontfamily" class="media-form-select" style="width:100%;">
+          <option value="Inter, sans-serif"
+                  style="background:var(--bg-elevated);
+                         color:var(--text-primary)">Default (Inter)</option>
+          <option value="sans-serif"
+                  style="background:var(--bg-elevated);
+                         color:var(--text-primary)">Sans-Serif</option>
+          <option value="serif"
+                  style="background:var(--bg-elevated);
+                         color:var(--text-primary)">Serif</option>
+          <option value="monospace"
+                  style="background:var(--bg-elevated);
+                         color:var(--text-primary)">Monospace</option>
+          <option value="cursive"
+                  style="background:var(--bg-elevated);
+                         color:var(--text-primary)">Cursive</option>
+          <option value="fantasy"
+                  style="background:var(--bg-elevated);
+                         color:var(--text-primary)">Fantasy</option>
+          <option value="system-ui"
+                  style="background:var(--bg-elevated);
+                         color:var(--text-primary)">System UI</option>
+        </select>
+      </div>
+      <div class="pt-prop-group" id="pt-prop-text-group">
+        <label>Font Size (px)</label>
+        <input type="number"
+               id="pt-prop-fontsize"
+               min="8"
+               max="144"
+               value="24"
+               style="width:100%;
+                      background:var(--bg-tertiary);
+                      color:white;
+                      border:1px solid var(--border);
+                      padding:5px;
+                      border-radius:4px">
+      </div>
+      <div class="pt-prop-group" id="pt-prop-align-group">
+        <label>Alignment</label>
+        <select id="pt-prop-align" class="media-form-select" style="width:100%;">
+          <option value="left">Left</option>
+          <option value="center">Center</option>
+          <option value="right">Right</option>
+        </select>
+      </div>
+      <div class="pt-prop-group" id="pt-prop-color-group">
+        <label>Text Color</label>
+        <div style="display:flex; gap:10px; align-items:center;">
+          <input type="color"
+                 id="pt-prop-color"
+                 value="#ffffff"
+                 style="width:32px;
+                        height:32px;
+                        flex-shrink:0;
+                        padding:0;
+                        border:none;
+                        background:none;
+                        cursor:pointer">
+          <input type="text"
+                 id="pt-prop-color-hex"
+                 value="#ffffff"
+                 style="width:80px;
+                        background:var(--bg-tertiary);
+                        color:white;
+                        border:1px solid var(--border);
+                        padding:5px;
+                        border-radius:4px">
+          <button class="btn btn-secondary btn-sm"
+                  id="pt-prop-color-clear"
+                  title="Transparent"
+                  style="padding:6px;
+                         display:flex;
+                         align-items:center;
+                         justify-content:center">
+            <svg class="ic" width="16" height="16"><use href="#icon-circle-slash"></use></svg>
+          </button>
+        </div>
+      </div>
+      <div class="pt-prop-group"
+           id="pt-prop-header-bg-group"
+           style="display:none">
+        <label>Header Background (Table)</label>
+        <div style="display:flex; gap:10px; align-items:center;">
+          <input type="color"
+                 id="pt-prop-header-bg"
+                 value="#000000"
+                 style="width:32px;
+                        height:32px;
+                        flex-shrink:0;
+                        padding:0;
+                        border:none;
+                        background:none;
+                        cursor:pointer">
+          <input type="text"
+                 id="pt-prop-header-bg-hex"
+                 value="#000000"
+                 style="width:80px;
+                        background:var(--bg-tertiary);
+                        color:white;
+                        border:1px solid var(--border);
+                        padding:5px;
+                        border-radius:4px">
+          <button class="btn btn-secondary btn-sm"
+                  id="pt-prop-header-bg-clear"
+                  title="Transparent"
+                  style="padding:6px;
+                         display:flex;
+                         align-items:center;
+                         justify-content:center">
+            <svg class="ic" width="16" height="16"><use href="#icon-circle-slash"></use></svg>
+          </button>
+        </div>
+      </div>
+      <div class="pt-prop-group" id="pt-prop-fill-group">
+        <label>Fill Color / Background</label>
+        <div style="display:flex; gap:10px; align-items:center;">
+          <input type="color"
+                 id="pt-prop-fill"
+                 value="#000000"
+                 style="width:32px;
+                        height:32px;
+                        flex-shrink:0;
+                        padding:0;
+                        border:none;
+                        background:none;
+                        cursor:pointer">
+          <input type="text"
+                 id="pt-prop-fill-hex"
+                 value="#000000"
+                 style="width:80px;
+                        background:var(--bg-tertiary);
+                        color:white;
+                        border:1px solid var(--border);
+                        padding:5px;
+                        border-radius:4px">
+          <button class="btn btn-secondary btn-sm"
+                  id="pt-prop-fill-clear"
+                  title="Transparent"
+                  style="padding:6px;
+                         display:flex;
+                         align-items:center;
+                         justify-content:center">
+            <svg class="ic" width="16" height="16"><use href="#icon-circle-slash"></use></svg>
+          </button>
+        </div>
+      </div>
+      <div class="pt-prop-group" id="pt-prop-border-group">
+        <label>Border Color</label>
+        <div style="display:flex; gap:10px; align-items:center;">
+          <input type="color"
+                 id="pt-prop-border"
+                 value="#000000"
+                 style="width:32px;
+                        height:32px;
+                        flex-shrink:0;
+                        padding:0;
+                        border:none;
+                        background:none;
+                        cursor:pointer">
+          <input type="text"
+                 id="pt-prop-border-hex"
+                 value="#000000"
+                 style="width:80px;
+                        background:var(--bg-tertiary);
+                        color:white;
+                        border:1px solid var(--border);
+                        padding:5px;
+                        border-radius:4px">
+          <button class="btn btn-secondary btn-sm"
+                  id="pt-prop-border-clear"
+                  title="Transparent"
+                  style="padding:6px;
+                         display:flex;
+                         align-items:center;
+                         justify-content:center">
+            <svg class="ic" width="16" height="16"><use href="#icon-circle-slash"></use></svg>
+          </button>
+        </div>
+        <label style="margin-top:6px;">Border Width (px)</label>
+        <input type="number"
+               id="pt-prop-borderwidth"
+               min="0"
+               max="50"
+               value="0"
+               style="width:100%;
+                      background:var(--bg-tertiary);
+                      color:white;
+                      border:1px solid var(--border);
+                      padding:5px;
+                      border-radius:4px">
+        <div id="pt-prop-borderradius-wrapper">
+          <label style="margin-top:6px;">Border Radius (px)</label>
+          <input type="number"
+                 id="pt-prop-borderradius"
+                 min="0"
+                 max="200"
+                 value="0"
+                 style="width:100%;
+                        background:var(--bg-tertiary);
+                        color:white;
+                        border:1px solid var(--border);
+                        padding:5px;
+                        border-radius:4px">
+        </div>
+      </div>
+      <div class="pt-prop-group"
+           id="pt-prop-thickness-group"
+           style="display:none">
+        <label>
+          Thickness (<span id="pt-prop-thickness-val">50</span>%)
+        </label>
+        <input type="range"
+               id="pt-prop-thickness"
+               min="5"
+               max="95"
+               value="50"
+               style="width:100%">
+      </div>
+      <div class="pt-prop-group" id="pt-prop-opacity-group">
+        <label>
+          Opacity (<span id="pt-prop-opacity-val">100</span>%)
+        </label>
+        <input type="range"
+               id="pt-prop-opacity"
+               min="0"
+               max="100"
+               value="100"
+               style="width:100%">
+      </div>
+      <div class="pt-prop-group" id="pt-prop-shadow-group">
+        <label>
+          Shadow Level (<span id="pt-prop-shadow-val">0</span>)
+        </label>
+        <input type="range"
+               id="pt-prop-shadow"
+               min="0"
+               max="50"
+               value="0"
+               style="width:100%">
+      </div>
+      <div class="pt-prop-group" id="pt-prop-image-group" style="display:none;">
+        <button class="btn btn-secondary btn-block"
+                id="pt-prop-bg"
+                style="margin-top: 10px">Set as Background</button>
+      </div>
+      <div class="pt-prop-group">
+        <button class="btn btn-secondary btn-block"
+                id="pt-prop-delete"
+                style="margin-top: 20px;
+                       color: #ff5555;
+                       border-color: #ff5555">Delete Element</button>
+      </div>
+    </div>
+    <div id="pt-no-selection"
+         style="padding: 20px;
+                text-align: center;
+                color: var(--text-muted)">Select an element to edit properties.</div>
+  </div>
+</div>

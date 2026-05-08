@@ -1,0 +1,582 @@
+<!-- ---- Editor Mode Layout ---- -->
+<div class="editor-layout" id="editor-layout">
+  <!-- Left: File Tree -->
+  <div class="editor-file-tree" id="editor-file-tree">
+    <div class="eft-header">
+      <span class="eft-title">
+        <svg class="ic" width="16" height="16">
+          <use href="#icon-folder"></use>
+        </svg>
+      Explorer</span>
+      <div class="eft-actions">
+        <button class="icon-btn"
+                id="eft-new-file"
+                title="New file"
+                style="font-size:13px;
+                       padding:3px 5px">
+          <svg class="ic" width="14" height="14">
+            <use href="#icon-plus"></use>
+          </svg>
+        </button>
+        <button class="icon-btn"
+                id="eft-new-folder"
+                title="New folder"
+                style="font-size:13px;
+                       padding:3px 5px">
+          <svg class="ic" width="16" height="16">
+            <use href="#icon-folder"></use>
+          </svg>
+        </button>
+        <button class="icon-btn"
+                id="eft-refresh"
+                title="Refresh"
+                style="font-size:13px;
+                       padding:3px 5px">
+          <svg class="ic" width="16" height="16">
+            <use href="#icon-refresh"></use>
+          </svg>
+        </button>
+      </div>
+    </div>
+    <div class="project-switcher">
+      <select class="project-select" id="project-select" title="Select project">
+        <option value=".">workspace /</option>
+      </select>
+      <button class="project-history-btn"
+              id="project-history-btn"
+              title="Project history">
+        <svg class="ic" width="14" height="14">
+          <use href="#icon-clock"></use>
+        </svg>
+      </button>
+      <button class="project-history-btn"
+              id="project-close-btn"
+              title="Close project">
+        <svg class="ic" width="14" height="14">
+          <use href="#icon-x"></use>
+        </svg>
+      </button>
+    </div>
+    <div class="eft-list" id="eft-list"></div>
+    <div class="eft-quick-actions">
+      <button class="eft-quick-btn" id="eft-git-clone" title="Git Clone">
+        <svg class="ic" width="16" height="16">
+          <use href="#icon-github"></use>
+        </svg>
+      </button>
+      <button class="eft-quick-btn" id="eft-upload" title="Upload files">
+        <svg class="ic" width="16" height="16">
+          <use href="#icon-upload"></use>
+        </svg>
+      </button>
+      <button class="eft-quick-btn"
+              id="eft-import-media"
+              title="Import from Media Gallery">
+        <svg class="ic" width="16" height="16">
+          <use href="#icon-download"></use>
+        </svg>
+      </button>
+      <button class="eft-quick-btn"
+              id="eft-create-logo"
+              title="Create Logo for Project"
+              style="margin-left: auto">
+        <svg class="ic" width="16" height="16">
+          <use href="#icon-image-icon"></use>
+        </svg>
+      </button>
+      <button class="eft-quick-btn"
+              id="eft-create-pres"
+              title="Create Presentation for Project">
+        <svg class="ic" width="16" height="16">
+          <use href="#icon-layout"></use>
+        </svg>
+      </button>
+    </div>
+    <input type="file" id="eft-upload-input" multiple style="display:none">
+    <button class="eft-context-btn" id="eft-context-btn">
+      <svg class="ic" width="16" height="16">
+        <use href="#icon-file-text-icon"></use>
+      </svg>
+      clawzd.md — Project Context
+    </button>
+  </div>
+  <!-- Left Resize Handle -->
+  <div class="editor-resize-left" id="editor-resize-left"></div>
+  <!-- Center: Code Editor -->
+  <div class="editor-center" id="editor-center">
+    <div class="editor-tabs-wrapper">
+      <button class="editor-tabs-scroll-btn"
+              id="editor-tabs-scroll-left"
+              title="Scroll tabs left">◀</button>
+      <div class="editor-tabs" id="editor-tabs">
+        <!-- Tabs populated by JS -->
+      </div>
+      <button class="editor-tabs-scroll-btn"
+              id="editor-tabs-scroll-right"
+              title="Scroll tabs right">▶</button>
+      <div class="etb-sep etb-sep-tabs"></div>
+      <button class="etb-btn" id="etb-undo" title="Undo (Ctrl+Z)">
+        <svg class="ic" width="14" height="14">
+          <use href="#icon-undo"></use>
+        </svg>
+      </button>
+      <button class="etb-btn" id="etb-redo" title="Redo (Ctrl+Shift+Z)">
+        <svg class="ic" width="14" height="14">
+          <use href="#icon-redo"></use>
+        </svg>
+      </button>
+      <button class="etb-btn etb-toggle active"
+              id="etb-autocomplete"
+              title="Toggle AI Autocomplete">
+        <svg class="ic" width="14" height="14">
+          <use href="#icon-bolt"></use>
+        </svg>
+        <span class="etb-label">AI</span>
+      </button>
+      <button class="etb-btn" id="etb-find" title="Find & Replace (Ctrl+F)">
+        <svg class="ic" width="14" height="14">
+          <use href="#icon-search"></use>
+        </svg>
+      </button>
+      <button class="etb-btn" id="etb-audit" title="Audit project code">
+        <svg class="ic" width="14" height="14">
+          <use href="#icon-shield"></use>
+        </svg>
+        <span class="etb-label">Audit</span>
+      </button>
+      <button class="editor-tabs-close-all"
+              id="editor-tabs-close-all"
+              title="Close all tabs">✕</button>
+    </div>
+    <div class="editor-breadcrumb" id="editor-breadcrumb">
+      <span>workspace</span>
+    </div>
+    <div class="editor-search-bar" id="editor-search-bar">
+      <span style="font-size:12px;">
+        <svg class="ic" width="16" height="16">
+          <use href="#icon-search"></use>
+        </svg>
+      </span>
+      <input class="editor-search-input"
+             id="editor-search-input"
+             placeholder="Search in files...">
+      <span class="editor-search-info" id="editor-search-info"></span>
+      <button class="icon-btn"
+              id="editor-search-close"
+              style="font-size:12px;
+                     padding:2px 5px">
+        <svg class="ic" width="14" height="14">
+          <use href="#icon-x"></use>
+        </svg>
+      </button>
+    </div>
+    <!-- Find & Replace Bar (Ctrl+H) -->
+    <div class="editor-find-bar" id="editor-find-bar">
+      <div class="find-bar-row">
+        <span style="font-size:11px;color:var(--text-muted);margin-right:6px;">Find:</span>
+        <input class="find-bar-input"
+               id="find-input"
+               placeholder="Search..."
+               autocomplete="off">
+        <button class="find-bar-btn" id="find-next-btn" title="Find Next (Enter)">↓</button>
+      </div>
+      <div class="find-bar-row">
+        <span style="font-size:11px;color:var(--text-muted);margin-right:2px;">Replace:</span>
+        <input class="find-bar-input"
+               id="replace-input"
+               placeholder="Replace with..."
+               autocomplete="off">
+        <button class="find-bar-btn"
+                id="replace-next-btn"
+                title="Replace & Find Next">→</button>
+        <button class="find-bar-btn" id="replace-all-btn" title="Replace All">⇉</button>
+        <button class="find-bar-btn find-bar-close"
+                id="find-bar-close"
+                title="Close (Esc)">✕</button>
+      </div>
+    </div>
+    <div class="editor-code-area" id="editor-code-area">
+      <div class="editor-welcome" id="editor-welcome">
+        <div class="editor-welcome-icon">
+          <svg class="ic" width="16" height="16">
+            <use href="#icon-monitor"></use>
+          </svg>
+        </div>
+        <h3>Clawzd Editor</h3>
+        <p>
+          Open a file from the explorer or create a new one to start editing. AI can read, edit, and manage your workspace files.
+        </p>
+      </div>
+    </div>
+  </div>
+  <!-- Bottom: Terminal -->
+  <div class="editor-terminal" id="editor-terminal">
+    <div class="editor-terminal-resize" id="editor-terminal-resize"></div>
+    <div class="editor-terminal-header" id="editor-terminal-header">
+      <span class="editor-terminal-title">
+        <svg class="ic" width="16" height="16">
+          <use href="#icon-terminal"></use>
+        </svg>
+      Terminal</span>
+      <div class="editor-terminal-actions">
+        <button class="icon-btn"
+                id="editor-terminal-copy"
+                title="Copy terminal content"
+                style="font-size:12px;
+                       padding:2px 5px">
+          <svg class="ic" width="14" height="14">
+            <use href="#icon-clipboard"></use>
+          </svg>
+        </button>
+        <button class="icon-btn"
+                id="editor-terminal-clear"
+                title="Clear"
+                style="font-size:12px;
+                       padding:2px 5px">
+          <svg class="ic" width="14" height="14">
+            <use href="#icon-trash"></use>
+          </svg>
+        </button>
+        <button class="icon-btn"
+                id="editor-terminal-toggle"
+                title="Toggle"
+                style="font-size:12px;
+                       padding:2px 5px">
+          <svg class="ic" width="14" height="14">
+            <use href="#icon-chevron-down"></use>
+          </svg>
+        </button>
+      </div>
+    </div>
+    <div class="editor-terminal-body" id="editor-terminal-body"></div>
+    <div style="position:relative;">
+      <div class="term-help-popup" id="term-help-popup"></div>
+      <div class="editor-terminal-input-line">
+        <span class="editor-terminal-prompt">$</span>
+        <input type="text"
+               class="editor-terminal-input"
+               id="editor-terminal-input"
+               placeholder="Type a command or ? for help...">
+        <button class="icon-btn"
+                id="editor-terminal-help"
+                title="Command help"
+                style="font-size:12px;
+                       padding:2px 5px">
+          <svg class="ic" width="14" height="14">
+            <use href="#icon-help-circle"></use>
+          </svg>
+        </button>
+      </div>
+    </div>
+  </div>
+  <!-- Right Resize Handle -->
+  <div class="editor-resize-right" id="editor-resize-right"></div>
+  <!-- Right: Chat + Activity + Git -->
+  <div class="editor-right" id="editor-right">
+    <div class="editor-right-tabs">
+      <button class="editor-right-tab" data-panel="activity" id="ert-activity">
+        <svg class="ic" width="16" height="16">
+          <use href="#icon-activity"></use>
+        </svg>
+        Activity
+      </button>
+      <button class="editor-right-tab active" data-panel="chat" id="ert-chat">
+        <svg class="ic" width="16" height="16">
+          <use href="#icon-chat"></use>
+        </svg>
+        Chat
+      </button>
+      <button class="editor-right-tab" data-panel="todo" id="ert-todo">
+        <svg class="ic" width="16" height="16">
+          <use href="#icon-check"></use>
+        </svg>
+        Todo
+      </button>
+      <button class="editor-right-tab" data-panel="git" id="ert-git">
+        <svg class="ic" width="16" height="16">
+          <use href="#icon-git-branch"></use>
+        </svg>
+        Git
+      </button>
+      <button class="editor-right-tab" data-panel="twitter" id="ert-twitter">
+        <svg class="ic" width="16" height="16">
+          <use href="#icon-search"></use>
+        </svg>
+        Social
+      </button>
+    </div>
+    <!-- Activity Feed -->
+    <div class="editor-activity" id="editor-activity">
+      <div class="editor-activity-list" id="editor-activity-list">
+        <div class="editor-activity-empty">Agent activity will appear here when the AI processes your requests.</div>
+      </div>
+    </div>
+    <!-- Chat -->
+    <div class="editor-chat active" id="editor-chat">
+      <!-- Agent Mode Toggle (Build / Plan) -->
+      <div class="editor-agent-mode" id="editor-agent-mode">
+        <button class="agent-mode-btn active"
+                data-agent="build"
+                id="agent-mode-build"
+                title="Build mode — AI can create & edit files">
+          <span class="agent-mode-icon">⚡</span> Build
+        </button>
+        <button class="agent-mode-btn"
+                data-agent="plan"
+                id="agent-mode-plan"
+                title="Plan mode — Read-only analysis & planning">
+          <span class="agent-mode-icon">📋</span> Plan
+        </button>
+        <div class="agent-mode-indicator" id="agent-mode-indicator"></div>
+      </div>
+      <div class="editor-chat-messages" id="editor-chat-messages"></div>
+      <div class="editor-chat-input-area">
+        <!-- @ File reference popup -->
+        <div class="file-ref-popup" id="file-ref-popup"></div>
+        <!-- Context/token indicator -->
+        <div class="editor-context-bar" id="editor-context-bar">
+          <span class="ctx-bar-label">Context:</span>
+          <div class="ctx-bar-track">
+            <div class="ctx-bar-fill" id="ctx-bar-fill"></div>
+          </div>
+          <span class="ctx-bar-value" id="ctx-bar-value">0%</span>
+          <button class="ctx-bar-compact" id="ctx-bar-compact" title="Compact session">⟳</button>
+        </div>
+        <!-- File badges area -->
+        <div class="editor-file-badges" id="editor-file-badges"></div>
+        <div class="editor-chat-input-wrap">
+          <textarea class="editor-chat-input"
+                    id="editor-chat-input"
+                    placeholder="Ask AI... (@ pour attacher un fichier)"
+                    rows="1"></textarea>
+          <button class="editor-chat-send" id="editor-chat-send" title="Send">
+            <svg class="ic" width="16" height="16">
+              <use href="#icon-send"></use>
+            </svg>
+          </button>
+        </div>
+        <div class="editor-chat-hints">
+          <span class="chat-hint-key">@</span> files
+          <span class="chat-hint-sep">·</span>
+          <span class="chat-hint-key">Tab</span> switch mode
+        </div>
+      </div>
+    </div>
+    <!-- Todo Panel -->
+    <div class="editor-todo" id="editor-todo">
+      <div class="todo-header">
+        <span class="todo-header-title">📋 Tasks</span>
+        <div class="todo-header-actions">
+          <button class="todo-add-btn" id="todo-add-btn" title="Add task">+ Add</button>
+          <button class="todo-clear-btn" id="todo-clear-done" title="Clear completed">✕ Done</button>
+        </div>
+      </div>
+      <div class="todo-list" id="todo-list">
+        <div class="todo-empty">
+          No tasks yet.
+          <br>
+          Add tasks manually or let the AI create them.
+        </div>
+      </div>
+    </div>
+    <!-- Social Watch Panel (Twitter/X + LinkedIn) -->
+    <div class="editor-twitter" id="editor-twitter">
+      <div class="tw-search-bar">
+        <div class="tw-platform-row">
+          <button class="tw-platform-btn active"
+                  data-platform="twitter"
+                  id="tw-plat-twitter"
+                  title="Twitter/X">
+            <svg class="ic" width="14" height="14">
+              <use href="#icon-x-twitter"></use>
+            </svg>
+          </button>
+          <button class="tw-platform-btn"
+                  data-platform="linkedin"
+                  id="tw-plat-linkedin"
+                  title="LinkedIn">
+            <svg class="ic" width="14" height="14">
+              <use href="#icon-linkedin"></use>
+            </svg>
+          </button>
+          <select class="tw-linkedin-type" id="tw-linkedin-type" style="display:none">
+            <option value="profiles">Profiles / CV</option>
+            <option value="articles">Articles</option>
+          </select>
+        </div>
+        <div class="tw-search-wrap">
+          <svg class="ic" width="14" height="14">
+            <use href="#icon-search"></use>
+          </svg>
+          <input class="tw-search-input"
+                 id="tw-search-input"
+                 placeholder="Search tweets, @user, or #hashtag..."
+                 autocomplete="off">
+          <button class="tw-search-btn" id="tw-search-btn" title="Search">
+            <svg class="ic" width="14" height="14">
+              <use href="#icon-send"></use>
+            </svg>
+          </button>
+        </div>
+      </div>
+      <div class="tw-tabs">
+        <button class="tw-tab active" data-tw-view="results" id="tw-tab-results">Results</button>
+        <button class="tw-tab" data-tw-view="trending" id="tw-tab-trending">Trending</button>
+        <button class="tw-tab" data-tw-view="watchlist" id="tw-tab-watchlist">
+          Watchlist
+          <span class="tw-watchlist-badge" id="tw-watchlist-badge"></span>
+        </button>
+      </div>
+      <div class="tw-view tw-results active" id="tw-results">
+        <div class="tw-empty" id="tw-empty">
+          <svg class="ic" width="32" height="32" style="opacity:.4">
+            <use href="#icon-search"></use>
+          </svg>
+          <p>
+            Search Twitter/X or LinkedIn.
+            <br>
+            Switch platform above, then enter your query.
+          </p>
+        </div>
+        <div class="tw-feed" id="tw-feed"></div>
+      </div>
+      <div class="tw-view tw-trending" id="tw-trending">
+        <div class="tw-trending-list" id="tw-trending-list">
+          <div class="tw-empty">
+            <svg class="ic" width="24" height="24" style="opacity:.4">
+              <use href="#icon-activity"></use>
+            </svg>
+            <p>Click to load trending topics.</p>
+          </div>
+        </div>
+        <button class="tw-load-trending-btn" id="tw-load-trending">Load Trending Topics</button>
+      </div>
+      <div class="tw-view tw-watchlist-view" id="tw-watchlist">
+        <div class="tw-watchlist-header">
+          <span class="tw-watchlist-title">Saved Watches</span>
+          <button class="tw-watchlist-add" id="tw-watchlist-add" title="Add watch">
+            <svg class="ic" width="12" height="12">
+              <use href="#icon-plus"></use>
+            </svg>
+            Add
+          </button>
+          <button class="tw-watchlist-refresh"
+                  id="tw-watchlist-refresh"
+                  title="Refresh all">
+            <svg class="ic" width="12" height="12">
+              <use href="#icon-refresh"></use>
+            </svg>
+          </button>
+        </div>
+        <div class="tw-watchlist-list" id="tw-watchlist-list">
+          <div class="tw-empty">
+            <p>No watches yet. Add keywords or usernames to monitor.</p>
+          </div>
+        </div>
+      </div>
+    </div>
+    <!-- Git Panel -->
+    <div class="editor-git" id="editor-git">
+      <div class="git-no-repo" id="git-no-repo">
+        <div class="git-no-repo-icon">
+          <svg class="ic" width="16" height="16">
+            <use href="#icon-git-branch"></use>
+          </svg>
+        </div>
+        <p>
+          No Git repository detected.
+          <br>
+          Clone a repository or run <code>git init</code> in the terminal.
+        </p>
+      </div>
+      <div id="git-panel-content"
+           style="display:none;
+                  flex-direction:column;
+                  flex:1;
+                  overflow:hidden">
+        <!-- Branch info -->
+        <div class="git-branch-info" id="git-branch-info">
+          <span>
+            <svg class="ic" width="14" height="14">
+              <use href="#icon-github-alt"></use>
+            </svg>
+          </span>
+          <span class="git-branch-name" id="git-branch-name">main</span>
+          <span class="git-branch-badge ahead" id="git-ahead" style="display:none">↑0</span>
+          <span class="git-branch-badge behind" id="git-behind" style="display:none">↓0</span>
+        </div>
+        <div class="git-remote-url" id="git-remote-url"></div>
+        <!-- Toolbar -->
+        <div class="git-toolbar">
+          <button class="git-toolbar-btn" id="git-btn-pull" title="Pull">
+            <svg class="ic" width="14" height="14">
+              <use href="#icon-arrow-down"></use>
+            </svg>
+            Pull
+          </button>
+          <button class="git-toolbar-btn primary" id="git-btn-push" title="Push">
+            <svg class="ic" width="14" height="14">
+              <use href="#icon-arrow-up"></use>
+            </svg>
+            Push
+          </button>
+          <button class="git-toolbar-btn" id="git-btn-refresh" title="Refresh">
+            <svg class="ic" width="16" height="16">
+              <use href="#icon-refresh"></use>
+            </svg>
+          </button>
+          <button class="git-toolbar-btn" id="git-btn-stage-all" title="Stage all">
+            <svg class="ic" width="14" height="14">
+              <use href="#icon-plus"></use>
+            </svg>
+            Stage All
+          </button>
+        </div>
+        <!-- View toggle: Status vs Graph -->
+        <div class="git-view-toggle">
+          <button class="git-view-btn active" data-view="status" id="git-view-status">
+            <svg class="ic" width="14" height="14">
+              <use href="#icon-clipboard"></use>
+            </svg>
+            Changes
+          </button>
+          <button class="git-view-btn" data-view="graph" id="git-view-graph">
+            <svg class="ic" width="14" height="14">
+              <use href="#icon-bar-chart"></use>
+            </svg>
+            Graph
+          </button>
+        </div>
+        <!-- Status View -->
+        <div class="git-status-view active" id="git-status-view">
+          <div class="git-file-list" id="git-staged-list"></div>
+          <div class="git-file-list" id="git-unstaged-list"></div>
+          <!-- Commit form -->
+          <div class="git-commit-area">
+            <input class="git-commit-input"
+                   id="git-commit-msg"
+                   placeholder="Commit message..."
+                   type="text">
+            <div class="git-commit-btns">
+              <button class="git-toolbar-btn primary" id="git-btn-commit" style="flex:1;">
+                <svg class="ic" width="14" height="14">
+                  <use href="#icon-check"></use>
+                </svg>
+                Commit
+              </button>
+              <button class="git-toolbar-btn primary"
+                      id="git-btn-commit-push"
+                      style="flex:1">✓ Commit & Push</button>
+            </div>
+          </div>
+        </div>
+        <!-- Graph View -->
+        <div class="git-graph-view" id="git-graph-view">
+          <div class="git-graph-container" id="git-graph-container">
+            <!-- Populated by JS -->
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>

@@ -1,0 +1,204 @@
+[
+  {
+    "id": "mistral-small-3.2",
+    "vendor": "Mistral",
+    "name": "Mistral Small 3.2",
+    "ollama_id": "mistral-small3.2:24b-instruct-2506-q4_K_M",
+    "size_gb": 14.9,
+    "params": "24B",
+    "quant": "Q4_K_M",
+    "vram_min_gb": 16,
+    "description": "Versatile and fast. Excellent quality/speed ratio.",
+    "recommended": false,
+    "token_limit": "128k",
+    "release_date": "2025-05",
+    "capabilities": [
+      "txt",
+      "code"
+    ]
+  },
+  {
+    "id": "qwen2.5-14b-instruct",
+    "vendor": "Qwen",
+    "name": "Qwen 2.5 14B Instruct",
+    "ollama_id": "qwen2.5:14b",
+    "size_gb": 9.0,
+    "params": "14B",
+    "quant": "Q4_K_M",
+    "vram_min_gb": 12,
+    "description": "Premium Qwen 2 performance. 12 GB VRAM recommended.",
+    "recommended": false,
+    "token_limit": "32k",
+    "release_date": "2024-09",
+    "capabilities": [
+      "txt",
+      "code"
+    ]
+  },
+  {
+    "id": "qwen3.5-9b",
+    "vendor": "Qwen",
+    "name": "Qwen 3.5 9B",
+    "ollama_id": "qwen3.5:9b",
+    "size_gb": 5.8,
+    "params": "9B",
+    "quant": "Q4_K_M",
+    "vram_min_gb": 8,
+    "description": "Qwen 3.5 all-rounder. Improved reasoning and tool-calling.",
+    "recommended": true,
+    "token_limit": "256k",
+    "release_date": "2026-03",
+    "capabilities": [
+      "txt",
+      "code",
+      "mcp"
+    ]
+  },
+  {
+    "id": "qwen3.5-27b",
+    "vendor": "Qwen",
+    "name": "Qwen 3.5 27B",
+    "ollama_id": "qwen3.5:27b",
+    "size_gb": 16.5,
+    "params": "27B",
+    "quant": "Q4_K_M",
+    "vram_min_gb": 20,
+    "description": "Qwen 3.5 high performance. Near GPT-4 quality. 20+ GB VRAM.",
+    "recommended": false,
+    "token_limit": "256k",
+    "release_date": "2026-02",
+    "capabilities": [
+      "txt",
+      "code",
+      "mcp"
+    ]
+  },
+  {
+    "id": "qwen3.6-27b",
+    "vendor": "Qwen",
+    "name": "Qwen 3.6 27B",
+    "ollama_id": "qwen3.6:27b",
+    "size_gb": 16.5,
+    "params": "27B",
+    "quant": "Q4_K_M",
+    "vram_min_gb": 20,
+    "description": "Qwen3.6 delivers substantial upgrades in agentic coding and thinking preservation than previous Qwen models. ",
+    "recommended": true,
+    "token_limit": "256k",
+    "release_date": "2026-04",
+    "capabilities": [
+      "txt",
+      "code",
+      "mcp"
+    ]
+  },
+  {
+    "id": "glm-4.7-flash",
+    "vendor": "GLM",
+    "name": "GLM-4.7 Flash",
+    "ollama_id": "glm-4.7-flash:q4_K_M",
+    "size_gb": 19,
+    "params": "30B",
+    "quant": "Q4_K_M",
+    "vram_min_gb": 24,
+    "description": "GLM-4.7 Flash 30B-A3B MoE. Fast and powerful. 24 GB VRAM.",
+    "recommended": true,
+    "token_limit": "198k",
+    "release_date": "2026-02",
+    "capabilities": [
+      "txt",
+      "code"
+    ]
+  },
+  {
+    "id": "gemma4-e4b",
+    "vendor": "Google",
+    "name": "Gemma 4 e4b Instruct",
+    "ollama_id": "gemma4:e4b-it-q8_0",
+    "size_gb": 12.0,
+    "params": "8B",
+    "quant": "Q8_0",
+    "vram_min_gb": 16,
+    "description": "Gemma 4 from Google, optimized for high quality on small devices.",
+    "recommended": false,
+    "token_limit": "128k",
+    "release_date": "2026-05",
+    "capabilities": [
+      "txt",
+      "code"
+    ]
+  },
+  {
+    "id": "deepseek-r1-14b",
+    "vendor": "DeepSeek",
+    "name": "DeepSeek R1 14B",
+    "ollama_id": "deepseek-r1:14b",
+    "size_gb": 9.0,
+    "params": "14B",
+    "quant": "Q4_K_M",
+    "vram_min_gb": 12,
+    "description": "DeepSeek R1 14B with improved reasoning.",
+    "recommended": false,
+    "token_limit": "128k",
+    "release_date": "2025-03",
+    "capabilities": [
+      "txt",
+      "code"
+    ]
+  },
+  {
+    "id": "phi4-reasoning-plus",
+    "vendor": "Microsoft",
+    "name": "Phi-4 Reasoning Plus",
+    "ollama_id": "phi4-reasoning:14b-plus-q4_K_M",
+    "size_gb": 11.0,
+    "params": "14B",
+    "quant": "Q4_K_M",
+    "vram_min_gb": 16,
+    "description": "Microsoft Phi-4 optimized for complex reasoning.",
+    "recommended": false,
+    "token_limit": "32k",
+    "release_date": "2025-05",
+    "capabilities": [
+      "txt",
+      "code"
+    ]
+  },
+  {
+    "id": "ministral-3-14b",
+    "vendor": "Mistral",
+    "name": "Ministral 3 14B",
+    "ollama_id": "ministral-3:14b-instruct-2512-q4_K_M",
+    "size_gb": 9.1,
+    "params": "14B",
+    "quant": "Q4_K_M",
+    "vram_min_gb": 12,
+    "description": "Ministral 3 14B model by Mistral.",
+    "recommended": false,
+    "token_limit": "256k",
+    "release_date": "2026-01",
+    "capabilities": [
+      "txt",
+      "code",
+      "img"
+    ]
+  },
+  {
+    "id": "gpt-oss-20b",
+    "vendor": "OSS",
+    "name": "GPT-OSS 20B",
+    "ollama_id": "gpt-oss:20b",
+    "size_gb": 14.0,
+    "params": "20B",
+    "quant": "Q4_K_M",
+    "vram_min_gb": 16,
+    "description": "GPT-OSS 20B model.",
+    "recommended": false,
+    "token_limit": "128k",
+    "release_date": "2025-11",
+    "capabilities": [
+      "txt",
+      "code"
+    ]
+  }
+]

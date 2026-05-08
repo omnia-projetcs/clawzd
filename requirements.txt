@@ -1,0 +1,108 @@
+# ==================================
+# Clawzd — Python Dependencies
+# ==================================
+
+# --- Core Web Framework ---
+fastapi>=0.115.0
+uvicorn[standard]>=0.30.1
+sse-starlette>=2.1.0
+jinja2>=3.1.4
+python-multipart>=0.0.9
+python-dotenv>=1.0.1
+pydantic>=2.0.0
+
+# --- HTTP Client (Ollama API, general) ---
+httpx>=0.27.0
+
+# --- LLM Providers (cloud APIs) ---
+openai>=1.46.1
+google-genai
+
+# --- RAG & Embeddings ---
+chromadb>=0.5.5
+sentence-transformers>=3.0.1
+
+# --- Web Search ---
+ddgs>=4.5.1
+tavily-python>=0.5.0
+
+# --- Code Quality (used via subprocess by CodeAuditor) ---
+pylint>=3.2.6
+bandit>=1.7.9
+radon>=6.0.1
+semgrep>=1.60.0
+
+# --- Browser & Automation ---
+playwright>=1.40.0
+apscheduler>=3.10.4
+
+# --- Image & Video Generation (Local AI) ---
+# PyTorch is installed automatically as a dependency, but you can install a specific CUDA version manually if needed.
+torch>=2.0.0
+torchvision>=0.15.0
+diffusers>=0.27.0
+accelerate>=0.28.0
+peft>=0.10.0
+bitsandbytes>=0.43.0
+rembg>=2.0.50
+
+# --- Integrations ---
+discord.py>=2.3.2
+tweepy>=4.14.0
+mcp>=1.2.0
+
+# --- Agentic Tools (OpenMonoAgent features) ---
+graphifyy>=0.1.0
+code-review-graph
+pyyaml>=6.0
+
+# --- Document Processing ---
+PyMuPDF>=1.24.0
+pdfplumber>=0.11.0
+
+# --- Data Science & Utilities (for AI code execution) ---
+pandas>=2.0.0
+numpy>=1.24.0
+matplotlib>=3.7.0
+seaborn>=0.13.0
+scipy>=1.11.0
+requests>=2.31.0
+openpyxl>=3.1.0
+beautifulsoup4>=4.12.0
+lxml>=5.0.0
+yfinance>=0.2.30
+ta>=0.11.0
+mplfinance>=0.12.0
+plotly>=5.18.0
+kaleido>=0.2.1
+ccxt>=4.0.0
+scikit-learn>=1.3.0
+sympy>=1.12
+statsmodels>=0.14.0
+tabulate>=0.9.0
+
+# --- Quality Validation (optional) ---
+deepeval>=0.21.0
+
+# --- Security & Performance ---
+slowapi>=0.1.9
+cachetools>=5.3.0
+
+# --- Hybrid RAG Search ---
+rank_bm25>=0.2.2
+# --- Animation ---
+pillow>=10.2.0
+imageio>=2.34.0
+imageio[ffmpeg]>=2.34.0
+
+# --- Others ---
+python-docx>=1.1.0
+python-pptx>=0.6.23
+XlsxWriter>=3.1.9
+fpdf2>=2.7.9
+gguf>=0.10.0
+tiktoken>=0.7.0
+sentencepiece>=0.2.0
+openai-whisper>=20231117
+datasets==2.19.2
+kernels >= 0.11.1

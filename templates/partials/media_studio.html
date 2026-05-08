@@ -1,0 +1,736 @@
+<!-- ======== Media Studio Layout ======== -->
+<div class="media-layout" id="media-layout">
+  <!-- Sidebar: Generation Panel -->
+  <div class="media-sidebar">
+    <div class="media-sidebar-header">
+      <h3>
+        <span class="media-icon" data-icon="image"></span> <span>Media Studio</span>
+      </h3>
+    </div>
+    <div class="media-sidebar-body">
+      <div class="media-type-toggle" id="media-type-toggle">
+        <button class="media-type-btn active" data-type="image">
+          <span class="media-icon" data-icon="image"></span> Image
+        </button>
+        <button class="media-type-btn" data-type="video">
+          <span class="media-icon" data-icon="video"></span> Video
+        </button>
+        <button class="media-type-btn" data-type="audio">
+          <span class="media-icon" data-icon="music"></span> Audio
+        </button>
+      </div>
+      <!-- Image Upload (for Img2Img) -->
+      <div class="media-form-group"
+           id="media-upload-group"
+           style="display: flex;
+                  gap: 10px">
+        <button class="media-generate-btn"
+                id="media-upload-btn"
+                style="flex: 1;
+                       padding: 8px;
+                       font-size: 12px;
+                       background: var(--bg-secondary)">
+          <span class="media-icon" data-icon="upload"></span> Import Media
+        </button>
+        <input type="file"
+               id="media-upload-input"
+               accept="image/png, image/jpeg, image/webp, video/mp4, image/gif, video/webm"
+               style="display: none">
+      </div>
+      <!-- Reference Image (Img2Img) -->
+      <div class="media-form-group" id="media-ref-group" style="display: none;">
+        <label class="media-form-label">Reference Image (Variation)</label>
+        <div style="position: relative; display: inline-block; width: 100%;">
+          <img id="media-ref-preview"
+               src=""
+               style="width: 100%;
+                      border-radius: var(--radius-md);
+                      border: 2px solid var(--accent);
+                      object-fit: contain;
+                      max-height: 200px;
+                      background: rgba(0,0,0,0.2)" />
+          <button id="media-ref-clear"
+                  style="position: absolute;
+                         top: 8px;
+                         right: 8px;
+                         width: 24px;
+                         height: 24px;
+                         border-radius: 12px;
+                         background: rgba(0,0,0,0.6);
+                         color: white;
+                         border: none;
+                         cursor: pointer;
+                         display: flex;
+                         align-items: center;
+                         justify-content: center;
+                         font-size: 10px">
+            <span class="media-icon" data-icon="x" style="margin:0;"></span>
+          </button>
+        </div>
+        <div class="media-form-row"
+             id="media-ref-strength-row"
+             style="margin-top: 10px">
+          <label class="media-form-label" style="flex:1;">Strength (Change)</label>
+          <div style="display:flex; align-items:center; gap:10px; flex:2;">
+            <input type="range"
+                   id="media-ref-strength"
+                   min="0.1"
+                   max="1.0"
+                   step="0.1"
+                   value="0.5"
+                   style="flex:1"
+                   oninput="document.getElementById('media-ref-strength-val').textContent = this.value">
+            <span id="media-ref-strength-val"
+                  style="font-size:12px;
+                         font-weight:bold;
+                         color:var(--accent)">0.5</span>
+          </div>
+        </div>
+        <div id="media-ref-strength-hint"
+             style="font-size: 10px;
+                    color: var(--text-muted);
+                    margin-top: 4px">0.1 = Almost identical, 1.0 = Completely different</div>
+      </div>
+      <!-- Prompt -->
+      <div class="media-form-group">
+        <label class="media-form-label">Prompt</label>
+        <textarea class="media-form-input"
+                  id="media-prompt"
+                  placeholder="A majestic dragon soaring through neon clouds..."
+                  rows="4"></textarea>
+      </div>
+      <!-- Negative Prompt -->
+      <div class="media-form-group">
+        <label class="media-form-label">Negative Prompt</label>
+        <input type="text"
+               class="media-form-input"
+               id="media-neg-prompt"
+               value="blurry, low quality, distorted"
+               placeholder="What to avoid...">
+      </div>
+      <!-- Format (Image) -->
+      <div class="media-form-group" id="media-format-image-group">
+        <label class="media-form-label">Format</label>
+        <select class="media-form-select" id="media-format-image">
+          <option value="auto">Auto (best available)</option>
+          <option value="png" selected>PNG</option>
+          <option value="transparent_png">Transparent PNG (rembg)</option>
+          <option value="svg">SVG (vector)</option>
+        </select>
+      </div>
+      <!-- Style (Image only) -->
+      <div class="media-form-group" id="media-style-group">
+        <label class="media-form-label">Style</label>
+        <select class="media-form-select" id="media-style">
+          <option value="none" selected>Auto (FLUX.2 Klein)</option>
+          <option value="all_models">All Models (One each)</option>
+          <option value="flux_schnell">⚡ FLUX.1 Schnell (Best quality)</option>
+          <option value="flux2_klein">🚀 FLUX.2 Klein (Ultra-fast)</option>
+          <option value="photorealistic">📸 Juggernaut XL (Photo)</option>
+          <option value="realvis">📷 RealVisXL V4.0 (Natural)</option>
+          <option value="anime">🌸 Animagine XL (Anime)</option>
+          <option value="pixel_art">👾 Pixel Art</option>
+          <option value="logo">🏷️ Logo</option>
+        </select>
+      </div>
+      <!-- Size / Resolution (Image only) -->
+      <div class="media-form-group" id="media-size-group">
+        <label class="media-form-label">Resolution</label>
+        <select class="media-form-select" id="media-size">
+          <option value="1024x1024" selected>Square (1024x1024)</option>
+          <option value="1216x832">Landscape (1216x832)</option>
+          <option value="1344x768">Cinematic (1344x768)</option>
+          <option value="832x1216">Portrait (832x1216)</option>
+          <option value="768x1344">Vertical (768x1344)</option>
+          <option value="512x512">Standard Fast (512x512)</option>
+        </select>
+      </div>
+      <!-- Format (Video) -->
+      <div class="media-form-group"
+           id="media-format-video-group"
+           style="display:none">
+        <label class="media-form-label">Format</label>
+        <select class="media-form-select" id="media-format-video">
+          <option value="gif" selected>GIF</option>
+          <option value="mp4">MP4</option>
+        </select>
+      </div>
+      <!-- Model (Video only) -->
+      <div class="media-form-group"
+           id="media-model-video-group"
+           style="display:none">
+        <label class="media-form-label">Video Model</label>
+        <select class="media-form-select" id="media-model-video">
+          <option value="animatediff" selected>⚡ AnimateDiff Lightning (6GB)</option>
+          <option value="wan_1_3b">🌟 Wan2.1 1.3B (8GB — Best value)</option>
+          <option value="cogvideox_2b">🎥 CogVideoX 2B (10GB)</option>
+          <option value="ltx_video">🎬 LTX-Video 0.9.7 (10GB)</option>
+          <option value="ltx_23">🏆 LTX 2.3 — 4K+Audio (20GB ⚠️)</option>
+          <option value="hunyuanvideo">✨ HunyuanVideo (14GB ⚠️)</option>
+          <option value="cogvideox">🎥 CogVideoX 5B (16GB ⚠️) — I2V ✓</option>
+          <option value="wan22">👑 Wan 2.2 MoE 27B (20GB ⚠️) — I2V ✓</option>
+        </select>
+      </div>
+      <!-- Resolution (Video only) -->
+      <div class="media-form-group"
+           id="media-size-video-group"
+           style="display:none">
+        <label class="media-form-label">Resolution</label>
+        <select class="media-form-select" id="media-size-video">
+          <option value="512x320" selected>Fast (512×320)</option>
+          <option value="704x480">Standard (704×480)</option>
+          <option value="832x480">Wide (832×480)</option>
+          <option value="480x832">Portrait (480×832)</option>
+          <option value="1024x576">HD Landscape (1024×576)</option>
+          <option value="576x1024">HD Portrait (576×1024)</option>
+          <option value="1280x720">720p (1280×720)</option>
+        </select>
+      </div>
+      <!-- Video Tools — now in toolbar select -->
+      <!-- Duration (Video only) -->
+      <div class="media-form-group"
+           id="media-duration-group"
+           style="display:none">
+        <label class="media-form-label">Duration (seconds)</label>
+        <div class="media-form-range-row">
+          <input type="range"
+                 class="media-form-range"
+                 id="media-duration"
+                 min="0.5"
+                 max="20"
+                 value="2"
+                 step="0.5">
+          <span class="media-form-range-value" id="media-duration-value">2s</span>
+        </div>
+      </div>
+      <!-- Number of images -->
+      <div class="media-form-group" id="media-count-group">
+        <label class="media-form-label">Number of Images</label>
+        <div class="media-form-range-row">
+          <input type="range"
+                 class="media-form-range"
+                 id="media-num-images"
+                 min="1"
+                 max="50"
+                 value="1"
+                 step="1">
+          <span class="media-form-range-value" id="media-num-images-value">1</span>
+        </div>
+      </div>
+      <!-- Backend Toggle -->
+      <div class="media-form-group">
+        <label class="media-form-label">Backend</label>
+        <div class="media-type-toggle" id="media-backend-toggle">
+          <button class="media-type-btn active" data-backend="local">
+            <span class="media-icon" data-icon="monitor"></span> Local GPU
+          </button>
+          <button class="media-type-btn"
+                  data-backend="api"
+                  {% if not has_hf_token %}disabled title="HUGGINGFACE_API_KEY is missing in your settings" style="opacity: 0.5; cursor: not-allowed;"{% endif %}>
+            <span class="media-icon" data-icon="cloud"></span> API
+          </button>
+        </div>
+      </div>
+      <!-- Enhance with LLM -->
+      <div class="media-form-group">
+        <div style="display:flex;align-items:center;gap:8px;">
+          <input type="checkbox" id="media-enhance" checked>
+          <label for="media-enhance"
+                 style="font-size:12px;
+                        color:var(--text-secondary);
+                        cursor:pointer">
+            <span class="media-icon" data-icon="sparkles"></span> Enhance prompt with AI
+          </label>
+        </div>
+      </div>
+      <!-- ====== AUDIO MODE GROUPS ====== -->
+      <!-- Audio Sub-mode -->
+      <div class="media-form-group"
+           id="media-audio-submode-group"
+           style="display:none">
+        <label class="media-form-label">Mode Audio</label>
+        <div class="media-type-toggle" id="media-audio-submode-toggle">
+          <button class="media-type-btn active" data-submode="tts">🗣️ TTS</button>
+          <button class="media-type-btn" data-submode="voice_clone">🎭 Clone</button>
+          <button class="media-type-btn" data-submode="music">🎵 Musique</button>
+          <button class="media-type-btn" data-submode="song">🎤 Chanson</button>
+        </div>
+      </div>
+      <!-- Audio Text (TTS / Clone / Song) -->
+      <div class="media-form-group"
+           id="media-audio-text-group"
+           style="display:none">
+        <label class="media-form-label">Texte</label>
+        <textarea class="media-form-input"
+                  id="media-audio-text"
+                  placeholder="Entrez le texte à convertir en parole..."
+                  rows="4"></textarea>
+      </div>
+      <!-- Voice Style (TTS / Song) -->
+      <div class="media-form-group"
+           id="media-voice-style-group"
+           style="display:none">
+        <label class="media-form-label">Voix</label>
+        <select class="media-form-select" id="media-voice-style">
+          <option value="female_soft" selected>👩 Femme (douce)</option>
+          <option value="female_pro">👩 Femme (professionnelle)</option>
+          <option value="male_deep">🧑 Homme (grave)</option>
+          <option value="male_medium">🧑 Homme (medium)</option>
+          <option value="child">👶 Enfant</option>
+          <option value="robot">🤖 Robot</option>
+          <option value="narrator">📻 Narrateur</option>
+        </select>
+      </div>
+      <!-- TTS Engine -->
+      <div class="media-form-group"
+           id="media-tts-engine-group"
+           style="display:none">
+        <label class="media-form-label">Moteur TTS</label>
+        <select class="media-form-select" id="media-tts-engine">
+          <option value="speecht5" selected>⚡ SpeechT5 (rapide, léger)</option>
+          <option value="bark">🌳 Bark (naturel, multi-langue)</option>
+        </select>
+      </div>
+      <!-- Reference Audio Upload (Voice Clone) -->
+      <div class="media-form-group"
+           id="media-audio-ref-group"
+           style="display:none">
+        <label class="media-form-label">Échantillon vocal (6s min)</label>
+        <button class="media-generate-btn"
+                id="media-audio-ref-btn"
+                style="padding:8px;
+                       font-size:12px;
+                       background:var(--bg-secondary)">
+          <span class="media-icon" data-icon="upload"></span> Importer un échantillon
+        </button>
+        <input type="file"
+               id="media-audio-ref-input"
+               accept="audio/*"
+               style="display:none">
+        <div id="media-audio-ref-preview" style="display:none;margin-top:8px;">
+          <audio id="media-audio-ref-player" controls style="width:100%;height:36px;"></audio>
+          <button id="media-audio-ref-clear"
+                  style="margin-top:4px;
+                         padding:4px 10px;
+                         font-size:11px;
+                         background:rgba(244,63,94,.15);
+                         color:var(--red);
+                         border:1px solid rgba(244,63,94,.3);
+                         border-radius:6px;
+                         cursor:pointer">✕ Supprimer</button>
+        </div>
+      </div>
+      <!-- Genre (Music / Song) -->
+      <div class="media-form-group" id="media-genre-group" style="display:none">
+        <label class="media-form-label">Genre Musical</label>
+        <select class="media-form-select" id="media-genre">
+          <option value="" selected>🎶 Auto</option>
+          <option value="pop">🎵 Pop</option>
+          <option value="rock">🎸 Rock</option>
+          <option value="jazz">🎷 Jazz</option>
+          <option value="classical">🎻 Classique</option>
+          <option value="edm">💿 EDM / Electro</option>
+          <option value="hiphop">🎤 Hip-Hop / Rap</option>
+          <option value="lofi">☕ Lo-Fi / Chill</option>
+          <option value="ambient">🌊 Ambient</option>
+          <option value="cinematic">🎬 Cinematic / Epic</option>
+          <option value="rnb">💜 R&B / Soul</option>
+          <option value="metal">🤘 Metal</option>
+          <option value="reggae">🏝️ Reggae</option>
+          <option value="folk">🪕 Folk / Acoustic</option>
+          <option value="trap">🔥 Trap</option>
+        </select>
+      </div>
+      <!-- Tempo (Music / Song) -->
+      <div class="media-form-group" id="media-tempo-group" style="display:none">
+        <label class="media-form-label">Tempo (BPM)</label>
+        <div class="media-form-range-row">
+          <input type="range"
+                 class="media-form-range"
+                 id="media-tempo"
+                 min="60"
+                 max="200"
+                 value="120"
+                 step="5">
+          <span class="media-form-range-value" id="media-tempo-value">120</span>
+        </div>
+      </div>
+      <!-- Language -->
+      <div class="media-form-group"
+           id="media-language-group"
+           style="display:none">
+        <label class="media-form-label">Langue</label>
+        <select class="media-form-select" id="media-language">
+          <option value="auto" selected>🌐 Auto</option>
+          <option value="fr">🇫🇷 Français</option>
+          <option value="en">🇬🇧 English</option>
+          <option value="es">🇪🇸 Español</option>
+          <option value="de">🇩🇪 Deutsch</option>
+          <option value="it">🇮🇹 Italiano</option>
+          <option value="pt">🇵🇹 Português</option>
+          <option value="ja">🇯🇵 日本語</option>
+          <option value="zh">🇨🇳 中文</option>
+        </select>
+      </div>
+      <!-- Audio Duration -->
+      <div class="media-form-group"
+           id="media-audio-duration-group"
+           style="display:none">
+        <label class="media-form-label">Durée max (secondes)</label>
+        <div class="media-form-range-row">
+          <input type="range"
+                 class="media-form-range"
+                 id="media-audio-duration"
+                 min="5"
+                 max="300"
+                 value="30"
+                 step="5">
+          <span class="media-form-range-value" id="media-audio-duration-value">30s</span>
+        </div>
+      </div>
+      <!-- Audio Format -->
+      <div class="media-form-group"
+           id="media-format-audio-group"
+           style="display:none">
+        <label class="media-form-label">Format</label>
+        <select class="media-form-select" id="media-format-audio">
+          <option value="wav" selected>WAV (haute qualité)</option>
+          <option value="mp3">MP3 (compact)</option>
+          <option value="ogg">OGG Vorbis (open)</option>
+        </select>
+      </div>
+      <!-- Stream Preview -->
+      <div id="media-stream-preview-container"
+           style="display:none;
+                  margin-bottom: 12px">
+        <img id="media-stream-preview"
+             src=""
+             style="width: 100%;
+                    border-radius: 8px;
+                    border: 2px solid var(--accent)" />
+      </div>
+      <!-- Generate Button -->
+      <div style="display:flex; gap: 8px; margin-top: 8px; align-items: stretch">
+        <button class="media-generate-btn"
+                id="media-generate-btn"
+                style="flex:1;
+                       margin-top: 0">
+          <span class="gen-spinner"></span>
+          <span class="gen-label"><span class="media-icon" data-icon="sparkles"></span> Generate</span>
+        </button>
+        <button class="media-cancel-btn"
+                id="media-cancel-btn"
+                title="Cancel generation"
+                style="display:none;
+                       padding: 0 16px;
+                       background: rgba(239, 68, 68, 0.2);
+                       color: #ef4444;
+                       border: 1px solid rgba(239, 68, 68, 0.4);
+                       border-radius: var(--radius-sm);
+                       cursor: pointer;
+                       transition: all var(--transition)">
+          <span class="media-icon" data-icon="x" style="margin:0; font-size: 16px;"></span>
+        </button>
+      </div>
+      <div class="media-progress" id="media-progress">
+        <div class="media-progress-bar" id="media-progress-bar"></div>
+      </div>
+      <div id="media-download-msg"
+           style="display:none;
+                  font-size:12px;
+                  font-weight:600;
+                  color:var(--accent);
+                  text-align:center;
+                  margin-top:12px;
+                  padding:8px;
+                  background:rgba(0,0,0,0.2);
+                  border-radius:8px">
+        <span class="media-icon" data-icon="hourglass"></span> Downloading model weights (~5-10GB). Please wait, this may take a few minutes...
+      </div>
+    </div>
+  </div>
+  <!-- Main: Gallery -->
+  <div class="media-main">
+    <!-- Toolbar -->
+    <div class="media-toolbar">
+      <div class="media-toolbar-left">
+        <span class="media-toolbar-count" id="media-count">0 items</span>
+        <div class="media-filter-tabs" id="media-filters">
+          <button class="media-filter-tab active" data-filter="all">All</button>
+          <button class="media-filter-tab" data-filter="image">Images</button>
+          <button class="media-filter-tab" data-filter="video">Videos</button>
+          <button class="media-filter-tab" data-filter="svg">SVG</button>
+          <button class="media-filter-tab" data-filter="audio">Audio</button>
+        </div>
+      </div>
+      <div class="media-toolbar-right">
+        <button class="media-toolbar-btn" id="media-select-all">
+          <span class="media-icon" data-icon="checkSquare"></span> Select All
+        </button>
+        <button class="media-toolbar-btn danger"
+                id="media-delete-selected"
+                style="display:none">
+          <span class="media-icon" data-icon="trash"></span> Delete <span class="badge" id="media-selected-count">0</span>
+        </button>
+        <select class="media-form-select"
+                id="media-tools-select"
+                title="Media Tools"
+                style="min-width:150px;
+                       font-size:12px;
+                       padding:6px 10px">
+          <option value="" disabled selected>🛠️ Tools</option>
+          <optgroup label="Convert Video">
+            <option value="convert_gif">➔ GIF</option>
+            <option value="convert_mp4">➔ MP4</option>
+            <option value="convert_webm">➔ WEBM</option>
+          </optgroup>
+          <optgroup label="Actions">
+            <option value="remove_bg">🎨 Remove BG</option>
+            <option value="make_coloring">🖍️ Crayons</option>
+            <option value="download_zip">📦 Download ZIP</option>
+          </optgroup>
+        </select>
+        <button class="media-toolbar-btn" id="media-refresh" title="Refresh gallery">
+          <span class="media-icon" data-icon="refresh"></span>
+        </button>
+      </div>
+    </div>
+    <!-- Gallery Grid -->
+    <div class="media-gallery" id="media-gallery"></div>
+  </div>
+</div>
+<!-- Media Lightbox -->
+<div class="media-lightbox" id="media-lightbox">
+  <button class="media-lightbox-close" id="media-lb-close">
+    <span class="media-icon" data-icon="x" style="margin:0;"></span>
+  </button>
+  <button class="media-lightbox-nav prev" id="media-lb-prev">
+    <span class="media-icon" data-icon="chevronLeft" style="margin:0;"></span>
+  </button>
+  <button class="media-lightbox-nav next" id="media-lb-next">
+    <span class="media-icon" data-icon="chevronRight" style="margin:0;"></span>
+  </button>
+  <div class="media-lightbox-content" id="media-lb-content"></div>
+  <div class="media-lightbox-info" id="media-lb-info"></div>
+  <div class="media-lightbox-toolbar" id="media-lb-toolbar">
+    <button class="media-lightbox-btn" id="media-lb-variant">
+      <span class="media-icon" data-icon="wand"></span> Create Variation
+    </button>
+    <button class="media-lightbox-btn i2v-btn"
+            id="media-lb-i2v"
+            style="background: linear-gradient(135deg, rgba(139,92,246,0.2), rgba(59,130,246,0.2));
+                   border-color: rgba(139,92,246,0.5)">
+      <span class="media-icon" data-icon="video"></span> → Video
+    </button>
+    <button class="media-lightbox-btn" id="media-lb-download">
+      <span class="media-icon" data-icon="save"></span> Download
+    </button>
+    <button class="media-lightbox-btn danger" id="media-lb-delete">
+      <span class="media-icon" data-icon="trash"></span> Delete
+    </button>
+  </div>
+</div>
+<style>
+    /* Image-to-Video button style on gallery cards */
+    .media-card-action-btn.i2v {
+        background: linear-gradient(135deg, rgba(139, 92, 246, 0.25), rgba(59, 130, 246, 0.25)) !important;
+        color: #a78bfa !important;
+        border: 1px solid rgba(139, 92, 246, 0.4) !important;
+    }
+
+    .media-card-action-btn.i2v:hover {
+        background: linear-gradient(135deg, rgba(139, 92, 246, 0.5), rgba(59, 130, 246, 0.5)) !important;
+        transform: scale(1.12);
+    }
+
+    /* Lightbox I2V button */
+    #media-lb-i2v {
+        background: linear-gradient(135deg, rgba(139, 92, 246, 0.2), rgba(59, 130, 246, 0.2));
+        border-color: rgba(139, 92, 246, 0.5);
+    }
+
+    #media-lb-i2v:hover {
+        background: linear-gradient(135deg, rgba(139, 92, 246, 0.4), rgba(59, 130, 246, 0.4));
+    }
+
+    /* Remove BG Modal */
+    .media-rembg-modal {
+        position: fixed;
+        top: 0; left: 0; width: 100%; height: 100%;
+        background: rgba(0,0,0,0.85);
+        z-index: 10000;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        opacity: 0;
+        pointer-events: none;
+        transition: opacity var(--transition);
+        backdrop-filter: blur(8px);
+        -webkit-backdrop-filter: blur(8px);
+    }
+    .media-rembg-modal.open {
+        opacity: 1;
+        pointer-events: auto;
+    }
+    .media-rembg-content {
+        background: var(--bg-primary);
+        border: 1px solid var(--border);
+        border-radius: var(--radius-lg);
+        width: 900px;
+        max-width: 95vw;
+        height: 600px;
+        max-height: 90vh;
+        display: flex;
+        overflow: hidden;
+        box-shadow: 0 25px 50px -12px rgba(0,0,0,0.5);
+    }
+    .media-rembg-preview-area {
+        flex: 1;
+        background: url('data:image/svg+xml;utf8,<svg width="20" height="20" xmlns="http://www.w3.org/2000/svg"><rect width="10" height="10" fill="%23222"/><rect x="10" width="10" height="10" fill="%23333"/><rect y="10" width="10" height="10" fill="%23333"/><rect x="10" y="10" width="10" height="10" fill="%23222"/></svg>');
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        position: relative;
+        padding: 20px;
+        border-right: 1px solid var(--border);
+    }
+    .media-rembg-preview-area img {
+        max-width: 100%;
+        max-height: 100%;
+        object-fit: contain;
+        transition: opacity 0.3s;
+    }
+    .media-rembg-controls {
+        width: 320px;
+        display: flex;
+        flex-direction: column;
+        background: var(--bg-secondary);
+    }
+    .media-rembg-header {
+        padding: 16px 20px;
+        border-bottom: 1px solid var(--border);
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+    }
+    .media-rembg-header h3 {
+        margin: 0;
+        font-size: 16px;
+        color: var(--text-primary);
+    }
+    .media-rembg-body {
+        padding: 20px;
+        flex: 1;
+        overflow-y: auto;
+        display: flex;
+        flex-direction: column;
+        gap: 16px;
+    }
+    .media-rembg-footer {
+        padding: 16px 20px;
+        border-top: 1px solid var(--border);
+        display: flex;
+        gap: 12px;
+    }
+    .media-rembg-btn {
+        flex: 1;
+        padding: 10px;
+        border: none;
+        border-radius: var(--radius-sm);
+        cursor: pointer;
+        font-weight: 500;
+        transition: background 0.2s;
+    }
+    .media-rembg-btn.cancel {
+        background: var(--bg-tertiary);
+        color: var(--text-primary);
+    }
+    .media-rembg-btn.cancel:hover {
+        background: var(--border);
+    }
+    .media-rembg-btn.apply {
+        background: var(--accent);
+        color: white;
+    }
+    .media-rembg-btn.apply:hover {
+        background: var(--accent-hover);
+    }
+</style>
+
+<!-- Remove BG Modal -->
+<div class="media-rembg-modal" id="media-rembg-modal">
+    <div class="media-rembg-content">
+        <div class="media-rembg-preview-area">
+            <img id="media-rembg-preview-img" src="" alt="Preview">
+            <div id="media-rembg-loading" style="display:none;position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);background:rgba(0,0,0,0.7);color:white;padding:12px 24px;border-radius:8px;font-weight:bold;backdrop-filter:blur(4px);">
+                Processing...
+            </div>
+        </div>
+        <div class="media-rembg-controls">
+            <div class="media-rembg-header">
+                <h3>🎨 Remove Background</h3>
+                <button class="media-lightbox-close" id="media-rembg-close" style="position:static;width:32px;height:32px;">
+                    <span class="media-icon" data-icon="x" style="margin:0;"></span>
+                </button>
+            </div>
+            <div class="media-rembg-body">
+                <div class="media-form-group">
+                    <label class="media-form-label">AI Model</label>
+                    <select class="media-form-select" id="rembg-model">
+                        <option value="isnet-general-use" selected>ISNet (General Use - Best Quality)</option>
+                        <option value="u2net">U2Net (Standard)</option>
+                        <option value="u2net_human_seg">U2Net (Human Segmentation)</option>
+                        <option value="u2net_cloth_seg">U2Net (Clothing Segmentation)</option>
+                        <option value="silueta">Silueta (Very small & fast)</option>
+                    </select>
+                </div>
+                
+                <div class="media-form-group">
+                    <div style="display:flex;align-items:center;gap:8px;">
+                        <input type="checkbox" id="rembg-post-process" checked>
+                        <label for="rembg-post-process" style="font-size:13px;color:var(--text-primary);cursor:pointer">
+                            Post-process Mask (Clean edges)
+                        </label>
+                    </div>
+                </div>
+
+                <div class="media-form-group">
+                    <div style="display:flex;align-items:center;gap:8px;">
+                        <input type="checkbox" id="rembg-alpha-matting">
+                        <label for="rembg-alpha-matting" style="font-size:13px;color:var(--text-primary);cursor:pointer">
+                            Alpha Matting (Better for hair/fur)
+                        </label>
+                    </div>
+                </div>
+
+                <div id="rembg-alpha-controls" style="display:none; flex-direction:column; gap:12px; padding:12px; background:var(--bg-tertiary); border-radius:var(--radius-sm); border:1px solid var(--border);">
+                    <div>
+                        <div style="display:flex;justify-content:space-between;margin-bottom:4px;">
+                            <label class="media-form-label" style="margin:0">Foreground Thresh</label>
+                            <span id="rembg-fg-val" style="font-size:12px;color:var(--accent)">240</span>
+                        </div>
+                        <input type="range" class="media-form-range" id="rembg-fg-thresh" min="0" max="255" value="240" oninput="document.getElementById('rembg-fg-val').textContent = this.value">
+                    </div>
+                    <div>
+                        <div style="display:flex;justify-content:space-between;margin-bottom:4px;">
+                            <label class="media-form-label" style="margin:0">Background Thresh</label>
+                            <span id="rembg-bg-val" style="font-size:12px;color:var(--accent)">10</span>
+                        </div>
+                        <input type="range" class="media-form-range" id="rembg-bg-thresh" min="0" max="255" value="10" oninput="document.getElementById('rembg-bg-val').textContent = this.value">
+                    </div>
+                    <div>
+                        <div style="display:flex;justify-content:space-between;margin-bottom:4px;">
+                            <label class="media-form-label" style="margin:0">Erode Size</label>
+                            <span id="rembg-erode-val" style="font-size:12px;color:var(--accent)">10</span>
+                        </div>
+                        <input type="range" class="media-form-range" id="rembg-erode-size" min="0" max="50" value="10" oninput="document.getElementById('rembg-erode-val').textContent = this.value">
+                    </div>
+                </div>
+            </div>
+            <div class="media-rembg-footer">
+                <button class="media-rembg-btn cancel" id="media-rembg-cancel-btn">Cancel</button>
+                <button class="media-rembg-btn apply" id="media-rembg-apply-btn">Apply & Save</button>
+            </div>
+        </div>
+    </div>
+</div>

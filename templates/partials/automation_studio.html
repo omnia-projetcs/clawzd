@@ -1,0 +1,169 @@
+<!-- ---- Automation Studio Layout ---- -->
+      <div class="automation-layout" id="automation-layout" style="display:none">
+        <!-- Left: Workflow List -->
+        <div class="auto-sidebar-left" id="auto-sidebar-left">
+          <div class="auto-sidebar-header">
+            <span class="auto-sidebar-title">Workflows</span>
+            <div style="display:flex; gap:4px;">
+              <button class="icon-btn" id="auto-btn-globals" title="Global Variables">
+                <svg class="ic" width="14" height="14"><use href="#icon-layers"></use></svg>
+              </button>
+              <button class="icon-btn" id="auto-btn-new" title="New Workflow">
+                <svg class="ic" width="14" height="14"><use href="#icon-plus"></use></svg>
+              </button>
+            </div>
+          </div>
+          <div class="auto-search-wrap">
+            <input type="text" id="auto-wf-search" class="auto-search-input" placeholder="Search workflows..." autocomplete="off">
+            <span class="auto-search-clear" id="auto-wf-search-clear">✕</span>
+          </div>
+          <div class="auto-wf-list" id="auto-wf-list">
+            <div class="auto-wf-empty">No workflows yet.<br>Click + to create one.</div>
+          </div>
+          <div class="auto-sidebar-divider"></div>
+          <div class="auto-sidebar-header"><span class="auto-sidebar-title">Node Palette</span></div>
+          <div class="auto-search-wrap">
+            <input type="text" id="auto-palette-search" class="auto-search-input" placeholder="Search nodes..." autocomplete="off">
+            <span class="auto-search-clear" id="auto-palette-search-clear">✕</span>
+          </div>
+          <div class="auto-palette" id="auto-palette">
+            <div class="auto-palette-group" data-cat="trigger">
+              <div class="auto-palette-cat"><span class="auto-icon" data-icon="bolt"></span> Triggers</div>
+              <div class="auto-palette-node" draggable="true" data-type="trigger_manual"><span class="auto-icon" data-icon="bolt"></span> Manual Trigger</div>
+              <div class="auto-palette-node" draggable="true" data-type="trigger_cron"><span class="auto-icon" data-icon="clock"></span> Cron Schedule</div>
+              <div class="auto-palette-node" draggable="true" data-type="trigger_webhook"><span class="auto-icon" data-icon="link"></span> Webhook</div>
+              <div class="auto-palette-node" draggable="true" data-type="trigger_discord"><span class="auto-icon" data-icon="chat"></span> Discord Message</div>
+              <div class="auto-palette-node" draggable="true" data-type="trigger_telegram"><span class="auto-icon" data-icon="send"></span> Telegram Message</div>
+            </div>
+            <div class="auto-palette-group" data-cat="communication">
+              <div class="auto-palette-cat"><span class="auto-icon" data-icon="send"></span> Communication</div>
+              <div class="auto-palette-node" draggable="true" data-type="email_send"><span class="auto-icon" data-icon="send"></span> Send Email</div>
+              <div class="auto-palette-node" draggable="true" data-type="discord_send"><span class="auto-icon" data-icon="chat"></span> Discord Send</div>
+              <div class="auto-palette-node" draggable="true" data-type="signal_send"><span class="auto-icon" data-icon="smartphone"></span> Signal</div>
+              <div class="auto-palette-node" draggable="true" data-type="telegram_send"><span class="auto-icon" data-icon="send"></span> Telegram Send</div>
+              <div class="auto-palette-node" draggable="true" data-type="whatsapp_send"><span class="auto-icon" data-icon="smartphone"></span> WhatsApp Send</div>
+            </div>
+            <div class="auto-palette-group" data-cat="data">
+              <div class="auto-palette-cat"><span class="auto-icon" data-icon="layers"></span> Data</div>
+              <div class="auto-palette-node" draggable="true" data-type="data_list"><span class="auto-icon" data-icon="clipboard"></span> Data List</div>
+              <div class="auto-palette-node" draggable="true" data-type="db_query"><span class="auto-icon" data-icon="layers"></span> DB Query</div>
+              <div class="auto-palette-node" draggable="true" data-type="http_request"><span class="auto-icon" data-icon="link"></span> HTTP Request</div>
+              <div class="auto-palette-node" draggable="true" data-type="web_search"><span class="auto-icon" data-icon="search"></span> Web Search</div>
+            </div>
+            <div class="auto-palette-group" data-cat="ai">
+              <div class="auto-palette-cat"><span class="auto-icon" data-icon="cpu"></span> AI</div>
+              <div class="auto-palette-node" draggable="true" data-type="ai_prompt"><span class="auto-icon" data-icon="cpu"></span> AI Prompt</div>
+            </div>
+            <div class="auto-palette-group" data-cat="flow">
+              <div class="auto-palette-cat"><span class="auto-icon" data-icon="gitBranch"></span> Flow Control</div>
+              <div class="auto-palette-node" draggable="true" data-type="condition"><span class="auto-icon" data-icon="gitBranch"></span> Condition (AND/OR)</div>
+              <div class="auto-palette-node" draggable="true" data-type="delay"><span class="auto-icon" data-icon="clock"></span> Delay</div>
+              <div class="auto-palette-node" draggable="true" data-type="merge"><span class="auto-icon" data-icon="gitMerge"></span> Merge</div>
+            </div>
+            <div class="auto-palette-group" data-cat="transform">
+              <div class="auto-palette-cat"><span class="auto-icon" data-icon="settings"></span> Transform</div>
+              <div class="auto-palette-node" draggable="true" data-type="transform"><span class="auto-icon" data-icon="settings"></span> Transform</div>
+            </div>
+            <div class="auto-palette-group" data-cat="integration">
+              <div class="auto-palette-cat"><span class="auto-icon" data-icon="bolt"></span> Skills</div>
+              <div class="auto-palette-node" draggable="true" data-type="run_skill"><span class="auto-icon" data-icon="bolt"></span> Run Skill</div>
+            </div>
+            <div class="auto-palette-group" data-cat="code">
+              <div class="auto-palette-cat"><span class="auto-icon" data-icon="code"></span> Code</div>
+              <div class="auto-palette-node" draggable="true" data-type="code_audit"><span class="auto-icon" data-icon="search"></span> Code Audit</div>
+              <div class="auto-palette-node" draggable="true" data-type="code_fix"><span class="auto-icon" data-icon="penTool"></span> Code Fix</div>
+              <div class="auto-palette-node" draggable="true" data-type="code_report"><span class="auto-icon" data-icon="clipboard"></span> Code Report</div>
+            </div>
+            <div class="auto-palette-group" data-cat="export">
+              <div class="auto-palette-cat"><span class="auto-icon" data-icon="download"></span> Export</div>
+              <div class="auto-palette-node" draggable="true" data-type="export_file"><span class="auto-icon" data-icon="download"></span> Export File</div>
+              <div class="auto-palette-node" draggable="true" data-type="export_email"><span class="auto-icon" data-icon="send"></span> Export Email</div>
+            </div>
+            <div class="auto-palette-group" data-cat="publish">
+              <div class="auto-palette-cat"><span class="auto-icon" data-icon="pen"></span> Publish</div>
+              <div class="auto-palette-node" draggable="true" data-type="medium_publish"><span class="auto-icon" data-icon="pen"></span> Medium</div>
+              <div class="auto-palette-node" draggable="true" data-type="twitter_publish"><span class="auto-icon" data-icon="send"></span> X (Twitter)</div>
+            </div>
+          </div>
+        </div>
+        <!-- Center: Canvas -->
+        <div class="auto-center">
+          <div class="auto-topbar">
+            <div class="auto-topbar-left">
+              <input type="text" id="auto-wf-name" class="auto-wf-name-input" placeholder="Workflow Name" value="New Workflow">
+              <input type="text" id="auto-wf-desc" class="auto-wf-desc-input" placeholder="Description (optional)..." value="">
+            </div>
+            <div class="auto-topbar-right">
+              <button class="btn btn-secondary btn-sm" id="auto-btn-save"><span class="auto-icon" data-icon="save"></span> Save</button>
+              <button class="btn btn-primary btn-sm" id="auto-btn-execute"><span class="auto-icon" data-icon="play"></span> Execute</button>
+              <button class="btn btn-sm auto-btn-test" id="auto-btn-test" title="Run in testing mode (no real sends)"><span class="auto-icon" data-icon="terminal"></span> Test</button>
+              <label class="auto-toggle-label">
+                <input type="checkbox" id="auto-wf-active">
+                <span class="auto-toggle-slider"></span>
+                Active
+              </label>
+            </div>
+          </div>
+          <!-- AI Workflow Builder -->
+          <div class="presentation-ai-bar" style="display:flex; justify-content:space-between; align-items:center; gap: 16px; padding: 10px 16px; border-bottom: 1px solid var(--border);">
+            <div class="pt-ai-input-wrap" style="flex: 1;">
+              <span class="pt-ai-icon">
+                <svg class="ic" width="16" height="16"><use href="#icon-sparkles2"></use></svg>
+              </span>
+              <input type="text" id="auto-ai-prompt" class="pt-ai-input" placeholder="Describe what you want to automate (e.g., 'send email every day at 9am')..." autocomplete="off">
+              <button class="pt-ai-generate-btn" id="auto-btn-ai-generate" title="Generate with AI">
+                <span class="pt-ai-gen-label">Generate</span>
+                <span class="pt-ai-gen-spinner"></span>
+              </button>
+            </div>
+          </div>
+          <div class="auto-canvas-wrap" id="auto-canvas-wrap">
+            <svg class="auto-canvas" id="auto-canvas" xmlns="http://www.w3.org/2000/svg">
+              <defs>
+                <pattern id="auto-grid" width="20" height="20" patternUnits="userSpaceOnUse">
+                  <circle cx="1" cy="1" r="0.5" fill="rgba(255,255,255,0.05)"/>
+                </pattern>
+                <marker id="auto-arrow" markerWidth="8" markerHeight="8" refX="8" refY="4" orient="auto" markerUnits="strokeWidth">
+                  <path d="M0,0 L8,4 L0,8 Z" fill="var(--accent)"/>
+                </marker>
+              </defs>
+              <rect width="100%" height="100%" fill="url(#auto-grid)"/>
+              <g id="auto-connections-layer"></g>
+              <g id="auto-nodes-layer"></g>
+            </svg>
+          </div>
+          <!-- Execution Log -->
+          <div class="auto-exec-log" id="auto-exec-log" style="display:none">
+            <div class="auto-exec-log-header">
+              <span><span class="auto-icon" data-icon="clipboard"></span> Execution Log</span>
+              <button class="icon-btn" id="auto-exec-log-close"><span class="auto-icon" data-icon="x"></span></button>
+            </div>
+            <div class="auto-exec-log-body" id="auto-exec-log-body"></div>
+          </div>
+        </div>
+        <!-- Right: Properties -->
+        <div class="auto-sidebar-right" id="auto-sidebar-right">
+          <div id="auto-props-empty" class="auto-props-empty">Select a node to edit properties.</div>
+          <div id="auto-props-panel" class="auto-props-panel" style="display:none">
+            <div class="auto-props-header">
+              <span id="auto-props-title">Node Properties</span>
+              <button class="icon-btn" id="auto-props-delete" title="Delete Node" style="color:#ff5555;"><span class="auto-icon" data-icon="x"></span></button>
+            </div>
+            <div class="auto-props-body" id="auto-props-body"></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Globals Modal Overlay -->
+      <div id="auto-globals-modal" class="modal-overlay" style="display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.5); z-index:9999; justify-content:center; align-items:center;">
+        <div class="modal-content" style="background:var(--bg); border:1px solid var(--border); padding:20px; border-radius:8px; width:400px; max-width:90%;">
+          <h3 style="margin-top:0;">Global Variables</h3>
+          <p style="font-size:12px; color:var(--text-muted); margin-bottom:15px;">Use {% raw %}{{global.VAR_NAME}}{% endraw %} in text areas to inject these values.</p>
+          <div id="auto-globals-list" style="display:flex; flex-direction:column; gap:10px; margin-bottom:15px; max-height:300px; overflow-y:auto;"></div>
+          <button class="btn btn-secondary btn-sm" id="auto-btn-add-global" style="margin-bottom:15px; width:100%;">+ Add Variable</button>
+          <div style="display:flex; justify-content:flex-end; gap:10px;">
+            <button class="btn btn-secondary" id="auto-btn-globals-cancel">Cancel</button>
+            <button class="btn btn-primary" id="auto-btn-globals-save">Save</button>
+          </div>
+        </div>
+      </div>
