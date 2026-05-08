@@ -42,7 +42,7 @@ BUILTIN_PATTERNS = {
     ],
     "screenshot_local": [
         r"(?:screenshot|capture|screen)\s+(?:local|desktop)",
-        r"(?:take)\s+(?:a\s+)?(?:screenshot|capture)\s*$",
+        r"(?:take)\s+(?:a\s+)?(?:screenshot|capture)(?!.*\b\w+\.(?:com|org|net|io|dev|fr|de|uk|co|app|ai)\b)(?!.*https?://)",
     ],
     "screenshot_remote": [
         r"(?:screenshot|capture)\s+.*(?:url|website|page|site)",
