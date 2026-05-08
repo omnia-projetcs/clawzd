@@ -12209,7 +12209,7 @@
 
     // Provider display names (alphabetical)
     const PROVIDER_NAMES = {
-      google: 'Gemini', grok: 'Grok', groq: 'Groq',
+      anthropic: 'Claude', google: 'Gemini', grok: 'Grok', groq: 'Groq',
       huggingface: 'HuggingFace', mistral: 'Mistral', ollama: 'Ollama',
       openai: 'OpenAI', openrouter: 'OpenRouter'
     };
@@ -12222,7 +12222,7 @@
 
       // Providers
       provList.innerHTML = '';
-      ['google', 'grok', 'groq', 'huggingface', 'mistral', 'ollama', 'openai', 'openrouter'].forEach(p => {
+      ['anthropic', 'google', 'grok', 'groq', 'huggingface', 'mistral', 'ollama', 'openai', 'openrouter'].forEach(p => {
         const opt = el('div', {
           class: 'mpd-option' + (currentProv === p ? ' active' : ''),
           onclick: () => {

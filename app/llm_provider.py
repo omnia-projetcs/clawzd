@@ -1,6 +1,7 @@
 """
 Clawzd — LLM Provider abstraction layer.
-Supports Google Gemini, Grok (xAI), Groq, HuggingFace, Mistral, Ollama, OpenAI, and OpenRouter.
+Supports Anthropic Claude, Google Gemini, Grok (xAI), Groq, HuggingFace,
+Mistral, Ollama, OpenAI, and OpenRouter.
 """
 import logging
 import time
@@ -13,6 +14,7 @@ import openai
 from config import (
     OLLAMA_HOST,
     OLLAMA_MODEL,
+    ANTHROPIC_API_KEY,
     GOOGLE_API_KEY,
     GROK_API_KEY,
     GROQ_API_KEY,
@@ -56,6 +58,7 @@ async def _get_provider_models() -> dict:
     """
     local_models = await _get_local_models()
     return {
+        "anthropic": PROVIDER_MODELS_STATIC["anthropic"],
         "google": PROVIDER_MODELS_STATIC["google"],
         "grok": PROVIDER_MODELS_STATIC["grok"],
         "groq": PROVIDER_MODELS_STATIC["groq"],
@@ -68,6 +71,12 @@ async def _get_provider_models() -> dict:
 
 
 PROVIDER_MODELS_STATIC = {
+    "anthropic": [
+        {"id": "claude-3-5-haiku-latest", "label": "Claude 3.5 Haiku"},
+        {"id": "claude-3-5-sonnet-latest", "label": "Claude 3.5 Sonnet"},
+        {"id": "claude-sonnet-4-20250514", "label": "Claude Sonnet 4"},
+        {"id": "claude-opus-4-20250514", "label": "Claude Opus 4"},
+    ],
     "google": [
         {"id": "gemini-1.5-pro", "label": "Gemini 1.5 Pro"},
         {"id": "gemini-2.0-flash", "label": "Gemini 2.0 Flash"},
@@ -191,6 +200,50 @@ class OllamaLLM(LLMProvider):
                     "Make sure Ollama is running: `ollama serve`"
                 )
                 return
+
+
+class AnthropicLLM(LLMProvider):
+    """Anthropic Claude API via the official anthropic SDK."""
+
+    def __init__(self):
+        import anthropic
+        self.client = anthropic.AsyncAnthropic(api_key=ANTHROPIC_API_KEY)
+
+    async def chat_stream(self, messages, model="claude-sonnet-4-20250514", **kwargs):
+        if not ANTHROPIC_API_KEY:
+            yield (
+                "⚠️ **Anthropic API key not configured.**\n\n"
+                "Set `ANTHROPIC_API_KEY` in your `.env` file.\n"
+                "Get a key at https://console.anthropic.com/settings/keys"
+            )
+            return
+        t0 = time.perf_counter()
+        tokens = 0
+
+        # Claude uses a separate system parameter (not in messages list)
+        system_text = ""
+        chat_messages = []
+        for m in messages:
+            if m["role"] == "system":
+                system_text += ("\n" if system_text else "") + m["content"]
+            else:
+                chat_messages.append({"role": m["role"], "content": m["content"]})
+
+        api_kwargs = {
+            "model": model,
+            "messages": chat_messages,
+            "max_tokens": kwargs.pop("max_tokens", 4096),
+        }
+        if system_text:
+            api_kwargs["system"] = system_text
+        # Pass through any remaining kwargs (temperature, etc.)
+        api_kwargs.update(kwargs)
+
+        async with self.client.messages.stream(**api_kwargs) as stream:
+            async for text in stream.text_stream:
+                tokens += 1
+                yield text
+        logger.info("Anthropic [%s]: %d tokens in %.1fs", model, tokens, time.perf_counter() - t0)
 
 
 class GoogleLLM(LLMProvider):
@@ -386,6 +439,7 @@ class OpenRouterLLM(LLMProvider):
 _provider_cache: dict[str, LLMProvider] = {}
 
 PROVIDER_CLASSES = {
+    "anthropic": AnthropicLLM,
     "google": GoogleLLM,
     "grok": GrokLLM,
     "groq": GroqLLM,

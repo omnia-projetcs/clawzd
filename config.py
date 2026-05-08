@@ -13,6 +13,7 @@ BASE_DIR = Path(__file__).parent.resolve()
 
 # --- LLM Providers ---
 LLM_PROVIDER = os.getenv("LLM_PROVIDER", "ollama")
+ANTHROPIC_API_KEY = os.getenv("ANTHROPIC_API_KEY", "")
 GOOGLE_API_KEY = os.getenv("GOOGLE_API_KEY", "")
 GROK_API_KEY = os.getenv("GROK_API_KEY", "")
 GROQ_API_KEY = os.getenv("GROQ_API_KEY", "")
