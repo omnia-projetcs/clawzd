@@ -1,0 +1,272 @@
+/* ========================================
+   Clawzd — App Builder Panel Styles
+   ======================================== */
+
+.ab-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.7);
+  backdrop-filter: blur(6px);
+  z-index: 1500;
+  display: none;
+  align-items: center;
+  justify-content: center;
+}
+.ab-overlay.ab-open {
+  display: flex;
+  animation: fadeIn 0.2s ease;
+}
+
+/* ── Modal ─────────────────────────── */
+.ab-modal {
+  width: 90vw;
+  max-width: 720px;
+  max-height: 85vh;
+  background: var(--bg-surface, #1e293b);
+  border: 1px solid var(--border, #334155);
+  border-radius: 16px;
+  display: flex;
+  flex-direction: column;
+  box-shadow: 0 24px 80px rgba(0, 0, 0, 0.6);
+  overflow: hidden;
+  animation: slideUp 0.3s ease;
+}
+
+/* ── Header ────────────────────────── */
+.ab-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 16px 20px;
+  border-bottom: 1px solid var(--border, #334155);
+  background: var(--bg-elevated, #0f172a);
+}
+.ab-header h3 {
+  margin: 0;
+  font-size: 16px;
+  font-weight: 600;
+  color: var(--text-primary, #e2e8f0);
+}
+.ab-header-actions {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+.ab-btn-close {
+  background: none;
+  border: none;
+  color: var(--text-muted, #64748b);
+  font-size: 20px;
+  cursor: pointer;
+  padding: 4px 8px;
+  border-radius: 6px;
+  transition: all 0.2s;
+}
+.ab-btn-close:hover {
+  color: var(--text-primary, #e2e8f0);
+  background: rgba(255,255,255,0.05);
+}
+
+/* ── Buttons ───────────────────────── */
+.ab-btn {
+  padding: 6px 14px;
+  border-radius: 8px;
+  border: 1px solid var(--border, #334155);
+  background: var(--bg-secondary, #1e293b);
+  color: var(--text-primary, #e2e8f0);
+  font-size: 12px;
+  font-family: inherit;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+.ab-btn:hover {
+  border-color: rgba(99, 102, 241, 0.4);
+}
+.ab-btn-primary {
+  background: #6366f1;
+  border-color: #6366f1;
+  color: #fff;
+}
+.ab-btn-primary:hover {
+  background: #4f46e5;
+}
+.ab-btn-sm {
+  background: none;
+  border: none;
+  font-size: 14px;
+  cursor: pointer;
+  padding: 4px 6px;
+  border-radius: 4px;
+  opacity: 0.6;
+  transition: all 0.2s;
+}
+.ab-btn-sm:hover { opacity: 1; background: rgba(255,255,255,0.05); }
+.ab-btn-danger:hover { background: rgba(239, 68, 68, 0.15); }
+.ab-btn-back {
+  background: none;
+  border: none;
+  color: var(--text-muted, #64748b);
+  font-size: 13px;
+  cursor: pointer;
+  padding: 4px 8px;
+  margin-bottom: 12px;
+  display: inline-block;
+  border-radius: 6px;
+  transition: all 0.2s;
+  font-family: inherit;
+}
+.ab-btn-back:hover {
+  color: var(--text-primary, #e2e8f0);
+  background: rgba(255,255,255,0.05);
+}
+
+/* ── Body ──────────────────────────── */
+.ab-body {
+  flex: 1;
+  overflow-y: auto;
+  padding: 16px 20px;
+}
+.ab-loading {
+  text-align: center;
+  padding: 40px;
+  color: var(--text-muted, #64748b);
+  font-size: 13px;
+}
+
+/* ── Empty state ───────────────────── */
+.ab-empty {
+  text-align: center;
+  padding: 48px 20px;
+}
+.ab-empty-icon { font-size: 48px; margin-bottom: 12px; }
+.ab-empty p {
+  color: var(--text-muted, #64748b);
+  font-size: 14px;
+  margin-bottom: 16px;
+}
+
+/* ── App grid ──────────────────────── */
+.ab-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+  gap: 12px;
+}
+
+/* ── App card ──────────────────────── */
+.ab-card {
+  background: var(--bg-primary, #0f172a);
+  border: 1px solid var(--border, #334155);
+  border-radius: 12px;
+  overflow: hidden;
+  transition: all 0.2s;
+}
+.ab-card:hover {
+  border-color: rgba(99, 102, 241, 0.4);
+  transform: translateY(-2px);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.2);
+}
+.ab-card-preview {
+  height: 100px;
+  background: linear-gradient(135deg, #1e293b 0%, #0f172a 100%);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: background 0.3s;
+}
+.ab-card-preview:hover {
+  background: linear-gradient(135deg, #334155 0%, #1e293b 100%);
+}
+.ab-card-icon { font-size: 32px; }
+.ab-card-body { padding: 12px; }
+.ab-card-name {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text-primary, #e2e8f0);
+  margin-bottom: 4px;
+}
+.ab-card-meta {
+  display: flex;
+  gap: 8px;
+  font-size: 11px;
+  color: var(--text-muted, #64748b);
+}
+.ab-card-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 2px;
+  padding: 4px 8px 8px;
+}
+
+/* ── Create form ───────────────────── */
+.ab-create h4 {
+  margin: 0 0 12px;
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--text-primary, #e2e8f0);
+}
+.ab-input {
+  width: 100%;
+  padding: 8px 12px;
+  background: var(--bg-primary, #0f172a);
+  border: 1px solid var(--border, #334155);
+  border-radius: 8px;
+  color: var(--text-primary, #e2e8f0);
+  font-size: 13px;
+  font-family: inherit;
+  margin-bottom: 16px;
+  box-sizing: border-box;
+}
+.ab-input:focus {
+  outline: none;
+  border-color: #6366f1;
+}
+
+/* ── Template grid ─────────────────── */
+.ab-templates-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+  gap: 10px;
+}
+.ab-template {
+  background: var(--bg-primary, #0f172a);
+  border: 1px solid var(--border, #334155);
+  border-radius: 10px;
+  padding: 16px;
+  cursor: pointer;
+  transition: all 0.2s;
+  text-align: center;
+}
+.ab-template:hover {
+  border-color: #6366f1;
+  transform: translateY(-2px);
+}
+.ab-template-icon { font-size: 28px; margin-bottom: 8px; }
+.ab-template-name {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text-primary, #e2e8f0);
+  margin-bottom: 4px;
+}
+.ab-template-desc {
+  font-size: 11px;
+  color: var(--text-muted, #64748b);
+  margin-bottom: 6px;
+}
+.ab-template-files {
+  font-size: 10px;
+  color: var(--text-muted, #475569);
+  font-family: 'JetBrains Mono', monospace;
+}
+
+/* ── Mobile ────────────────────────── */
+@media (max-width: 768px) {
+  .ab-modal {
+    width: 100vw;
+    max-width: 100vw;
+    max-height: 100vh;
+    border-radius: 0;
+  }
+  .ab-grid { grid-template-columns: 1fr; }
+  .ab-templates-grid { grid-template-columns: 1fr; }
+}
