@@ -11,7 +11,10 @@ import re
 import uuid
 import base64
 import logging
+import warnings
 from datetime import datetime
+
+warnings.filterwarnings("ignore", category=UserWarning, message=".*local_dir_use_symlinks.*")
 from fastapi import APIRouter, Request, HTTPException
 from config import DATA_DIR
 
