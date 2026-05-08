@@ -1562,6 +1562,15 @@ async def delete_replay_endpoint(session_id: str):
     return {"status": "deleted", "session_id": session_id}
 
 
+# --- Performance Dashboard API ---
+
+@app.get("/dashboard/metrics")
+async def dashboard_metrics():
+    """Get aggregated system performance metrics."""
+    from app.core.dashboard import get_system_metrics
+    return get_system_metrics()
+
+
 # --- App Builder API (OpenClaw OS-inspired) ---
 
 @app.post("/apps")
