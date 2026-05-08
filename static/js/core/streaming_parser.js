@@ -14,10 +14,7 @@
  * - Scrolling only when needed
  * - No full innerHTML rebuild during streaming
  */
-(function () {
-  'use strict';
-
-  /* ---- Utility ---- */
+/* ---- Utility ---- */
 
   function escHtml(s) {
     return s.replace(/&/g, '&amp;').replace(/</g, '&lt;')
@@ -266,4 +263,5 @@
 
   /* ---- Export ---- */
   window.StreamingParser = StreamingParser;
-})();
+
+export { StreamingParser };

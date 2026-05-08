@@ -10,10 +10,8 @@
  *   ThemeEngine.register('custom', { primary: '#ff6b6b', ... });
  *   ThemeEngine.toggle(); // dark ↔ light
  */
-(function () {
-  'use strict';
 
-  const STORAGE_KEY = 'omniclaw-theme';
+const STORAGE_KEY = 'omniclaw-theme';
   const CUSTOM_STORAGE_KEY = 'clawzd-custom-themes';
 
   /* ---- Built-in themes ---- */
@@ -275,4 +273,5 @@
   };
 
   window.ThemeEngine = ThemeEngine;
-})();
+
+export { ThemeEngine };

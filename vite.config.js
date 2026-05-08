@@ -28,7 +28,9 @@ export default defineConfig({
     // Multi-entry build: one entry per major module
     rollupOptions: {
       input: {
-        // Core app entry
+        // Main ES module entry — imports all core modules
+        main: resolve(__dirname, 'static/js/main.js'),
+        // Core app entry (IIFE — gradually migrating to ES modules)
         app: resolve(__dirname, 'static/js/app.js'),
         // Core modules
         event_bus: resolve(__dirname, 'static/js/core/event_bus.js'),
