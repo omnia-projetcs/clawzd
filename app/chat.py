@@ -30,10 +30,11 @@ _IMAGE_URL_RE = re.compile(r'/data/images/([^\s"\'<>|]+)')
 
 
 def _cleanup_session_files(session_id: str):
-    """Delete all images and screenshots referenced in a session's messages.
+    """Clean up ephemeral files (screenshots) referenced in a session's messages.
 
-    Scans assistant messages for __IMG__, __SVG__ markers and /data/ URLs
-    to find associated files, then removes them from disk.
+    Generated images and SVGs are intentionally PRESERVED so they remain
+    accessible in the Media Studio after the chat is deleted.
+    Only screenshots (ephemeral captures) are removed from disk.
     """
     messages = get_messages(session_id)
     filenames_to_delete = set()
@@ -43,25 +44,17 @@ def _cleanup_session_files(session_id: str):
             continue
         content = msg.get("content", "")
 
-        # Extract filenames from markers
-        for m in _IMG_MARKER_RE.finditer(content):
-            filenames_to_delete.add(("images", m.group(1)))
-        for m in _SVG_MARKER_RE.finditer(content):
-            filenames_to_delete.add(("images", m.group(1)))
-        # Extract from URL references
+        # Only collect screenshots for cleanup — images are kept
         for m in _SCREENSHOT_URL_RE.finditer(content):
-            filenames_to_delete.add(("screenshots", m.group(1)))
-        for m in _IMAGE_URL_RE.finditer(content):
-            filenames_to_delete.add(("images", m.group(1)))
+            filenames_to_delete.add(m.group(1))
 
-    # Delete files from disk
+    # Delete screenshot files from disk
     deleted = 0
-    for subdir, fname in filenames_to_delete:
-        base_dir = _SCREENSHOTS_DIR if subdir == "screenshots" else _IMAGES_DIR
-        filepath = os.path.join(base_dir, fname)
-        # Security: ensure the resolved path stays within the data directory
+    for fname in filenames_to_delete:
+        filepath = os.path.join(_SCREENSHOTS_DIR, fname)
+        # Security: ensure the resolved path stays within the screenshots directory
         real_path = os.path.realpath(filepath)
-        if not real_path.startswith(os.path.realpath(base_dir)):
+        if not real_path.startswith(os.path.realpath(_SCREENSHOTS_DIR)):
             logger.warning("Path traversal attempt blocked: %s", filepath)
             continue
         if os.path.isfile(real_path):
@@ -72,7 +65,7 @@ def _cleanup_session_files(session_id: str):
                 logger.warning("Failed to delete %s: %s", real_path, e)
 
     if deleted:
-        logger.info("Session %s: cleaned up %d associated file(s)", session_id, deleted)
+        logger.info("Session %s: cleaned up %d screenshot(s)", session_id, deleted)
 
 
 class NewSessionRequest(BaseModel):
@@ -127,12 +120,12 @@ async def get_session_endpoint(session_id: str):
 
 @router.delete("/sessions/{session_id}")
 async def delete_session_endpoint(session_id: str):
-    """Delete a session, its messages, and all associated data files (images, screenshots)."""
+    """Delete a session and its messages. Generated images are preserved in media."""
     session = get_session(session_id)
     if not session:
         raise HTTPException(status_code=404, detail="Session not found")
 
-    # Clean up associated files (images, screenshots) before deleting messages
+    # Clean up ephemeral screenshots before deleting messages (images are preserved)
     _cleanup_session_files(session_id)
 
     delete_session(session_id)
