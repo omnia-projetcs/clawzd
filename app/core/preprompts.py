@@ -106,6 +106,15 @@ _FRAG_MERMAID = (
     "DO NOT use 'note', 'constraint', or any unsupported features inside ER diagrams.\n"
 )
 
+_FRAG_APP_BUILDER = (
+    "APP BUILDER: You can create and update live mini web-apps.\n"
+    "- create_app: {\"name\": \"App Name\", \"files\": {\"index.html\": \"...\", \"style.css\": \"...\", \"app.js\": \"...\"}, \"template\": \"blank\"}\n"
+    "- update_app: {\"app_id\": \"app-xxx\", \"files\": {\"index.html\": \"new content...\"}}\n"
+    "When asked to build an app, use create_app with complete HTML/CSS/JS files.\n"
+    "When asked to edit/update an existing app, use update_app with the app_id and modified files.\n"
+    "Apps are served live at /apps/{app_id}/preview.\n"
+)
+
 
 # ---------------------------------------------------------------------------
 # Pre-prompt definitions
@@ -126,6 +135,7 @@ PREPROMPTS: dict[str, dict] = {
             + _FRAG_CODE_QUALITY
             + _FRAG_README
             + _FRAG_MERMAID
+            + _FRAG_APP_BUILDER
         ),
     },
 
@@ -176,6 +186,7 @@ PREPROMPTS: dict[str, dict] = {
             + _FRAG_UI_EXCELLENCE
             + _FRAG_MERMAID
             + _FRAG_TOOL_FORMAT
+            + _FRAG_APP_BUILDER
         ),
     },
 
@@ -226,6 +237,7 @@ PREPROMPTS: dict[str, dict] = {
             + _FRAG_MERMAID
             + "File structure described MUST match generated files exactly.\n"
             + _FRAG_TOOL_FORMAT
+            + _FRAG_APP_BUILDER
         ),
     },
 

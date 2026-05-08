@@ -123,6 +123,14 @@ TOOL_KEYWORDS: dict[str, list[str]] = {
     "graphify_path": [
         "graphify", "path", "flow", "trace", "chain", "call",
     ],
+    "create_app": [
+        "create", "app", "application", "mini", "webapp", "build",
+        "website", "page", "dashboard", "calculator", "tool",
+    ],
+    "update_app": [
+        "update", "app", "application", "edit", "modify", "change",
+        "improve", "fix", "upgrade", "redesign",
+    ],
 }
 
 # Direct alias map for common invented names
@@ -214,6 +222,22 @@ TOOL_ALIASES: dict[str, str] = {
     "revert": "undo",
     "rollback": "undo",
     "annuler": "undo",
+    # App Builder
+    "build-app": "create_app",
+    "build_app": "create_app",
+    "create-application": "create_app",
+    "create_application": "create_app",
+    "new-app": "create_app",
+    "new_app": "create_app",
+    "make-app": "create_app",
+    "make_app": "create_app",
+    "build-webapp": "create_app",
+    "edit-app": "update_app",
+    "edit_app": "update_app",
+    "modify-app": "update_app",
+    "modify_app": "update_app",
+    "update-application": "update_app",
+    "update_application": "update_app",
 }
 
 
@@ -395,6 +419,17 @@ def _adapt_params(resolved_tool: str, original_tool: str, params: dict) -> dict:
             "start_line": params.get("start_line", 1),
             "end_line": params.get("end_line", None),
         }
+
+    elif resolved == "create_app":
+        name = params.get("name", params.get("app_name", "My App"))
+        files = params.get("files", {})
+        template = params.get("template", "blank")
+        return {"name": name, "files": files, "template": template}
+
+    elif resolved == "update_app":
+        app_id = params.get("app_id", params.get("id", ""))
+        files = params.get("files", {})
+        return {"app_id": app_id, "files": files}
 
     # Fallback: return params as-is
     return params
@@ -810,6 +845,28 @@ async def execute_tool(tool_name: str, params: dict, context: dict = None) -> di
             else:
                 results = await search_linkedin_profiles(query, max_results)
             return {"query": query, "type": search_type, "count": len(results), "results": results}
+
+        elif resolved == "create_app":
+            from app.core.app_builder import create_app
+            name = params.get("name", "My App")
+            files = params.get("files", {})
+            template = params.get("template", "blank")
+            session_id = (context or {}).get("session_id")
+            result = create_app(name, files, session_id=session_id, template=template)
+            return result
+
+        elif resolved == "update_app":
+            from app.core.app_builder import update_app
+            app_id = params.get("app_id", "")
+            files = params.get("files", {})
+            if not app_id:
+                return {"error": "app_id is required"}
+            if not files:
+                return {"error": "files dict is required (filename → content)"}
+            result = update_app(app_id, files)
+            if not result:
+                return {"error": f"App '{app_id}' not found"}
+            return result
 
         else:
             return {"error": f"Tool '{resolved}' is registered but has no executor"}
