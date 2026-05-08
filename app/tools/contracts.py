@@ -162,14 +162,22 @@ def get_all_schemas() -> dict[str, dict]:
     return {name: get_tool_schema(name) for name in _TOOL_SCHEMAS}
 
 
-def get_compact_schemas() -> str:
-    """Return a compact text representation of all tool schemas.
+def get_compact_schemas(tool_names: list[str] | None = None) -> str:
+    """Return a compact text representation of tool schemas.
 
     Designed for injection into the LLM context — much more token-efficient
     than raw JSON Schema.
+
+    Args:
+        tool_names: Optional list of tool names to include. If None, all
+                    schemas are returned.
     """
     lines = []
-    for name, model_cls in _TOOL_SCHEMAS.items():
+    items = _TOOL_SCHEMAS.items()
+    if tool_names is not None:
+        items = [(n, c) for n, c in items if n in tool_names]
+
+    for name, model_cls in items:
         fields = model_cls.model_fields
         params = []
         for fname, finfo in fields.items():

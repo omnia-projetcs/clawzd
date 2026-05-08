@@ -473,6 +473,17 @@ async def _process_chat(session_id: str, data: dict) -> dict:
         )
         session = get_session(session_id)
 
+        # --- Plugin hook: on_session_create ---
+        try:
+            from app.core.plugin_system import run_hook
+            run_hook("on_session_create", {
+                "session_id": session_id,
+                "provider": provider_key or "local",
+                "model": model_key or "",
+            })
+        except Exception:
+            pass  # Plugin hooks are non-critical
+
     # Use session defaults if not overridden per-request
     provider_key = provider_key or session.get("provider", "local")
     model_key = model_key or session.get("model", "")
@@ -578,6 +589,17 @@ async def _process_chat(session_id: str, data: dict) -> dict:
     except Exception:
         pass  # Plugin hooks are non-critical
 
+    # Inject Structured UI component schemas (cloud providers only — local models
+    # have limited context and can't handle the extra instructions well)
+    if provider_key not in ("local", "ollama"):
+        try:
+            from app.core.structured_ui import get_component_prompt
+            _ui_prompt = get_component_prompt()
+            if llm_messages and llm_messages[0]["role"] == "system":
+                llm_messages[0]["content"] += "\n\n" + _ui_prompt
+        except Exception:
+            pass  # Non-critical
+
     # Auto-detect relevant skills (builtin + dynamic) and inject hint.
     # Only skills above the confidence threshold are injected — we never
     # pollute the prompt with hundreds of irrelevant skills.
@@ -607,6 +629,18 @@ async def _process_chat(session_id: str, data: dict) -> dict:
                     detected.append({"skill": pname, "confidence": 1.0, "source": "catalog"})
         except Exception:
             pass  # Catalog injection is non-critical
+
+        # --- Plugin hook: after_skill_detect ---
+        try:
+            from app.core.plugin_system import run_hook
+            _skill_ctx = run_hook("after_skill_detect", {
+                "detected_skills": detected,
+                "user_message": user_msg,
+                "session_id": session_id,
+            })
+            detected = _skill_ctx.get("detected_skills", detected)
+        except Exception:
+            pass  # Plugin hooks are non-critical
             
     if detected:
         from app.skill_selector import get_skill_description, get_skill_catalog_entry, get_skill_full_instructions
@@ -652,6 +686,20 @@ async def _process_chat(session_id: str, data: dict) -> dict:
             llm_messages[0]["content"] += "\n\n" + hint
         else:
             llm_messages.insert(0, {"role": "system", "content": hint})
+
+        # Inject compact typed schemas for detected tools (cloud providers only).
+        # This gives the LLM exact parameter names/types/defaults so it emits
+        # correct tool_call JSON on the first try.
+        if not is_local and detected:
+            try:
+                from app.tools.contracts import get_compact_schemas
+                detected_names = [d["skill"] for d in detected]
+                compact = get_compact_schemas(detected_names)
+                if compact:
+                    if llm_messages and llm_messages[0]["role"] == "system":
+                        llm_messages[0]["content"] += "\n\n## Tool Schemas\n" + compact
+            except Exception:
+                pass  # Schema injection is non-critical
 
     # Apply context compression for long conversations (AFTER tool hints so they get compressed too)
     llm_messages = await optimize_for_provider(llm_messages, provider_key)
@@ -1025,8 +1073,28 @@ async def _process_chat(session_id: str, data: dict) -> dict:
                     full_conversation += status_prefix
                     _active_generations[session_id] = full_conversation
 
+                    # --- Plugin hook: before_tool_execute ---
+                    _skip_tool = False
+                    try:
+                        from app.core.plugin_system import run_hook
+                        _pre_ctx = run_hook("before_tool_execute", {
+                            "tool_name": resolved or tool_name,
+                            "params": params,
+                            "session_id": session_id,
+                            "skip": False,
+                        })
+                        params = _pre_ctx.get("params", params)
+                        _skip_tool = _pre_ctx.get("skip", False)
+                    except Exception:
+                        pass
+
                     # Execute the tool
-                    result = await execute_tool(tool_name, params, {"active_project": active_project})
+                    import time as _time_mod
+                    _exec_start = _time_mod.time()
+                    if _skip_tool:
+                        result = {"output": "Tool execution skipped by plugin."}
+                    else:
+                        result = await execute_tool(tool_name, params, {"active_project": active_project})
 
                     # Push notification for long-running tools (OpenClaw OS-inspired)
                     try:
@@ -1046,14 +1114,28 @@ async def _process_chat(session_id: str, data: dict) -> dict:
                     # Record tool call for replay (debugging & workflow export)
                     try:
                         from app.core.tool_replay import record_tool_call
-                        _exec_end = __import__('time').time()
+                        _exec_end = _time_mod.time()
                         record_tool_call(
                             session_id, resolved or tool_name, params, result,
-                            duration_ms=(_exec_end - _exec_end) * 1000,  # approximate
+                            duration_ms=(_exec_end - _exec_start) * 1000,
                             round_num=round_num,
                         )
                     except Exception:
                         pass  # Replay recording is non-critical
+
+                    # --- Plugin hook: after_tool_execute ---
+                    try:
+                        from app.core.plugin_system import run_hook
+                        _post_ctx = run_hook("after_tool_execute", {
+                            "tool_name": resolved or tool_name,
+                            "params": params,
+                            "result": result,
+                            "session_id": session_id,
+                        })
+                        # Plugins can modify the result
+                        result = _post_ctx.get("result", result)
+                    except Exception:
+                        pass  # Plugin hooks are non-critical
 
                     # Measure raw result size for token savings analytics
                     import json as _json_metrics
@@ -1232,6 +1314,19 @@ async def _process_chat(session_id: str, data: dict) -> dict:
                     extract_and_save_artifacts(full_conversation, session_id)
                 except Exception:
                     pass  # Artifact extraction is non-critical
+
+                # --- Plugin hook: after_generation ---
+                try:
+                    from app.core.plugin_system import run_hook
+                    run_hook("after_generation", {
+                        "response": full_conversation,
+                        "session_id": session_id,
+                        "provider": provider_key,
+                        "model": model_key,
+                    })
+                except Exception:
+                    pass  # Plugin hooks are non-critical
+
             _active_generations.pop(session_id, None)
 
     asyncio.create_task(generate())
