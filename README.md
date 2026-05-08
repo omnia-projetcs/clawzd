@@ -24,6 +24,7 @@
 [![OpenRouter](https://img.shields.io/badge/OpenRouter-Multi_Model-3B82F6?style=flat-square)]()
 [![HuggingFace](https://img.shields.io/badge/HuggingFace-Inference-FFD21E?style=flat-square&logo=huggingface&logoColor=black)]()
 [![Grok](https://img.shields.io/badge/Grok-xAI-000000?style=flat-square&logo=x&logoColor=white)]()
+[![Anthropic](https://img.shields.io/badge/Anthropic-Claude-D97757?style=flat-square&logo=anthropic&logoColor=white)]()
 
 [![ChromaDB](https://img.shields.io/badge/ChromaDB-Vector_DB-FF6F00?style=flat-square)]()
 [![Playwright](https://img.shields.io/badge/Playwright-2EAD33?style=flat-square&logo=playwright&logoColor=white)]()
@@ -33,6 +34,9 @@
 [![Chart.js](https://img.shields.io/badge/Chart.js-Data_Viz-FF6384?style=flat-square&logo=chartdotjs&logoColor=white)]()
 [![SQLite](https://img.shields.io/badge/SQLite-003B57?style=flat-square&logo=sqlite&logoColor=white)]()
 [![Trivy](https://img.shields.io/badge/Trivy-Security_Audit-2C3E50?style=flat-square)]()
+[![Jinja2](https://img.shields.io/badge/Jinja2-Templates-B41717?style=flat-square&logo=jinja&logoColor=white)]()
+[![Highlight.js](https://img.shields.io/badge/Highlight.js-Syntax-8F3929?style=flat-square)]()
+[![Lucide Icons](https://img.shields.io/badge/Lucide-Icons-F472B6?style=flat-square&logo=lucide&logoColor=white)]()
 
 </div>
 
@@ -70,95 +74,7 @@ Clawzd is a self-hosted, modular AI assistant that combines multiple LLM provide
 
 ## 🏗️ Architecture
 
-### High-Level System Overview
-
-```mermaid
-%%{init: {'theme': 'base', 'themeVariables': { 'primaryColor': '#e2e8f0', 'primaryTextColor': '#0f172a', 'primaryBorderColor': '#cbd5e1', 'lineColor': '#475569', 'secondaryColor': '#f1f5f9', 'tertiaryColor': '#ffffff', 'textColor': '#111827', 'signalColor': '#312e81', 'signalTextColor': '#111827', 'actorLineColor': '#475569'}}}%%
-graph TB
-    subgraph Client["🖥️ Client Browser"]
-        UI["IDE Interface<br/>(CodeMirror 6/JS)"]
-        SSE["SSE Stream"]
-    end
-
-    subgraph Server["⚙️ FastAPI Server :8888"]
-        GW["Gateway<br/>(app/gateway.py)"]
-        CHAT["Chat Router"]
-        SKILL["Skill Selector"]
-        COMP["Context Compression"]
-        STUDIOS["Studio Modules<br/>(Project, Media, Editor, Automation, Presentation)"]
-    end
-
-    subgraph LLM["🤖 LLM Providers"]
-        LOCAL["Ollama<br/>localhost:11434"]
-        OR["OpenRouter API"]
-        GROQ["Groq API"]
-        MISTRAL["Mistral API"]
-        GOOGLE["Google Gemini"]
-    end
-
-    subgraph Tools["🔧 Tool Modules"]
-        CODE["Code Executor"]
-        AUDIT["Code Auditor<br/>(pylint/bandit/radon/trivy)"]
-        WEB["Web Search<br/>(DuckDuckGo)"]
-        BROWSER["Browser<br/>(Playwright)"]
-        IMG["Image Gen<br/>(SDXL Turbo)"]
-        RAG["RAG<br/>(ChromaDB)"]
-        CRON["Scheduler<br/>(APScheduler)"]
-        SCREEN["Screenshots"]
-        SKILLS["Custom Skills"]
-        QUALITY["Quality<br/>(DeepEval)"]
-    end
-
-    subgraph Storage["💾 Storage"]
-        DB[(SQLite)]
-        CHROMA[(ChromaDB)]
-        FS[("File System<br/>data/ workspace/")]
-    end
-
-    subgraph Integrations["🔗 External"]
-        DISCORD["Discord Bot"]
-        TG["Telegram<br/>Webhook"]
-    end
-
-    UI <-->|"Fetch/SSE"| GW
-    GW --> CHAT
-    GW --> SKILL
-    GW --> STUDIOS
-    CHAT --> COMP
-    COMP --> LLM
-    SKILL --> Tools
-    Tools --> Storage
-    GW --> Integrations
-    RAG --> CHROMA
-    CHAT --> DB
-```
-
-### Request Lifecycle
-
-```mermaid
-%%{init: {'theme': 'base', 'themeVariables': { 'primaryColor': '#e2e8f0', 'primaryTextColor': '#0f172a', 'primaryBorderColor': '#cbd5e1', 'lineColor': '#475569', 'secondaryColor': '#f1f5f9', 'tertiaryColor': '#ffffff', 'textColor': '#111827', 'signalColor': '#312e81', 'signalTextColor': '#111827', 'actorLineColor': '#475569'}}}%%
-sequenceDiagram
-    participant U as User
-    participant GW as Gateway
-    participant SK as Skill Selector
-    participant CO as Compressor
-    participant LLM as LLM Provider
-    participant DB as SQLite
-
-    U->>GW: POST /send/{session_id}
-    GW->>DB: Save user message
-    GW->>SK: Analyze message → detect tools
-    SK-->>GW: [execute_python, search_web]
-    GW->>CO: Compress context (if long)
-    CO-->>GW: Optimized messages[]
-    GW->>LLM: chat_stream(messages)
-    loop Token Streaming
-        LLM-->>GW: token
-        GW-->>U: SSE event(data: token)
-    end
-    GW->>DB: Save assistant response
-    GW-->>U: SSE event(data: [DONE])
-```
+![Architecture Overview](static/img/static/schem.jpeg)
 
 ---
 
