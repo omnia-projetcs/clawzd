@@ -1,0 +1,130 @@
+/* ========================================
+   Clawzd — Notification Badge Styles
+   ======================================== */
+
+/* ── Badge ─────────────────────────── */
+.notif-badge {
+  position: relative;
+  font-size: 15px;
+}
+.notif-count {
+  position: absolute;
+  top: -2px;
+  right: -4px;
+  background: #ef4444;
+  color: #fff;
+  font-size: 9px;
+  font-weight: 700;
+  min-width: 16px;
+  height: 16px;
+  border-radius: 8px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0 3px;
+  line-height: 1;
+  border: 2px solid var(--bg-elevated, #0f172a);
+  animation: notifPop 0.3s ease;
+}
+@keyframes notifPop {
+  0% { transform: scale(0); }
+  70% { transform: scale(1.2); }
+  100% { transform: scale(1); }
+}
+
+/* ── Dropdown ──────────────────────── */
+.notif-dropdown {
+  position: fixed;
+  top: 52px;
+  right: 80px;
+  width: 320px;
+  max-height: 400px;
+  background: var(--bg-surface, #1e293b);
+  border: 1px solid var(--border, #334155);
+  border-radius: 12px;
+  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.4);
+  z-index: 1200;
+  display: none;
+  overflow: hidden;
+  animation: slideDown 0.2s ease;
+}
+.notif-dropdown-open { display: block; }
+
+@keyframes slideDown {
+  from { opacity: 0; transform: translateY(-8px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+/* ── Header ────────────────────────── */
+.notif-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 14px;
+  border-bottom: 1px solid var(--border, #334155);
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-primary, #e2e8f0);
+}
+.notif-clear {
+  background: none;
+  border: none;
+  color: var(--text-muted, #64748b);
+  font-size: 11px;
+  cursor: pointer;
+  font-family: inherit;
+  transition: color 0.2s;
+}
+.notif-clear:hover { color: #ef4444; }
+
+/* ── List ──────────────────────────── */
+.notif-list {
+  max-height: 340px;
+  overflow-y: auto;
+}
+
+/* ── Item ──────────────────────────── */
+.notif-item {
+  padding: 10px 14px;
+  border-bottom: 1px solid rgba(255,255,255,0.03);
+  transition: background 0.2s;
+}
+.notif-item:last-child { border: none; }
+.notif-item:hover {
+  background: rgba(255,255,255,0.02);
+}
+.notif-unread {
+  border-left: 3px solid #6366f1;
+}
+.notif-title {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-primary, #e2e8f0);
+  margin-bottom: 2px;
+}
+.notif-body {
+  font-size: 11px;
+  color: var(--text-secondary, #94a3b8);
+  line-height: 1.4;
+}
+.notif-time {
+  font-size: 10px;
+  color: var(--text-muted, #64748b);
+  margin-top: 4px;
+}
+
+/* ── Empty ─────────────────────────── */
+.notif-empty {
+  text-align: center;
+  padding: 32px 20px;
+  color: var(--text-muted, #64748b);
+  font-size: 12px;
+}
+
+/* ── Mobile ────────────────────────── */
+@media (max-width: 768px) {
+  .notif-dropdown {
+    width: 280px;
+    right: 8px;
+  }
+}

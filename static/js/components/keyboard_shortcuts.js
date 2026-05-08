@@ -5,6 +5,7 @@
  *   Ctrl+Shift+A — Toggle Artifact Panel
  *   Ctrl+Shift+R — Toggle Tool Replay Panel
  *   Ctrl+Shift+D — Open System Dashboard
+ *   Ctrl+Shift+B — Open App Builder
  *   Ctrl+Shift+G — Toggle Agent Sidebar
  *   Escape       — Close any open panel/modal
  */
@@ -21,6 +22,7 @@
       if (window.ArtifactPanel) ArtifactPanel.toggle(false);
       if (window.ReplayPanel) ReplayPanel.toggle(false);
       if (window.SystemDashboard) SystemDashboard.close();
+      if (window.AppBuilderPanel) AppBuilderPanel.close();
       return;
     }
 
@@ -42,6 +44,10 @@
         case 'G':
           e.preventDefault();
           if (window.AgentSidebar) AgentSidebar.toggle();
+          break;
+        case 'B':
+          e.preventDefault();
+          if (window.AppBuilderPanel) AppBuilderPanel.open();
           break;
       }
     }

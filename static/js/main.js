@@ -46,6 +46,8 @@ function _initPanels() {
   try { if (window.ArtifactPanel) window.ArtifactPanel.init(); } catch (e) { /* silent */ }
   try { if (window.ReplayPanel) window.ReplayPanel.init(); } catch (e) { /* silent */ }
   try { if (window.SystemDashboard) window.SystemDashboard.init(); } catch (e) { /* silent */ }
+  try { if (window.AppBuilderPanel) window.AppBuilderPanel.init(); } catch (e) { /* silent */ }
+  try { if (window.NotificationBadge) window.NotificationBadge.init(); } catch (e) { /* silent */ }
   try { if (window.AgentSidebar) window.AgentSidebar.init('header-right'); } catch (e) { /* silent */ }
 }
 
