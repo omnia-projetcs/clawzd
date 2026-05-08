@@ -1735,12 +1735,23 @@ async def delete_app_endpoint(app_id: str):
 # Serve app static files (HTML/CSS/JS)
 from fastapi.responses import FileResponse as _AppFileResponse
 
+
+@app.get("/apps/{app_id}/preview")
+async def preview_app(app_id: str):
+    """Serve the app's index.html for preview."""
+    from app.core.app_builder import APPS_DIR
+    filepath = _os.path.join(APPS_DIR, app_id, "index.html")
+    if not _os.path.exists(filepath):
+        raise HTTPException(404, "App not found or has no index.html")
+    return _AppFileResponse(filepath, media_type="text/html")
+
+
 @app.get("/apps/{app_id}/{filename:path}")
 async def serve_app_file(app_id: str, filename: str):
     """Serve a file from a mini-app."""
-    from app.core.app_builder import get_app_file, APPS_DIR
-    filepath = os.path.join(APPS_DIR, app_id, os.path.basename(filename))
-    if not os.path.exists(filepath):
+    from app.core.app_builder import APPS_DIR
+    filepath = _os.path.join(APPS_DIR, app_id, _os.path.basename(filename))
+    if not _os.path.exists(filepath):
         raise HTTPException(404, "File not found")
     return _AppFileResponse(filepath)
 
