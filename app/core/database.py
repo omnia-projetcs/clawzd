@@ -50,6 +50,23 @@ def init_db():
 
         CREATE INDEX IF NOT EXISTS idx_messages_session ON messages(session_id);
         CREATE INDEX IF NOT EXISTS idx_sessions_updated ON sessions(updated_at DESC);
+
+        CREATE TABLE IF NOT EXISTS artifacts (
+            id          TEXT PRIMARY KEY,
+            session_id  TEXT REFERENCES sessions(id) ON DELETE SET NULL,
+            title       TEXT NOT NULL DEFAULT 'Untitled',
+            content     TEXT NOT NULL DEFAULT '',
+            language    TEXT DEFAULT '',
+            kind        TEXT DEFAULT 'code',
+            version     INTEGER DEFAULT 1,
+            parent_id   TEXT DEFAULT NULL,
+            pinned      INTEGER DEFAULT 0,
+            created_at  TEXT NOT NULL,
+            updated_at  TEXT NOT NULL
+        );
+
+        CREATE INDEX IF NOT EXISTS idx_artifacts_session ON artifacts(session_id);
+        CREATE INDEX IF NOT EXISTS idx_artifacts_updated ON artifacts(updated_at DESC);
     """)
     conn.commit()
 

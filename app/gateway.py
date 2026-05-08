@@ -1179,6 +1179,12 @@ async def _process_chat(session_id: str, data: dict) -> dict:
                     "model": model_key,
                     "preprompt": preprompt_key,
                 })
+                # Auto-save substantial code blocks as persistent artifacts
+                try:
+                    from app.core.artifacts import extract_and_save_artifacts
+                    extract_and_save_artifacts(full_conversation, session_id)
+                except Exception:
+                    pass  # Artifact extraction is non-critical
             _active_generations.pop(session_id, None)
 
     asyncio.create_task(generate())
@@ -1314,6 +1320,90 @@ async def get_notifications(session_id: str = "", limit: int = 20):
         return get_recent(limit=limit, session_id=session_id or None)
     except Exception:
         return []
+
+
+# --- Persistent Artifacts API (OpenClaw OS-inspired) ---
+
+@app.get("/artifacts")
+async def list_artifacts_endpoint(session_id: str = "", kind: str = "", pinned: bool = False, limit: int = 50):
+    """List artifacts, optionally filtered by session/kind/pinned."""
+    from app.core.artifacts import list_artifacts
+    return list_artifacts(
+        session_id=session_id or None,
+        kind=kind or None,
+        pinned_only=pinned,
+        limit=limit,
+    )
+
+
+@app.get("/artifacts/{artifact_id}")
+async def get_artifact_endpoint(artifact_id: str):
+    """Get a single artifact by ID."""
+    from app.core.artifacts import get_artifact
+    artifact = get_artifact(artifact_id)
+    if not artifact:
+        raise HTTPException(404, "Artifact not found")
+    return artifact
+
+
+@app.post("/artifacts")
+async def create_artifact_endpoint(request: Request):
+    """Create a new artifact."""
+    from app.core.artifacts import create_artifact
+    data = await request.json()
+    return create_artifact(
+        title=data.get("title", "Untitled"),
+        content=data.get("content", ""),
+        session_id=data.get("session_id"),
+        language=data.get("language", ""),
+        kind=data.get("kind", "code"),
+        parent_id=data.get("parent_id"),
+    )
+
+
+@app.put("/artifacts/{artifact_id}")
+async def update_artifact_endpoint(artifact_id: str, request: Request):
+    """Update an artifact. Set version: true to create a new version."""
+    from app.core.artifacts import update_artifact, get_artifact, create_artifact
+    data = await request.json()
+
+    if data.get("version") and "content" in data:
+        parent = get_artifact(artifact_id)
+        if not parent:
+            raise HTTPException(404, "Artifact not found")
+        return create_artifact(
+            title=data.get("title", parent["title"]),
+            content=data["content"],
+            session_id=parent.get("session_id"),
+            language=data.get("language", parent.get("language", "")),
+            kind=parent.get("kind", "code"),
+            parent_id=artifact_id,
+        )
+
+    result = update_artifact(
+        artifact_id,
+        title=data.get("title"),
+        content=data.get("content"),
+        pinned=data.get("pinned"),
+    )
+    if not result:
+        raise HTTPException(404, "Artifact not found")
+    return result
+
+
+@app.delete("/artifacts/{artifact_id}")
+async def delete_artifact_endpoint(artifact_id: str):
+    """Delete an artifact."""
+    from app.core.artifacts import delete_artifact
+    delete_artifact(artifact_id)
+    return {"status": "deleted", "id": artifact_id}
+
+
+@app.get("/artifacts/{artifact_id}/history")
+async def artifact_history_endpoint(artifact_id: str):
+    """Get the version history of an artifact."""
+    from app.core.artifacts import get_artifact_history
+    return get_artifact_history(artifact_id)
 
 
 # --- Battle Arena API ---
