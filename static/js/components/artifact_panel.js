@@ -27,7 +27,6 @@ const ArtifactPanel = (() => {
    */
   function init() {
     _createPanel();
-    _createToggleButton();
   }
 
   function _createPanel() {
@@ -61,21 +60,6 @@ const ArtifactPanel = (() => {
     document.body.appendChild(_panelEl);
   }
 
-  function _createToggleButton() {
-    // Find header-right area
-    const headerRight = document.querySelector('.header-right');
-    if (!headerRight) return;
-
-    const btn = document.createElement('button');
-    btn.id = 'artifact-toggle-btn';
-    btn.className = 'icon-btn';
-    btn.title = 'Artifacts';
-    btn.innerHTML = '📄';
-    btn.style.cssText = 'font-size: 16px; position: relative;';
-    btn.onclick = () => toggle();
-
-    headerRight.insertBefore(btn, headerRight.firstChild);
-  }
 
   async function refresh() {
     const kindEl = document.getElementById('artifact-filter-kind');
