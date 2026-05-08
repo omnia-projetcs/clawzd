@@ -191,6 +191,7 @@ const ICONS = {
   undoIcon: (s = 16) => `<svg class="ic" width="${s}" height="${s}"><use href="#icon-undo-icon"></use></svg>`,
   redoIcon: (s = 16) => `<svg class="ic" width="${s}" height="${s}"><use href="#icon-redo-icon"></use></svg>`,
   settingsIcon: (s = 16) => `<svg class="ic" width="${s}" height="${s}"><use href="#icon-settings-icon"></use></svg>`,
+  bell: (s = 16) => `<svg class="ic" width="${s}" height="${s}"><use href="#icon-bell"></use></svg>`,
 };
 
 // Helper: create icon element

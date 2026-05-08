@@ -30,7 +30,7 @@ const NotificationBadge = (() => {
     _badgeEl.id = 'notification-badge';
     _badgeEl.className = 'icon-btn notif-badge';
     _badgeEl.title = 'Notifications';
-    _badgeEl.innerHTML = '🔔 <span class="notif-count" id="notif-count" style="display:none">0</span>';
+    _badgeEl.innerHTML = '<svg class="ic" width="16" height="16"><use href="#icon-bell"></use></svg> <span class="notif-count" id="notif-count" style="display:none">0</span>';
     _badgeEl.onclick = () => toggle();
 
     // Insert after theme toggle
