@@ -72,7 +72,7 @@ Clawzd is a self-hosted, modular AI assistant that combines multiple LLM provide
 ### High-Level System Overview
 
 ```mermaid
-%%{init: {'theme': 'base', 'themeVariables': { 'primaryColor': '#252532', 'primaryTextColor': '#f8fafc', 'primaryBorderColor': '#3d3d4e', 'lineColor': '#6366f1', 'secondaryColor': '#2b2b36', 'tertiaryColor': '#1a1a24', 'clusterBkg': 'transparent', 'clusterBorder': '#4f46e5', 'textColor': '#e2e8f0', 'edgeLabelBackground': '#2b2b36'}}}%%
+%%{init: {'theme': 'base', 'themeVariables': { 'primaryColor': '#e2e8f0', 'primaryTextColor': '#0f172a', 'primaryBorderColor': '#cbd5e1', 'lineColor': '#475569', 'secondaryColor': '#f1f5f9', 'tertiaryColor': '#ffffff', 'textColor': '#111827', 'signalColor': '#312e81', 'signalTextColor': '#111827', 'actorLineColor': '#475569'}}}%%
 graph TB
     subgraph Client["🖥️ Client Browser"]
         UI["IDE Interface<br/>(CodeMirror 6/JS)"]
@@ -135,7 +135,7 @@ graph TB
 ### Request Lifecycle
 
 ```mermaid
-%%{init: {'theme': 'base', 'themeVariables': { 'primaryColor': '#252532', 'primaryTextColor': '#f8fafc', 'primaryBorderColor': '#3d3d4e', 'lineColor': '#6366f1', 'secondaryColor': '#2b2b36', 'tertiaryColor': '#1a1a24', 'clusterBkg': 'transparent', 'clusterBorder': '#4f46e5', 'textColor': '#e2e8f0', 'edgeLabelBackground': '#2b2b36'}}}%%
+%%{init: {'theme': 'base', 'themeVariables': { 'primaryColor': '#e2e8f0', 'primaryTextColor': '#0f172a', 'primaryBorderColor': '#cbd5e1', 'lineColor': '#475569', 'secondaryColor': '#f1f5f9', 'tertiaryColor': '#ffffff', 'textColor': '#111827', 'signalColor': '#312e81', 'signalTextColor': '#111827', 'actorLineColor': '#475569'}}}%%
 sequenceDiagram
     participant U as User
     participant GW as Gateway
@@ -480,7 +480,7 @@ curl -X POST http://localhost:8888/skills/rebuild/crypto_tracker \
 Skills follow an automatic lifecycle:
 
 ```mermaid
-%%{init: {'theme': 'base', 'themeVariables': { 'primaryColor': '#252532', 'primaryTextColor': '#f8fafc', 'primaryBorderColor': '#3d3d4e', 'lineColor': '#6366f1', 'secondaryColor': '#2b2b36', 'tertiaryColor': '#1a1a24', 'clusterBkg': 'transparent', 'clusterBorder': '#4f46e5', 'textColor': '#e2e8f0', 'edgeLabelBackground': '#2b2b36'}}}%%
+%%{init: {'theme': 'base', 'themeVariables': { 'primaryColor': '#e2e8f0', 'primaryTextColor': '#0f172a', 'primaryBorderColor': '#cbd5e1', 'lineColor': '#475569', 'secondaryColor': '#f1f5f9', 'tertiaryColor': '#ffffff', 'textColor': '#111827', 'signalColor': '#312e81', 'signalTextColor': '#111827', 'actorLineColor': '#475569'}}}%%
 stateDiagram-v2
     [*] --> active : Created
     active --> stale : Unused 30+ days
@@ -708,7 +708,7 @@ server {
 
 ## 🙏 Acknowledgements
 
-We would like to thank the following open-source projects that served as inspiration for Clawzd:
+We would like to thank the following projects that served as inspiration for Clawzd:
 
 - **Open WebUI**
 - **AnythingLLM**
@@ -720,3 +720,4 @@ We would like to thank the following open-source projects that served as inspira
 - **Graphify** (https://github.com/closedloop-technologies/graphify)
 - **RTK Token Optimization** (https://github.com/rtk-ai/rtk)
 - **Obliteratus** (https://github.com/elder-plinius/OBLITERATUS) & **L1B3RT4S** (https://github.com/elder-plinius/L1B3RT4S) for system prompts.
+- **flickr.com** 
