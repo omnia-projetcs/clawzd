@@ -52,18 +52,27 @@ class SkillCatalog {
 
     const btnCreateMiniApp = document.getElementById('btn-create-mini-app');
     if (btnCreateMiniApp) {
-      btnCreateMiniApp.addEventListener('click', () => {
+      btnCreateMiniApp.addEventListener('click', async () => {
+        // Switch to the Application tab
         const appTab = this._tabs ? this._tabs.querySelector('[data-cat="application"]') : null;
         if (appTab) {
           this._tabs.querySelectorAll('.skills-cat-tab').forEach(t => t.classList.remove('active'));
           appTab.classList.add('active');
           this._activeFilter = 'application';
-          this._renderGrid();
         }
+
+        // Show ab-body and hide the skills grid
+        const abBody = document.getElementById('ab-body');
+        if (abBody) {
+          abBody.style.display = 'block';
+          abBody.dataset.loaded = 'true';
+        }
+        this._grid.style.display = 'none';
+
+        // Ensure AppBuilderPanel data is loaded, then show the create form
         if (window.AppBuilderPanel) {
-          setTimeout(() => {
-            window.AppBuilderPanel.showCreate();
-          }, 50);
+          await window.AppBuilderPanel.open();
+          window.AppBuilderPanel.showCreate();
         }
       });
     }
