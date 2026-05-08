@@ -60,15 +60,16 @@
 
 ## ✨ Overview
 
-Clawzd is a self-hosted, modular AI assistant that combines multiple LLM providers with an extensible tool/skill system. It features a dark-themed IDE-like web interface with real-time streaming, a full-featured code editor with AI autocomplete, code audit, RAG (Retrieval-Augmented Generation), browser automation, image generation, and more.
+Clawzd is a self-hosted, modular AI assistant that combines multiple LLM providers with an extensible tool/skill system. Built on Agentic / Plugin architecture, it features a plugin system, tool replay engine, app builder, and a dark-themed IDE-like web interface with real-time streaming, code editing, code audit, RAG, browser automation, image generation, and more.
 
 **Key Design Principles:**
-- 🔌 **Multi-Provider** — Switch between Ollama (local), OpenRouter, Groq, Mistral, Google Gemini seamlessly
+- 🔌 **Multi-Provider** — Switch between Ollama (local), OpenRouter, Groq, Mistral, Google Gemini, Anthropic seamlessly
 - 🛠️ **Tool Orchestration** — Auto-detect and invoke the right tool for each user query
 - 📝 **IDE Editor** — Full code editor with tabs, AI autocomplete, code audit, git diff viewer
 - 📡 **Real-time Streaming** — Server-Sent Events for token-by-token response display
 - 🔒 **Self-Hosted** — All data stays on your machine; no external telemetry
-- 🧩 **Extensible** — Create custom skills at runtime without restarting
+- 🧩 **Extensible** — Plugin system + runtime skill creation without restarting
+- 🔄 **Observable** — Tool replay, system dashboard, and notification system built-in
 
 ---
 
@@ -123,6 +124,16 @@ Clawzd is a self-hosted, modular AI assistant that combines multiple LLM provide
 | 📊 **Monitoring** | Token counter | Real-time input/output token telemetry |
 | 📊 **Monitoring** | Performance Dash | Granular provider rate-limit and usage tracking |
 | 📊 **Monitoring** | Request metrics | Latency tracking and performance dashboard |
+| 🔌 **Plugins** | Plugin system | 7-hook lifecycle, auto-discovery, REST management |
+| 🔄 **Replay** | Tool Replay | Record, inspect, and export tool execution sequences |
+| 🏗️ **Builder** | App Builder | LLM-driven mini-app generation with live preview |
+| 📊 **Dashboard** | System Dashboard | Aggregated health metrics from 8 subsystems |
+| 📄 **Artifacts** | Artifact Store | Persistent code/doc artifact extraction and management |
+| 📤 **Storage** | Upload Store | Checksummed asset registration and management |
+| 🔔 **Notifications** | Notification System | In-app notification queue with badge and polling |
+| 📐 **UI** | Structured UI | Dynamic __CHART__, __TABLE__, __CARD__ rendering |
+| ⌨️ **UX** | Keyboard Shortcuts | Ctrl+Shift+A/R/D/B/G panel toggles |
+| 📱 **Mobile** | Responsive UI | 5-breakpoint mobile-first CSS architecture |
 
 ---
 
@@ -455,30 +466,46 @@ The health report includes:
 Clawzd/
 ├── main.py                  # Entry point — health check + FastAPI launch
 ├── config.py                # Centralized .env configuration
-├── install.sh               # Automated installer
-├── run.sh                   # Launch script
-├── update.sh                # Update + restart script
+├── install.sh / run.sh / update.sh / uninstall.sh
 ├── requirements.txt         # Python dependencies
-├── .env                     # Local configuration (API keys)
-├── .env.example             # Configuration template
+├── .env / .env.example      # Environment configuration
 │
 ├── app/                     # Application modules
-│   ├── core/                # Core orchestration (agent, memory, gateway)
-│   ├── routers/             # API routes and endpoints
-│   ├── tools/               # Specific tool implementations (code, web, browser...)
-│   ├── integrations/        # Discord, Telegram, Social integrations
+│   ├── gateway.py           # Central FastAPI app (285 routes)
+│   ├── core/                # Agentic / Plugin core subsystems
+│   │   ├── plugin_system.py # 7-hook plugin lifecycle
+│   │   ├── tool_replay.py   # Tool execution recording
+│   │   ├── app_builder.py   # LLM-driven mini-app generation
+│   │   ├── dashboard.py     # System metrics aggregation
+│   │   ├── artifacts.py     # Persistent artifact store
+│   │   ├── upload_store.py  # Checksummed file registration
+│   │   ├── notifications.py # In-app notification queue
+│   │   └── structured_ui.py # Dynamic UI component rendering
+│   ├── tools/               # Tool implementations
+│   │   ├── contracts.py     # Pydantic tool schemas (14 tools)
+│   │   └── output_validator.py # LLM output validation pipeline
+│   ├── plugins/             # Auto-discovered plugins
+│   │   ├── automation.py    # Auto-upload + smart notifications
+│   │   └── context_enrichment.py # Prompt enhancement
+│   ├── integrations/        # Discord, Telegram, Social
 │   ├── ai_models/           # LLM providers and model management
 │   ├── automation/          # Playbooks and cron tasks
-│   └── skills/              # Dynamic skill registry and lifecycle management
+│   └── skills/              # Dynamic skill registry and lifecycle
 │
-├── profiles/                # User profile and memory storage (Markdown)
-├── models/                  # Local models directory
 ├── templates/               # Jinja2 HTML templates
-├── static/                  # CSS, JS, fonts, images
-│   ├── css/style.css        # Main application stylesheet
-│   ├── js/app.js            # Frontend application logic
-│   └── img/icon.png         # Project icon
-├── data/                    # Runtime data (DB, sessions, images, audit reports…)
+│   ├── index.html           # Main entry (29 component assets)
+│   └── partials/            # Header, sidebar, status bar, studios
+├── static/
+│   ├── css/
+│   │   ├── style.css        # Main stylesheet
+│   │   ├── responsive.css   # 5-breakpoint mobile CSS
+│   │   └── components/      # Panel-specific styles (7 files)
+│   ├── js/
+│   │   ├── app.js           # Legacy application logic
+│   │   ├── main.js          # ES module entry (panel init)
+│   │   └── components/      # IIFE panel modules (10 files)
+│   └── img/
+├── data/                    # Runtime data (DB, sessions, replays, apps…)
 ├── workspace/               # User workspace for file operations
 └── chroma_db/               # ChromaDB vector store
 ```
@@ -534,6 +561,31 @@ All endpoints are served from `http://localhost:8888`.
 | `/spec` | Specifications tools | `tools_spec.py` |
 | `/agents` | Agent dispatch | `agent_dispatch.py` |
 | `/playbook` | Playbook engine | `playbook_engine.py` |
+
+### Agentic / Plugins
+
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| `GET` | `/plugins` | List all plugins |
+| `GET/POST` | `/plugins/{name}` | Get/toggle plugin |
+| `GET` | `/replays` | List replay sessions |
+| `GET` | `/replays/{id}` | Get full replay |
+| `GET` | `/replays/{id}/summary` | Replay analytics |
+| `GET` | `/replays/{id}/workflow` | Export as workflow |
+| `DELETE` | `/replays/{id}` | Delete replay |
+| `POST` | `/apps` | Create mini-app |
+| `GET` | `/apps` | List apps |
+| `GET` | `/apps/templates` | Starter templates |
+| `GET` | `/apps/{id}/meta` | App metadata |
+| `GET` | `/apps/{id}/preview` | Live HTML preview |
+| `PUT` | `/apps/{id}` | Update app files |
+| `DELETE` | `/apps/{id}` | Delete app |
+| `GET` | `/dashboard/metrics` | System health metrics |
+| `GET` | `/artifacts` | List artifacts |
+| `POST` | `/artifacts/{id}/pin` | Pin artifact |
+| `DELETE` | `/artifacts/{id}` | Delete artifact |
+| `GET` | `/uploads` | List uploaded files |
+| `GET` | `/notifications` | Recent notifications |
 
 ---
 
@@ -637,6 +689,7 @@ We would like to thank the following projects that served as inspiration for Cla
 - [Obliteratus](https://github.com/elder-plinius/OBLITERATUS)
 - [Ollama](https://github.com/ollama/ollama)
 - [Open WebUI](https://github.com/open-webui/open-webui)
+- [OpenClaw](https://github.com/openclaw/openclaw)
 - [Playwright](https://github.com/microsoft/playwright)
 - [RTK](https://github.com/rtk-ai/rtk)
 - [Trivy](https://github.com/aquasecurity/trivy)

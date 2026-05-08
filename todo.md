@@ -274,3 +274,70 @@ Can be used to rebuild from scratch the project with AI assistance.
 - [x] API documentation (FastAPI auto-generates OpenAPI at /docs)
 - [x] Developer contribution guide (CONTRIBUTING.md)
 - [x] Full repository language standardization to English (UI, comments, logs, docs)
+
+## 14. Agentic / Plugin Architecture
+- [x] Plugin System (app/core/plugin_system.py):
+    - [x] Auto-discovery from app/plugins/ directory
+    - [x] 7-hook lifecycle (on_session_create, before_prompt_build, after_skill_detect, before_tool_execute, after_tool_execute, after_generation, register_routes)
+    - [x] register/unregister/enable/disable plugin API
+    - [x] Plugin REST endpoints (/plugins, /plugins/{name})
+- [x] Tool Replay Engine (app/core/tool_replay.py):
+    - [x] Persistent recording of tool call sequences (JSON-per-session)
+    - [x] Session listing, detail, summary analytics
+    - [x] Workflow export (JSON automation format)
+    - [x] Replay timing fix (correct duration calculation)
+    - [x] Replay Panel UI (static/js/components/replay_panel.js)
+- [x] App Builder (app/core/app_builder.py):
+    - [x] LLM-driven mini-app generation (HTML/CSS/JS)
+    - [x] Starter templates (blank, dashboard)
+    - [x] Live preview endpoint (/apps/{id}/preview)
+    - [x] Full CRUD API (create/list/update/delete)
+    - [x] App Builder Panel UI (static/js/components/app_builder_panel.js)
+- [x] System Dashboard (app/core/dashboard.py):
+    - [x] Aggregated metrics from 8 subsystems
+    - [x] Health indicators per component
+    - [x] Dashboard Modal UI (static/js/components/system_dashboard.js)
+- [x] Artifact Store (app/core/artifacts.py):
+    - [x] Persistent extraction and storage of code/document artifacts
+    - [x] Pin/unpin, filter by type, delete
+    - [x] Artifact Panel UI (static/js/components/artifact_panel.js)
+- [x] Upload Store (app/core/upload_store.py):
+    - [x] Checksummed file registration (images, screenshots, assets)
+    - [x] Stats, listing, cleanup API
+- [x] Structured UI Rendering (app/core/structured_ui.py):
+    - [x] __CHART__, __TABLE__, __CARD__, __ARTIFACT__ markers
+    - [x] Component schemas for LLM prompt injection
+    - [x] Frontend renderer (static/js/components/structured_ui.js)
+- [x] Notification System (app/core/notifications.py):
+    - [x] In-app notification queue with subscribe/broadcast
+    - [x] Tool completion notifications (auto-fire)
+    - [x] Notification Badge UI with polling (static/js/components/notification_badge.js)
+- [x] Typed Tool Contracts (app/tools/contracts.py):
+    - [x] Pydantic models for 14 tools
+    - [x] Compact schema injection into LLM prompts (cloud providers)
+    - [x] Filtered injection based on detected skills
+- [x] LLM Output Validator (app/tools/output_validator.py):
+    - [x] Auto-close unclosed code fences
+    - [x] Duplicate tool call detection
+    - [x] Empty param blocking
+    - [x] Hallucinated path detection
+    - [x] Token budget guard
+- [x] Responsive Mobile UI (static/css/responsive.css):
+    - [x] 5 breakpoints (1024, 768, 480, touch, landscape)
+    - [x] Full sidebar/modal/chat responsive adaptations
+    - [x] Safe area support for notched devices
+- [x] Keyboard Shortcuts (static/js/components/keyboard_shortcuts.js):
+    - [x] Ctrl+Shift+A (Artifacts), R (Replay), D (Dashboard), B (Builder), G (Agents)
+    - [x] Escape to close all panels
+    - [x] Live status bar plugin count
+- [x] Plugins:
+    - [x] Automation Plugin (auto-upload registration, smart notifications)
+    - [x] Context Enrichment Plugin (prompt enhancement)
+- [x] Agent Sidebar (static/js/components/agent_sidebar.js):
+    - [x] Real-time agent switching (Orchestrator, Developer, Researcher, Soul)
+    - [x] Color-coded cards with status indicators
+- [x] Status bar enhancements:
+    - [x] Live plugin count (🔌)
+    - [x] Route count (⚡)
+    - [x] Subsystem area
+- [x] Header panel toggle buttons (📄 🔄 📊 🏗️)
