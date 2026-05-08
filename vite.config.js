@@ -30,17 +30,26 @@ export default defineConfig({
       input: {
         // Main ES module entry — imports all core modules
         main: resolve(__dirname, 'static/js/main.js'),
-        // Core app entry (IIFE — gradually migrating to ES modules)
+        // Core app entry (IIFE — chat, init, OC API)
         app: resolve(__dirname, 'static/js/app.js'),
         // Core modules
         event_bus: resolve(__dirname, 'static/js/core/event_bus.js'),
         component_registry: resolve(__dirname, 'static/js/core/component_registry.js'),
         streaming_parser: resolve(__dirname, 'static/js/core/streaming_parser.js'),
         theme: resolve(__dirname, 'static/js/core/theme.js'),
+        utils: resolve(__dirname, 'static/js/core/utils.js'),
         // Components
         token_tracker: resolve(__dirname, 'static/js/components/token_tracker.js'),
         chat_enhancements: resolve(__dirname, 'static/js/components/chat_enhancements.js'),
+        voice_input: resolve(__dirname, 'static/js/components/voice_input.js'),
+        model_manager: resolve(__dirname, 'static/js/components/model_manager.js'),
+        twitter_watch: resolve(__dirname, 'static/js/components/twitter_watch.js'),
+        skill_catalog: resolve(__dirname, 'static/js/components/skill_catalog.js'),
         // Studios
+        editor: resolve(__dirname, 'static/js/studios/editor.js'),
+        media: resolve(__dirname, 'static/js/studios/media.js'),
+        presentation: resolve(__dirname, 'static/js/studios/presentation.js'),
+        automation: resolve(__dirname, 'static/js/studios/automation.js'),
         project_studio: resolve(__dirname, 'static/js/project_studio.js'),
         spec_studio: resolve(__dirname, 'static/js/studios/spec.js'),
         research_studio: resolve(__dirname, 'static/js/studios/research.js'),
