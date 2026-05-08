@@ -32,6 +32,7 @@
 [![CodeMirror](https://img.shields.io/badge/CodeMirror-6.0-D33636?style=flat-square)]()
 [![Chart.js](https://img.shields.io/badge/Chart.js-Data_Viz-FF6384?style=flat-square&logo=chartdotjs&logoColor=white)]()
 [![SQLite](https://img.shields.io/badge/SQLite-003B57?style=flat-square&logo=sqlite&logoColor=white)]()
+[![Trivy](https://img.shields.io/badge/Trivy-Security_Audit-2C3E50?style=flat-square)]()
 
 </div>
 
@@ -710,14 +711,16 @@ server {
 
 We would like to thank the following projects that served as inspiration for Clawzd:
 
-- **Open WebUI**
-- **AnythingLLM**
-- **ComfyUI**
-- **Ollama**
-- **FastAPI**
-- **Playwright**
-- **Hermes Agent** (https://github.com/NousResearch/hermes-agent) for memory, compression, and tool repair logic.
-- **Graphify** (https://github.com/closedloop-technologies/graphify)
-- **RTK Token Optimization** (https://github.com/rtk-ai/rtk)
-- **Obliteratus** (https://github.com/elder-plinius/OBLITERATUS) & **L1B3RT4S** (https://github.com/elder-plinius/L1B3RT4S) for system prompts.
-- **flickr.com** 
+- [AnythingLLM](https://github.com/open-webui/anythingllm)
+- [ComfyUI](https://github.com/comfy-workflows/ComfyUI)
+- [FastAPI](https://github.com/tiangolo/fastapi)
+- [Flickr](https://www.flickr.com)
+- [Graphify](https://github.com/closedloop-technologies/graphify)
+- [Hermes Agent](https://github.com/NousResearch/hermes-agent)
+- [L1B3RT4S](https://github.com/elder-plinius/L1B3RT4S)
+- [Obliteratus](https://github.com/elder-plinius/OBLITERATUS)
+- [Ollama](https://github.com/ollama/ollama)
+- [Open WebUI](https://github.com/open-webui/open-webui)
+- [Playwright](https://github.com/microsoft/playwright)
+- [RTK](https://github.com/rtk-ai/rtk)
+- [Trivy](https://github.com/aquasecurity/trivy)

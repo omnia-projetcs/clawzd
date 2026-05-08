@@ -1,318 +1,276 @@
-================================================================================
-                        Clawzd — Consolidated TODO
-================================================================================
+# Clawzd — Consolidated TODO
 
-================================================================================
-1. Architecture & Deployment
-================================================================================
-[x] Simple architecture, based on Python + local scripts
-[x] Single python main.py launches everything (LLM server + backend + interface)
-[x] Single stack: Python 3.11+ only
-[x] Target hardware: AMD CPU, 16 GB NVIDIA VRAM, 64 GB RAM (GPU optimized)
-[x] Minimal deployment without mandatory Docker
-[x] install.sh script:
-    [x] Checks Python 3.11+
-    [x] Creates .venv virtual environment
-    [x] Installs dependencies (pip install -r requirements.txt)
-    [x] Downloads missing static files (htmx.min.js, pico.min.css, Inter.woff2) with hash verification
-    [x] Downloads GGUF model from HuggingFace if absent (via Ollama pull)
-    [x] Copies .env.example to .env
-    [x] Creates data/, workspace/, chroma_db/ directories
-    [x] Installs Ollama if absent + pulls default model
-    [x] CUDA-aware PyTorch installation (Blackwell sm_120 support)
-    [x] Playwright Chromium browser installation
-    [x] Dependency verification loop (check_dep)
-    [x] Add question to install in service side for ollama and Omnilaw in systemd (service / daemon)
-[x] update.sh script:
-    [x] git pull + dependency reinstallation
-    [x] Ollama model digest verification
-    [x] Service restart (kill + nohup run.sh)
-    [x] Add question to install in service side for ollama and Omnilaw in systemd (service / daemon) if not already installed
-[x] uninstall.sh script:
-    [x] Virtual environment removal
-    [x] chroma_db/, data/ removal (with confirmation)
-    [x] Ollama model deletion (with separate confirmation)
-    [x] Local models/ directory removal (with confirmation)
-[x] clawzd.sh script: launch wrapper (.venv + python main.py) → run.sh
+Can be used to rebuild from scratch the project with AI assistance.
 
-================================================================================
-2. LLM Models (Local + Cloud)
-================================================================================
-[x] Single specialist model for coding, reasoning, MCP, text, image
-[x] Model choice Local or Remote selectable in the interface
-[x] Migration to Ollama (replacing llama-cpp-python)
-[x] Model catalog with tag and parameter matching (models_catalog.json)
-[x] Extended model catalog with GPT-OSS, glm-4.7-flash, lfm2, gemma4, deepseek-r1, and others
-[x] Model/provider selector in UI with dynamic names
-[x] Real-time input/output token counter in the header
-[x] app/llm_provider.py with abstract LLMProvider class:
-    [x] LocalLLM / OllamaLLM via Ollama (OpenAI-compatible)
-    [x] OpenRouterLLM
-    [x] GroqLLM
-    [x] MistralLLM
-    [x] GoogleLLM (via google-generativeai SDK)
-    [x] Provider alias: "ollama" = "local" = OllamaLLM
-[x] get_llm_provider() factory selected via .env (LLM_PROVIDER + API key)
-[x] Unified streaming: each provider implements async chat_stream()
-[x] Compression and optimization (app/compression.py)
-[x] Model manager (app/model_manager.py):
-    [x] Download/pull models via Ollama API with progress tracking
-    [x] Activate/deactivate models (.env + hot-swap)
-    [x] Delete models with fallback auto-selection
-    [x] Hardware info endpoint (GPU VRAM, RAM)
-    [x] Catalog hot-reload
+## 1. Architecture & Deployment
+- [x] Simple architecture, based on Python + local scripts
+- [x] Single python main.py launches everything (LLM server + backend + interface)
+- [x] Single stack: Python 3.11+ only
+- [x] Target hardware: AMD CPU, 16 GB NVIDIA VRAM, 64 GB RAM (GPU optimized)
+- [x] Minimal deployment without mandatory Docker
+- [x] install.sh script:
+    - [x] Checks Python 3.11+
+    - [x] Creates .venv virtual environment
+    - [x] Installs dependencies (pip install -r requirements.txt)
+    - [x] Downloads missing static files (htmx.min.js, pico.min.css, Inter.woff2) with hash verification
+    - [x] Downloads GGUF model from HuggingFace if absent (via Ollama pull)
+    - [x] Copies .env.example to .env
+    - [x] Creates data/, workspace/, chroma_db/ directories
+    - [x] Installs Ollama if absent + pulls default model
+    - [x] CUDA-aware PyTorch installation (Blackwell sm_120 support)
+    - [x] Playwright Chromium browser installation
+    - [x] Dependency verification loop (check_dep)
+    - [x] Add question to install in service side for ollama and Omnilaw in systemd (service / daemon)
+- [x] update.sh script:
+    - [x] git pull + dependency reinstallation
+    - [x] Ollama model digest verification
+    - [x] Service restart (kill + nohup run.sh)
+    - [x] Add question to install in service side for ollama and Omnilaw in systemd (service / daemon) if not already installed
+- [x] uninstall.sh script:
+    - [x] Virtual environment removal
+    - [x] chroma_db/, data/ removal (with confirmation)
+    - [x] Ollama model deletion (with separate confirmation)
+    - [x] Local models/ directory removal (with confirmation)
+- [x] clawzd.sh script: launch wrapper (.venv + python main.py) → run.sh
 
-================================================================================
-3. Web Interface (100% Offline Frontend)
-================================================================================
-[x] ChatGPT-style web interface
-[x] Jinja2 template templates/index.html
-[x] 100% offline frontend: CSS, JS, fonts in static/
-[x] No network dependency on page load
-[x] Chat area with SSE token streaming
-[x] Model/provider selector at the top
-[x] Chat history with sessions saved in SQLite
-[x] File panel with preview and ZIP export
-[x] Settings with Environment Variable Management UI (dedicated modal window with token masking toggling)
-[x] Code editing and execution with syntax highlighting
-[x] Directory renaming capability in the editor file manager
-[x] Mermaid, charts, tables and images rendering
-[x] Full English (comments and UI text)
-[x] New session and Markdown export buttons
-[x] CodeMirror 6 editor (local bundle static/js/cm6.bundle.js)
-[x] Dark theme and Python syntax highlighting
-[x] "Run" and "Audit" code buttons
-[x] Correct rendering of lists and Mermaid diagrams
-[x] File extraction with correct names (no default "main")
-[x] Hierarchical file tree in the UI
-[x] Auto-loading default project on page initialization
-[x] Code audit results saved to audit.md in workspace (visible in file panel)
-[x] Active agent type indicator (UI display)
-[x] ClaudeCode editor type in UI (3-panel IDE: file tree, code editor, AI chat + activity feed), + git editor
-[ ] UI should give the ability to change the preprompts of agents and to save new ones in the directory agents/
-[x] Studio UI components harmonization (dynamic SVG rendering, consistent branding headers)
-[x] Centralized SVG icon architecture (replaced inline/emoji icons with sprite sheet)
-[x] Project Management Studio enhancements:
-    [x] Topbar, table view, and timeline view task creation
-    [x] Todo list TXT import parsing
-    [x] Standardized todo.md export format
-[x] Lightbox component enhancements (SVG rendering with transparent backgrounds)
-[x] Tool visibility settings (configurable toggles for workspace modules)
-[x] Code Editor ergonomics: AI autocomplete toggle, Find & Replace toolbar button
-[x] Full migration to standard SVG icon library (emoji removal)
-[x] Multi-model AI Battle Arena with automated judge evaluation and syntax highlighting
-[x] OpenCode-inspired Agentic features:
-    [x] Build/Plan mode toggles
-    [x] Fuzzy-search @file workspace references
-    [x] Persistent AI change history (undo/redo support)
-    [x] Session-aware Todo panel
-[x] Performance Analytics Dashboard with granular provider rate-limit tracking
+## 2. LLM Models (Local + Cloud)
+- [x] Single specialist model for coding, reasoning, MCP, text, image
+- [x] Model choice Local or Remote selectable in the interface
+- [x] Migration to Ollama (replacing llama-cpp-python)
+- [x] Model catalog with tag and parameter matching (models_catalog.json)
+- [x] Extended model catalog with GPT-OSS, glm-4.7-flash, lfm2, gemma4, deepseek-r1, and others
+- [x] Model/provider selector in UI with dynamic names
+- [x] Real-time input/output token counter in the header
+- [x] app/llm_provider.py with abstract LLMProvider class:
+    - [x] LocalLLM / OllamaLLM via Ollama (OpenAI-compatible)
+    - [x] OpenRouterLLM
+    - [x] GroqLLM
+    - [x] MistralLLM
+    - [x] GoogleLLM (via google-generativeai SDK)
+    - [x] Provider alias: "ollama" = "local" = OllamaLLM
+- [x] get_llm_provider() factory selected via .env (LLM_PROVIDER + API key)
+- [x] Unified streaming: each provider implements async chat_stream()
+- [x] Compression and optimization (app/compression.py)
+- [x] Model manager (app/model_manager.py):
+    - [x] Download/pull models via Ollama API with progress tracking
+    - [x] Activate/deactivate models (.env + hot-swap)
+    - [x] Delete models with fallback auto-selection
+    - [x] Hardware info endpoint (GPU VRAM, RAM)
+    - [x] Catalog hot-reload
 
-================================================================================
-4. MCP Skills / Tools
-================================================================================
-[x] Skill selection based on need (skill selector — app/skill_selector.py)
-[x] Internet browsing access (web search via ddgs)
-[x] Local command execution (ls, cat, grep, python, git, etc.)
-[x] Remote or local screenshot capture
-[x] Image creation (Stable Diffusion + SVG pipeline)
-[x] Chrome automation (Playwright headless browser)
-[x] RAG (ChromaDB + sentence-transformers)
-[x] Skill creation (app/tools_skills.py — dynamic skills at runtime)
-[x] Server-side tool calling with parsing and autonomous execution
-[x] Fuzzy matching of tool names to endpoints (SequenceMatcher + keyword overlap)
-[x] Autonomous execution loop (agent executes → result → LLM, max 3 rounds)
-[x] Collapsible "Thinking..." block for tool-calls in UI
-[x] Auto-installation of Python dependencies at runtime (IMPORT_TO_PIP map)
-[x] Python code execution in local sandbox:
-    [x] Configurable timeout (120s), 4 GB memory limit
-    [x] Returns stdout, stderr, return code
-    [x] Isolation via subprocess + resource + preexec_fn
-    [x] OPENBLAS/MKL/OMP_NUM_THREADS environment variables
-    [x] Matplotlib plot capture (patched show/savefig → base64 PNG)
-    [x] Path sanitization (/mnt/data/ → tmpdir)
-[x] Command whitelist + allowed paths + timeout
-[x] Web search results formatted for the LLM
-[x] SVG image generation via local LLM
-[x] Static server for screenshots and generated images
-[x] Cron scheduler with preprompt (APScheduler — interval + cron expressions)
-[x] Autoloding new skill without modification of pythons files, juste add the skill tool in the directory skill (review existing, all skill must be auto-detectable and auto-registrable and auto-configure)
-[x] Dynamic Hermes Skill Rebuilder (self-healing maintenance, lifecycle tracking)
-[x] Document translation skill (PPTX/DOCX upload and processing widget)
-[x] Local Audio Transcription via openai-whisper
-[x] AI Prompt generation via project context injection (branding, logos, presentations)
-[x] Advanced Video Generation: AnimateDiff Lightning, LTX-Video 0.9.7, Wan2.1
-[x] Enhanced Image Generation:
-    [x] Real-time streaming progress for multi-pass generation
-    [x] Multi-model sequential generation mode
-    [x] Image-to-image base upload
-    [x] Standard resolution presets
+## 3. Web Interface (100% Offline Frontend)
+- [x] ChatGPT-style web interface
+- [x] Jinja2 template templates/index.html
+- [x] 100% offline frontend: CSS, JS, fonts in static/
+- [x] No network dependency on page load
+- [x] Chat area with SSE token streaming
+- [x] Model/provider selector at the top
+- [x] Chat history with sessions saved in SQLite
+- [x] File panel with preview and ZIP export
+- [x] Settings with Environment Variable Management UI (dedicated modal window with token masking toggling)
+- [x] Code editing and execution with syntax highlighting
+- [x] Directory renaming capability in the editor file manager
+- [x] Mermaid, charts, tables and images rendering
+- [x] Full English (comments and UI text)
+- [x] New session and Markdown export buttons
+- [x] CodeMirror 6 editor (local bundle static/js/cm6.bundle.js)
+- [x] Dark theme and Python syntax highlighting
+- [x] "Run" and "Audit" code buttons
+- [x] Correct rendering of lists and Mermaid diagrams
+- [x] File extraction with correct names (no default "main")
+- [x] Hierarchical file tree in the UI
+- [x] Auto-loading default project on page initialization
+- [x] Code audit results saved to audit.md in workspace (visible in file panel)
+- [x] Active agent type indicator (UI display)
+- [x] ClaudeCode editor type in UI (3-panel IDE: file tree, code editor, AI chat + activity feed), + git editor
+- [ ] UI should give the ability to change the preprompts of agents and to save new ones in the directory agents/
+- [x] Studio UI components harmonization (dynamic SVG rendering, consistent branding headers)
+- [x] Centralized SVG icon architecture (replaced inline/emoji icons with sprite sheet)
+- [x] Project Management Studio enhancements:
+    - [x] Topbar, table view, and timeline view task creation
+    - [x] Todo list TXT import parsing
+    - [x] Standardized todo.md export format
+- [x] Lightbox component enhancements (SVG rendering with transparent backgrounds)
+- [x] Tool visibility settings (configurable toggles for workspace modules)
+- [x] Code Editor ergonomics: AI autocomplete toggle, Find & Replace toolbar button
+- [x] Full migration to standard SVG icon library (emoji removal)
+- [x] Multi-model AI Battle Arena with automated judge evaluation and syntax highlighting
+- [x] OpenCode-inspired Agentic features:
+    - [x] Build/Plan mode toggles
+    - [x] Fuzzy-search @file workspace references
+    - [x] Persistent AI change history (undo/redo support)
+    - [x] Session-aware Todo panel
+- [x] Performance Analytics Dashboard with granular provider rate-limit tracking
 
-================================================================================
-5. Agents (Multi-Agent Architecture)
-================================================================================
-[x] Per-request preprompt (contextual enrichment — app/preprompts.py)
-[x] Specialized preprompts:
-    [x] Developer with best practices
-    [x] Architect
-    [x] Designer / Marketing
-    [x] Writer / Editor
-    [x] UI Designer
-    [x] Auditor and quality
-    [x] Enrichment (detailed, well-structured answers)
-    [x] Jailbreak (Obliteratus/Libertas-based architecture-specific bypass prompts)
-[x] Each agent defined by a Markdown file in agents/:
-    [x] Orchestrator Agent (Atlas): plans, dispatches, supervises
-    [x] Developer Agent (Codex): generates, fixes, audits
-    [x] Researcher Agent (Nova): web research, analysis, validation
-    [x] Profile Agent (Soul): manages AI profiles
-[x] All agents share the same tools via function calling (app/agent_dispatch.py)
-[x] Orchestrator agent auto-routing (keyword detection → dispatch to Codex/Nova/Soul)
-[x] Agent execution history and traceability (agent_history.jsonl)
-[x] Agent API: /agents/list, /agents/detect, /agents/history, /agents/reload
-[x] Agent-to-agent communication protocol (multi-step orchestration)
-[x] Advanced context compressor (anti-thrashing, protected turn management)
-[x] Persistent memory system for agent notes and user profiles
-[x] Memory persistence migrated to Markdown files in data/rag/profil/ with LLM optimization task
-[x] OpenMonoAgent integration (Playbook, File Snapshot, Undo, Tool Isolation, Code-Review-Graph)
-[x] Automated tool output pruning and call argument repair
-[x] RTK-inspired token compression (output_compressor.py) for 60-90% context savings
+## 4. MCP Skills / Tools
+- [x] Skill selection based on need (skill selector — app/skill_selector.py)
+- [x] Internet browsing access (web search via ddgs)
+- [x] Local command execution (ls, cat, grep, python, git, etc.)
+- [x] Remote or local screenshot capture
+- [x] Image creation (Stable Diffusion + SVG pipeline)
+- [x] Chrome automation (Playwright headless browser)
+- [x] RAG (ChromaDB + sentence-transformers)
+- [x] Skill creation (app/tools_skills.py — dynamic skills at runtime)
+- [x] Server-side tool calling with parsing and autonomous execution
+- [x] Fuzzy matching of tool names to endpoints (SequenceMatcher + keyword overlap)
+- [x] Autonomous execution loop (agent executes → result → LLM, max 3 rounds)
+- [x] Collapsible "Thinking..." block for tool-calls in UI
+- [x] Auto-installation of Python dependencies at runtime (IMPORT_TO_PIP map)
+- [x] Python code execution in local sandbox:
+    - [x] Configurable timeout (120s), 4 GB memory limit
+    - [x] Returns stdout, stderr, return code
+    - [x] Isolation via subprocess + resource + preexec_fn
+    - [x] OPENBLAS/MKL/OMP_NUM_THREADS environment variables
+    - [x] Matplotlib plot capture (patched show/savefig → base64 PNG)
+    - [x] Path sanitization (/mnt/data/ → tmpdir)
+- [x] Command whitelist + allowed paths + timeout
+- [x] Web search results formatted for the LLM
+- [x] SVG image generation via local LLM
+- [x] Static server for screenshots and generated images
+- [x] Cron scheduler with preprompt (APScheduler — interval + cron expressions)
+- [x] Autoloding new skill without modification of pythons files, juste add the skill tool in the directory skill (review existing, all skill must be auto-detectable and auto-registrable and auto-configure)
+- [x] Dynamic Hermes Skill Rebuilder (self-healing maintenance, lifecycle tracking)
+- [x] Document translation skill (PPTX/DOCX upload and processing widget)
+- [x] Local Audio Transcription via openai-whisper
+- [x] AI Prompt generation via project context injection (branding, logos, presentations)
+- [x] Advanced Video Generation: AnimateDiff Lightning, LTX-Video 0.9.7, Wan2.1
+- [x] Enhanced Image Generation:
+    - [x] Real-time streaming progress for multi-pass generation
+    - [x] Multi-model sequential generation mode
+    - [x] Image-to-image base upload
+    - [x] Standard resolution presets
 
-================================================================================
-6. Profiles & History
-================================================================================
-[x] Profile history in Markdown
-[x] Full exportable history in Markdown (data/sessions/)
-[x] Cron with preprompt (app/tools_cron.py)
-[x] AI profile generation (SOUL.md):
-    [x] Question-by-question interview mode (8 questions)
-    [x] Existing chat history analysis mode (/profile/analyze-history)
-    [x] Profile saved in data/profiles/
-    [x] Profile loadable as system prompt
-[x] Profile management (list, load, delete profiles via API)
+## 5. Agents (Multi-Agent Architecture)
+- [x] Per-request preprompt (contextual enrichment — app/preprompts.py)
+- [x] Specialized preprompts:
+    - [x] Developer with best practices
+    - [x] Architect
+    - [x] Designer / Marketing
+    - [x] Writer / Editor
+    - [x] UI Designer
+    - [x] Auditor and quality
+    - [x] Enrichment (detailed, well-structured answers)
+    - [x] Jailbreak (Obliteratus/Libertas-based architecture-specific bypass prompts)
+- [x] Each agent defined by a Markdown file in agents/:
+    - [x] Orchestrator Agent (Atlas): plans, dispatches, supervises
+    - [x] Developer Agent (Codex): generates, fixes, audits
+    - [x] Researcher Agent (Nova): web research, analysis, validation
+    - [x] Profile Agent (Soul): manages AI profiles
+- [x] All agents share the same tools via function calling (app/agent_dispatch.py)
+- [x] Orchestrator agent auto-routing (keyword detection → dispatch to Codex/Nova/Soul)
+- [x] Agent execution history and traceability (agent_history.jsonl)
+- [x] Agent API: /agents/list, /agents/detect, /agents/history, /agents/reload
+- [x] Agent-to-agent communication protocol (multi-step orchestration)
+- [x] Advanced context compressor (anti-thrashing, protected turn management)
+- [x] Persistent memory system for agent notes and user profiles
+- [x] Memory persistence migrated to Markdown files in data/rag/profil/ with LLM optimization task
+- [x] OpenMonoAgent integration (Playbook, File Snapshot, Undo, Tool Isolation, Code-Review-Graph)
+- [x] Automated tool output pruning and call argument repair
+- [x] RTK-inspired token compression (output_compressor.py) for 60-90% context savings
 
-================================================================================
-7. RAG & Knowledge Base
-================================================================================
-[x] Personal RAG
-[x] Vector database / JSON (ChromaDB PersistentClient)
-[x] Data sources / archives (PDF, TXT, MD, ZIP, TAR/GZ)
-[x] Persistent ChromaDB vector database (chroma_db/)
-[x] Document indexing (txt, md, pdf) with chunking and local embeddings
-    [x] sentence-transformers/all-MiniLM-L6-v2 encoder
-    [x] Paragraph-aware chunking (~1000 chars)
-    [x] Offline embedding model cache (models/embeddings/)
-    [x] Authenticated requests to Hugging Face Hub (HF_TOKEN) to resolve warnings
-[x] Hybrid search (dense + BM25) with Reciprocal Rank Fusion (RRF)
-[x] RAG management (list sources, delete chunks — /rag/sources, /rag/source/{name})
-[x] Automatic context injection (auto-RAG before LLM call for relevant queries)
+## 6. Profiles & History
+- [x] Profile history in Markdown
+- [x] Full exportable history in Markdown (data/sessions/)
+- [x] Cron with preprompt (app/tools_cron.py)
+- [x] AI profile generation (SOUL.md):
+    - [x] Question-by-question interview mode (8 questions)
+    - [x] Existing chat history analysis mode (/profile/analyze-history)
+    - [x] Profile saved in data/profiles/
+    - [x] Profile loadable as system prompt
+- [x] Profile management (list, load, delete profiles via API)
 
-================================================================================
-8. Quality & Continuous Improvement
-================================================================================
-[x] Response quality validation:
-    [x] deepeval metrics (AnswerRelevancy, Hallucination) — app/tools_quality.py
-    [x] User feedback (useful/useless) in data/feedback.jsonl — app/improvement.py
-    [x] Continuous improvement loop (negative feedback + correction → indexed into RAG)
-[x] Automatic code audit:
-    [x] Quick: pylint (quality), bandit (security), radon (complexity)
-    [x] Full: Semgrep (OWASP+secrets+CI), Trivy (SCA+misconfig+secrets+licenses),
+## 7. RAG & Knowledge Base
+- [x] Personal RAG
+- [x] Vector database / JSON (ChromaDB PersistentClient)
+- [x] Data sources / archives (PDF, TXT, MD, ZIP, TAR/GZ)
+- [x] Persistent ChromaDB vector database (chroma_db/)
+- [x] Document indexing (txt, md, pdf) with chunking and local embeddings
+    - [x] sentence-transformers/all-MiniLM-L6-v2 encoder
+    - [x] Paragraph-aware chunking (~1000 chars)
+    - [x] Offline embedding model cache (models/embeddings/)
+    - [x] Authenticated requests to Hugging Face Hub (HF_TOKEN) to resolve warnings
+- [x] Hybrid search (dense + BM25) with Reciprocal Rank Fusion (RRF)
+- [x] RAG management (list sources, delete chunks — /rag/sources, /rag/source/{name})
+- [x] Automatic context injection (auto-RAG before LLM call for relevant queries)
+
+## 8. Quality & Continuous Improvement
+- [x] Response quality validation:
+    - [x] deepeval metrics (AnswerRelevancy, Hallucination) — app/tools_quality.py
+    - [x] User feedback (useful/useless) in data/feedback.jsonl — app/improvement.py
+    - [x] Continuous improvement loop (negative feedback + correction → indexed into RAG)
+- [x] Automatic code audit:
+    - [x] Quick: pylint (quality), bandit (security), radon (complexity)
+    - [x] Full: Semgrep (OWASP+secrets+CI), Trivy (SCA+misconfig+secrets+licenses),
         detect-secrets, dep-scan (OWASP dependency analysis)
-    [x] Normalized findings with severity classification
-    [x] HTML/JSON report generation with Chart.js visualization
-    [x] Results summarized for the LLM
-    [x] Audit results saved to workspace/audit.md
-[x] Simple semantic cache (cachetools TTLCache — app/cache.py)
-[x] Response time and token count logging per LLM call (app/metrics.py)
-[x] Systematic codebase audit and stabilization (dead code removal, performance checks)
+    - [x] Normalized findings with severity classification
+    - [x] HTML/JSON report generation with Chart.js visualization
+    - [x] Results summarized for the LLM
+    - [x] Audit results saved to workspace/audit.md
+- [x] Simple semantic cache (cachetools TTLCache — app/cache.py)
+- [x] Response time and token count logging per LLM call (app/metrics.py)
+- [x] Systematic codebase audit and stabilization (dead code removal, performance checks)
 
-================================================================================
-9. External Integrations
-================================================================================
-[x] Accessible from Telegram (app/integrations_telegram.py)
-    [x] Webhook endpoint (/telegram/webhook)
-    [x] httpx-based sendMessage with Markdown parse mode
-    [x] User allowlist (TELEGRAM_ALLOWED_IDS)
-    [x] Auto-session creation + history persistence
-[x] Accessible from Discord (app/integrations_discord.py)
-    [x] discord.py bot with message_content intent
-    [x] Channel filtering (DISCORD_CHANNEL_IDS) + mention detection
-    [x] Auto-start on application boot
-    [x] Message chunking (2000 char Discord limit)
-[x] Cron notifications on completion (web + Telegram + Discord if configured)
+## 9. External Integrations
+- [x] Accessible from Telegram (app/integrations_telegram.py)
+    - [x] Webhook endpoint (/telegram/webhook)
+    - [x] httpx-based sendMessage with Markdown parse mode
+    - [x] User allowlist (TELEGRAM_ALLOWED_IDS)
+    - [x] Auto-session creation + history persistence
+- [x] Accessible from Discord (app/integrations_discord.py)
+    - [x] discord.py bot with message_content intent
+    - [x] Channel filtering (DISCORD_CHANNEL_IDS) + mention detection
+    - [x] Auto-start on application boot
+    - [x] Message chunking (2000 char Discord limit)
+- [x] Cron notifications on completion (web + Telegram + Discord if configured)
 
-================================================================================
-10. Code Generation (Clawzd)
-================================================================================
-[x] Application generation pipeline
-[x] ZIP export of generated projects
-[x] Strict preprompt (README.md, security, lint, DRY, docs)
-[x] File extraction from markdown tree
-[x] Auto-continuation for truncated LLM responses
-    [x] Unclosed code fence detection
-    [x] Context-aware continuation (language-tagged code blocks)
-    [x] Max 3 continuation rounds
-[x] Rendering stabilization (fenced code blocks)
-[ ] before developing, always ask for clarification and question the request
-[ ] ask if the user wants documentation and tests
+## 10. Code Generation (Clawzd)
+- [x] Application generation pipeline
+- [x] ZIP export of generated projects
+- [x] Strict preprompt (README.md, security, lint, DRY, docs)
+- [x] File extraction from markdown tree
+- [x] Auto-continuation for truncated LLM responses
+    - [x] Unclosed code fence detection
+    - [x] Context-aware continuation (language-tagged code blocks)
+    - [x] Max 3 continuation rounds
+- [x] Rendering stabilization (fenced code blocks)
+- [ ] before developing, always ask for clarification and question the request
+- [ ] ask if the user wants documentation and tests
 
-================================================================================
-11. Security & Hardening
-================================================================================
-[x] Sandbox isolation for code execution (subprocess + resource limits)
-[x] Command whitelist for shell execution (ALLOWED_COMMANDS)
-[x] Telegram user allowlist
-[x] Base64 stripping from LLM context (prevent context bloat)
-[x] Rate limiting on public-facing endpoints (slowapi, configurable via RATE_LIMIT)
-[x] Input sanitization (script tag removal on user messages)
-[x] CORS configuration for production deployment (CORS_ORIGINS in .env)
-[x] HTTPS/TLS setup documentation (README.md — Nginx + Let's Encrypt)
+## 11. Security & Hardening
+- [x] Sandbox isolation for code execution (subprocess + resource limits)
+- [x] Command whitelist for shell execution (ALLOWED_COMMANDS)
+- [x] Telegram user allowlist
+- [x] Base64 stripping from LLM context (prevent context bloat)
+- [x] Rate limiting on public-facing endpoints (slowapi, configurable via RATE_LIMIT)
+- [x] Input sanitization (script tag removal on user messages)
+- [x] CORS configuration for production deployment (CORS_ORIGINS in .env)
+- [x] HTTPS/TLS setup documentation (README.md — Nginx + Let's Encrypt)
 
-================================================================================
-12. Performance & Monitoring
-================================================================================
-[x] Context compression for long conversations (app/compression.py)
-    [x] Base64 image stripping
-    [x] Message truncation
-    [x] Old conversation summarization
-    [x] Provider-specific token limits
-[x] Lazy-loaded modules (RAG, ChromaDB, embedding model)
-[x] Thread-local SQLite connections (WAL mode)
-[x] Semantic cache to avoid redundant LLM queries (app/cache.py)
-[x] LLM latency and throughput tracking (app/metrics.py — tokens/s per provider)
-[x] Health check endpoint with dependency status (/health)
-[x] Request timing middleware (all HTTP requests logged)
-[x] Memory usage monitoring (GPU VRAM + system RAM via /api/metrics)
+## 12. Performance & Monitoring
+- [x] Context compression for long conversations (app/compression.py)
+    - [x] Base64 image stripping
+    - [x] Message truncation
+    - [x] Old conversation summarization
+    - [x] Provider-specific token limits
+- [x] Lazy-loaded modules (RAG, ChromaDB, embedding model)
+- [x] Thread-local SQLite connections (WAL mode)
+- [x] Semantic cache to avoid redundant LLM queries (app/cache.py)
+- [x] LLM latency and throughput tracking (app/metrics.py — tokens/s per provider)
+- [x] Health check endpoint with dependency status (/health)
+- [x] Request timing middleware (all HTTP requests logged)
+- [x] Memory usage monitoring (GPU VRAM + system RAM via /api/metrics)
 
-================================================================================
-13. Documentation
-================================================================================
-[x] Complete README.md: installation, configuration, usage
-    [x] Architecture diagrams (Mermaid)
-    [x] Feature table
-    [x] API reference
-    [x] Integration setup (Discord, Telegram)
-    [x] Project structure
-    [x] HTTPS/TLS deployment guide
-    [x] Security hardening table
-[x] Code commented in English (main functions + docstrings)
-[x] Shell scripts compatible with Linux/WSL/MacOS (bash)
-[x] API documentation (FastAPI auto-generates OpenAPI at /docs)
-[x] Developer contribution guide (CONTRIBUTING.md)
-[x] Full repository language standardization to English (UI, comments, logs, docs)
-
-================================================================================
-🙏 Acknowledgements
-================================================================================
-We would like to thank the following projects that served as inspiration for Clawzd:
-- Open WebUI
-- AnythingLLM
-- ComfyUI
-- Ollama
-- FastAPI
-- Playwright
-- Hermes Agent (https://github.com/NousResearch/hermes-agent)
-- Graphify (https://github.com/closedloop-technologies/graphify)
-- RTK (https://github.com/rtk-ai/rtk)
-- Obliteratus (https://github.com/elder-plinius/OBLITERATUS)
-- L1B3RT4S (https://github.com/elder-plinius/L1B3RT4S)
+## 13. Documentation
+- [x] Complete README.md: installation, configuration, usage
+    - [x] Architecture diagrams (Mermaid)
+    - [x] Feature table
+    - [x] API reference
+    - [x] Integration setup (Discord, Telegram)
+    - [x] Project structure
+    - [x] HTTPS/TLS deployment guide
+    - [x] Security hardening table
+- [x] Code commented in English (main functions + docstrings)
+- [x] Shell scripts compatible with Linux/WSL/MacOS (bash)
+- [x] API documentation (FastAPI auto-generates OpenAPI at /docs)
+- [x] Developer contribution guide (CONTRIBUTING.md)
+- [x] Full repository language standardization to English (UI, comments, logs, docs)

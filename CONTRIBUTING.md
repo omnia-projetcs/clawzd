@@ -250,19 +250,3 @@ refactor(tools/image): split into sub-modules
 
 Open an issue or start a discussion in the repository.
 
----
-
-## 🙏 Acknowledgements
-
-We would like to thank the following open-source projects that served as inspiration for Clawzd:
-
-- **Open WebUI**
-- **AnythingLLM**
-- **ComfyUI**
-- **Ollama**
-- **FastAPI**
-- **Playwright**
-- **Hermes Agent** (https://github.com/NousResearch/hermes-agent) for memory, compression, and tool repair logic.
-- **Graphify** (https://github.com/closedloop-technologies/graphify)
-- **RTK Token Optimization** (https://github.com/rtk-ai/rtk)
-- **Obliteratus** (https://github.com/elder-plinius/OBLITERATUS) & **L1B3RT4S** (https://github.com/elder-plinius/L1B3RT4S) for system prompts.
