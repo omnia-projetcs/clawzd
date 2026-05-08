@@ -1,0 +1,319 @@
+/* ========================================
+   Clawzd — Responsive Mobile Enhancement
+   OpenClaw OS-inspired mobile-first polish
+   ======================================== */
+
+/* ── Tablet (≤ 1024px) ─────────────── */
+@media (max-width: 1024px) {
+  /* Collapse sidebar to icon-only on tablets */
+  .sidebar:not(.collapsed) {
+    width: 60px;
+  }
+  .sidebar .sidebar-label,
+  .sidebar .sidebar-search,
+  .sidebar .session-list-label,
+  .sidebar .session-item-text {
+    display: none;
+  }
+  .sidebar .sidebar-item {
+    justify-content: center;
+    padding: 10px 0;
+  }
+  .sidebar .sidebar-item .ic {
+    margin: 0;
+  }
+
+  /* Narrower editor panels */
+  .editor-layout.active {
+    grid-template-columns: 200px 6px 1fr 6px 240px;
+  }
+
+  /* Arena uses stacked layout */
+  .arena-container {
+    grid-auto-flow: row;
+    grid-auto-columns: 1fr;
+    grid-template-columns: 1fr;
+  }
+  .arena-col {
+    min-height: 50vh;
+  }
+}
+
+/* ── Mobile (≤ 768px) ──────────────── */
+@media (max-width: 768px) {
+  /* Full-screen sidebar overlay */
+  .sidebar {
+    position: fixed;
+    left: 0;
+    top: 48px;
+    bottom: 24px;
+    z-index: 200;
+    width: var(--sidebar-width, 280px) !important;
+    transform: translateX(-100%);
+    transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    box-shadow: 4px 0 24px rgba(0,0,0,0.4);
+  }
+  .sidebar:not(.collapsed) {
+    transform: translateX(0);
+    width: var(--sidebar-width, 280px) !important;
+  }
+  .sidebar:not(.collapsed) .sidebar-label,
+  .sidebar:not(.collapsed) .sidebar-search,
+  .sidebar:not(.collapsed) .session-list-label,
+  .sidebar:not(.collapsed) .session-item-text {
+    display: revert;
+  }
+  .sidebar.collapsed {
+    transform: translateX(-100%);
+    width: 0 !important;
+  }
+
+  /* Header adjustments */
+  .header {
+    padding: 0 12px;
+    height: 48px;
+  }
+  .header-center {
+    display: none;
+  }
+  .header-right {
+    gap: 4px;
+  }
+  .header-right .btn,
+  .header-right .icon-btn {
+    padding: 6px;
+    font-size: 12px;
+  }
+
+  /* Chat panel full-width */
+  .chat-panel {
+    width: 100% !important;
+    max-width: 100% !important;
+  }
+
+  /* Chat messages — more breathing room */
+  .chat-messages {
+    padding: 12px;
+    padding-bottom: 130px;
+  }
+  .chat-msg {
+    max-width: 95%;
+    padding: 12px;
+  }
+  .chat-msg.assistant {
+    max-width: 100%;
+  }
+
+  /* Chat input area */
+  .chat-input-area {
+    padding: 8px 12px;
+  }
+  .chat-input-wrapper {
+    gap: 6px;
+  }
+  .chat-input-box {
+    font-size: 14px;
+    padding: 10px 12px;
+    min-height: 44px;
+  }
+  .chat-send-btn {
+    width: 44px;
+    height: 44px;
+    min-width: 44px;
+  }
+
+  /* Input toolbar scrollable */
+  .chat-input-toolbar {
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: none;
+    gap: 4px;
+  }
+  .chat-input-toolbar::-webkit-scrollbar {
+    display: none;
+  }
+
+  /* Welcome cards stack */
+  .welcome-cards {
+    grid-template-columns: 1fr;
+    padding: 0 12px;
+  }
+  .welcome-card {
+    padding: 12px 16px;
+  }
+  .welcome-title {
+    font-size: 20px;
+  }
+
+  /* Hide editor, presentation on mobile */
+  .mode-toggle .mode-btn[data-mode="editor"],
+  .mode-toggle .mode-btn[data-mode="presentation"] {
+    display: none;
+  }
+  .editor-layout { display: none !important; }
+  .presentation-studio { display: none !important; }
+
+  /* Mode toggle compact */
+  .mode-toggle {
+    gap: 0;
+  }
+  .mode-btn {
+    padding: 4px 8px;
+    font-size: 11px;
+  }
+  .mode-btn span:not(.ic) {
+    display: none;
+  }
+
+  /* Modals full-screen on mobile */
+  .models-modal,
+  .skills-catalog-modal {
+    width: 100vw !important;
+    max-width: 100vw !important;
+    max-height: 100vh !important;
+    border-radius: 0 !important;
+    height: 100vh;
+  }
+  .models-grid,
+  .skills-catalog-grid {
+    grid-template-columns: 1fr;
+  }
+
+  /* Status bar compact */
+  .status-bar {
+    font-size: 10px;
+    padding: 0 8px;
+    height: 20px;
+  }
+  .status-bar-right {
+    gap: 6px;
+  }
+
+  /* Agent sidebar narrower on mobile */
+  .agent-sidebar {
+    width: 260px;
+    right: -280px;
+  }
+
+  /* Structured UI components responsive */
+  .sui-chart-wrapper {
+    padding: 12px;
+  }
+  .sui-table {
+    font-size: 12px;
+  }
+  .sui-table th,
+  .sui-table td {
+    padding: 8px 10px;
+  }
+  .sui-card {
+    padding: 12px;
+  }
+
+  /* Arena stacked */
+  .arena-container {
+    grid-auto-flow: row;
+    grid-template-columns: 1fr;
+    padding: 8px;
+    gap: 8px;
+  }
+  .arena-col {
+    min-height: 40vh;
+  }
+}
+
+/* ── Small phone (≤ 480px) ─────────── */
+@media (max-width: 480px) {
+  .header h1 {
+    font-size: 14px;
+  }
+  .header-logo-text {
+    display: none;
+  }
+
+  /* Even more compact chat */
+  .chat-messages {
+    padding: 8px;
+    padding-bottom: 140px;
+  }
+  .chat-msg {
+    font-size: 13px;
+  }
+
+  /* Code blocks scroll */
+  .chat-msg pre {
+    max-width: 85vw;
+    font-size: 11px;
+  }
+
+  /* Welcome simplified */
+  .welcome-subtitle {
+    display: none;
+  }
+  .welcome-cards {
+    gap: 8px;
+  }
+
+  /* Agent sidebar full width */
+  .agent-sidebar {
+    width: 100vw;
+    right: -110vw;
+  }
+  .agent-sidebar-open {
+    right: 0;
+  }
+}
+
+/* ── Touch improvements ────────────── */
+@media (hover: none) and (pointer: coarse) {
+  /* Larger touch targets */
+  .btn, .icon-btn, button {
+    min-height: 40px;
+    min-width: 40px;
+  }
+  .sidebar-item {
+    min-height: 44px;
+  }
+  .session-item {
+    min-height: 44px;
+  }
+
+  /* Disable hover effects on touch */
+  .model-card:hover,
+  .skill-card:hover,
+  .agent-card:hover,
+  .sui-artifact:hover {
+    transform: none;
+  }
+
+  /* Scrollbars hidden on touch */
+  * {
+    scrollbar-width: none;
+  }
+  *::-webkit-scrollbar {
+    display: none;
+  }
+}
+
+/* ── Safe area for notched devices ──── */
+@supports (padding: env(safe-area-inset-bottom)) {
+  .chat-input-area {
+    padding-bottom: calc(8px + env(safe-area-inset-bottom));
+  }
+  .status-bar {
+    padding-bottom: env(safe-area-inset-bottom);
+  }
+}
+
+/* ── Landscape orientation fix ──────── */
+@media (max-height: 500px) and (orientation: landscape) {
+  .chat-messages {
+    padding-bottom: 80px;
+  }
+  .welcome-title {
+    font-size: 16px;
+  }
+  .welcome-cards {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}

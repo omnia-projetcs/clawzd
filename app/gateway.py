@@ -1562,6 +1562,85 @@ async def delete_replay_endpoint(session_id: str):
     return {"status": "deleted", "session_id": session_id}
 
 
+# --- App Builder API (OpenClaw OS-inspired) ---
+
+@app.post("/apps")
+async def create_app_endpoint(request: Request):
+    """Create a new mini web application."""
+    from app.core.app_builder import create_app
+    data = await request.json()
+    name = data.get("name", "Untitled App")
+    files = data.get("files", {})
+    session_id = data.get("session_id")
+    template = data.get("template")
+
+    if not files and not template:
+        raise HTTPException(400, "Provide 'files' or 'template'")
+
+    result = create_app(name, files, session_id=session_id, template=template)
+    return result
+
+
+@app.get("/apps")
+async def list_apps_endpoint(limit: int = 20):
+    """List all created mini-apps."""
+    from app.core.app_builder import list_apps
+    return list_apps(limit=limit)
+
+
+@app.get("/apps/templates")
+async def list_templates():
+    """List available starter templates."""
+    from app.core.app_builder import STARTER_TEMPLATES
+    return {k: {"name": v["name"], "description": v["description"]}
+            for k, v in STARTER_TEMPLATES.items()}
+
+
+@app.get("/apps/{app_id}/meta")
+async def get_app_meta(app_id: str):
+    """Get app metadata."""
+    from app.core.app_builder import get_app
+    meta = get_app(app_id)
+    if not meta:
+        raise HTTPException(404, "App not found")
+    return meta
+
+
+@app.put("/apps/{app_id}")
+async def update_app_endpoint(app_id: str, request: Request):
+    """Update an app's files."""
+    from app.core.app_builder import update_app
+    data = await request.json()
+    files = data.get("files", {})
+    result = update_app(app_id, files)
+    if not result:
+        raise HTTPException(404, "App not found")
+    return result
+
+
+@app.delete("/apps/{app_id}")
+async def delete_app_endpoint(app_id: str):
+    """Delete an app."""
+    from app.core.app_builder import delete_app
+    deleted = delete_app(app_id)
+    if not deleted:
+        raise HTTPException(404, "App not found")
+    return {"status": "deleted", "id": app_id}
+
+
+# Serve app static files (HTML/CSS/JS)
+from fastapi.responses import FileResponse as _AppFileResponse
+
+@app.get("/apps/{app_id}/{filename:path}")
+async def serve_app_file(app_id: str, filename: str):
+    """Serve a file from a mini-app."""
+    from app.core.app_builder import get_app_file, APPS_DIR
+    filepath = os.path.join(APPS_DIR, app_id, os.path.basename(filename))
+    if not os.path.exists(filepath):
+        raise HTTPException(404, "File not found")
+    return _AppFileResponse(filepath)
+
+
 # --- Battle Arena API ---
 
 @app.post("/arena/send")
