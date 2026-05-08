@@ -151,6 +151,16 @@ templates = Jinja2Templates(env=jinja_env)
 async def startup():
     init_db()
 
+    # Auto-discover and register plugins
+    try:
+        from app.core.plugin_system import discover_plugins, run_hook_register_routes
+        n = discover_plugins("app/plugins")
+        if n:
+            run_hook_register_routes(app)
+            logger.info("Plugin system: %d plugin(s) loaded", n)
+    except Exception as exc:
+        logger.warning("Plugin discovery failed: %s", exc)
+
     # Load dynamic skills from data/skills/
     registry = get_registry()
     count = registry.load_all()
@@ -542,6 +552,23 @@ async def _process_chat(session_id: str, data: dict) -> dict:
                 llm_messages.insert(-1, {"role": "system", "content": rag_context})
     except Exception:
         pass  # RAG injection is non-critical
+
+    # --- Plugin hook: before_prompt_build ---
+    try:
+        from app.core.plugin_system import run_hook
+        _sys_content = llm_messages[0]["content"] if llm_messages and llm_messages[0]["role"] == "system" else ""
+        hook_ctx = run_hook("before_prompt_build", {
+            "system_prompt": _sys_content,
+            "user_message": user_msg,
+            "session_id": session_id,
+            "provider": provider_key,
+            "model": model_key,
+            "detected_skills": [],
+        })
+        if hook_ctx.get("system_prompt") != _sys_content and llm_messages and llm_messages[0]["role"] == "system":
+            llm_messages[0]["content"] = hook_ctx["system_prompt"]
+    except Exception:
+        pass  # Plugin hooks are non-critical
 
     # Auto-detect relevant skills (builtin + dynamic) and inject hint.
     # Only skills above the confidence threshold are injected — we never
@@ -1404,6 +1431,26 @@ async def artifact_history_endpoint(artifact_id: str):
     """Get the version history of an artifact."""
     from app.core.artifacts import get_artifact_history
     return get_artifact_history(artifact_id)
+
+
+# --- Plugin Management API ---
+
+@app.get("/plugins")
+async def list_plugins_endpoint():
+    """List all registered plugins."""
+    from app.core.plugin_system import list_plugins
+    return list_plugins()
+
+
+@app.post("/plugins/{plugin_name}/toggle")
+async def toggle_plugin_endpoint(plugin_name: str):
+    """Enable or disable a plugin."""
+    from app.core.plugin_system import get_plugin
+    plugin = get_plugin(plugin_name)
+    if not plugin:
+        raise HTTPException(404, f"Plugin '{plugin_name}' not found")
+    plugin.enabled = not plugin.enabled
+    return {"name": plugin.name, "enabled": plugin.enabled}
 
 
 # --- Battle Arena API ---

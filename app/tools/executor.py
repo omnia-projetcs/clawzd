@@ -509,6 +509,13 @@ async def execute_tool(tool_name: str, params: dict, context: dict = None) -> di
     from app.tool_repair import coerce_tool_args
     params = coerce_tool_args(resolved, params)
 
+    # --- Pipeline Step: Schema validation (typed contracts) ---
+    try:
+        from app.tools.contracts import validate_tool_params
+        params = validate_tool_params(resolved, params)
+    except Exception:
+        pass  # Schema validation is non-critical
+
     # --- Pipeline Step: Path sanity check ---
     if resolved in ("edit_file", "read_file", "audit_code"):
         path_err = _path_sanity_check(params, resolved)
