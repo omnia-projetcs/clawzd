@@ -80,6 +80,7 @@ const AppBuilderPanel = (() => {
   function _renderAppCard(app) {
     const time = _timeAgo(app.updated_at || app.created_at);
     const fileCount = app.files ? app.files.length : 0;
+    const escapedName = (app.name || 'Untitled').replace(/'/g, "\\'");
     return `
       <div class="ab-card" data-id="${app.id}">
         <div class="ab-card-preview" onclick="AppBuilderPanel.preview('${app.id}')">
@@ -94,6 +95,7 @@ const AppBuilderPanel = (() => {
           </div>
         </div>
         <div class="ab-card-actions">
+          <button class="ab-btn-edit" onclick="AppBuilderPanel.editInChat('${app.id}', '${escapedName}')" title="Edit in Chat">${ICONS.penTool(12)} Edit</button>
           <button class="ab-btn-sm" onclick="AppBuilderPanel.preview('${app.id}')" title="Preview">${ICONS.eye(14)}</button>
           <button class="ab-btn-sm ab-btn-danger" onclick="AppBuilderPanel.remove('${app.id}')" title="Delete">${ICONS.trash(14)}</button>
         </div>
@@ -137,16 +139,44 @@ const AppBuilderPanel = (() => {
       });
       const app = await res.json();
       if (typeof window.toast === 'function') {
-        window.toast(`App "${name}" created!`, 'success');
+        window.toast(`App "${name}" created! Redirecting to Chat...`, 'success');
       }
       await _loadApps();
       _renderList();
-      // Auto-open preview
-      preview(app.id);
+      // Redirect to chat for AI-assisted editing
+      editInChat(app.id, name);
     } catch (e) {
       if (typeof window.toast === 'function') {
         window.toast('Failed to create app', 'error');
       }
+    }
+  }
+
+  /**
+   * Close the Skill Catalog and send a pre-filled prompt to Chat
+   * so the user can edit/update the app via the AI assistant.
+   */
+  function editInChat(appId, appName) {
+    // Close the Skill Catalog overlay
+    const overlay = document.getElementById('skills-catalog-overlay');
+    if (overlay) overlay.classList.remove('open');
+
+    // Pre-fill the chat input with an edit prompt
+    const chatInput = document.getElementById('chat-input');
+    if (chatInput) {
+      chatInput.value = `Edit my application "${appName}" (ID: ${appId}). ` +
+        `Describe what features or changes you'd like to add, and I'll update the app code for you.\n\n` +
+        `Preview: /apps/${appId}/preview`;
+      chatInput.focus();
+      // Trigger resize
+      chatInput.style.height = 'auto';
+      chatInput.style.height = Math.min(chatInput.scrollHeight, 150) + 'px';
+    }
+
+    // Switch to chat mode if in editor mode
+    const chatModeBtn = document.querySelector('#mode-toggle .mode-btn[data-mode="chat"]');
+    if (chatModeBtn && !chatModeBtn.classList.contains('active')) {
+      chatModeBtn.click();
     }
   }
 
@@ -177,7 +207,7 @@ const AppBuilderPanel = (() => {
     return Math.floor(d / 86400) + 'd ago';
   }
 
-  return { init, open, close, showCreate, create, preview, remove };
+  return { init, open, close, showCreate, create, preview, remove, editInChat };
 })();
 
 window.AppBuilderPanel = AppBuilderPanel;
