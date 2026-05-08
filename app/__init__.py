@@ -1,1 +1,1 @@
-# OmniCLaw app package
+"""Clawzd — Main application package."""

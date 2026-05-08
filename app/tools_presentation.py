@@ -55,7 +55,7 @@ def _hex_to_rgb(hex_color: str):
         return (0, 0, 0)
     try:
         return tuple(int(hex_color[i:i+2], 16) for i in (0, 2, 4))
-    except:
+    except (ValueError, IndexError):
         return (0, 0, 0)
 
 def _generate_powerpoint(pages: list, filepath: str, canvas_width: int, canvas_height: int):
@@ -268,12 +268,12 @@ def _generate_pdf(pages: list, filepath: str, canvas_width: int, canvas_height: 
                             font_family = 'Symbol'
                     
                     try: pdf.set_font(font_family, style=font_style, size=font_size_pt)
-                    except: pass
+                    except RuntimeError: pass
                     
                     pdf.multi_cell(w, font_size_pt * 0.35, txt=content, align=align, border=draw_border, fill=fill)
                     
                     try: pdf.set_font("Arial", style="", size=font_size_pt)
-                    except: pass
+                    except RuntimeError: pass
                     
                 elif el_type == "image":
                     src = el.get("src", "")
@@ -294,7 +294,7 @@ def _generate_pdf(pages: list, filepath: str, canvas_width: int, canvas_height: 
                 elif el_type == "mermaid":
                     # Fallback to text for mermaid in PDF
                     try: pdf.set_font("Courier", style="", size=10)
-                    except: pass
+                    except RuntimeError: pass
                     pdf.set_text_color(0, 0, 0)
                     pdf.set_xy(x, y)
                     content = "[Mermaid Diagram]\n" + str(el.get("content", "")).encode('latin-1', 'replace').decode('latin-1')
@@ -442,7 +442,7 @@ def _generate_pngs(pages: list, base_filepath: str, canvas_width: int, canvas_he
                 if has_ttf:
                     try:
                         font = ImageFont.truetype("DejaVuSans.ttf", font_size)
-                    except:
+                    except (IOError, OSError):
                         font = base_font
                 else:
                     font = base_font
@@ -495,7 +495,7 @@ def _generate_pngs(pages: list, base_filepath: str, canvas_width: int, canvas_he
                         bbox = draw.textbbox((0, 0), line, font=font)
                         line_w = bbox[2] - bbox[0]
                         line_h = bbox[3] - bbox[1]
-                    except:
+                    except (AttributeError, TypeError):
                         line_w = len(line) * font_size * 0.55
                         line_h = font_size
                     
@@ -541,7 +541,7 @@ def _generate_pngs(pages: list, base_filepath: str, canvas_width: int, canvas_he
                 # Fallback to text for mermaid in PNG
                 content = "[Mermaid Diagram]\n" + str(el.get("content", ""))
                 try: m_font = ImageFont.truetype("DejaVuSansMono.ttf", int(14 * sf))
-                except: m_font = base_font
+                except (IOError, OSError): m_font = base_font
                 draw.rectangle([x, y, x+w, y+h], outline=(150, 150, 150, 255), width=2)
                 draw.text((x + 10, y + 10), content, fill=(0, 0, 0, 255), font=m_font)
             elif el_type == "shape":
@@ -686,7 +686,8 @@ async def list_presentations():
                     "thumbnail": d.get("thumbnail"),
                     "updated_at": os.path.getmtime(f)
                 })
-        except: pass
+        except (json.JSONDecodeError, OSError) as e:
+            logger.warning("Failed to read presentation %s: %s", pres_id, e)
     results.sort(key=lambda x: x["updated_at"], reverse=True)
     return {"presentations": results}
 
@@ -779,7 +780,7 @@ def _generate_pdf_cmyk(pages: list, filepath: str, canvas_width: int, canvas_hei
         # Cleanup temp files
         for p in tmp_pngs:
             try: os.unlink(p)
-            except: pass
+            except OSError: pass
 
 
 def _rgb_to_cmyk(img):
