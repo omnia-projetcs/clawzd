@@ -97,11 +97,13 @@
   cursor: pointer;
   padding: 4px 6px;
   border-radius: 4px;
-  opacity: 0.6;
+  color: var(--text-secondary, #94a3b8);
+  opacity: 0.8;
   transition: all 0.2s;
 }
-.ab-btn-sm:hover { opacity: 1; background: rgba(255,255,255,0.05); }
-.ab-btn-danger:hover { background: rgba(239, 68, 68, 0.15); }
+.ab-btn-sm:hover { opacity: 1; color: var(--text-primary, #e2e8f0); background: rgba(255,255,255,0.08); }
+.ab-btn-sm.ab-btn-danger { color: #f87171; }
+.ab-btn-sm.ab-btn-danger:hover { color: #ef4444; background: rgba(239, 68, 68, 0.15); }
 .ab-btn-back {
   background: none;
   border: none;
