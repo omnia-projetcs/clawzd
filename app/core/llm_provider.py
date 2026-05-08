@@ -142,14 +142,25 @@ class OllamaLLM(LLMProvider):
             api_key="ollama",  # required but ignored by Ollama
         )
 
+    # Cached health-check state (avoid HTTP call on every inference)
+    _health_cache: dict[str, float | bool] = {"ok": False, "ts": 0.0}
+    _HEALTH_TTL = 60.0  # seconds
+
     async def _is_ollama_running(self) -> bool:
-        """Quick check if Ollama server is reachable."""
+        """Quick check if Ollama server is reachable (cached 60s)."""
+        import time as _time
+        now = _time.monotonic()
+        if self._health_cache["ok"] and now - self._health_cache["ts"] < self._HEALTH_TTL:
+            return True
         try:
             async with httpx.AsyncClient() as client:
                 resp = await client.get(f"{OLLAMA_HOST}/api/tags", timeout=2.0)
-            return resp.status_code == 200
+            alive = resp.status_code == 200
         except Exception:
-            return False
+            alive = False
+        self._health_cache["ok"] = alive
+        self._health_cache["ts"] = now
+        return alive
 
     async def chat_stream(self, messages, model=None, **kwargs):
         if not await self._is_ollama_running():

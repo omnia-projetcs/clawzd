@@ -1170,7 +1170,10 @@ async def send_message(session_id: str, request: Request):
             logger.error("LLM error: %s", e)
         finally:
             # Generate follow-up suggestion chips (Roo Code-inspired)
-            if full_conversation.strip() and session_id not in _cancelled_sessions:
+            # Only if explicitly enabled in settings (disabled by default for performance)
+            from app.settings import load_settings
+            if load_settings().get("enable_suggestions", False) and \
+               full_conversation.strip() and session_id not in _cancelled_sessions:
                 try:
                     suggestions = await _generate_suggestions(
                         full_conversation, provider_key, model_key

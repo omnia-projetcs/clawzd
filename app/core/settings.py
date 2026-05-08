@@ -20,6 +20,7 @@ DEFAULT_SETTINGS = {
     "code_max_memory_mb": 512,
     "streaming_enabled": True,
     "require_command_confirmation": True,
+    "enable_suggestions": False,
     "show_automation": True,
     "show_media": True,
     "show_presentation": True,

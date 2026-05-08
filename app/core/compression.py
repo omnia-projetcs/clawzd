@@ -352,8 +352,18 @@ async def _generate_structured_summary(
     return "\n".join(parts)
 
 
+# Cache for Ollama context size (avoid repeated HTTP calls)
+_ollama_ctx_cache: dict[str, int | float] = {"size": 0, "ts": 0.0}
+_OLLAMA_CTX_TTL = 300  # 5 minutes
+
+
 async def _get_ollama_context_size() -> int:
-    """Query Ollama for the active model's context window size."""
+    """Query Ollama for the active model's context window size (cached 5 min)."""
+    import time as _time
+    now = _time.monotonic()
+    if _ollama_ctx_cache["size"] and now - _ollama_ctx_cache["ts"] < _OLLAMA_CTX_TTL:
+        return _ollama_ctx_cache["size"]
+
     try:
         import httpx
         from config import OLLAMA_HOST, OLLAMA_MODEL
@@ -368,6 +378,8 @@ async def _get_ollama_context_size() -> int:
                 model_info = info.get("model_info", {})
                 for key, val in model_info.items():
                     if "context_length" in key and isinstance(val, (int, float)):
+                        _ollama_ctx_cache["size"] = int(val)
+                        _ollama_ctx_cache["ts"] = now
                         return int(val)
                 # Fallback: parse from parameters string
                 params = info.get("parameters", "")
@@ -376,10 +388,17 @@ async def _get_ollama_context_size() -> int:
                         if "num_ctx" in line:
                             parts = line.strip().split()
                             if len(parts) >= 2:
-                                return int(parts[-1])
+                                ctx = int(parts[-1])
+                                _ollama_ctx_cache["size"] = ctx
+                                _ollama_ctx_cache["ts"] = now
+                                return ctx
     except Exception as e:
         logger.debug("Could not query Ollama context size: %s", e)
-    return 8192  # Safe default for most modern models
+
+    result = 8192  # Safe default for most modern models
+    _ollama_ctx_cache["size"] = result
+    _ollama_ctx_cache["ts"] = now
+    return result
 
 
 async def optimize_for_provider(

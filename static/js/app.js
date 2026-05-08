@@ -400,9 +400,12 @@
   }
 
   // Apply highlight.js to code blocks after render
-  function highlightAll() {
+  // When a scope element is provided, only highlight within that element
+  // to avoid re-scanning the entire document during streaming.
+  function highlightAll(scope) {
     if (window.hljs) {
-      document.querySelectorAll('pre code').forEach(b => {
+      const root = scope || document;
+      root.querySelectorAll('pre code').forEach(b => {
         const pre = b.parentElement;
         if (pre && pre.id === 'code-highlight') return; // Skip editor
 
@@ -686,7 +689,7 @@
       this.text += tok;
       if (window.tokenTracker) window.tokenTracker.addOutput(1);
 
-      // Throttle DOM renders to avoid memory saturation (~80ms interval)
+      // Throttle DOM renders to avoid CPU saturation (~150ms interval)
       if (!this._renderPending) {
         this._renderPending = true;
         this._renderTimer = setTimeout(() => {
@@ -694,7 +697,7 @@
           this._renderTimer = null;
           if (!this.bubble) return;
 
-          // Capture open details
+          // Capture open details state before re-render
           const openDetails = [];
           this.bubble.querySelectorAll('details').forEach((d, i) => {
             if (d.hasAttribute('open')) openDetails.push(i);
@@ -714,8 +717,9 @@
           }
 
           this.msgEl.scrollTop = this.msgEl.scrollHeight;
-          if (typeof highlightAll === 'function') highlightAll();
-        }, 80);
+          // Scope highlight to current bubble only (avoid scanning entire DOM)
+          if (typeof highlightAll === 'function') highlightAll(this.bubble);
+        }, 150);
       }
     }
     finish() {
@@ -777,7 +781,7 @@
         if (fenceCount % 2 !== 0) text += '\n```';
         this.bubble.innerHTML = renderMd(text);
         this.extractFiles(text);
-        highlightAll();
+        highlightAll(this.bubble);
         // NOTE: Tool calls are now executed server-side in the agent loop
         // (gateway.py generate()). Do NOT re-execute them client-side.
         // this.executeToolCalls(text, this.bubble);
@@ -1183,42 +1187,59 @@
                 $('#arena-eval-panel').style.display = 'block';
                 window.arenaLastPrompt = msg;
               }
-              if (typeof highlightAll === 'function') highlightAll();
+              // Cancel pending throttled render and do final render
+              const col = cols[stream.stream_id];
+              if (col._renderTimer) { clearTimeout(col._renderTimer); col._renderTimer = null; }
+              let finalPreview = col.text;
+              const ffc = (finalPreview.match(/```/g) || []).length;
+              if (ffc % 2 !== 0) finalPreview += '\n```';
+              col.el.innerHTML = renderMd(finalPreview);
+              if (typeof highlightAll === 'function') highlightAll(col.el);
               return;
             }
-            cols[stream.stream_id].text += e.data;
-            let preview = cols[stream.stream_id].text;
+            const col = cols[stream.stream_id];
+            col.text += e.data;
 
-            let statsHtml = '';
-            const statsRe = /__STATS__({.+?})__STATS__/;
-            const statsMatch = preview.match(statsRe);
-            if (statsMatch) {
-              try {
-                const stats = JSON.parse(statsMatch[1]);
-                statsHtml = `<div class="arena-stats" style="margin-top:16px; padding:12px; border-radius:var(--radius-sm); background:var(--bg-tertiary); font-size:12px; border:1px solid var(--border);">
-                  <div style="display:flex; justify-content:space-between; margin-bottom:4px;">
-                    <span style="color:var(--text-muted)">⏱️ Temps de réponse</span>
-                    <strong>${stats.time}s</strong>
-                  </div>
-                  <div style="display:flex; justify-content:space-between; margin-bottom:4px;">
-                    <span style="color:var(--text-muted)"> Tokens E/S</span>
-                    <strong>${stats.tokens}</strong>
-                  </div>
-                  <div style="display:flex; justify-content:space-between;">
-                    <span style="color:var(--text-muted)"> Vitesse</span>
-                    <strong>${stats.tps} tokens/s</strong>
-                  </div>
-                </div>`;
-                preview = preview.replace(statsRe, '');
-              } catch (err) { }
+            // Throttle DOM renders (~150ms interval)
+            if (!col._renderPending) {
+              col._renderPending = true;
+              col._renderTimer = setTimeout(() => {
+                col._renderPending = false;
+                col._renderTimer = null;
+                let preview = col.text;
+
+                let statsHtml = '';
+                const statsRe = /__STATS__({.+?})__STATS__/;
+                const statsMatch = preview.match(statsRe);
+                if (statsMatch) {
+                  try {
+                    const stats = JSON.parse(statsMatch[1]);
+                    statsHtml = `<div class="arena-stats" style="margin-top:16px; padding:12px; border-radius:var(--radius-sm); background:var(--bg-tertiary); font-size:12px; border:1px solid var(--border);">
+                      <div style="display:flex; justify-content:space-between; margin-bottom:4px;">
+                        <span style="color:var(--text-muted)">⏱️ Temps de réponse</span>
+                        <strong>${stats.time}s</strong>
+                      </div>
+                      <div style="display:flex; justify-content:space-between; margin-bottom:4px;">
+                        <span style="color:var(--text-muted)"> Tokens E/S</span>
+                        <strong>${stats.tokens}</strong>
+                      </div>
+                      <div style="display:flex; justify-content:space-between;">
+                        <span style="color:var(--text-muted)"> Vitesse</span>
+                        <strong>${stats.tps} tokens/s</strong>
+                      </div>
+                    </div>`;
+                    preview = preview.replace(statsRe, '');
+                  } catch (err) { }
+                }
+
+                const fc = (preview.match(/```/g) || []).length;
+                if (fc % 2 !== 0) preview += '\n```';
+
+                col.el.innerHTML = renderMd(preview) + statsHtml;
+                col.el.scrollTop = col.el.scrollHeight;
+                if (typeof highlightAll === 'function') highlightAll(col.el);
+              }, 150);
             }
-
-            const fc = (preview.match(/```/g) || []).length;
-            if (fc % 2 !== 0) preview += '\n```';
-
-            cols[stream.stream_id].el.innerHTML = renderMd(preview) + statsHtml;
-            cols[stream.stream_id].el.scrollTop = cols[stream.stream_id].el.scrollHeight;
-            if (typeof highlightAll === 'function') highlightAll();
           };
           window.arenaStreams.push({ id: stream.stream_id, es: es });
         });
@@ -1331,22 +1352,25 @@
       }
 
       // ---- Auto Enhance Prompt via LLM (Roo Code-inspired) ----
-      try {
-        const enhRes = await fetch('/api/enhance', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            prompt: enrichedMsg,
-            provider: $('#provider-select').value,
-            model: $('#model-select').value
-          }),
-        });
-        const enhData = await enhRes.json();
-        if (enhData.enhanced && enhData.enhanced.trim()) {
-          enrichedMsg = enhData.enhanced;
+      // Only runs if auto-enrich is explicitly enabled to avoid extra LLM calls
+      if ($('#settings-auto-enrich') && $('#settings-auto-enrich').checked) {
+        try {
+          const enhRes = await fetch('/api/enhance', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              prompt: enrichedMsg,
+              provider: $('#provider-select').value,
+              model: $('#model-select').value
+            }),
+          });
+          const enhData = await enhRes.json();
+          if (enhData.enhanced && enhData.enhanced.trim()) {
+            enrichedMsg = enhData.enhanced;
+          }
+        } catch (enhErr) {
+          console.debug('Auto-enhance skipped:', enhErr);
         }
-      } catch (enhErr) {
-        console.debug('Auto-enhance skipped:', enhErr);
       }
 
       // Remove previous suggestion chips
@@ -3807,7 +3831,7 @@
           const content = this.editorBubble.querySelector('.msg-content');
           if (content) content.innerHTML = renderMd(this._formatThoughtsBeforeMd(this.editorText));
           this.editorBubble.dataset.raw = encodeURIComponent(this.editorText);
-          highlightAll();
+          highlightAll(this.editorBubble);
         }
         // Track received tokens
         this.editorTokenCount += this._estimateTokens(this.editorText);
@@ -3854,8 +3878,8 @@
           }
           const msgs = $('#editor-chat-messages');
           msgs.scrollTop = msgs.scrollHeight;
-          if (typeof highlightAll === 'function') highlightAll();
-        }, 80);
+          if (typeof highlightAll === 'function') highlightAll(this.editorBubble);
+        }, 150);
       }
     }
 
