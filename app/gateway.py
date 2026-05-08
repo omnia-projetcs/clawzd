@@ -576,93 +576,43 @@ async def send_message(session_id: str, request: Request):
             pass  # Catalog injection is non-critical
             
     if detected:
-        from app.skill_selector import get_skill_description
+        from app.skill_selector import get_skill_description, get_skill_catalog_entry, get_skill_full_instructions
 
         # For local provider with small ctx, use fewer tools
         is_local = (provider_key in ("local", "ollama"))
         if is_local:
             detected = detected[:2]  # max 2 tools for small context
 
-        # --- Compact tool instructions for ALL providers (RTK-style) ---
-        # One-liner description + JSON example per tool.
-        # Saves ~60% of prompt tokens vs the old verbose format.
-        TOOL_COMPACT = {
-            "screenshot_remote": (
-                "screenshot_remote — capture webpage.\n"
-                '```tool_call\n{"tool":"screenshot_remote","params":{"url":"URL"}}\n```'
-            ),
-            "screenshot_local": (
-                "screenshot_local — capture local desktop.\n"
-                '```tool_call\n{"tool":"screenshot_local","params":{}}\n```'
-            ),
-            "generate_image": (
-                "generate_image — generate image from text (format: auto/svg/png/transparent_png, style: none/photorealistic/anime/cinematic/digital_art/3d_render/pixel_art/neon_punk/logo).\n"
-                '```tool_call\n{"tool":"generate_image","params":{"prompt":"desc","format":"auto","style":"none"}}\n```'
-            ),
-            "generate_animation": (
-                "generate_animation — generate GIF/MP4 animation.\n"
-                '```tool_call\n{"tool":"generate_animation","params":{"prompt":"desc","format":"gif"}}\n```'
-            ),
-            "browse_web": (
-                "browse_web — navigate/interact with a web page.\n"
-                '```tool_call\n{"tool":"browse_web","params":{"url":"URL"}}\n```'
-            ),
-            "execute_python": (
-                'execute_python — run Python code (risky SQL needs "confirmed":true).\n'
-                '```tool_call\n{"tool":"execute_python","params":{"code":"print(42)"}}\n```'
-            ),
-            "search_web": (
-                "search_web — search the internet.\n"
-                '```tool_call\n{"tool":"search_web","params":{"query":"..."}}\n```'
-            ),
-            "audit_code": (
-                "audit_code — audit code quality/security (mode: quick/full).\n"
-                '```tool_call\n{"tool":"audit_code","params":{"mode":"quick","code":"..."}}\n```'
-            ),
-            "run_command": (
-                'run_command — shell command in workspace (risky cmds need "confirmed":true).\n'
-                '```tool_call\n{"tool":"run_command","params":{"command":"ls -la"}}\n```'
-            ),
-            "edit_file": (
-                "edit_file — modify file content.\n"
-                '```tool_call\n{"tool":"edit_file","params":{"file_path":"...","old_string":"...","new_string":"..."}}\n```'
-            ),
-            "read_file": (
-                "read_file — read file content.\n"
-                '```tool_call\n{"tool":"read_file","params":{"file_path":"..."}}\n```'
-            ),
-            "memory": (
-                "memory — save/update persistent memory (action: add/replace/remove, target: memory/user).\n"
-                '```tool_call\n{"tool":"memory","params":{"action":"add","content":"..."}}\n```'
-            ),
-            "create_document": (
-                "create_document — create document (markdown/word/excel/pdf).\n"
-                '```tool_call\n{"tool":"create_document","params":{"format_type":"markdown","content":"...","title":"..."}}\n```'
-            ),
-            "search_twitter": (
-                "search_twitter — search tweets/X posts or get user timeline.\n"
-                '```tool_call\n{"tool":"search_twitter","params":{"query":"...","username":""}}\n```'
-            ),
-            "search_linkedin": (
-                "search_linkedin — search LinkedIn profiles (CV) or articles.\n"
-                '```tool_call\n{"tool":"search_linkedin","params":{"query":"...","type":"profiles"}}\n```'
-            ),
-        }
+        if is_local:
+            # --- LOCAL PROVIDERS: Direct full injection (small models need it) ---
+            # Keep full tool_call examples so 7B-9B models can use them correctly.
+            parts = []
+            for d in detected:
+                parts.append(get_skill_full_instructions(d["skill"]))
 
-        parts = []
-        for d in detected:
-            skill_name = d["skill"]
-            if skill_name in TOOL_COMPACT:
-                parts.append(TOOL_COMPACT[skill_name])
-            else:
-                desc = get_skill_description(skill_name)
-                parts.append(f"{skill_name} -- {desc[:80]}")
+            hint = (
+                "## Tools\n"
+                "Use ```tool_call blocks when relevant. Do NOT refuse if a tool can help.\n\n"
+                + "\n".join(parts)
+            )
+        else:
+            # --- CLOUD PROVIDERS: Lightweight catalog (lazy skill loading) ---
+            # Only inject names + short descriptions (~80 tokens vs ~750).
+            # The LLM already knows the tool_call format from the system prompt
+            # and can emit correct calls from the name alone.
+            catalog_lines = [get_skill_catalog_entry(d["skill"]) for d in detected]
 
-        hint = (
-            "## Tools\n"
-            "Use ```tool_call blocks when relevant. Do NOT refuse if a tool can help.\n\n"
-            + "\n".join(parts)
-        )
+            hint = (
+                "## Available Tools\n"
+                "When a tool is needed, emit a tool_call block:\n"
+                '```tool_call\n{"tool":"<name>","params":{...}}\n```\n\n'
+                + "\n".join(catalog_lines)
+            )
+
+            logger.debug(
+                "Lazy skill loading: injected %d catalog entries (%d chars) instead of full instructions",
+                len(catalog_lines), len(hint),
+            )
 
         # Merge into existing system prompt (Mixtral only supports one system message)
         if llm_messages and llm_messages[0]["role"] == "system":

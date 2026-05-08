@@ -190,3 +190,95 @@ def get_skill_description(skill_name: str) -> str:
         "rebuild_skill": "Rebuild and improve an existing skill using AI",
     }
     return descriptions.get(skill_name, skill_name)
+
+
+def get_skill_catalog_entry(skill_name: str) -> str:
+    """Return a compact one-liner for the lightweight skill catalog.
+
+    Used by the lazy skill loading system: only names + short descriptions
+    are injected into the initial prompt to reduce context size.
+    """
+    desc = get_skill_description(skill_name)
+    return f"- {skill_name}: {desc[:60]}"
+
+
+# ---------------------------------------------------------------------------
+# Full tool instructions (loaded on demand for cloud providers)
+# ---------------------------------------------------------------------------
+
+_TOOL_FULL_INSTRUCTIONS: dict[str, str] = {
+    "screenshot_remote": (
+        "screenshot_remote — capture webpage.\n"
+        '```tool_call\n{"tool":"screenshot_remote","params":{"url":"URL"}}\n```'
+    ),
+    "screenshot_local": (
+        "screenshot_local — capture local desktop.\n"
+        '```tool_call\n{"tool":"screenshot_local","params":{}}\n```'
+    ),
+    "generate_image": (
+        "generate_image — generate image from text (format: auto/svg/png/transparent_png, "
+        "style: none/photorealistic/anime/cinematic/digital_art/3d_render/pixel_art/neon_punk/logo).\n"
+        '```tool_call\n{"tool":"generate_image","params":{"prompt":"desc","format":"auto","style":"none"}}\n```'
+    ),
+    "generate_animation": (
+        "generate_animation — generate GIF/MP4 animation.\n"
+        '```tool_call\n{"tool":"generate_animation","params":{"prompt":"desc","format":"gif"}}\n```'
+    ),
+    "browse_web": (
+        "browse_web — navigate/interact with a web page.\n"
+        '```tool_call\n{"tool":"browse_web","params":{"url":"URL"}}\n```'
+    ),
+    "execute_python": (
+        'execute_python — run Python code (risky SQL needs "confirmed":true).\n'
+        '```tool_call\n{"tool":"execute_python","params":{"code":"print(42)"}}\n```'
+    ),
+    "search_web": (
+        "search_web — search the internet.\n"
+        '```tool_call\n{"tool":"search_web","params":{"query":"..."}}\n```'
+    ),
+    "audit_code": (
+        "audit_code — audit code quality/security (mode: quick/full).\n"
+        '```tool_call\n{"tool":"audit_code","params":{"mode":"quick","code":"..."}}\n```'
+    ),
+    "run_command": (
+        'run_command — shell command in workspace (risky cmds need "confirmed":true).\n'
+        '```tool_call\n{"tool":"run_command","params":{"command":"ls -la"}}\n```'
+    ),
+    "edit_file": (
+        "edit_file — modify file content.\n"
+        '```tool_call\n{"tool":"edit_file","params":{"file_path":"...","old_string":"...","new_string":"..."}}\n```'
+    ),
+    "read_file": (
+        "read_file — read file content.\n"
+        '```tool_call\n{"tool":"read_file","params":{"file_path":"..."}}\n```'
+    ),
+    "memory": (
+        "memory — save/update persistent memory (action: add/replace/remove, target: memory/user).\n"
+        '```tool_call\n{"tool":"memory","params":{"action":"add","content":"..."}}\n```'
+    ),
+    "create_document": (
+        "create_document — create document (markdown/word/excel/pdf).\n"
+        '```tool_call\n{"tool":"create_document","params":{"format_type":"markdown","content":"...","title":"..."}}\n```'
+    ),
+    "search_twitter": (
+        "search_twitter — search tweets/X posts or get user timeline.\n"
+        '```tool_call\n{"tool":"search_twitter","params":{"query":"...","username":""}}\n```'
+    ),
+    "search_linkedin": (
+        "search_linkedin — search LinkedIn profiles (CV) or articles.\n"
+        '```tool_call\n{"tool":"search_linkedin","params":{"query":"...","type":"profiles"}}\n```'
+    ),
+}
+
+
+def get_skill_full_instructions(skill_name: str) -> str:
+    """Return the full tool_call instructions for a skill.
+
+    Used for on-demand loading (cloud providers) and direct injection
+    (local providers).  Falls back to a simple one-liner if no detailed
+    instructions are registered.
+    """
+    if skill_name in _TOOL_FULL_INSTRUCTIONS:
+        return _TOOL_FULL_INSTRUCTIONS[skill_name]
+    desc = get_skill_description(skill_name)
+    return f"{skill_name} -- {desc[:80]}"
