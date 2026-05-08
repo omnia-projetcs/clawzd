@@ -902,6 +902,28 @@ async def _process_chat(session_id: str, data: dict) -> dict:
 
                 # NOW check for tool_call blocks in the fully-completed response
                 tool_calls = parse_tool_calls(round_response)
+
+                # --- LLM Output Validation (OpenClaw OS-inspired) ---
+                # Validate tool calls before execution: catch empty params,
+                # duplicates, hallucinated paths, and budget overruns.
+                try:
+                    from app.tools.output_validator import validate_round_output
+                    validation = validate_round_output(
+                        text=round_response,
+                        tool_calls=tool_calls,
+                        round_num=round_num,
+                        max_tool_rounds=MAX_TOOL_ROUNDS,
+                    )
+                    tool_calls = validation["tool_calls"]
+                    if validation["blocked"]:
+                        logger.info(
+                            "Validator blocked %d tool call(s): %s",
+                            len(validation["blocked"]),
+                            ", ".join(validation["blocked"]),
+                        )
+                except Exception:
+                    pass  # Validation is non-critical — never block generation
+
                 if not tool_calls:
                     break  # Done (no tool calls)
 
@@ -970,6 +992,22 @@ async def _process_chat(session_id: str, data: dict) -> dict:
 
                     # Execute the tool
                     result = await execute_tool(tool_name, params, {"active_project": active_project})
+
+                    # Push notification for long-running tools (OpenClaw OS-inspired)
+                    try:
+                        from app.core.notifications import notify_tool_complete
+                        _long_tools = {"generate_image", "generate_animation", "audit_code",
+                                       "screenshot_remote", "browse_web", "search_web"}
+                        if (resolved or tool_name) in _long_tools:
+                            success = "error" not in result
+                            notify_tool_complete(
+                                resolved or tool_name, session_id,
+                                success=success,
+                                detail=result.get("error", "")[:100] if not success else "",
+                            )
+                    except Exception:
+                        pass  # Notifications are non-critical
+
                     # Measure raw result size for token savings analytics
                     import json as _json_metrics
                     try:
@@ -1169,6 +1207,16 @@ async def ws_chat(websocket: WebSocket, session_id: str):
     await websocket.send_json({"type": "connected", "session_id": session_id})
     logger.info("WebSocket connected: %s", session_id)
 
+    # Subscribe to push notifications
+    try:
+        from app.core.notifications import subscribe, unsubscribe, get_recent
+        notif_queue = subscribe(session_id)
+        # Send any recent unread notifications
+        for n in get_recent(limit=5, session_id=session_id):
+            await websocket.send_json(n)
+    except Exception:
+        notif_queue = None
+
     try:
         while True:
             data = await websocket.receive_json()
@@ -1249,6 +1297,23 @@ async def ws_chat(websocket: WebSocket, session_id: str):
         logger.info("WebSocket disconnected: %s", session_id)
     except Exception as exc:
         logger.error("WebSocket error for %s: %s", session_id, exc)
+    finally:
+        # Unsubscribe from notifications
+        try:
+            from app.core.notifications import unsubscribe
+            unsubscribe(session_id)
+        except Exception:
+            pass
+
+
+@app.get("/notifications")
+async def get_notifications(session_id: str = "", limit: int = 20):
+    """Get recent notifications (REST fallback for non-WebSocket clients)."""
+    try:
+        from app.core.notifications import get_recent
+        return get_recent(limit=limit, session_id=session_id or None)
+    except Exception:
+        return []
 
 
 # --- Battle Arena API ---
