@@ -42,13 +42,14 @@ BUILTIN_PATTERNS = {
     ],
     "screenshot_local": [
         r"(?:screenshot|capture|screen)\s+(?:local|desktop)",
-        r"(?:take)\s+.*(?:screenshot|capture)",
+        r"(?:take)\s+(?:a\s+)?(?:screenshot|capture)\s*$",
     ],
     "screenshot_remote": [
         r"(?:screenshot|capture)\s+.*(?:url|website|page|site)",
         r"(?:show|display|preview|visuali[sz]e)\s+.*(?:page|site|website|url)",
         r"https?://\S+",
         r"\b\w+\.\w{2,}\b.*(?:look|show|page|site)",
+        r"(?:take|capture|screenshot).*(?:https?://\S+|\b\w+\.(?:com|org|net|io|dev|fr|de|uk|co|app|ai)\b)",
     ],
     "generate_image": [
         r"(?:generate|create|make|draw)\s+.*(?:image|picture|illustration|photo)",
