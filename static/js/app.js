@@ -711,6 +711,8 @@
       this.sendBtn = $('#chat-send'); this.stopBtn = $('#chat-stop'); this.sessionId = null;
       this.es = null; this.streaming = false; this.bubble = null; this.text = '';
       this.fileTree = null;
+      // WebSocket transport (preferred) with SSE fallback
+      this.transport = null;
       // Token tracking
       this.tokensSent = 0;
       this.tokensReceived = 0;
@@ -729,6 +731,7 @@
       // Reset UI to welcome state — no server session created until first message
       this.sessionId = null;
       if (this.es) { this.es.close(); this.es = null; }
+      if (this.transport) { this.transport.disconnect(); this.transport = null; }
       this.msgEl.innerHTML = '';
       if (this.fileTree) this.fileTree.clear();
       // Reset token counters
@@ -762,6 +765,17 @@
       } catch (e) { console.error(e); toast('Failed to load session'); }
     }
     connectSSE() {
+      // Prefer WebSocket transport if available
+      if (window.ChatTransport) {
+        if (this.transport) this.transport.disconnect();
+        this.transport = new ChatTransport(this.sessionId);
+        this.transport.onToken = (tok) => this.handleToken(tok);
+        this.transport.onDone = () => this.handleToken('[DONE]');
+        this.transport.onError = (err) => { console.error('[WS]', err); this.handleToken('[DONE]'); };
+        this.transport.connect();
+        return;
+      }
+      // Legacy SSE fallback
       if (this.es) this.es.close();
       this.es = new EventSource(`/stream/${this.sessionId}`);
       this.es.onmessage = e => this.handleToken(e.data);
@@ -1371,11 +1385,16 @@
 
     async stopGeneration() {
       if (!this.sessionId || !this.streaming) return;
-      try {
-        await fetch(`/stop/${this.sessionId}`, { method: 'POST' });
-      } catch (e) { console.warn('Stop request failed:', e); }
-      // Force close SSE
-      if (this.es) { this.es.close(); this.es = null; }
+      // Use WS transport for instant stop if available
+      if (this.transport && this.transport.isWebSocket) {
+        this.transport.stop();
+      } else {
+        try {
+          await fetch(`/stop/${this.sessionId}`, { method: 'POST' });
+        } catch (e) { console.warn('Stop request failed:', e); }
+        // Force close SSE
+        if (this.es) { this.es.close(); this.es = null; }
+      }
       // Cancel pending render
       if (this._renderTimer) { clearTimeout(this._renderTimer); this._renderTimer = null; }
       this._renderPending = false;
@@ -1497,6 +1516,20 @@
       document.querySelectorAll('.mode-switch-hint').forEach(el => el.remove());
 
       try {
+      // Use WebSocket transport if connected
+      if (this.transport && this.transport.isWebSocket) {
+        this.transport.send({
+          message: enrichedMsg,
+          provider: $('#provider-select').value,
+          model: $('#model-select').value,
+          preprompt: requestPreprompt,
+          active_project: active_project,
+          active_file: active_file,
+          rag_mode: window.ragMode || false,
+          action_mode: actionMode
+        });
+      } else {
+        // Legacy SSE path
         await fetch(`/send/${this.sessionId}`, {
           method: 'POST', headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
@@ -1510,6 +1543,7 @@
             action_mode: actionMode
           })
         });
+      }
       } catch (e) { toast(ICONS.x(14) + ' Send error'); this.sendBtn.disabled = false; }
     }
     addMsg(role, content) {

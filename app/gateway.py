@@ -9,7 +9,7 @@ import time
 import zipfile
 import uuid
 
-from fastapi import FastAPI, Request, HTTPException, UploadFile, File, Form
+from fastapi import FastAPI, Request, HTTPException, UploadFile, File, Form, WebSocket, WebSocketDisconnect
 from fastapi.responses import HTMLResponse, JSONResponse, StreamingResponse, FileResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.middleware.cors import CORSMiddleware
@@ -428,11 +428,9 @@ async def _generate_suggestions(
     return []
 
 
-# --- Send message endpoint ---
-@app.post("/send/{session_id}")
-async def send_message(session_id: str, request: Request):
-    """Send a user message and trigger LLM response generation."""
-    data = await request.json()
+# --- Send message (shared logic) ---
+async def _process_chat(session_id: str, data: dict) -> dict:
+    """Core chat processing shared by HTTP POST and WebSocket handlers."""
     user_msg = _sanitize_input(data.get("message", "").strip())
     if not user_msg:
         raise HTTPException(400, "Message is required")
@@ -1147,6 +1145,110 @@ async def send_message(session_id: str, request: Request):
 
     asyncio.create_task(generate())
     return {"status": "processing", "session_id": session_id}
+
+
+@app.post("/send/{session_id}")
+async def send_message(session_id: str, request: Request):
+    """Send a user message and trigger LLM response generation (HTTP)."""
+    data = await request.json()
+    return await _process_chat(session_id, data)
+
+
+# --- WebSocket chat endpoint ---
+@app.websocket("/ws/{session_id}")
+async def ws_chat(websocket: WebSocket, session_id: str):
+    """Bidirectional WebSocket endpoint for chat streaming.
+
+    Replaces the POST /send/ + GET /stream/ pair with a single
+    persistent connection.  Supports:
+      - {"type":"message", "message":"...", ...} → triggers generation
+      - {"type":"stop"}   → cancels active generation
+      - {"type":"ping"}   → keepalive, returns {"type":"pong"}
+    """
+    await websocket.accept()
+    await websocket.send_json({"type": "connected", "session_id": session_id})
+    logger.info("WebSocket connected: %s", session_id)
+
+    try:
+        while True:
+            data = await websocket.receive_json()
+            msg_type = data.get("type", "message")
+
+            if msg_type == "ping":
+                await websocket.send_json({"type": "pong"})
+                continue
+
+            if msg_type == "stop":
+                _cancelled_sessions.add(session_id)
+                if session_id in _sse_queues:
+                    try:
+                        await _sse_queues[session_id].put(None)
+                    except Exception:
+                        pass
+                await websocket.send_json({"type": "stopped"})
+                continue
+
+            if msg_type == "message":
+                # Ensure queue exists
+                if session_id not in _sse_queues:
+                    _sse_queues[session_id] = asyncio.Queue()
+
+                # Trigger generation (reuses the exact same logic as POST /send/)
+                try:
+                    result = await _process_chat(session_id, data)
+                    await websocket.send_json({"type": "processing", **result})
+                except HTTPException as exc:
+                    await websocket.send_json({"type": "error", "detail": exc.detail})
+                    continue
+                except Exception as exc:
+                    await websocket.send_json({"type": "error", "detail": str(exc)})
+                    continue
+
+                # Stream tokens from queue to WebSocket
+                queue = _sse_queues[session_id]
+
+                async def _stream_tokens():
+                    """Read tokens from the generation queue and send over WS."""
+                    while True:
+                        token = await queue.get()
+                        if token is None:
+                            break
+                        await websocket.send_json({"type": "token", "data": token})
+                    await websocket.send_json({"type": "done"})
+
+                async def _listen_for_stop():
+                    """Listen for stop signals while streaming."""
+                    while True:
+                        try:
+                            msg = await websocket.receive_json()
+                            if msg.get("type") == "stop":
+                                _cancelled_sessions.add(session_id)
+                                await queue.put(None)
+                                return
+                            elif msg.get("type") == "ping":
+                                await websocket.send_json({"type": "pong"})
+                        except (WebSocketDisconnect, Exception):
+                            return
+
+                # Run streaming and stop-listener concurrently
+                stream_task = asyncio.create_task(_stream_tokens())
+                listen_task = asyncio.create_task(_listen_for_stop())
+
+                done, pending = await asyncio.wait(
+                    [stream_task, listen_task],
+                    return_when=asyncio.FIRST_COMPLETED,
+                )
+                for task in pending:
+                    task.cancel()
+                    try:
+                        await task
+                    except (asyncio.CancelledError, Exception):
+                        pass
+
+    except WebSocketDisconnect:
+        logger.info("WebSocket disconnected: %s", session_id)
+    except Exception as exc:
+        logger.error("WebSocket error for %s: %s", session_id, exc)
 
 
 # --- Battle Arena API ---
