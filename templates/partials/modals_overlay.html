@@ -30,28 +30,29 @@
       <button class="skills-cat-tab" data-cat="application">Application</button>
     </div>
     <!-- Search and Actions -->
-    <div class="skills-catalog-search" style="display: flex; gap: 12px; align-items: center;">
+    <div class="skills-catalog-search"
+         style="display: flex;
+                gap: 12px;
+                align-items: center">
       <div style="position: relative; flex: 1;">
         <input type="text"
                id="skills-catalog-search-input"
                placeholder="Search skills…"
                autocomplete="off"
-               style="width: 100%;">
+               style="width: 100%">
         <span class="skills-search-clear" id="skills-search-clear">✕</span>
       </div>
-      <button class="btn btn-primary btn-sm" id="btn-create-mini-app" style="white-space: nowrap;">
-        <svg class="ic" width="14" height="14" style="margin-right: 6px;">
-          <use href="#icon-plus"></use>
-        </svg>
-        Création de mini application
-      </button>
     </div>
     <!-- Skills grid -->
     <div class="skills-catalog-grid" id="skills-catalog-grid">
       <!-- populated by JS -->
     </div>
     <!-- App Builder Body (Injected by JS or populated here) -->
-    <div id="ab-body" style="display:none; flex:1; overflow-y:auto; padding-top:16px;">
+    <div id="ab-body"
+         style="display:none;
+                flex:1;
+                overflow-y:auto;
+                padding-top:16px">
       <div class="ab-loading">Loading Apps...</div>
     </div>
   </div>
