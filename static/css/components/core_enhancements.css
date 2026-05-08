@@ -1,0 +1,162 @@
+/* Clawzd — Keyboard Shortcuts Help & Performance Indicators */
+
+/* ---- Keyboard Help Modal ---- */
+.keyboard-help-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.6);
+  backdrop-filter: blur(4px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 10000;
+  animation: fadeIn 0.15s ease;
+}
+
+.keyboard-help-modal {
+  background: var(--bg-secondary, #1a1a24);
+  border: 1px solid var(--border, #2d2d3d);
+  border-radius: 12px;
+  padding: 24px;
+  min-width: 420px;
+  max-width: 560px;
+  max-height: 80vh;
+  overflow-y: auto;
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5);
+}
+
+.keyboard-help-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 16px;
+}
+
+.keyboard-help-header h3 {
+  margin: 0;
+  font-size: 16px;
+  color: var(--text-primary, #f0f0f5);
+}
+
+.keyboard-help-table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.keyboard-help-table th {
+  text-align: left;
+  padding: 8px 12px;
+  color: var(--text-muted, #6b6b80);
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  border-bottom: 1px solid var(--border, #2d2d3d);
+}
+
+.keyboard-help-table td {
+  padding: 8px 12px;
+  font-size: 13px;
+  color: var(--text-secondary, #a0a0b5);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.04);
+}
+
+.keyboard-help-table td:first-child {
+  white-space: nowrap;
+}
+
+kbd {
+  display: inline-block;
+  padding: 2px 7px;
+  font-size: 11px;
+  font-family: inherit;
+  color: var(--text-primary, #f0f0f5);
+  background: var(--bg-tertiary, #252532);
+  border: 1px solid var(--border, #2d2d3d);
+  border-radius: 4px;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.2);
+  min-width: 18px;
+  text-align: center;
+}
+
+/* ---- Performance Indicators ---- */
+.perf-indicators {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 11px;
+  font-family: 'JetBrains Mono', 'Fira Code', monospace;
+  color: var(--text-muted, #6b6b80);
+  margin-left: 8px;
+}
+
+.perf-indicators:empty {
+  display: none;
+}
+
+.perf-item {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 8px;
+  background: var(--bg-tertiary, #252532);
+  border-radius: 6px;
+  border: 1px solid rgba(255, 255, 255, 0.04);
+  transition: opacity 0.3s ease;
+}
+
+.perf-item .perf-value {
+  color: var(--text-secondary, #a0a0b5);
+  font-weight: 600;
+}
+
+.perf-item.perf-ttft .perf-value {
+  color: var(--success, #10b981);
+}
+
+.perf-item.perf-tps .perf-value {
+  color: var(--accent, #818cf8);
+}
+
+/* ---- Streaming Parser Block Styles ---- */
+.sp-block {
+  /* Smooth entry animation */
+}
+
+.sp-block + .sp-block {
+  margin-top: 4px;
+}
+
+.sp-block-paragraph p {
+  margin: 0 0 4px;
+  line-height: 1.65;
+}
+
+.sp-block-heading {
+  margin-top: 12px;
+}
+
+.sp-block-hr hr {
+  border: none;
+  border-top: 1px solid var(--border, #2d2d3d);
+  margin: 16px 0;
+}
+
+.sp-block-blockquote blockquote {
+  border-left: 3px solid var(--primary, #6366f1);
+  margin: 8px 0;
+  padding: 8px 16px;
+  color: var(--text-secondary, #a0a0b5);
+  background: rgba(99, 102, 241, 0.05);
+  border-radius: 0 8px 8px 0;
+}
+
+/* Component container */
+.component-container {
+  min-height: 60px;
+  position: relative;
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}

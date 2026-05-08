@@ -619,7 +619,9 @@
       // Token tracking
       this.tokensSent = 0;
       this.tokensReceived = 0;
-      // Streaming render throttle (memory optimization)
+      // Streaming parser (incremental rendering — replaces throttled full re-render)
+      this._streamParser = null;
+      // Legacy throttle fallback (kept for edge cases)
       this._renderPending = false;
       this._renderTimer = null;
       this.sendBtn.addEventListener('click', () => this.send());
@@ -674,6 +676,10 @@
       if (!this.streaming) {
         this.streaming = true; this.text = ''; this.bubble = this.addMsg('assistant', ''); this.status('streaming');
         if (this.stopBtn) { this.stopBtn.style.display = ''; this.sendBtn.style.display = 'none'; }
+        // Initialize incremental streaming parser for this message
+        if (window.StreamingParser && this.bubble) {
+          this._streamParser = new StreamingParser(this.bubble, { showCursor: true });
+        }
       }
       if (tok === '[DONE]') {
         // Cancel any pending throttled render and do a final render in finish()
@@ -689,7 +695,15 @@
       this.text += tok;
       if (window.tokenTracker) window.tokenTracker.addOutput(1);
 
-      // Throttle DOM renders to avoid CPU saturation (~150ms interval)
+      // ---- Incremental streaming parser (OpenUI-inspired) ----
+      // Replaces the old throttled full re-render that rebuilt all HTML every 150ms.
+      // The StreamingParser maintains a block-level AST and only updates dirty blocks.
+      if (this._streamParser) {
+        this._streamParser.pushToken(tok);
+        return; // Skip legacy rendering path
+      }
+
+      // ---- Legacy fallback (if StreamingParser not available) ----
       if (!this._renderPending) {
         this._renderPending = true;
         this._renderTimer = setTimeout(() => {
@@ -775,13 +789,22 @@
       }
 
       if (this.bubble) {
-        // Auto-close any unclosed code fences from truncated LLM output
-        let text = this.text;
-        const fenceCount = (text.match(/```/g) || []).length;
-        if (fenceCount % 2 !== 0) text += '\n```';
-        this.bubble.innerHTML = renderMd(text);
-        this.extractFiles(text);
-        highlightAll(this.bubble);
+        // Finalize streaming parser if it was used
+        if (this._streamParser) {
+          this._streamParser.finish();
+          // Use the parser's accumulated text for file extraction
+          const text = this._streamParser.getText() || this.text;
+          this.extractFiles(text);
+          this._streamParser = null;
+        } else {
+          // Legacy path: full re-render
+          let text = this.text;
+          const fenceCount = (text.match(/```/g) || []).length;
+          if (fenceCount % 2 !== 0) text += '\n```';
+          this.bubble.innerHTML = renderMd(text);
+          this.extractFiles(text);
+          highlightAll(this.bubble);
+        }
         // NOTE: Tool calls are now executed server-side in the agent loop
         // (gateway.py generate()). Do NOT re-execute them client-side.
         // this.executeToolCalls(text, this.bubble);
@@ -11051,13 +11074,18 @@
       });
     });
 
-    // Theme toggle
+    // Theme toggle — delegates to ThemeEngine if available
     const themeBtn = $('#btn-theme-toggle');
     const themeIconDark = $('#theme-icon-dark');
     const themeIconLight = $('#theme-icon-light');
     const hljsTheme = $('#hljs-theme');
 
-    // Check local storage for theme
+    // Initialize ThemeEngine (handles saved theme, mermaid re-init, etc.)
+    if (window.ThemeEngine) {
+      window.ThemeEngine.init();
+    }
+
+    // Check local storage for theme (icon sync)
     const savedTheme = localStorage.getItem('omniclaw-theme') || 'dark';
     if (savedTheme === 'light') {
       document.documentElement.classList.add('theme-light');
@@ -11068,6 +11096,11 @@
 
     if (themeBtn) {
       themeBtn.addEventListener('click', () => {
+        // Use ThemeEngine for full theme management
+        if (window.ThemeEngine) {
+          window.ThemeEngine.toggle();
+        }
+        // Still toggle the CSS class and icons for backward compat
         const isLight = document.documentElement.classList.toggle('theme-light');
         localStorage.setItem('omniclaw-theme', isLight ? 'light' : 'dark');
         if (themeIconDark) themeIconDark.style.display = isLight ? '' : 'none';
@@ -13159,5 +13192,123 @@
       window.chat.showWelcome();
     } catch (e) { toast(ICONS.x(14) + ' Clear history error'); }
   });
+
+  // ---- Initialize OpenUI-inspired core modules ----
+
+  // Performance indicators (TTFT + tokens/sec) via EventBus
+  if (window.EventBus) {
+    const perfEl = document.getElementById('perf-indicators');
+
+    window.EventBus.on('perf:ttft', (data) => {
+      if (!perfEl) return;
+      const ttft = data.ms;
+      let existing = perfEl.querySelector('.perf-ttft');
+      if (!existing) {
+        existing = document.createElement('div');
+        existing.className = 'perf-item perf-ttft';
+        perfEl.appendChild(existing);
+      }
+      existing.innerHTML = `⏱️ <span class="perf-value">${ttft < 1000 ? ttft + 'ms' : (ttft / 1000).toFixed(1) + 's'}</span> TTFT`;
+    });
+
+    window.EventBus.on('perf:tps', (data) => {
+      if (!perfEl) return;
+      let existing = perfEl.querySelector('.perf-tps');
+      if (!existing) {
+        existing = document.createElement('div');
+        existing.className = 'perf-item perf-tps';
+        perfEl.appendChild(existing);
+      }
+      existing.innerHTML = `⚡ <span class="perf-value">${data.tps}</span> tok/s`;
+    });
+
+    // Clear perf indicators when a new session starts
+    window.EventBus.on('chat:session-new', () => {
+      if (perfEl) perfEl.innerHTML = '';
+    });
+  }
+
+  // Register built-in components in the ComponentRegistry
+  if (window.ComponentRegistry) {
+    // Chart.js component
+    window.ComponentRegistry.register('chart', {
+      detect: (lang) => lang === 'chart',
+      render: (container, content, id) => {
+        if (!window.Chart) { container.textContent = 'Chart.js not loaded'; return; }
+        try {
+          const config = JSON.parse(content);
+          // Support simplified format: { type, data: { label: value } }
+          if (config.data && !config.labels && !config.datasets) {
+            const simplified = config.data;
+            if (typeof simplified === 'object' && !Array.isArray(simplified)) {
+              config.labels = Object.keys(simplified);
+              config.datasets = [{ label: config.title || 'Data', data: Object.values(simplified) }];
+            }
+          }
+          const palette = [
+            'rgba(99, 102, 241, 0.85)', 'rgba(16, 185, 129, 0.85)',
+            'rgba(245, 158, 11, 0.85)', 'rgba(239, 68, 68, 0.85)',
+            'rgba(139, 92, 246, 0.85)', 'rgba(6, 182, 212, 0.85)'
+          ];
+          const chartType = config.type || 'bar';
+          const isPie = ['pie', 'doughnut', 'polarArea'].includes(chartType);
+          const datasets = (config.datasets || []).map((ds, di) => ({
+            label: ds.label || 'Dataset ' + (di + 1),
+            data: ds.data || [],
+            backgroundColor: isPie ? palette : palette[di % palette.length],
+            borderWidth: 2, tension: chartType === 'line' ? 0.35 : undefined,
+          }));
+          container.style.cssText = 'background:var(--bg-secondary);border-radius:8px;padding:16px;min-height:250px;max-height:420px;position:relative;';
+          const canvas = document.createElement('canvas');
+          container.appendChild(canvas);
+          new Chart(canvas.getContext('2d'), {
+            type: chartType, data: { labels: config.labels || [], datasets },
+            options: { responsive: true, maintainAspectRatio: false,
+              plugins: { title: { display: !!config.title, text: config.title || '', color: '#e1e5eb' },
+                legend: { labels: { color: '#9ca3af' } } },
+              scales: isPie ? {} : {
+                x: { ticks: { color: '#9ca3af' }, grid: { color: 'rgba(255,255,255,0.06)' } },
+                y: { ticks: { color: '#9ca3af' }, grid: { color: 'rgba(255,255,255,0.06)' }, beginAtZero: true }
+              }
+            }
+          });
+        } catch (e) {
+          container.innerHTML = '<div style="color:#f87171;padding:12px;">⚠️ Chart error: ' + e.message + '</div>';
+        }
+      },
+      destroy: (container) => {
+        const canvas = container.querySelector('canvas');
+        if (canvas) {
+          const chart = Chart.getChart(canvas);
+          if (chart) chart.destroy();
+        }
+      }
+    });
+
+    // Mermaid diagram component
+    window.ComponentRegistry.register('mermaid', {
+      detect: (lang) => lang === 'mermaid',
+      render: async (container, content, id) => {
+        if (!window.mermaid) { container.textContent = 'Mermaid not loaded'; return; }
+        container.style.cssText = 'background:var(--bg-secondary);border-radius:8px;padding:16px;';
+        container.textContent = 'Loading diagram...';
+        try {
+          const r = await mermaid.render('mmr-' + id, content);
+          container.innerHTML = r.svg;
+        } catch (e) {
+          container.innerHTML = '<div style="color:#f87171;">⚠️ Diagram error: ' + e.message + '</div>';
+        }
+      }
+    });
+
+    console.log('[Clawzd] ComponentRegistry initialized:', window.ComponentRegistry.list().join(', '));
+  }
+
+  console.log('[Clawzd] Core modules loaded:', [
+    window.EventBus ? 'EventBus' : null,
+    window.ComponentRegistry ? 'ComponentRegistry' : null,
+    window.StreamingParser ? 'StreamingParser' : null,
+    window.ThemeEngine ? 'ThemeEngine' : null,
+  ].filter(Boolean).join(', '));
 
 })();
