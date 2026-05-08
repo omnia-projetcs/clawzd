@@ -81,6 +81,21 @@
         <use href="#icon-sparkles2"></use>
       </svg>
     </button>
+    <button class="icon-btn" id="btn-artifacts-panel"
+            title="Artifacts (Ctrl+Shift+A)"
+            onclick="if(window.ArtifactPanel)ArtifactPanel.toggle()">
+      📄
+    </button>
+    <button class="icon-btn" id="btn-replay-panel"
+            title="Tool Replay (Ctrl+Shift+R)"
+            onclick="if(window.ReplayPanel)ReplayPanel.toggle()">
+      🔄
+    </button>
+    <button class="icon-btn" id="btn-system-dashboard"
+            title="System Dashboard (Ctrl+Shift+D)"
+            onclick="if(window.SystemDashboard)SystemDashboard.open()">
+      📊
+    </button>
     <button class="icon-btn" id="btn-skills-catalog" title="Skill Catalog">
       <svg class="ic" width="16" height="16">
         <use href="#icon-grid"></use>

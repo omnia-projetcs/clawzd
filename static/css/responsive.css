@@ -317,3 +317,52 @@
     grid-template-columns: repeat(2, 1fr);
   }
 }
+
+/* ── Status bar enhancements ──────── */
+.status-bar-center {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 10px;
+}
+.status-bar-right {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 11px;
+}
+.status-sep {
+  color: var(--border, #334155);
+  font-size: 10px;
+}
+#status-plugins,
+#status-routes {
+  font-size: 10px;
+  opacity: 0.7;
+  cursor: default;
+}
+#status-plugins:hover,
+#status-routes:hover {
+  opacity: 1;
+}
+
+/* ── Header panel buttons ─────────── */
+#btn-artifacts-panel,
+#btn-replay-panel,
+#btn-system-dashboard {
+  font-size: 15px;
+  padding: 4px 6px;
+}
+
+@media (max-width: 768px) {
+  /* Hide panel labels on mobile */
+  #btn-artifacts-panel,
+  #btn-replay-panel,
+  #btn-system-dashboard {
+    font-size: 13px;
+    padding: 4px;
+  }
+  .status-bar-center { display: none; }
+  #status-plugins, #status-routes { display: none; }
+  .status-sep { display: none; }
+}
