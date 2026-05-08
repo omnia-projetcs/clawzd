@@ -175,6 +175,94 @@
       );
     });
 
+    // Diff blocks — ```diff with colored +/- lines and Apply button
+    h = h.replace(/```diff\s*\n([\s\S]*?)```/g, (_, diffContent) => {
+      const id = 'diff-' + Math.random().toString(36).slice(2, 8);
+      const lines = diffContent.split('\n').map(line => {
+        const escaped = escHtml(line);
+        if (line.startsWith('+')) return `<span class="diff-add">${escaped}</span>`;
+        if (line.startsWith('-')) return `<span class="diff-del">${escaped}</span>`;
+        if (line.startsWith('@@')) return `<span class="diff-hunk">${escaped}</span>`;
+        return `<span class="diff-ctx">${escaped}</span>`;
+      }).join('\n');
+      return ph(
+        `<div class="diff-block" id="${id}">` +
+        `<div class="code-block-header"><span>diff</span>` +
+        `<div class="code-block-actions">` +
+        `<button class="code-action-btn" onclick="OC.copyCode('${id}')">${icon('copy', 14)} Copy</button>` +
+        `</div></div>` +
+        `<pre id="${id}"><code class="language-diff">${lines}</code></pre>` +
+        `</div>`
+      );
+    });
+
+    // Progress blocks — ```progress { label, value, max?, color? }
+    h = h.replace(/```progress\s*\n([\s\S]*?)```/g, (_, jsonStr) => {
+      const raw = jsonStr.trim()
+        .replace(/&amp;/g, '&').replace(/&lt;/g, '<')
+        .replace(/&gt;/g, '>').replace(/&quot;/g, '"');
+      try {
+        const items = JSON.parse(raw);
+        const list = Array.isArray(items) ? items : [items];
+        const html = list.map(item => {
+          const pct = Math.min(100, Math.max(0, ((item.value || 0) / (item.max || 100)) * 100));
+          const color = item.color || 'var(--primary)';
+          const label = escHtml(item.label || '');
+          return (
+            `<div class="progress-item">` +
+            `<div class="progress-label"><span>${label}</span><span>${pct.toFixed(0)}%</span></div>` +
+            `<div class="progress-bar"><div class="progress-fill" style="width:${pct}%;background:${color}"></div></div>` +
+            `</div>`
+          );
+        }).join('');
+        return ph(`<div class="progress-block">${html}</div>`);
+      } catch (e) {
+        return ph(`<div style="color:#f87171;padding:12px;">⚠️ Progress JSON error: ${escHtml(e.message)}</div>`);
+      }
+    });
+
+    // Form blocks — ```form { fields: [{name, type, label, placeholder?, options?}], action? }
+    h = h.replace(/```form\s*\n([\s\S]*?)```/g, (_, jsonStr) => {
+      const id = 'form-' + Math.random().toString(36).slice(2, 8);
+      const raw = jsonStr.trim()
+        .replace(/&amp;/g, '&').replace(/&lt;/g, '<')
+        .replace(/&gt;/g, '>').replace(/&quot;/g, '"');
+      try {
+        const config = JSON.parse(raw);
+        const fields = (config.fields || []).map(f => {
+          const fieldId = id + '-' + (f.name || Math.random().toString(36).slice(2, 6));
+          const label = f.label || f.name || '';
+          const placeholder = f.placeholder || '';
+          let input = '';
+          switch (f.type) {
+            case 'textarea':
+              input = `<textarea id="${fieldId}" name="${escHtml(f.name)}" placeholder="${escHtml(placeholder)}" class="form-field-input" rows="3"></textarea>`;
+              break;
+            case 'select':
+              const opts = (f.options || []).map(o => `<option value="${escHtml(o)}">${escHtml(o)}</option>`).join('');
+              input = `<select id="${fieldId}" name="${escHtml(f.name)}" class="form-field-input">${opts}</select>`;
+              break;
+            case 'checkbox':
+              input = `<label class="form-checkbox"><input type="checkbox" id="${fieldId}" name="${escHtml(f.name)}"> ${escHtml(label)}</label>`;
+              return `<div class="form-field">${input}</div>`;
+            default:
+              input = `<input type="${f.type || 'text'}" id="${fieldId}" name="${escHtml(f.name)}" placeholder="${escHtml(placeholder)}" class="form-field-input">`;
+          }
+          return `<div class="form-field"><label for="${fieldId}">${escHtml(label)}</label>${input}</div>`;
+        }).join('');
+        const title = config.title ? `<div class="form-title">${escHtml(config.title)}</div>` : '';
+        const submit = config.submit || 'Submit';
+        return ph(
+          `<div class="chat-form" id="${id}">` +
+          title + fields +
+          `<button class="chat-form-submit" onclick="OC.submitChatForm('${id}')">${escHtml(submit)}</button>` +
+          `</div>`
+        );
+      } catch (e) {
+        return ph(`<div style="color:#f87171;padding:12px;">⚠️ Form JSON error: ${escHtml(e.message)}</div>`);
+      }
+    });
+
     // Helper: build a code block with header, copy, run, save, and preview buttons
     function codeBlock(lang, label, code) {
       const id = 'cb-' + Math.random().toString(36).slice(2, 8);
@@ -676,10 +764,12 @@
       if (!this.streaming) {
         this.streaming = true; this.text = ''; this.bubble = this.addMsg('assistant', ''); this.status('streaming');
         if (this.stopBtn) { this.stopBtn.style.display = ''; this.sendBtn.style.display = 'none'; }
-        // Initialize incremental streaming parser for this message
-        if (window.StreamingParser && this.bubble) {
-          this._streamParser = new StreamingParser(this.bubble, { showCursor: true });
-        }
+        // StreamingParser disabled — needs more testing before activation.
+        // The legacy throttled renderMd() path is used instead.
+        // TODO: Re-enable after fixing block categorization bugs.
+        // if (window.StreamingParser && this.bubble) {
+        //   this._streamParser = new StreamingParser(this.bubble, { showCursor: true });
+        // }
       }
       if (tok === '[DONE]') {
         // Cancel any pending throttled render and do a final render in finish()
@@ -1427,12 +1517,54 @@
       }
       if (displayContent) bubble.innerHTML = renderMd(displayContent);
       const timestamp = new Date().toLocaleString([], { dateStyle: 'short', timeStyle: 'short' });
+
+      // Message actions bar (visible on hover)
+      const actionsBar = el('div', { class: 'msg-actions' });
+      if (role === 'assistant') {
+        // Copy response
+        const copyBtn = el('button', { class: 'msg-action-btn', title: 'Copy response', html: `${icon('copy', 13)} Copy` });
+        copyBtn.addEventListener('click', () => {
+          const text = bubble.innerText || bubble.textContent || '';
+          navigator.clipboard.writeText(text).then(() => {
+            copyBtn.innerHTML = `${icon('check', 13)} Copied`;
+            setTimeout(() => { copyBtn.innerHTML = `${icon('copy', 13)} Copy`; }, 1500);
+          });
+        });
+        actionsBar.appendChild(copyBtn);
+        // Regenerate
+        const regenBtn = el('button', { class: 'msg-action-btn', title: 'Regenerate response', html: `${icon('refresh-cw', 13)} Regenerate` });
+        regenBtn.addEventListener('click', () => {
+          // Find the last user message and re-send it
+          const messages = this.msgEl.querySelectorAll('.message.user .message-bubble');
+          if (messages.length === 0) return;
+          const lastUserMsg = messages[messages.length - 1].innerText;
+          // Remove this assistant message
+          const msgRow = bubble.closest('.message');
+          if (msgRow) msgRow.remove();
+          this.inputEl.value = lastUserMsg;
+          this.send();
+        });
+        actionsBar.appendChild(regenBtn);
+      } else {
+        // Edit user message
+        const editBtn = el('button', { class: 'msg-action-btn', title: 'Edit message', html: `${icon('edit', 13)} Edit` });
+        editBtn.addEventListener('click', () => {
+          const text = bubble.innerText || bubble.textContent || '';
+          this.inputEl.value = text;
+          this.inputEl.focus();
+          this.inputEl.style.height = 'auto';
+          this.inputEl.style.height = Math.min(this.inputEl.scrollHeight, 150) + 'px';
+        });
+        actionsBar.appendChild(editBtn);
+      }
+
       const msgEl2 = el('div', { class: 'message ' + role }, [
         el('div', { class: 'message-header' }, [
           el('div', { class: 'message-avatar', html: avatar }),
           el('span', { class: 'message-author', text: author })
         ]),
         bubble,
+        actionsBar,
         el('div', { class: 'message-timestamp', text: timestamp, style: 'font-size:10px; color:var(--text-muted); margin-top:4px; text-align:right;' })
       ]);
       this.msgEl.appendChild(msgEl2);
@@ -1576,6 +1708,32 @@
 
   // ---- Global API ----
   window.OC = {
+    /** Submit an interactive chat form as a user message */
+    submitChatForm(formId) {
+      const form = document.getElementById(formId);
+      if (!form) return;
+      const fields = form.querySelectorAll('.form-field-input, input[type="checkbox"]');
+      const data = {};
+      fields.forEach(f => {
+        const name = f.name || f.id;
+        if (f.type === 'checkbox') {
+          data[name] = f.checked;
+        } else {
+          data[name] = f.value;
+        }
+      });
+      // Send as a structured message
+      const summary = Object.entries(data)
+        .map(([k, v]) => `**${k}**: ${v}`)
+        .join('\n');
+      if (window.chat) {
+        window.chat.inputEl.value = `Form submission:\n${summary}`;
+        window.chat.send();
+      }
+      // Disable the form to prevent double-submit
+      form.querySelectorAll('button, input, select, textarea').forEach(el => { el.disabled = true; });
+      form.style.opacity = '0.6';
+    },
     downloadUrl(url, filename) {
       const a = document.createElement('a');
       a.href = url;

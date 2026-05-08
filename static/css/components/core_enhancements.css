@@ -160,3 +160,214 @@ kbd {
   from { opacity: 0; }
   to { opacity: 1; }
 }
+
+/* ---- Diff Blocks ---- */
+.diff-block pre {
+  font-size: 13px;
+  line-height: 1.6;
+}
+
+.diff-add {
+  color: #4ade80;
+  background: rgba(74, 222, 128, 0.08);
+  display: inline-block;
+  width: 100%;
+}
+
+.diff-del {
+  color: #f87171;
+  background: rgba(248, 113, 113, 0.08);
+  display: inline-block;
+  width: 100%;
+  text-decoration: line-through;
+  text-decoration-color: rgba(248, 113, 113, 0.4);
+}
+
+.diff-hunk {
+  color: #818cf8;
+  font-style: italic;
+  display: inline-block;
+  width: 100%;
+}
+
+.diff-ctx {
+  color: var(--text-muted, #6b6b80);
+  display: inline-block;
+  width: 100%;
+}
+
+/* ---- Progress Bars ---- */
+.progress-block {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin: 12px 0;
+  padding: 16px;
+  background: var(--bg-secondary, #1a1a24);
+  border-radius: 10px;
+  border: 1px solid var(--border, #2d2d3d);
+}
+
+.progress-item {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.progress-label {
+  display: flex;
+  justify-content: space-between;
+  font-size: 13px;
+  color: var(--text-secondary, #a0a0b5);
+  font-weight: 500;
+}
+
+.progress-bar {
+  height: 8px;
+  background: var(--bg-tertiary, #252532);
+  border-radius: 8px;
+  overflow: hidden;
+}
+
+.progress-fill {
+  height: 100%;
+  border-radius: 8px;
+  transition: width 0.8s cubic-bezier(0.22, 1, 0.36, 1);
+  background: var(--primary, #6366f1);
+}
+
+/* ---- Interactive Forms in Chat ---- */
+.chat-form {
+  margin: 12px 0;
+  padding: 20px;
+  background: var(--bg-secondary, #1a1a24);
+  border: 1px solid var(--border, #2d2d3d);
+  border-radius: 12px;
+}
+
+.form-title {
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--text-primary, #f0f0f5);
+  margin-bottom: 16px;
+}
+
+.form-field {
+  margin-bottom: 14px;
+}
+
+.form-field label {
+  display: block;
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--text-secondary, #a0a0b5);
+  margin-bottom: 6px;
+  text-transform: uppercase;
+  letter-spacing: 0.3px;
+}
+
+.form-field-input {
+  width: 100%;
+  padding: 10px 12px;
+  background: var(--bg-tertiary, #252532);
+  border: 1px solid var(--border, #2d2d3d);
+  border-radius: 8px;
+  color: var(--text-primary, #f0f0f5);
+  font-size: 14px;
+  font-family: inherit;
+  transition: border-color 0.2s ease;
+  box-sizing: border-box;
+}
+
+.form-field-input:focus {
+  outline: none;
+  border-color: var(--primary, #6366f1);
+  box-shadow: 0 0 0 2px rgba(99, 102, 241, 0.15);
+}
+
+select.form-field-input {
+  cursor: pointer;
+  appearance: none;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' fill='%239ca3af' viewBox='0 0 16 16'%3E%3Cpath d='M7.247 11.14 2.451 5.658C1.885 5.013 2.345 4 3.204 4h9.592a1 1 0 0 1 .753 1.659l-4.796 5.48a1 1 0 0 1-1.506 0z'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 12px center;
+  padding-right: 32px;
+}
+
+.form-checkbox {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 14px;
+  color: var(--text-primary, #f0f0f5);
+  cursor: pointer;
+}
+
+.form-checkbox input[type="checkbox"] {
+  width: 16px;
+  height: 16px;
+  accent-color: var(--primary, #6366f1);
+}
+
+.chat-form-submit {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 10px 20px;
+  background: var(--primary, #6366f1);
+  color: #fff;
+  border: none;
+  border-radius: 8px;
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background 0.2s, transform 0.1s;
+  margin-top: 4px;
+}
+
+.chat-form-submit:hover {
+  background: var(--primary-hover, #818cf8);
+  transform: translateY(-1px);
+}
+
+.chat-form-submit:active {
+  transform: translateY(0);
+}
+
+/* ---- Message Actions (Copy, Regenerate, Edit) ---- */
+.msg-actions {
+  display: flex;
+  gap: 4px;
+  margin-top: 6px;
+  opacity: 0;
+  transition: opacity 0.2s ease;
+}
+
+.message:hover .msg-actions {
+  opacity: 1;
+}
+
+.msg-action-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 10px;
+  background: transparent;
+  border: 1px solid var(--border, #2d2d3d);
+  border-radius: 6px;
+  color: var(--text-muted, #6b6b80);
+  font-size: 12px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  font-family: inherit;
+}
+
+.msg-action-btn:hover {
+  background: var(--bg-tertiary, #252532);
+  color: var(--text-secondary, #a0a0b5);
+  border-color: var(--text-muted, #6b6b80);
+}
+
+.msg-action-btn svg {
+  opacity: 0.7;
+}
