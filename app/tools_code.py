@@ -377,7 +377,7 @@ class CodeAuditor:
     # ------------------------------------------------------------------ #
     def _clone_repo(self, repo_url: str) -> Path:
         """Clone a git repo to a temporary directory."""
-        tmp_dir = Path(tempfile.mkdtemp(prefix="houseofclaw_audit_"))
+        tmp_dir = Path(tempfile.mkdtemp(prefix="clawzd_audit_"))
         logger.info("Cloning repo %s ...", repo_url)
         try:
             import git

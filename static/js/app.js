@@ -558,7 +558,7 @@
       if (!this.files.size) { toast('No files to export'); return; }
       const fs = [...this.files.entries()].map(([p, c]) => ({ path: p, content: c }));
       const blob = Zip.build(fs), url = URL.createObjectURL(blob);
-      const a = el('a', { href: url, download: 'houseofclaw_project.zip' });
+      const a = el('a', { href: url, download: 'clawzd_project.zip' });
       document.body.appendChild(a); a.click(); a.remove(); URL.revokeObjectURL(url);
       toast(icon('download') + ' ZIP exported!');
     }
@@ -5673,7 +5673,7 @@
           select.appendChild(opt);
         });
         // Restore last project
-        const last = localStorage.getItem('houseofclaw_project');
+        const last = localStorage.getItem('clawzd_project');
         if (last && select.querySelector(`option[value="${last}"]`)) {
           select.value = last;
         }
@@ -5683,7 +5683,7 @@
     }
 
     _addHistoryOptions(select) {
-      const history = JSON.parse(localStorage.getItem('houseofclaw_project_history') || '[]');
+      const history = JSON.parse(localStorage.getItem('clawzd_project_history') || '[]');
       history.forEach(p => {
         if (!select.querySelector(`option[value="${p}"]`) && p !== '.') {
           const opt = document.createElement('option');
@@ -5696,13 +5696,13 @@
     }
 
     switchProject(projectName) {
-      localStorage.setItem('houseofclaw_project', projectName);
+      localStorage.setItem('clawzd_project', projectName);
       // Add to history
-      const history = JSON.parse(localStorage.getItem('houseofclaw_project_history') || '[]');
+      const history = JSON.parse(localStorage.getItem('clawzd_project_history') || '[]');
       if (!history.includes(projectName)) {
         history.unshift(projectName);
         if (history.length > 10) history.pop();
-        localStorage.setItem('houseofclaw_project_history', JSON.stringify(history));
+        localStorage.setItem('clawzd_project_history', JSON.stringify(history));
       }
       // Close all tabs
       this.openTabs = [];
@@ -5719,12 +5719,12 @@
       const current = $('#project-select').value;
       if (current === '.') { toast('Cannot close workspace root'); return; }
       // Remove from history
-      let history = JSON.parse(localStorage.getItem('houseofclaw_project_history') || '[]');
+      let history = JSON.parse(localStorage.getItem('clawzd_project_history') || '[]');
       history = history.filter(p => p !== current);
-      localStorage.setItem('houseofclaw_project_history', JSON.stringify(history));
+      localStorage.setItem('clawzd_project_history', JSON.stringify(history));
       // Switch to root
       $('#project-select').value = '.';
-      localStorage.setItem('houseofclaw_project', '.');
+      localStorage.setItem('clawzd_project', '.');
       this.openTabs = [];
       this.activeTab = null;
       this.renderTabs();
@@ -5735,7 +5735,7 @@
     }
 
     showProjectHistory() {
-      const history = JSON.parse(localStorage.getItem('houseofclaw_project_history') || '[]');
+      const history = JSON.parse(localStorage.getItem('clawzd_project_history') || '[]');
       if (!history.length) { toast('No project history'); return; }
       const choice = prompt('Recent projects:\n' + history.map((p, i) => (i + 1) + '. ' + p).join('\n') + '\n\nEnter number to open:');
       if (choice && history[parseInt(choice) - 1]) {
@@ -9429,7 +9429,7 @@
             // Author attribution badge
             const badge = document.createElement('div');
             badge.style.cssText = 'position:absolute;bottom:0;left:0;right:0;font-size:9px;color:white;background:linear-gradient(transparent, rgba(0,0,0,0.8));padding:12px 6px 4px;border-bottom-left-radius:4px;border-bottom-right-radius:4px;opacity:0;transition:opacity 0.2s;';
-            const authorLink = img.author_link ? `${img.author_link}?utm_source=HouseOfClaw&utm_medium=referral` : '#';
+            const authorLink = img.author_link ? `${img.author_link}?utm_source=clawzd&utm_medium=referral` : '#';
             badge.innerHTML = `By <a href="${authorLink}" target="_blank" style="color:var(--accent);text-decoration:none;" onclick="event.stopPropagation()">${escHtml(img.author_name)}</a>`;
 
             div.onmouseenter = () => badge.style.opacity = '1';

@@ -2589,5 +2589,5 @@ async def api_export_zip(request: Request):
     return StreamingResponse(
         buf,
         media_type="application/zip",
-        headers={"Content-Disposition": "attachment; filename=houseofclaw_project.zip"},
+        headers={"Content-Disposition": "attachment; filename=clawzd_project.zip"},
     )

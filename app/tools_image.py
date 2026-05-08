@@ -2197,7 +2197,7 @@ async def download_gallery_zip(request: Request):
 
     buf.seek(0)
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-    zip_name = f"houseofclaw_gallery_{timestamp}.zip"
+    zip_name = f"clawzd_gallery_{timestamp}.zip"
 
     return StreamingResponse(
         buf,
