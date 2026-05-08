@@ -33,6 +33,22 @@ console.log(
   'color: inherit;'
 );
 
+// ---- OpenClaw OS Panel Initialization ----
+// These components are IIFEs loaded via <script> tags.
+// We init them after DOM is ready to ensure containers exist.
+if (document.readyState === 'loading') {
+  document.addEventListener('DOMContentLoaded', _initPanels);
+} else {
+  _initPanels();
+}
+
+function _initPanels() {
+  try { if (window.ArtifactPanel) window.ArtifactPanel.init(); } catch (e) { /* silent */ }
+  try { if (window.ReplayPanel) window.ReplayPanel.init(); } catch (e) { /* silent */ }
+  try { if (window.SystemDashboard) window.SystemDashboard.init(); } catch (e) { /* silent */ }
+  try { if (window.AgentSidebar) window.AgentSidebar.init('header-right'); } catch (e) { /* silent */ }
+}
+
 // Export for use by other ES modules
 export {
   EventBus,

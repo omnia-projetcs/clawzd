@@ -1,0 +1,216 @@
+/* ========================================
+   Clawzd — Tool Replay Panel Styles
+   ======================================== */
+
+.replay-panel {
+  position: fixed;
+  top: 0;
+  right: -380px;
+  width: 360px;
+  height: 100vh;
+  background: var(--bg-primary, #0f172a);
+  border-left: 1px solid var(--border, #334155);
+  z-index: 1000;
+  display: flex;
+  flex-direction: column;
+  transition: right 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  box-shadow: -4px 0 24px rgba(0, 0, 0, 0.3);
+}
+.replay-panel-open { right: 0; }
+
+/* ── Header ────────────────────────── */
+.replay-panel-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 16px 20px;
+  border-bottom: 1px solid var(--border, #334155);
+  flex-shrink: 0;
+}
+.replay-panel-header h3 {
+  margin: 0;
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--text-primary, #e2e8f0);
+}
+.replay-panel-actions { display: flex; gap: 4px; }
+
+/* ── Shared buttons ────────────────── */
+.rp-btn-sm {
+  background: none;
+  border: 1px solid var(--border, #334155);
+  color: var(--text-muted, #64748b);
+  font-size: 12px;
+  padding: 4px 10px;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: all 0.2s;
+  font-family: inherit;
+}
+.rp-btn-sm:hover {
+  color: var(--text-primary, #e2e8f0);
+  background: var(--bg-hover, rgba(255,255,255,0.05));
+  border-color: rgba(99, 102, 241, 0.3);
+}
+.rp-btn-export:hover { border-color: rgba(16, 185, 129, 0.4); color: #10b981; }
+.rp-btn-delete:hover { border-color: rgba(239, 68, 68, 0.4); color: #ef4444; }
+
+/* ── Body ──────────────────────────── */
+.replay-panel-body {
+  flex: 1;
+  overflow-y: auto;
+  padding: 12px;
+}
+
+/* ── Session list ──────────────────── */
+.rp-session {
+  padding: 10px 12px;
+  background: var(--bg-secondary, #1e293b);
+  border: 1px solid var(--border, #334155);
+  border-radius: 8px;
+  margin-bottom: 6px;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+.rp-session:hover {
+  border-color: rgba(99, 102, 241, 0.4);
+  transform: translateX(2px);
+}
+.rp-session-id {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-primary, #e2e8f0);
+  font-family: 'JetBrains Mono', monospace;
+}
+.rp-session-meta {
+  display: flex;
+  gap: 12px;
+  margin-top: 4px;
+  font-size: 11px;
+  color: var(--text-muted, #64748b);
+}
+
+/* ── Detail toolbar ────────────────── */
+.rp-detail-toolbar {
+  display: flex;
+  gap: 6px;
+  margin-bottom: 12px;
+}
+.rp-detail-toolbar .rp-btn-delete { margin-left: auto; }
+
+/* ── Stats ─────────────────────────── */
+.rp-stats {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 6px;
+  margin-bottom: 16px;
+}
+.rp-stat {
+  background: var(--bg-secondary, #1e293b);
+  border: 1px solid var(--border, #334155);
+  border-radius: 8px;
+  padding: 10px 8px;
+  text-align: center;
+}
+.rp-stat-val {
+  display: block;
+  font-size: 18px;
+  font-weight: 700;
+  color: var(--text-primary, #e2e8f0);
+}
+.rp-stat-label {
+  display: block;
+  font-size: 10px;
+  color: var(--text-muted, #64748b);
+  margin-top: 2px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+/* ── Timeline ──────────────────────── */
+.rp-timeline {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+}
+.rp-entry {
+  display: flex;
+  gap: 10px;
+  position: relative;
+}
+.rp-entry-marker {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  width: 24px;
+  flex-shrink: 0;
+}
+.rp-entry-dot {
+  font-size: 12px;
+  line-height: 1;
+  z-index: 1;
+}
+.rp-entry-line {
+  flex: 1;
+  width: 2px;
+  background: var(--border, #334155);
+  min-height: 16px;
+}
+.rp-entry-body {
+  flex: 1;
+  background: var(--bg-secondary, #1e293b);
+  border: 1px solid var(--border, #334155);
+  border-radius: 8px;
+  padding: 10px 12px;
+  margin-bottom: 8px;
+}
+.rp-entry-error .rp-entry-body {
+  border-color: rgba(239, 68, 68, 0.3);
+}
+.rp-entry-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 4px;
+}
+.rp-entry-tool {
+  font-size: 13px;
+  font-weight: 600;
+  color: #a5b4fc;
+  font-family: 'JetBrains Mono', monospace;
+}
+.rp-entry-duration {
+  font-size: 10px;
+  color: var(--text-muted, #64748b);
+  font-family: 'JetBrains Mono', monospace;
+}
+.rp-entry-params {
+  font-size: 11px;
+  color: var(--text-secondary, #94a3b8);
+  font-family: 'JetBrains Mono', monospace;
+  word-break: break-all;
+  line-height: 1.4;
+}
+.rp-entry-result {
+  font-size: 11px;
+  color: #10b981;
+  margin-top: 4px;
+  font-family: 'JetBrains Mono', monospace;
+}
+.rp-entry-error .rp-entry-result {
+  color: #ef4444;
+}
+
+/* ── Empty state ───────────────────── */
+.replay-empty {
+  text-align: center;
+  padding: 40px 20px;
+  color: var(--text-muted, #64748b);
+  font-size: 13px;
+}
+
+/* ── Mobile ────────────────────────── */
+@media (max-width: 768px) {
+  .replay-panel { width: 100vw; right: -110vw; }
+  .rp-stats { grid-template-columns: repeat(2, 1fr); }
+}
