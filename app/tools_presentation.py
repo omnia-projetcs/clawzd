@@ -1701,6 +1701,28 @@ async def ai_generate_presentation(request: Request):
     
     if not prompt:
         raise HTTPException(400, "Prompt is required")
+        
+    # Extract URLs and scrape content
+    url_matches = re.findall(r"https?://[^\s]+", prompt)
+    scraped_text = ""
+    if url_matches:
+        from bs4 import BeautifulSoup
+        for url in url_matches:
+            try:
+                async with httpx.AsyncClient(timeout=10.0, follow_redirects=True) as client:
+                    res = await client.get(url)
+                    if res.status_code == 200:
+                        soup = BeautifulSoup(res.text, "html.parser")
+                        for script in soup(["script", "style"]):
+                            script.decompose()
+                        text = soup.get_text(separator=" ")
+                        text = re.sub(r'\s+', ' ', text).strip()
+                        scraped_text += f"\n\nContent from {url}:\n{text[:2500]}"
+            except Exception as e:
+                logger.warning(f"Failed to scrape {url}: {e}")
+                
+    if scraped_text:
+        prompt += f"\n\nUse the following scraped context to build the presentation:{scraped_text}"
     
     # Phase 1: Ask LLM for CONTENT ONLY (no coordinates)
     svg_names = ", ".join(sorted(_SVG_ILLUSTRATIONS.keys()))
@@ -1760,7 +1782,7 @@ AVAILABLE SVG ILLUSTRATIONS for "illustrated" and "image_focus" slides:
 
 RULES:
 - Always start with "title", end with "closing".
-- 5-8 slides total.
+- Adjust the number of slides to what the user requested. If not specified, default to 5-8 slides total.
 - Keep text short and impactful.
 - Design a beautiful custom color palette in the "theme" object. CRITICAL: You must choose between a LIGHT theme (white/light background with dark text) or a DARK theme (dark background with light text) based on the mood. Do not just use dark themes. Make sure text contrast is high!
 - Pick a shapeType that matches the mood.
