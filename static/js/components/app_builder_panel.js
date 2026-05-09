@@ -81,13 +81,22 @@ const AppBuilderPanel = (() => {
     const time = _timeAgo(app.updated_at || app.created_at);
     const fileCount = app.files ? app.files.length : 0;
     const escapedName = (app.name || 'Untitled').replace(/'/g, "\\'");
+    
+    // Check if visual is a color or URL, default to empty
+    const visualStyle = app.visual ? `style="background: ${app.visual};"` : '';
+    // Use app.icon (e.g. emoji) or fallback to monitor icon
+    const iconContent = app.icon ? `<span style="font-size: 32px;">${app.icon}</span>` : ICONS.monitor(32);
+
     return `
       <div class="ab-card" data-id="${app.id}">
-        <div class="ab-card-preview" onclick="AppBuilderPanel.preview('${app.id}')">
-          <div class="ab-card-icon">${ICONS.monitor(32)}</div>
+        <div class="ab-card-preview" ${visualStyle} onclick="AppBuilderPanel.preview('${app.id}')">
+          <div class="ab-card-icon">${iconContent}</div>
         </div>
         <div class="ab-card-body">
-          <div class="ab-card-name">${app.name || 'Untitled'}</div>
+          <div class="ab-card-name" style="display:flex; justify-content:space-between; align-items:center;">
+            <span>${app.name || 'Untitled'}</span>
+            <button class="ab-btn-sm" style="background:transparent; border:none; color:var(--text-muted); cursor:pointer; padding:0 4px;" onclick="AppBuilderPanel.rename('${app.id}', '${escapedName}')" title="Rename App">${ICONS.penTool(12)}</button>
+          </div>
           <div class="ab-card-meta">
             <span>v${app.version || 1}</span>
             <span>${fileCount} files</span>
@@ -121,7 +130,11 @@ const AppBuilderPanel = (() => {
       <div class="ab-create">
         <button class="ab-btn-back" onclick="AppBuilderPanel.open()">${ICONS.chevronLeft(14)} Back</button>
         <h4>Choose a template</h4>
-        <input type="text" id="ab-app-name" class="ab-input" placeholder="App name..." value="My App">
+        <div style="display: flex; gap: 8px; margin-bottom: 12px;">
+          <input type="text" id="ab-app-name" class="ab-input" placeholder="App name..." value="My App" style="flex: 1;">
+          <input type="text" id="ab-app-icon" class="ab-input" placeholder="Icon (e.g. 📦)" value="📦" style="width: 100px;">
+          <input type="color" id="ab-app-visual" class="ab-input" value="#1e293b" title="App Theme Color" style="width: 50px; padding: 2px;">
+        </div>
         <div class="ab-templates-grid">${templateOptions}</div>
       </div>
     `;
@@ -129,13 +142,17 @@ const AppBuilderPanel = (() => {
 
   async function create(templateKey) {
     const nameEl = document.getElementById('ab-app-name');
+    const iconEl = document.getElementById('ab-app-icon');
+    const visualEl = document.getElementById('ab-app-visual');
     const name = nameEl?.value || 'My App';
+    const icon = iconEl?.value || '📦';
+    const visual = visualEl?.value || '#1e293b';
 
     try {
       const res = await fetch('/apps', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ name, template: templateKey }),
+        body: JSON.stringify({ name, template: templateKey, icon, visual }),
       });
       const app = await res.json();
       if (typeof window.toast === 'function') {
@@ -180,6 +197,25 @@ const AppBuilderPanel = (() => {
     }
   }
 
+  async function rename(appId, currentName) {
+    const newName = prompt('Enter new app name:', currentName);
+    if (!newName || newName.trim() === currentName) return;
+    try {
+      await fetch(`/apps/${appId}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name: newName.trim() }),
+      });
+      await _loadApps();
+      _renderList();
+      if (typeof window.toast === 'function') {
+        window.toast('App renamed', 'success');
+      }
+    } catch (e) {
+      if (typeof window.toast === 'function') window.toast('Failed to rename app', 'error');
+    }
+  }
+
   function preview(appId) {
     window.open(`/apps/${appId}/preview`, '_blank', 'width=800,height=600');
   }
@@ -207,7 +243,7 @@ const AppBuilderPanel = (() => {
     return Math.floor(d / 86400) + 'd ago';
   }
 
-  return { init, open, close, showCreate, create, preview, remove, editInChat };
+  return { init, open, close, showCreate, create, preview, remove, editInChat, rename };
 })();
 
 window.AppBuilderPanel = AppBuilderPanel;

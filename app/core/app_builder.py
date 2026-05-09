@@ -131,6 +131,8 @@ def create_app(
     files: dict[str, str],
     session_id: Optional[str] = None,
     template: Optional[str] = None,
+    icon: Optional[str] = None,
+    visual: Optional[str] = None,
 ) -> dict:
     """Create a new mini-app.
 
@@ -139,6 +141,8 @@ def create_app(
         files: Dict of filename → content (e.g. {"index.html": "...", "app.js": "..."}).
         session_id: Optional chat session that created this app.
         template: Optional starter template key to use as base.
+        icon: Optional icon for the app.
+        visual: Optional visual/cover for the app.
 
     Returns:
         App metadata dict with id, url, etc.
@@ -169,6 +173,8 @@ def create_app(
     meta = {
         "id": app_id,
         "name": name,
+        "icon": icon,
+        "visual": visual,
         "files": list(files.keys()),
         "session_id": session_id,
         "version": 1,
@@ -214,8 +220,14 @@ def list_apps(limit: int = 20) -> list[dict]:
     return apps[:limit]
 
 
-def update_app(app_id: str, files: dict[str, str]) -> Optional[dict]:
-    """Update an existing app's files."""
+def update_app(
+    app_id: str, 
+    files: Optional[dict[str, str]] = None, 
+    name: Optional[str] = None,
+    icon: Optional[str] = None,
+    visual: Optional[str] = None,
+) -> Optional[dict]:
+    """Update an existing app's files or metadata."""
     app_dir = os.path.join(APPS_DIR, app_id)
     meta_path = os.path.join(app_dir, "_meta.json")
 
@@ -223,18 +235,28 @@ def update_app(app_id: str, files: dict[str, str]) -> Optional[dict]:
         return None
 
     # Update files
-    for filename, content in files.items():
-        safe_name = os.path.basename(filename)
-        filepath = os.path.join(app_dir, safe_name)
-        with open(filepath, "w", encoding="utf-8") as f:
-            f.write(content)
+    if files:
+        for filename, content in files.items():
+            safe_name = os.path.basename(filename)
+            filepath = os.path.join(app_dir, safe_name)
+            with open(filepath, "w", encoding="utf-8") as f:
+                f.write(content)
 
     # Update metadata
     meta = get_app(app_id)
     if meta:
-        existing_files = set(meta.get("files", []))
-        existing_files.update(files.keys())
-        meta["files"] = sorted(existing_files)
+        if files:
+            existing_files = set(meta.get("files", []))
+            existing_files.update(files.keys())
+            meta["files"] = sorted(existing_files)
+            
+        if name is not None:
+            meta["name"] = name
+        if icon is not None:
+            meta["icon"] = icon
+        if visual is not None:
+            meta["visual"] = visual
+            
         meta["version"] = meta.get("version", 1) + 1
         meta["updated_at"] = datetime.now(timezone.utc).isoformat()
 

@@ -1679,11 +1679,13 @@ async def create_app_endpoint(request: Request):
     files = data.get("files", {})
     session_id = data.get("session_id")
     template = data.get("template")
+    icon = data.get("icon")
+    visual = data.get("visual")
 
     if not files and not template:
         raise HTTPException(400, "Provide 'files' or 'template'")
 
-    result = create_app(name, files, session_id=session_id, template=template)
+    result = create_app(name, files, session_id=session_id, template=template, icon=icon, visual=visual)
     return result
 
 
@@ -1714,11 +1716,14 @@ async def get_app_meta(app_id: str):
 
 @app.put("/apps/{app_id}")
 async def update_app_endpoint(app_id: str, request: Request):
-    """Update an app's files."""
+    """Update an app's files or metadata."""
     from app.core.app_builder import update_app
     data = await request.json()
-    files = data.get("files", {})
-    result = update_app(app_id, files)
+    files = data.get("files", None)
+    name = data.get("name")
+    icon = data.get("icon")
+    visual = data.get("visual")
+    result = update_app(app_id, files=files, name=name, icon=icon, visual=visual)
     if not result:
         raise HTTPException(404, "App not found")
     return result
