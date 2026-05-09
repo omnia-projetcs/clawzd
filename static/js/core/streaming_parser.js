@@ -30,27 +30,29 @@
    */
   function livePreview(text) {
     let h = escHtml(text);
+    const blocks = [];
+    function ph(html) { const k = '\x00BLK' + blocks.length + '\x00'; blocks.push(html); return k; }
 
     // Tool/thinking blocks → simple collapsible (no complex JSON parsing)
     const toolFenceRe = /```(?:tool_call|tool|execute_python|search_web|screenshot_remote|screenshot_local|generate_image|run_command|browse_web|audit_code|rag_search)\s*\n([\s\S]*?)(?:```|$)/g;
     h = h.replace(toolFenceRe, (_, content) => {
-      return '<details class="tool-thinking"><summary> <em>Thinking…</em></summary>' +
+      return ph('<details class="tool-thinking"><summary> <em>Thinking…</em></summary>' +
              '<pre style="margin:8px 0;background:var(--bg-primary);border:1px solid var(--border);border-radius:8px;padding:12px;overflow-x:auto;font-size:12px;">' +
-             '<code>' + content.trim() + '</code></pre></details>';
+             '<code>' + content.trim() + '</code></pre></details>');
     });
 
     // <think> tags → collapsible
     h = h.replace(/&lt;think&gt;([\s\S]*?)(?:&lt;\/think&gt;|$)/g, (_, content) => {
-      return '<details class="tool-thinking" open><summary> <em>Thinking…</em></summary>' +
+      return ph('<details class="tool-thinking" open><summary> <em>Thinking…</em></summary>' +
              '<div style="padding:12px;color:var(--text-muted);font-style:italic;">' +
-             content.trim() + '</div></details>';
+             content.trim() + '</div></details>');
     });
 
     // Terminal output details
     h = h.replace(/__DETAILS__([\s\S]*?)__DETAILS__/g, (_, content) => {
-      return '<details class="tool-thinking"><summary>Terminal Output</summary>' +
+      return ph('<details class="tool-thinking"><summary>Terminal Output</summary>' +
              '<pre style="margin:8px 0;background:var(--bg-primary);border:1px solid var(--border);border-radius:8px;padding:12px;overflow-x:auto;">' +
-             '<code>' + content.trim() + '</code></pre></details>';
+             '<code>' + content.trim() + '</code></pre></details>');
     });
 
     // Remove internal markers
@@ -58,17 +60,17 @@
 
     // Code blocks with language
     h = h.replace(/```(\w+)(?::|[ \t])([^\n]*?\.[\w]+)[ \t]*\n([\s\S]*?)```/g, (_, lang, fname, code) => {
-      return '<div class="code-block-header"><span>' + escHtml(fname.trim()) + '</span></div>' +
-             '<pre><code class="language-' + lang + '">' + code + '</code></pre>';
+      return ph('<div class="code-block-header"><span>' + escHtml(fname.trim()) + '</span></div>' +
+             '<pre><code class="language-' + lang + '">' + code + '</code></pre>');
     });
     h = h.replace(/```(\w+)[ \t]*\n([\s\S]*?)```/g, (_, lang, code) => {
-      return '<div class="code-block-header"><span>' + escHtml(lang) + '</span></div>' +
-             '<pre><code class="language-' + lang + '">' + code + '</code></pre>';
+      return ph('<div class="code-block-header"><span>' + escHtml(lang) + '</span></div>' +
+             '<pre><code class="language-' + lang + '">' + code + '</code></pre>');
     });
     // Bare code fences
     h = h.replace(/```[ \t]*\n?([\s\S]*?)```/g, (_, code) => {
-      return '<div class="code-block-header"><span>code</span></div>' +
-             '<pre><code>' + code + '</code></pre>';
+      return ph('<div class="code-block-header"><span>code</span></div>' +
+             '<pre><code>' + code + '</code></pre>');
     });
 
     // Auto-close unclosed code fences for live preview
@@ -81,10 +83,11 @@
       const langMatch = fenceLine.match(/^(\w*)/);
       const lang = langMatch ? langMatch[1] : '';
       const codeContent = fenceLine.slice(lang.length).replace(/^\s*\n?/, '');
-      h = before +
+      h = before + ph(
           '<div class="code-block-header"><span>' + (lang || 'code') + '</span></div>' +
           '<pre><code' + (lang ? ' class="language-' + lang + '"' : '') + '>' +
-          codeContent + '</code></pre>';
+          codeContent + '</code></pre>'
+      );
     }
 
     // Headings
@@ -116,6 +119,9 @@
     // Clean spurious <br> around block elements
     h = h.replace(/<br>\s*(<\/?(?:ul|ol|li|h[2-4]|hr|blockquote|div|pre|details))/g, '$1');
     h = h.replace(/(<\/(?:ul|ol|li|h[2-4]|blockquote|div|pre|details)>)\s*<br>/g, '$1');
+
+    // Restore blocks
+    h = h.replace(/\x00BLK(\d+)\x00/g, (_, i) => blocks[parseInt(i)]);
 
     // Structured UI components (charts, tables, progress, cards, alerts)
     if (window.StructuredUI) {
