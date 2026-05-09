@@ -36,6 +36,25 @@
     ]
   },
   {
+    "id": "qwen3-coder-30b-a3b-instruct",
+    "vendor": "Qwen",
+    "name": "Qwen 3 Coder 30B A3B Instruct",
+    "ollama_id": "qwen3-coder:30b-a3b-q4_K_M",
+    "size_gb": 19,
+    "params": "30B-A3B",
+    "quant": "Q4_K_M",
+    "vram_min_gb": 24,
+    "description": "Qwen 3 Coder 30B A3B Instruct.",
+    "recommended": true,
+    "token_limit": "256k",
+    "release_date": "2025-11",
+    "capabilities": [
+      "txt",
+      "code",
+      "mcp"
+    ]
+  },
+  {
     "id": "qwen3.5-9b",
     "vendor": "Qwen",
     "name": "Qwen 3.5 9B",
@@ -96,13 +115,13 @@
     "id": "qwen3.6-35b-a3b",
     "vendor": "Qwen",
     "name": "Qwen 3.6 35B A3B",
-    "ollama_id": "https://huggingface.co/unsloth/Qwen3.6-35B-A3B-GGUF",
-    "size_gb": 22.1,
+    "ollama_id": "qwen3.6:35b-a3b",
+    "size_gb": 24,
     "params": "35B-A3B",
     "quant": "Q4_K_M",
-    "vram_min_gb": 24,
+    "vram_min_gb": 32,
     "description": "Qwen3.6-35B-A3B delivers substantial upgrades in agentic coding and thinking preservation than previous Qwen models, including 4.9x more thinking tokens and 3.1x more coding tokens. ",
-    "recommended": false,
+    "recommended": true,
     "token_limit": "256k",
     "release_date": "2026-04",
     "capabilities": [

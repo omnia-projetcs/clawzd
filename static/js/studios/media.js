@@ -310,7 +310,10 @@ class MediaStudio {
     // Listen for changes on all rembg controls to trigger preview
     ['rembg-model', 'rembg-post-process', 'rembg-fg-thresh', 'rembg-bg-thresh', 'rembg-erode-size'].forEach(id => {
       const el = $(`#${id}`);
-      if (el) el.addEventListener('change', updatePreview);
+      if (el) {
+        el.addEventListener('change', updatePreview);
+        el.addEventListener('input', updatePreview);
+      }
     });
 
     if (rmbgApply) rmbgApply.addEventListener('click', () => this._applyRembg());
@@ -1146,26 +1149,7 @@ class MediaStudio {
       return;
     }
 
-    if (files.length === 1) {
-      this._openRembgModal(files[0]);
-    } else {
-      try {
-        toast(`${ICONS.sparkles(14)} Removing background for ${files.length} file(s)...`);
-        const r = await fetch('/image/remove-bg', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ filenames: files, settings: {} }),
-        });
-        if (!r.ok) {
-          const err = await r.json();
-          throw new Error(err.detail || 'Server returned ' + r.status);
-        }
-        const d = await r.json();
-        this.selected.clear();
-        toast(`${ICONS.check(14)} Background removed for ${(d.processed || []).length} file(s)`);
-        await this.loadGallery();
-      } catch (e) { toast(' Background removal failed: ' + e.message); }
-    }
+    this._openRembgModal(files);
   }
 
   async makeColoringSelected() {
@@ -1196,13 +1180,15 @@ class MediaStudio {
     } catch (e) { toast(' Crayons conversion failed: ' + e.message); }
   }
 
-  _openRembgModal(filename) {
-    this._currentRembgFile = filename;
+  _openRembgModal(files) {
+    if (!files || !files.length) return;
+    this._currentRembgFiles = files;
+    this._currentRembgFile = files[0];
     const modal = $('#media-rembg-modal');
     const img = $('#media-rembg-preview-img');
 
     // Reset preview to original image
-    img.src = `/data/images/${filename}`;
+    img.src = `/data/images/${this._currentRembgFile}`;
 
     // Reset controls
     const alphaCb = $('#rembg-alpha-matting');
@@ -1219,6 +1205,7 @@ class MediaStudio {
   closeRembgModal() {
     const modal = $('#media-rembg-modal');
     if (modal) modal.classList.remove('open');
+    this._currentRembgFiles = null;
     this._currentRembgFile = null;
     if (this._rembgDebounce) clearTimeout(this._rembgDebounce);
   }
@@ -1264,7 +1251,7 @@ class MediaStudio {
   }
 
   async _applyRembg() {
-    if (!this._currentRembgFile) return;
+    if (!this._currentRembgFiles || !this._currentRembgFiles.length) return;
     const btn = $('#media-rembg-apply-btn');
     const oldText = btn.textContent;
     btn.textContent = 'Saving...';
@@ -1275,7 +1262,7 @@ class MediaStudio {
       const r = await fetch('/image/remove-bg', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ filenames: [this._currentRembgFile], settings }),
+        body: JSON.stringify({ filenames: this._currentRembgFiles, settings }),
       });
       if (!r.ok) {
         const err = await r.json();
