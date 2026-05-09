@@ -633,7 +633,9 @@ async def execute_tool(tool_name: str, params: dict, context: dict = None) -> di
             description = params.get("description", "")
             category = params.get("category", "other")
             code = params.get("code", "")
-            return await create_skill_core(name, description, category, code)
+            parameters = params.get("parameters", None)
+            triggers = params.get("triggers", None)
+            return await create_skill_core(name, description, category, code, parameters=parameters, triggers=triggers)
 
         elif resolved == "run_command":
             from app.tools_local import ALLOWED_COMMANDS

@@ -42,6 +42,16 @@ BUILTIN_TOOL_DEFINITIONS = [
                 "description": {"type": "string", "description": "What the skill does"},
                 "category": {"type": "string", "description": "One of: code, data, web, media, automation, integration, other"},
                 "code": {"type": "string", "description": "Full Python source code (optional)"},
+                "parameters": {
+                    "type": "array",
+                    "items": {"type": "string"},
+                    "description": "Parameter names for the template generator (optional)"
+                },
+                "triggers": {
+                    "type": "array",
+                    "items": {"type": "string"},
+                    "description": "Regex patterns for auto-detection and integration (optional)"
+                }
             },
             "required": ["name", "description"],
         },
