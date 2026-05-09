@@ -83,11 +83,9 @@ BUILTIN_PATTERNS = {
     ],
     "edit_file": [
         r"(?:edit|modify|update|change|rewrite)\s+.*(?:file|code|script|document)",
-        r"(?:modifie|[ée]dite|change|mets [àa] jour)\s+.*(?:fichier|code)",
     ],
     "read_file": [
         r"(?:read|show|open|view|display)\s+.*(?:file|code|script|document)",
-        r"(?:lis|montre|ouvre|affiche|voir)\s+.*(?:fichier|code)",
     ],
 }
 

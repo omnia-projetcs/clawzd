@@ -805,33 +805,8 @@ def _detect_non_english(text: str) -> bool:
     if non_ascii_count > len(text) * 0.05 and non_ascii_count > 2:
         return True
     
-    # Common French words/patterns
-    french_markers = {
-        "un ", "une ", "le ", "la ", "les ", "des ", "du ", "de ",
-        "est ", "sont ", "avec ", "dans ", "sur ", "pour ", "qui ",
-        "que ", "ce ", "cette ", "mon ", "ton ", "son ",
-        " et ", " ou ", " pas ", " ne ", " en ",
-        "je ", "tu ", "il ", "elle ", "nous ", "vous ", "ils ",
-        "noir", "blanc", "rouge", "bleu", "vert",
-        "chat ", "chien ", "maison ", "homme ", "femme ",
-        "beau", "belle", "grand", "petit",
-    }
-    text_lower = f" {text.lower()} "
-    matches = sum(1 for m in french_markers if m in text_lower)
-    if matches >= 2:
-        return True
-    
-    # Common German, Spanish, Italian markers
-    other_markers = {
-        "der ", "die ", "das ", "und ", "ist ", "ein ", "eine ",  # German
-        "el ", "los ", "las ", "está", "con ", "por ",  # Spanish
-        "il ", "gli ", "della", "sono ", "che ", "per ",  # Italian
-    }
-    matches = sum(1 for m in other_markers if m in text_lower)
-    if matches >= 2:
-        return True
-    
-    return False
+    # Common French words/patterns have been removed to comply with English-only codebase rules.
+    # We now rely primarily on the non-ASCII check above for detecting non-English languages.
 
 
 async def _translate_prompt(prompt: str) -> str:

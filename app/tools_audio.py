@@ -309,10 +309,10 @@ async def _enhance_lyrics_with_llm(prompt: str) -> str:
     from config import OLLAMA_HOST, OLLAMA_MODEL
     
     system_prompt = (
-        "Tu es un parolier expert. L'utilisateur va te donner un thème court ou une idée. "
-        "Ta mission est d'écrire UN SEUL COUPLET court et UN REFRAIN très accrocheur sur ce thème. "
-        "IMPORTANT: Garde le texte très court (maximum 40 mots). N'inclus aucune introduction, ni titre, ni explication. "
-        "Écris uniquement les paroles de la chanson."
+        "You are an expert lyricist. The user will give you a short theme or idea. "
+        "Your mission is to write A SINGLE short VERSE and a very catchy CHORUS on this theme. "
+        "IMPORTANT: Keep the text very short (maximum 40 words). Do not include any introduction, title, or explanation. "
+        "Write only the lyrics of the song."
     )
     try:
         async with httpx.AsyncClient(timeout=15.0) as client:

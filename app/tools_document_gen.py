@@ -257,7 +257,7 @@ _CV_STYLES = {
 
 def _generate_cv_presentation(data: dict, style_key: str = "professional") -> dict:
     s = _CV_STYLES.get(style_key, _CV_STYLES["professional"])
-    name = data.get("name", "Prénom Nom")
+    name = data.get("name", "First Last")
     title = data.get("title", data.get("headline", ""))
     summary = data.get("enriched_summary", data.get("summary", ""))
     email = data.get("email", "")
@@ -312,28 +312,28 @@ def _generate_cv_presentation(data: dict, style_key: str = "professional") -> di
     cur_y_left += 20
     
     if skills:
-        cur_y_left = add_section_title(left_x, cur_y_left, "Compétences", sidebar_w - 48)
+        cur_y_left = add_section_title(left_x, cur_y_left, "Skills", sidebar_w - 48)
         skills_str = ", ".join(skills)
         add_el({"type": "text", "x": left_x, "y": cur_y_left, "width": sidebar_w - 48, "height": 100, "content": skills_str, "color": s["text"], "fontSize": 11, "textAlign": "left", "backgroundColor": "transparent", "borderWidth": 0})
         cur_y_left += 100
         
     if seo_keywords:
-        cur_y_left = add_section_title(left_x, cur_y_left, "Mots-clés SEO", sidebar_w - 48)
+        cur_y_left = add_section_title(left_x, cur_y_left, "SEO Keywords", sidebar_w - 48)
         seo_str = ", ".join(seo_keywords[:15])
         add_el({"type": "text", "x": left_x, "y": cur_y_left, "width": sidebar_w - 48, "height": 100, "content": seo_str, "color": "#166534", "fontSize": 10, "textAlign": "left", "backgroundColor": "transparent", "borderWidth": 0})
 
     cur_y_main = 40
     main_w = 794 - right_x - 32
-    actual_summary = summary if summary else "Votre résumé professionnel ira ici. Cliquez pour modifier ce texte et ajouter une description accrocheuse de vos objectifs et de votre profil."
-    cur_y_main = add_section_title(right_x, cur_y_main, "Profil", main_w)
+    actual_summary = summary if summary else "Your professional summary will go here. Click to modify this text and add a compelling description of your goals and profile."
+    cur_y_main = add_section_title(right_x, cur_y_main, "Profile", main_w)
     add_el({"type": "text", "x": right_x, "y": cur_y_main, "width": main_w, "height": 80, "content": actual_summary, "color": s["text"], "fontSize": 12, "textAlign": "left", "backgroundColor": "transparent", "borderWidth": 0})
     cur_y_main += 90
 
     actual_experience = experience if experience else [
-        {"title": "Votre Poste Actuel", "company": "Nom de l'entreprise", "period": "2020 - Présent", "description": "Description de vos missions et réalisations."},
-        {"title": "Poste Précédent", "company": "Ancienne entreprise", "period": "2015 - 2020", "description": "Description de vos missions et réalisations."}
+        {"title": "Your Current Position", "company": "Company Name", "period": "2020 - Present", "description": "Description of your missions and achievements."},
+        {"title": "Previous Position", "company": "Previous Company", "period": "2015 - 2020", "description": "Description of your missions and achievements."}
     ]
-    cur_y_main = add_section_title(right_x, cur_y_main, "Expérience", main_w)
+    cur_y_main = add_section_title(right_x, cur_y_main, "Experience", main_w)
     for exp in actual_experience[:5]:
         if isinstance(exp, str):
             add_el({"type": "text", "x": right_x, "y": cur_y_main, "width": main_w, "height": 20, "content": exp, "color": s["text"], "fontSize": 12, "textAlign": "left", "backgroundColor": "transparent", "borderWidth": 0})
@@ -357,9 +357,9 @@ def _generate_cv_presentation(data: dict, style_key: str = "professional") -> di
     cur_y_main += 10
 
     actual_education = education if education else [
-        {"degree": "Votre Diplôme / Formation", "school": "Nom de l'école ou université", "year": "2015"}
+        {"degree": "Your Degree / Education", "school": "Name of school or university", "year": "2015"}
     ]
-    cur_y_main = add_section_title(right_x, cur_y_main, "Formation", main_w)
+    cur_y_main = add_section_title(right_x, cur_y_main, "Education", main_w)
     for edu in actual_education[:3]:
         if isinstance(edu, str):
             add_el({"type": "text", "x": right_x, "y": cur_y_main, "width": main_w, "height": 20, "content": edu, "color": s["text"], "fontSize": 11, "textAlign": "left", "backgroundColor": "transparent", "borderWidth": 0})

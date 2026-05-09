@@ -141,7 +141,7 @@
                   justify-content: space-between;
                   padding-top: 8px"
            title="Toggle Document Generator">
-        <span>CV & Carte de Visite</span>
+        <span>Resume & Business Card</span>
         <svg class="ic" width="12" height="12" style="transition: transform 0.2s; transform: rotate(180deg)"><use href="#icon-chevron-down"></use></svg>
       </div>
       <div class="presentation-docgen-panel" 
@@ -149,10 +149,10 @@
            style="display: none; padding: 10px 4px; flex-direction: column; gap: 10px; overflow-y: auto; max-height: 400px;">
         <!-- Template Sub-mode -->
         <div class="media-form-group" id="pt-tpl-submode-group">
-          <label class="media-form-label">Type de Template</label>
+          <label class="media-form-label">Template Type</label>
           <div class="media-type-toggle" id="pt-tpl-submode-toggle" style="margin-bottom:8px;">
-            <button class="media-type-btn active" data-tplmode="business_card" style="flex:1; padding:4px;">📇 Carte</button>
-            <button class="media-type-btn" data-tplmode="cv" style="flex:1; padding:4px;">📄 CV</button>
+            <button class="media-type-btn active" data-tplmode="business_card" style="flex:1; padding:4px;">📇 Card</button>
+            <button class="media-type-btn" data-tplmode="cv" style="flex:1; padding:4px;">📄 Resume</button>
           </div>
         </div>
         <!-- Template Style -->
@@ -181,7 +181,7 @@
           <label class="media-form-label">Profil LinkedIn (optionnel)</label>
           <div style="display:flex;gap:6px;">
             <input type="text" class="media-form-input" id="pt-tpl-linkedin-url"
-                   placeholder="https://linkedin.com/in/prenom" style="flex:1;">
+                   placeholder="https://linkedin.com/in/name" style="flex:1;">
             <button class="media-generate-btn" id="pt-tpl-linkedin-fetch"
                     style="padding:8px 10px;font-size:11px;white-space:nowrap;background:var(--accent);">
               🔍 Fetch
@@ -191,23 +191,23 @@
         </div>
         <!-- Target Role (CV SEO) -->
         <div class="media-form-group" id="pt-tpl-target-role-group" style="display:none">
-          <label class="media-form-label">Poste visé (pour SEO)</label>
+          <label class="media-form-label">Target Position (for SEO)</label>
           <input type="text" class="media-form-input" id="pt-tpl-target-role"
-                 placeholder="Ex: Développeur Full-Stack...">
+                 placeholder="Ex: Full-Stack Developer...">
         </div>
         <!-- Common Fields: Name, Title -->
         <div class="media-form-group" id="pt-tpl-name-group">
-          <label class="media-form-label">Nom complet *</label>
-          <input type="text" class="media-form-input" id="pt-tpl-name" placeholder="Jean Dupont">
+          <label class="media-form-label">Full Name *</label>
+          <input type="text" class="media-form-input" id="pt-tpl-name" placeholder="John Doe">
         </div>
         <div class="media-form-group" id="pt-tpl-title-group">
-          <label class="media-form-label">Titre / Poste</label>
+          <label class="media-form-label">Title / Position</label>
           <input type="text" class="media-form-input" id="pt-tpl-title" placeholder="Directeur Marketing">
         </div>
         <!-- Business Card Fields -->
         <div class="media-form-group" id="pt-tpl-company-group">
-          <label class="media-form-label">Entreprise</label>
-          <input type="text" class="media-form-input" id="pt-tpl-company" placeholder="Nom de l'entreprise">
+          <label class="media-form-label">Company</label>
+          <input type="text" class="media-form-input" id="pt-tpl-company" placeholder="Company Name">
         </div>
         <div class="media-form-group" id="pt-tpl-email-group">
           <label class="media-form-label">Email</label>
@@ -223,12 +223,12 @@
         </div>
         <!-- CV-only Fields -->
         <div class="media-form-group" id="pt-tpl-summary-group" style="display:none">
-          <label class="media-form-label">Résumé professionnel</label>
+          <label class="media-form-label">Professional Summary</label>
           <textarea class="media-form-input" id="pt-tpl-summary" rows="3"
-                    placeholder="Décrivez votre profil..."></textarea>
+                    placeholder="Describe your profile..."></textarea>
         </div>
         <div class="media-form-group" id="pt-tpl-skills-group" style="display:none">
-          <label class="media-form-label">Compétences (virgules)</label>
+          <label class="media-form-label">Skills (comma-separated)</label>
           <input type="text" class="media-form-input" id="pt-tpl-skills"
                  placeholder="Python, React, SQL...">
         </div>
@@ -244,7 +244,7 @@
         <!-- Generate Button -->
         <button class="media-generate-btn" id="pt-tpl-generate-btn" style="margin-top: 10px;">
           <span class="gen-spinner"></span>
-          <span class="gen-label"><span class="media-icon" data-icon="sparkles"></span> Générer</span>
+          <span class="gen-label"><span class="media-icon" data-icon="sparkles"></span> Generate</span>
         </button>
       </div>
       <div style="height:1px; background:var(--border); margin:6px 0;"></div>
@@ -480,7 +480,7 @@
         <!-- Undo / Redo Buttons -->
         <button class="icon-btn"
                 id="pt-btn-undo"
-                title="Annuler"
+                title="Cancel"
                 style="padding:6px;
                        display:flex;
                        align-items:center;
@@ -566,7 +566,7 @@
               <label style="font-size:10px;
                             text-transform:uppercase;
                             color:var(--text-muted);
-                            font-weight:bold">Actions Document</label>
+                            font-weight:bold">Document Actions</label>
               <div style="display:flex; gap:8px; align-items:center;">
                 <button class="btn btn-secondary"
                         id="pt-btn-new"
