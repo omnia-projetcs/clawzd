@@ -97,6 +97,7 @@ def _should_use_local_files(repo_id: str) -> bool:
     """
     return False
 
+import tqdm
 import tqdm.auto
 orig_tqdm = tqdm.auto.tqdm
 
@@ -111,6 +112,8 @@ class HfProgressTqdm(orig_tqdm):
             _hf_download_state["progress"] = min(100.0, (getattr(self, "n", 0) / total) * 100)
 
 tqdm.auto.tqdm = HfProgressTqdm
+tqdm.tqdm = HfProgressTqdm
+
 try:
     import huggingface_hub.utils.tqdm
     huggingface_hub.utils.tqdm.tqdm = HfProgressTqdm
@@ -1830,8 +1833,8 @@ async def generate_animation_core(
 async def check_model(type: str = "image", style: str = "none", video_model: str = "cogvideox"):
     """Check if the local HuggingFace model is already downloaded in cache."""
     try:
-        from huggingface_hub import snapshot_download
-        from huggingface_hub.utils import LocalEntryNotFoundError
+        import os
+        from huggingface_hub.constants import HF_HUB_CACHE
         
         if type == "image":
             model_info = _IMAGE_STYLE_MODELS.get(style, _IMAGE_STYLE_MODELS["none"])
@@ -1841,21 +1844,25 @@ async def check_model(type: str = "image", style: str = "none", video_model: str
             repo_id = model_cfg["repo"]
         
         if repo_id.startswith("http"):
-            # URL cannot be used with snapshot_download, assume it's downloaded if we can't easily check
             return {"downloaded": True, "model": repo_id}
             
-        try:
-            hf_token = _get_hf_token()
-            snapshot_download(repo_id, local_files_only=_should_use_local_files(base_model if "base_model" in locals() and "stabilityai" in base_model else repo_id), token=hf_token)
-            return {"downloaded": True, "model": repo_id}
-        except LocalEntryNotFoundError:
-            return {"downloaded": False, "model": repo_id}
-        except Exception as e:
-            logger.warning(f"Failed to check local cache for {repo_id}: {e}")
-            return {"downloaded": True} # Fallback to assume true if check fails
-    except ImportError:
-        # If huggingface_hub is missing, we assume true to avoid breaking anything
-        return {"downloaded": True}
+        # Check the huggingface cache directory directly for instant response
+        # format: models--author--repo_name
+        safe_name = "models--" + repo_id.replace("/", "--")
+        model_path = os.path.join(HF_HUB_CACHE, safe_name)
+        
+        # We consider it downloaded if the directory exists and has some files
+        is_downloaded = False
+        if os.path.exists(model_path):
+            # Check if there are actual weights in the snapshots folder
+            snapshots_dir = os.path.join(model_path, "snapshots")
+            if os.path.exists(snapshots_dir) and os.listdir(snapshots_dir):
+                is_downloaded = True
+                
+        return {"downloaded": is_downloaded, "model": repo_id}
+    except Exception as e:
+        logger.warning(f"Failed to check local cache for {repo_id}: {e}")
+        return {"downloaded": True} # Fallback to assume true if check fails
 
 @router.get("/download-status")
 async def get_download_status():

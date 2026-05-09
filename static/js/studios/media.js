@@ -849,21 +849,26 @@ class MediaStudio {
                 dlMsg.innerHTML = ICONS.hourglass(14) + ' Initializing model download...';
               }
               toast('⏳ First time using this AI. Downloading model weights (~5-10GB), this may take a few minutes...', 8000);
-
-              this._hfDlPoll = setInterval(async () => {
-                try {
-                  const statusResp = await fetch('/image/download-status');
-                  if (statusResp.ok) {
-                    const sd = await statusResp.json();
-                    if (sd.active && dlMsg) {
-                      dlMsg.innerHTML = ICONS.hourglass(14) + ` Downloading ${sd.repo}... (${Math.round(sd.progress)}%)`;
-                    }
-                  }
-                } catch (e) { }
-              }, 2000);
             }
           }
         } catch (e) { /* ignore check error */ }
+        
+        // Always start the download progress poll just in case a partial download needs to complete
+        this._hfDlPoll = setInterval(async () => {
+          try {
+            const statusResp = await fetch('/image/download-status');
+            if (statusResp.ok) {
+              const sd = await statusResp.json();
+              if (sd.active && dlMsg) {
+                dlMsg.style.display = 'block';
+                dlMsg.innerHTML = ICONS.hourglass(14) + ` Downloading ${sd.repo}... (${Math.round(sd.progress)}%)`;
+              } else if (!sd.active && dlMsg && dlMsg.style.display === 'block' && dlMsg.innerHTML.includes('Downloading')) {
+                // Hide it if download finished but generation hasn't started yet
+                dlMsg.style.display = 'none';
+              }
+            }
+          } catch (e) { }
+        }, 2000);
       }
 
       let stylesToRun = ['none'];
