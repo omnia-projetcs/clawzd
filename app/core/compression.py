@@ -175,6 +175,7 @@ async def compress_messages(
     messages: list[dict],
     max_messages: int = MAX_CONTEXT_MESSAGES,
     max_chars: int = MAX_CONTEXT_CHARS,
+    provider: str | None = None,
 ) -> list[dict]:
     """Compress a message history using Hermes-style structured compression.
 
@@ -243,7 +244,7 @@ async def compress_messages(
 
     # --- Phase 3: Generate structured summary ---
     pre_compress_tokens = _estimate_messages_tokens(middle)
-    summary = await _generate_structured_summary(middle)
+    summary = await _generate_structured_summary(middle, provider_key=provider)
 
     # Track compression effectiveness (anti-thrashing)
     summary_tokens = estimate_tokens(summary) if summary else 0
@@ -272,7 +273,7 @@ async def compress_messages(
 
 
 async def _generate_structured_summary(
-    turns: list[dict], focus_topic: str = None
+    turns: list[dict], focus_topic: str = None, provider_key: str | None = None
 ) -> str:
     """Generate a structured summary using the LLM.
 
@@ -328,7 +329,7 @@ async def _generate_structured_summary(
     summary_parts = []
     try:
         from app.core.llm_provider import get_llm_provider
-        llm = get_llm_provider()
+        llm = get_llm_provider(provider_key)
 
         async for chunk in llm.chat_stream([{"role": "user", "content": prompt}]):
             # chat_stream yields str tokens, not dicts
@@ -438,7 +439,8 @@ async def optimize_for_provider(
         )
         max_chars = int(max_tokens * 0.50) * _CHARS_PER_TOKEN  # Target 50%
         return await compress_messages(
-            messages, max_messages=MAX_CONTEXT_MESSAGES, max_chars=max_chars
+            messages, max_messages=MAX_CONTEXT_MESSAGES, max_chars=max_chars,
+            provider=provider,
         )
     elif total_tokens >= checkpoint_limit:
         # 65%+ → checkpoint (gentle summary, keep more tail)
@@ -448,9 +450,10 @@ async def optimize_for_provider(
         )
         max_chars = int(max_tokens * 0.60) * _CHARS_PER_TOKEN  # Target 60%
         return await compress_messages(
-            messages, max_messages=MAX_CONTEXT_MESSAGES, max_chars=max_chars
+            messages, max_messages=MAX_CONTEXT_MESSAGES, max_chars=max_chars,
+            provider=provider,
         )
 
     # Below 65% — no compression needed
     max_chars = max_tokens * _CHARS_PER_TOKEN
-    return await compress_messages(messages, max_chars=max_chars)
+    return await compress_messages(messages, max_chars=max_chars, provider=provider)

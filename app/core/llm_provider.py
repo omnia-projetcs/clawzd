@@ -134,6 +134,15 @@ class LLMProvider(ABC):
         """Stream tokens from a chat completion request."""
         pass  # pragma: no cover
 
+    async def chat(
+        self, messages: list[dict], **kwargs
+    ) -> str:
+        """Non-streaming wrapper: collects all tokens from chat_stream."""
+        parts = []
+        async for token in self.chat_stream(messages, **kwargs):
+            parts.append(token)
+        return "".join(parts)
+
 
 class OllamaLLM(LLMProvider):
     """Local LLM via Ollama's OpenAI-compatible API."""
@@ -271,6 +280,13 @@ class GoogleLLM(LLMProvider):
         self.client = genai.Client(api_key=GOOGLE_API_KEY)
 
     async def chat_stream(self, messages, model="gemini-2.0-flash", **kwargs):
+        if not GOOGLE_API_KEY:
+            yield (
+                "⚠️ **Google API key not configured.**\n\n"
+                "Set `GOOGLE_API_KEY` in your `.env` file.\n"
+                "Get a key at https://aistudio.google.com/app/apikey"
+            )
+            return
         t0 = time.perf_counter()
         tokens = 0
 
@@ -286,18 +302,31 @@ class GoogleLLM(LLMProvider):
                     self._types.Content(role=role, parts=[self._types.Part(text=m["content"])])
                 )
 
-        # Build config with system_instruction if present
+        # Map OpenAI-style kwargs to Google GenerateContentConfig
+        max_tokens = kwargs.pop("max_tokens", None)
+        temperature = kwargs.pop("temperature", None)
+
         config_kwargs = {}
         if system_parts:
             config_kwargs["system_instruction"] = "\n".join(system_parts)
+        if max_tokens is not None:
+            config_kwargs["max_output_tokens"] = max_tokens
+        if temperature is not None:
+            config_kwargs["temperature"] = temperature
         config = self._types.GenerateContentConfig(**config_kwargs) if config_kwargs else None
 
         gen_kwargs = {"model": model, "contents": contents}
         if config:
             gen_kwargs["config"] = config
 
-        response = self.client.models.generate_content_stream(**gen_kwargs, **kwargs)
-        for chunk in response:
+        # Run the synchronous stream iterator in a thread to avoid blocking the event loop
+        import asyncio
+        import queue as _queue
+
+        sync_response = await asyncio.to_thread(
+            self.client.models.generate_content_stream, **gen_kwargs
+        )
+        for chunk in sync_response:
             if chunk.text:
                 tokens += 1
                 yield chunk.text
@@ -314,6 +343,13 @@ class GrokLLM(LLMProvider):
         )
 
     async def chat_stream(self, messages, model="grok-3-mini", **kwargs):
+        if not GROK_API_KEY:
+            yield (
+                "⚠️ **Grok API key not configured.**\n\n"
+                "Set `GROK_API_KEY` in your `.env` file.\n"
+                "Get a key at https://console.x.ai/"
+            )
+            return
         t0 = time.perf_counter()
         tokens = 0
         stream = await self.client.chat.completions.create(
@@ -337,6 +373,13 @@ class GroqLLM(LLMProvider):
         )
 
     async def chat_stream(self, messages, model="llama3-70b-8192", **kwargs):
+        if not GROQ_API_KEY:
+            yield (
+                "⚠️ **Groq API key not configured.**\n\n"
+                "Set `GROQ_API_KEY` in your `.env` file.\n"
+                "Get a free key at https://console.groq.com/keys"
+            )
+            return
         t0 = time.perf_counter()
         tokens = 0
         stream = await self.client.chat.completions.create(
@@ -390,6 +433,13 @@ class MistralLLM(LLMProvider):
         )
 
     async def chat_stream(self, messages, model="mistral-small-latest", **kwargs):
+        if not MISTRAL_API_KEY:
+            yield (
+                "⚠️ **Mistral API key not configured.**\n\n"
+                "Set `MISTRAL_API_KEY` in your `.env` file.\n"
+                "Get a key at https://console.mistral.ai/api-keys"
+            )
+            return
         t0 = time.perf_counter()
         tokens = 0
         stream = await self.client.chat.completions.create(
@@ -412,6 +462,13 @@ class OpenAILLM(LLMProvider):
         )
 
     async def chat_stream(self, messages, model="gpt-4o-mini", **kwargs):
+        if not OPENAI_API_KEY:
+            yield (
+                "⚠️ **OpenAI API key not configured.**\n\n"
+                "Set `OPENAI_API_KEY` in your `.env` file.\n"
+                "Get a key at https://platform.openai.com/api-keys"
+            )
+            return
         t0 = time.perf_counter()
         tokens = 0
         stream = await self.client.chat.completions.create(
@@ -436,6 +493,13 @@ class OpenRouterLLM(LLMProvider):
         )
 
     async def chat_stream(self, messages, model="openai/gpt-4o-mini", **kwargs):
+        if not OPENROUTER_API_KEY:
+            yield (
+                "⚠️ **OpenRouter API key not configured.**\n\n"
+                "Set `OPENROUTER_API_KEY` in your `.env` file.\n"
+                "Get a key at https://openrouter.ai/keys"
+            )
+            return
         t0 = time.perf_counter()
         tokens = 0
         stream = await self.client.chat.completions.create(
