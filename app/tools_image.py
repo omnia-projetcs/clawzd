@@ -231,6 +231,11 @@ def _get_pipeline(repo_id: str, is_lora: bool = False):
 
         elif repo_id.endswith(".gguf") or repo_id.endswith(".safetensors") or repo_id.startswith("http") or repo_id.startswith("hf://"):
             clean_url = repo_id.split("?")[0] if repo_id.startswith("http") else repo_id
+            if clean_url.startswith("hf://"):
+                parts = clean_url.replace("hf://", "").split("/")
+                repo = "/".join(parts[:2])
+                filename = "/".join(parts[2:])
+                clean_url = f"https://huggingface.co/{repo}/blob/main/{filename}"
             if "huggingface.co" in clean_url and "/resolve/main/" in clean_url:
                 clean_url = clean_url.replace("/resolve/main/", "/blob/main/")
             if "flux" in repo_id.lower():
