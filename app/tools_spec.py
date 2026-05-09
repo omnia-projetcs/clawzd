@@ -14,6 +14,8 @@ from typing import Optional
 
 from fastapi import APIRouter, Request, HTTPException
 
+from app.core.tokens import count_tokens
+
 from config import DATA_DIR
 
 router = APIRouter()
@@ -347,7 +349,7 @@ async def generate_artifact(
         kwargs["model"] = model_key
 
     input_text = "\n".join(m["content"] for m in messages)
-    input_tokens = max(1, len(input_text) // 4)
+    input_tokens = max(1, count_tokens(input_text, model_key or ""))
     t0 = time.time()
 
     response_text = ""
@@ -355,7 +357,7 @@ async def generate_artifact(
         response_text += chunk
 
     elapsed = time.time() - t0
-    output_tokens = max(1, len(response_text) // 4)
+    output_tokens = max(1, count_tokens(response_text, model_key or ""))
 
     # Record in metrics
     from app.metrics import get_metrics
@@ -453,7 +455,7 @@ async def verify_change(proj_id: str, change_id: str, request: Request):
         kwargs["model"] = model_key
 
     input_text = "\n".join(m["content"] for m in messages)
-    input_tokens = max(1, len(input_text) // 4)
+    input_tokens = max(1, count_tokens(input_text, model_key or ""))
     t0 = time.time()
 
     raw = ""
@@ -461,7 +463,7 @@ async def verify_change(proj_id: str, change_id: str, request: Request):
         raw += chunk
 
     elapsed = time.time() - t0
-    output_tokens = max(1, len(raw) // 4)
+    output_tokens = max(1, count_tokens(raw, model_key or ""))
 
     # Record in metrics
     from app.metrics import get_metrics

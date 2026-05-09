@@ -49,6 +49,7 @@ from app.tools_document_gen import router as docgen_router
 from app.tool_executor import parse_tool_calls, execute_tool, format_tool_result, resolve_tool_name
 from app.metrics import get_metrics
 from app.cache import cache_stats
+from app.core.tokens import count_tokens, count_message_tokens
 from config import STATIC_DIR, TEMPLATES_DIR, DATA_DIR, CORS_ORIGINS, RATE_LIMIT
 
 import re as _re
@@ -820,8 +821,8 @@ async def _process_chat(session_id: str, data: dict) -> dict:
                     await queue.put(token)
 
                 latency_s = time.perf_counter() - t0_llm
-                input_tokens = sum(len(m.get("content", "")) for m in current_messages) // 4
-                output_tokens = len(round_response) // 4
+                input_tokens = count_message_tokens(current_messages, model=model_key or "")
+                output_tokens = count_tokens(round_response, model=model_key or "")
                 get_metrics().record_llm_call(
                     provider=provider_key,
                     model=model_key or getattr(provider, "default_model", "unknown"),
@@ -960,8 +961,8 @@ async def _process_chat(session_id: str, data: dict) -> dict:
                             await queue.put(token)
 
                     latency_s = time.perf_counter() - t0_cont
-                    input_tokens = sum(len(m.get("content", "")) for m in current_messages) // 4
-                    output_tokens = len(cont_round_response) // 4
+                    input_tokens = count_message_tokens(current_messages, model=model_key or "")
+                    output_tokens = count_tokens(cont_round_response, model=model_key or "")
                     get_metrics().record_llm_call(
                         provider=provider_key,
                         model=model_key or getattr(provider, "default_model", "unknown"),
@@ -1824,7 +1825,7 @@ async def arena_send(request: Request):
                 await queue.put(stats_msg)
 
                 # Track metrics for Arena generation
-                input_tokens = len(user_msg) // 4  # rough estimate
+                input_tokens = count_tokens(user_msg, model=model_key or "")
                 from app.metrics import get_metrics
                 get_metrics().record_llm_call(
                     provider=p_key,
@@ -1907,8 +1908,8 @@ async def arena_evaluate(request: Request):
             
         latency_s = time.perf_counter() - t0
         # Track metrics for Arena evaluation
-        input_tokens = sum(len(m["content"]) for m in [{"role": "system", "content": sys_prompt}, {"role": "user", "content": user_prompt}]) // 4
-        output_tokens = len(result_text) // 4
+        input_tokens = count_message_tokens([{"role": "system", "content": sys_prompt}, {"role": "user", "content": user_prompt}])
+        output_tokens = count_tokens(result_text)
         from app.metrics import get_metrics
         get_metrics().record_llm_call(
             provider=provider_key,

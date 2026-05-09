@@ -22,6 +22,7 @@ from app.tools.research_engine import (
     reflect_on_iteration, generate_report_with_citations,
 )
 from app.tools.research_scraper import batch_scrape, smart_scrape
+from app.core.tokens import count_tokens
 
 router = APIRouter()
 logger = logging.getLogger("clawzd.research")
@@ -353,9 +354,9 @@ async def _llm_call(messages: list[dict], provider: str = "", model: str = "", p
     if model:
         kwargs["model"] = model
 
-    # Estimate input tokens (~4 chars/token)
+    # Estimate input tokens using tiktoken
     input_text = "".join(m.get("content", "") for m in messages)
-    input_tokens = max(1, len(input_text) // 4)
+    input_tokens = max(1, count_tokens(input_text, model or ""))
 
     result = ""
     t0 = time.time()
@@ -363,8 +364,8 @@ async def _llm_call(messages: list[dict], provider: str = "", model: str = "", p
         result += token
     elapsed = time.time() - t0
 
-    # Estimate output tokens
-    output_tokens = max(1, len(result) // 4)
+    # Estimate output tokens using tiktoken
+    output_tokens = max(1, count_tokens(result, model or ""))
 
     # Record in metrics
     get_metrics().record_llm_call(
