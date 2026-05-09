@@ -1515,6 +1515,20 @@
       document.querySelectorAll('.suggestion-chips').forEach(el => el.remove());
       document.querySelectorAll('.mode-switch-hint').forEach(el => el.remove());
 
+      // Collect vision images before sending
+      const visionImages = (typeof visionChatGetImages === 'function') ? visionChatGetImages() : [];
+
+      // Display uploaded images in the user bubble (inline preview)
+      if (visionImages.length > 0) {
+        const lastUserRow = this.msgEl.querySelector('.message.user:last-child .message-bubble');
+        if (lastUserRow) {
+          const imgHtml = visionImages.map(url =>
+            `<img src="${url}" class="chat-vision-image" alt="Uploaded image">`
+          ).join('');
+          lastUserRow.insertAdjacentHTML('afterbegin', imgHtml);
+        }
+      }
+
       try {
       // Use WebSocket transport if connected
       if (this.transport && this.transport.isWebSocket) {
@@ -1526,7 +1540,8 @@
           active_project: active_project,
           active_file: active_file,
           rag_mode: window.ragMode || false,
-          action_mode: actionMode
+          action_mode: actionMode,
+          images: visionImages
         });
       } else {
         // Legacy SSE path
@@ -1540,7 +1555,8 @@
             active_project: active_project,
             active_file: active_file,
             rag_mode: window.ragMode || false,
-            action_mode: actionMode
+            action_mode: actionMode,
+            images: visionImages
           })
         });
       }

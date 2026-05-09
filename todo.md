@@ -57,6 +57,20 @@ Can be used to rebuild from scratch the project with AI assistance.
     - [x] Delete models with fallback auto-selection
     - [x] Hardware info endpoint (GPU VRAM, RAM)
     - [x] Catalog hot-reload
+- [x] OpenAI-Compatible API endpoint (app/routers/openai_api.py):
+    - [x] POST /v1/chat/completions (streaming + non-streaming)
+    - [x] GET /v1/models — list all available models across providers
+    - [x] GET /v1/models/{model_id} — model info
+    - [x] Bearer token auth via API_SECRET_TOKEN
+    - [x] Provider/model routing via "provider/model" format
+- [x] Vision Chat — multimodal image support:
+    - [x] OllamaLLM vision via native /api/chat with images field
+    - [x] GoogleLLM vision via inline_data Blob parts
+    - [x] AnthropicLLM vision via image content blocks
+    - [x] Image upload endpoint (POST /chat/upload-image)
+    - [x] Image paste/drag-and-drop in chat input (vision_chat.js)
+    - [x] Image preview strip with remove buttons
+    - [x] Inline image display in chat bubbles
 
 ## 3. Web Interface (100% Offline Frontend)
 - [x] ChatGPT-style web interface

@@ -124,6 +124,68 @@ PROVIDER_MODELS_STATIC = {
 }
 
 
+# ---------------------------------------------------------------------------
+# Vision / multimodal helpers
+# ---------------------------------------------------------------------------
+
+def _extract_images_from_messages(messages: list[dict]) -> list[dict]:
+    """Extract base64 images from multimodal messages.
+
+    Supports OpenAI-style content arrays:
+      [{"type": "text", "text": "..."}, {"type": "image_url", "image_url": {"url": "data:..."}}]
+
+    Also supports a simple "images" key (Ollama-native format).
+    Returns the messages list unchanged — callers should check for image content.
+    """
+    return messages
+
+
+def _has_images(messages: list[dict]) -> bool:
+    """Check if any message contains image content."""
+    for m in messages:
+        content = m.get("content")
+        if isinstance(content, list):
+            for part in content:
+                if isinstance(part, dict) and part.get("type") == "image_url":
+                    return True
+        if m.get("images"):
+            return True
+    return False
+
+
+def _extract_base64_from_data_url(data_url: str) -> tuple[str, str]:
+    """Extract (media_type, base64_data) from a data URL.
+
+    Input:  'data:image/png;base64,iVBOR...'
+    Output: ('image/png', 'iVBOR...')
+    """
+    if data_url.startswith("data:"):
+        header, b64 = data_url.split(",", 1)
+        media_type = header.split(":")[1].split(";")[0]
+        return media_type, b64
+    return "image/png", data_url  # assume raw base64
+
+
+def _messages_to_text_only(messages: list[dict]) -> list[dict]:
+    """Convert multimodal messages to text-only (for non-vision providers)."""
+    result = []
+    for m in messages:
+        content = m.get("content")
+        if isinstance(content, list):
+            text_parts = []
+            for part in content:
+                if isinstance(part, dict) and part.get("type") == "text":
+                    text_parts.append(part["text"])
+                elif isinstance(part, dict) and part.get("type") == "image_url":
+                    text_parts.append("[Image uploaded by user]")
+                elif isinstance(part, str):
+                    text_parts.append(part)
+            result.append({**m, "content": "\n".join(text_parts)})
+        else:
+            result.append(m)
+    return result
+
+
 class LLMProvider(ABC):
     """Abstract base class for all LLM providers."""
 
@@ -185,6 +247,13 @@ class OllamaLLM(LLMProvider):
             return
 
         model = model or OLLAMA_MODEL
+
+        # --- Vision support: if messages contain images, use Ollama native API ---
+        if _has_images(messages):
+            async for token in self._chat_stream_vision(messages, model, **kwargs):
+                yield token
+            return
+
         # Try the exact model name, then fall back to base:latest
         models_to_try = [model]
         if ":" in model and not model.endswith(":latest"):
@@ -224,6 +293,75 @@ class OllamaLLM(LLMProvider):
                 )
                 return
 
+    async def _chat_stream_vision(self, messages, model, **kwargs):
+        """Stream from Ollama's native /api/chat with images support."""
+        t0 = time.perf_counter()
+        tokens = 0
+
+        # Convert OpenAI-style multimodal to Ollama format
+        ollama_messages = []
+        for m in messages:
+            msg = {"role": m["role"]}
+            content = m.get("content")
+
+            if isinstance(content, list):
+                text_parts = []
+                images = []
+                for part in content:
+                    if isinstance(part, dict):
+                        if part.get("type") == "text":
+                            text_parts.append(part["text"])
+                        elif part.get("type") == "image_url":
+                            url = part.get("image_url", {}).get("url", "")
+                            _, b64 = _extract_base64_from_data_url(url)
+                            images.append(b64)
+                    elif isinstance(part, str):
+                        text_parts.append(part)
+                msg["content"] = "\n".join(text_parts) if text_parts else "Describe this image."
+                if images:
+                    msg["images"] = images
+            else:
+                msg["content"] = content or ""
+                if m.get("images"):
+                    msg["images"] = m["images"]
+
+            ollama_messages.append(msg)
+
+        # Use Ollama's native /api/chat endpoint for vision
+        headers = {"Authorization": f"Bearer {OLLAMA_API_KEY}"} if OLLAMA_API_KEY else {}
+        payload = {
+            "model": model,
+            "messages": ollama_messages,
+            "stream": True,
+        }
+
+        try:
+            async with httpx.AsyncClient(timeout=httpx.Timeout(120.0)) as client:
+                async with client.stream(
+                    "POST", f"{OLLAMA_HOST}/api/chat",
+                    json=payload, headers=headers,
+                ) as resp:
+                    async for line in resp.aiter_lines():
+                        if not line.strip():
+                            continue
+                        try:
+                            import json as _json
+                            data = _json.loads(line)
+                            chunk_text = data.get("message", {}).get("content", "")
+                            if chunk_text:
+                                tokens += 1
+                                yield chunk_text
+                            if data.get("done"):
+                                break
+                        except Exception:
+                            continue
+        except Exception as e:
+            yield f"⚠️ **Vision error:** {e}"
+            return
+
+        elapsed = time.perf_counter() - t0
+        logger.info("Ollama Vision [%s]: %d tokens in %.1fs", model, tokens, elapsed)
+
 
 class AnthropicLLM(LLMProvider):
     """Anthropic Claude API via the official anthropic SDK."""
@@ -248,9 +386,35 @@ class AnthropicLLM(LLMProvider):
         chat_messages = []
         for m in messages:
             if m["role"] == "system":
-                system_text += ("\n" if system_text else "") + m["content"]
+                content = m.get("content", "")
+                if isinstance(content, list):
+                    content = " ".join(p.get("text", "") if isinstance(p, dict) else str(p) for p in content)
+                system_text += ("\n" if system_text else "") + content
             else:
-                chat_messages.append({"role": m["role"], "content": m["content"]})
+                # Convert multimodal content for Claude vision
+                content = m.get("content", "")
+                if isinstance(content, list):
+                    claude_parts = []
+                    for part in content:
+                        if isinstance(part, dict):
+                            if part.get("type") == "text":
+                                claude_parts.append({"type": "text", "text": part["text"]})
+                            elif part.get("type") == "image_url":
+                                url = part.get("image_url", {}).get("url", "")
+                                media_type, b64 = _extract_base64_from_data_url(url)
+                                claude_parts.append({
+                                    "type": "image",
+                                    "source": {
+                                        "type": "base64",
+                                        "media_type": media_type,
+                                        "data": b64,
+                                    }
+                                })
+                        elif isinstance(part, str):
+                            claude_parts.append({"type": "text", "text": part})
+                    chat_messages.append({"role": m["role"], "content": claude_parts})
+                else:
+                    chat_messages.append({"role": m["role"], "content": content})
 
         api_kwargs = {
             "model": model,
@@ -295,12 +459,38 @@ class GoogleLLM(LLMProvider):
         contents = []
         for m in messages:
             if m["role"] == "system":
-                system_parts.append(m["content"])
+                content = m.get("content", "")
+                if isinstance(content, list):
+                    content = " ".join(p.get("text", "") if isinstance(p, dict) else str(p) for p in content)
+                system_parts.append(content)
             else:
                 role = "user" if m["role"] == "user" else "model"
-                contents.append(
-                    self._types.Content(role=role, parts=[self._types.Part(text=m["content"])])
-                )
+                content = m.get("content", "")
+
+                # Handle multimodal content (vision)
+                if isinstance(content, list):
+                    gemini_parts = []
+                    for part in content:
+                        if isinstance(part, dict):
+                            if part.get("type") == "text":
+                                gemini_parts.append(self._types.Part(text=part["text"]))
+                            elif part.get("type") == "image_url":
+                                import base64 as _b64
+                                url = part.get("image_url", {}).get("url", "")
+                                media_type, b64_data = _extract_base64_from_data_url(url)
+                                gemini_parts.append(self._types.Part(
+                                    inline_data=self._types.Blob(
+                                        mime_type=media_type,
+                                        data=_b64.b64decode(b64_data),
+                                    )
+                                ))
+                        elif isinstance(part, str):
+                            gemini_parts.append(self._types.Part(text=part))
+                    contents.append(self._types.Content(role=role, parts=gemini_parts))
+                else:
+                    contents.append(
+                        self._types.Content(role=role, parts=[self._types.Part(text=content)])
+                    )
 
         # Map OpenAI-style kwargs to Google GenerateContentConfig
         max_tokens = kwargs.pop("max_tokens", None)

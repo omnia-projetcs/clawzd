@@ -274,6 +274,10 @@ app.include_router(playbook_router, prefix="/playbook")
 from app.routers.enhance import router as enhance_router
 app.include_router(enhance_router, prefix="/api")
 
+# OpenAI-Compatible API (inference endpoint for external tools)
+from app.routers.openai_api import router as openai_api_router
+app.include_router(openai_api_router, prefix="/v1")
+
 # --- In-memory SSE queues per session ---
 _sse_queues: dict[str, asyncio.Queue] = {}
 _arena_queues: dict[str, asyncio.Queue] = {}
@@ -464,6 +468,9 @@ async def _process_chat(session_id: str, data: dict) -> dict:
     active_file = data.get("active_file")
     rag_mode = data.get("rag_mode", False)
 
+    # Vision chat: extract uploaded images (data URLs)
+    chat_images = data.get("images", [])  # list of data URLs
+
     # Ensure session exists
     session = get_session(session_id)
     if not session:
@@ -492,7 +499,7 @@ async def _process_chat(session_id: str, data: dict) -> dict:
     model_key = model_key or session.get("model", "")
     preprompt_key = preprompt_key or session.get("preprompt", "none")
 
-    # Save user message
+    # Save user message (text only in DB — images are transient per-request)
     add_message(session_id, "user", user_msg)
 
     # Auto-title from first message
@@ -531,10 +538,22 @@ async def _process_chat(session_id: str, data: dict) -> dict:
     if system_prompt:
         llm_messages.append({"role": "system", "content": system_prompt})
     for i, m in enumerate(messages):
+        is_last_user_msg = (i == len(messages) - 1 and m["role"] == "user")
+
         # Apply L1B3RT4S jailbreak wrapper to the last user message if jailbreak mode is active
-        if preprompt_key == "jailbreak" and i == len(messages) - 1 and m["role"] == "user":
+        if preprompt_key == "jailbreak" and is_last_user_msg:
             wrapped_content = get_jailbreak_wrapper(model_key, m["content"], provider_key)
             llm_messages.append({"role": m["role"], "content": wrapped_content})
+        elif is_last_user_msg and chat_images:
+            # Vision chat: build multimodal content with text + images
+            content_parts = [{"type": "text", "text": m["content"]}]
+            for img_url in chat_images:
+                if isinstance(img_url, str) and img_url.startswith("data:"):
+                    content_parts.append({
+                        "type": "image_url",
+                        "image_url": {"url": img_url},
+                    })
+            llm_messages.append({"role": m["role"], "content": content_parts})
         else:
             llm_messages.append({"role": m["role"], "content": m["content"]})
 
@@ -1347,6 +1366,33 @@ async def send_message(session_id: str, request: Request):
     """Send a user message and trigger LLM response generation (HTTP)."""
     data = await request.json()
     return await _process_chat(session_id, data)
+
+
+@app.post("/chat/upload-image")
+async def chat_upload_image(file: UploadFile = File(...)):
+    """Upload an image for use in vision chat.
+
+    Returns a base64 data URL that can be embedded in a multimodal message.
+    """
+    if not file.content_type or not file.content_type.startswith("image/"):
+        raise HTTPException(400, "Only image files are accepted")
+
+    import base64
+    content = await file.read()
+
+    # Limit image size to 10 MB
+    if len(content) > 10 * 1024 * 1024:
+        raise HTTPException(413, "Image too large (max 10 MB)")
+
+    b64 = base64.b64encode(content).decode("utf-8")
+    data_url = f"data:{file.content_type};base64,{b64}"
+
+    return {
+        "data_url": data_url,
+        "filename": file.filename,
+        "content_type": file.content_type,
+        "size_bytes": len(content),
+    }
 
 
 # --- WebSocket chat endpoint ---

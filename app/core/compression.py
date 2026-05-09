@@ -56,6 +56,28 @@ _MEDIA_MARKER_RE = re.compile(
     re.DOTALL,
 )
 
+
+def _content_as_str(content) -> str:
+    """Safely convert message content to a string.
+
+    Handles both plain strings and OpenAI-style multimodal content arrays
+    (list of {type: text/image_url} dicts).
+    """
+    if isinstance(content, str):
+        return content
+    if isinstance(content, list):
+        parts = []
+        for part in content:
+            if isinstance(part, dict):
+                if part.get("type") == "text":
+                    parts.append(part.get("text", ""))
+                elif part.get("type") == "image_url":
+                    parts.append("[image]")
+            elif isinstance(part, str):
+                parts.append(part)
+        return "\n".join(parts)
+    return str(content) if content else ""
+
 # Handoff prefix for compaction summaries
 SUMMARY_PREFIX = (
     "[CONTEXT COMPACTION — REFERENCE ONLY] Earlier turns were compacted "
@@ -116,7 +138,7 @@ def _estimate_messages_tokens(messages: list[dict]) -> int:
     """Estimate total tokens across a list of messages."""
     total = 0
     for m in messages:
-        total += estimate_tokens(m.get("content", ""))
+        total += estimate_tokens(_content_as_str(m.get("content", "")))
         total += 10  # overhead per message (role, separators)
     return total
 
@@ -157,7 +179,7 @@ def _serialize_for_summary(turns: list[dict]) -> str:
 
     for msg in turns:
         role = msg.get("role", "unknown")
-        content = msg.get("content") or ""
+        content = _content_as_str(msg.get("content") or "")
 
         if len(content) > _CONTENT_MAX:
             content = (
@@ -192,7 +214,7 @@ async def compress_messages(
 
     # Pre-clean: strip base64 and truncate all non-system messages
     messages = [
-        {**m, "content": _clean_message_content(m["content"])}
+        {**m, "content": _clean_message_content(_content_as_str(m["content"]))}
         if m["role"] != "system" else m
         for m in messages
     ]
@@ -209,7 +231,7 @@ async def compress_messages(
     threshold_tokens = max_chars // _CHARS_PER_TOKEN
 
     if len(conversation) <= max_messages:
-        total_chars = sum(len(m.get("content", "")) for m in conversation)
+        total_chars = sum(len(_content_as_str(m.get("content", ""))) for m in conversation)
         if total_chars <= max_chars:
             return messages  # No compression needed
 

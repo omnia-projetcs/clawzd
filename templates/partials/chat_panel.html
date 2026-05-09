@@ -57,6 +57,8 @@
   <!-- ======== Redesigned Chat Input (Claude-style) ======== -->
   <div class="chat-input-area" id="chat-input-area">
     <div class="chat-input-wrapper">
+      <!-- Vision: image preview strip (shown when images are queued) -->
+      <div class="chat-image-preview" id="chat-image-preview" style="display:none"></div>
       <!-- Main text row -->
       <div class="input-text-row">
         <textarea class="chat-input"
@@ -76,6 +78,16 @@
                  id="chat-file-input"
                  multiple
                  accept=".txt,.md,.py,.js,.ts,.html,.css,.json,.csv,.xml,.yaml,.yml,.sh,.sql,.go,.rs,.java,.c,.cpp,.rb,.php,.log,.env,.toml,.ini,.png,.jpg,.jpeg,.gif,.webp,.pdf,.docx,.pptx,.xlsx"
+                 hidden>
+          <button class="input-tool-btn" id="btn-vision-upload" title="Upload image for Vision chat">
+            <svg class="ic" width="16" height="16">
+              <use href="#icon-image"></use>
+            </svg>
+          </button>
+          <input type="file"
+                 id="chat-vision-input"
+                 multiple
+                 accept="image/png,image/jpeg,image/gif,image/webp,.png,.jpg,.jpeg,.gif,.webp"
                  hidden>
           <!-- Action Mode Select -->
           <select class="action-mode-select" id="action-mode-select" title="Chat Mode">
