@@ -493,30 +493,6 @@ Ask the AI naturally and it will create the skill for you:
 
 The LLM auto-detects the request, generates the Python code, writes it to `data/skills/`, and hot-loads it into the registry.
 
-#### Via the API
-
-```bash
-# Create with auto-generated template
-curl -X POST http://localhost:8888/skills/create \
-  -H "Content-Type: application/json" \
-  -d '{
-    "name": "crypto_tracker",
-    "description": "Track cryptocurrency prices in real-time",
-    "category": "data",
-    "parameters": ["symbol", "currency"],
-    "triggers": ["(?i)\\bcrypto|bitcoin|eth\\b"]
-  }'
-
-# Create with custom code
-curl -X POST http://localhost:8888/skills/create \
-  -H "Content-Type: application/json" \
-  -d '{
-    "name": "my_tool",
-    "description": "My custom tool",
-    "category": "other",
-    "code": "... full Python source code ..."
-  }'
-```
 
 Every skill must inherit from `BaseSkill` and implement an async `execute()` method. See `/skills/template` for a starter template.
 
@@ -526,22 +502,10 @@ The **Skill Rebuilder** uses the LLM to analyze and improve existing skills base
 
 #### Via the Chat
 
-> "Rebuild the crypto_tracker skill to add retry logic for network errors"
+> "Rebuild the utopia skill to add retry logic for network errors"
 
 The AI detects the rebuild intent and triggers the process automatically.
 
-#### Via the API
-
-```bash
-# Rebuild with specific instruction
-curl -X POST http://localhost:8888/skills/rebuild/crypto_tracker \
-  -H "Content-Type: application/json" \
-  -d '{"instruction": "add retry logic and better error handling"}'
-
-# Rebuild without instruction (auto-improve from error history)
-curl -X POST http://localhost:8888/skills/rebuild/crypto_tracker \
-  -H "Content-Type: application/json" -d '{}'
-```
 
 #### Safety Mechanisms
 
@@ -575,21 +539,6 @@ stateDiagram-v2
 
 Background maintenance runs every 6 hours to apply state transitions automatically.
 
-#### Lifecycle API
-
-```bash
-# Pin a skill (prevent auto-archive)
-curl -X POST http://localhost:8888/skills/pin/crypto_tracker
-
-# Unpin a skill
-curl -X POST http://localhost:8888/skills/unpin/crypto_tracker
-
-# Manually archive a skill
-curl -X POST http://localhost:8888/skills/archive/old_skill
-
-# Restore from archive
-curl -X POST http://localhost:8888/skills/restore/old_skill
-```
 
 ### Monitoring & Health
 
@@ -597,8 +546,6 @@ curl -X POST http://localhost:8888/skills/restore/old_skill
 # Full health report (all skills with usage stats, states, error rates)
 curl http://localhost:8888/skills/health
 
-# Usage history for a specific skill
-curl http://localhost:8888/skills/usage/crypto_tracker
 ```
 
 The health report includes:
@@ -658,108 +605,6 @@ Clawzd/
 ├── workspace/               # User workspace for file operations
 └── chroma_db/               # ChromaDB vector store
 ```
-
----
-
-## 🔌 API Reference
-
-All endpoints are served from `http://localhost:8888`.
-
-### Core
-
-| Method | Endpoint | Description |
-|--------|----------|-------------|
-| `GET` | `/` | Main web interface |
-| `POST` | `/send/{session_id}` | Send message + trigger LLM |
-| `GET` | `/stream/{session_id}` | SSE token stream |
-| `GET` | `/health` | Health check with dependency status |
-| `GET` | `/api/providers` | List LLM providers & models |
-| `GET` | `/api/preprompts` | List pre-prompt templates |
-| `GET` | `/api/metrics` | System & request metrics |
-| `GET` | `/api/llm-status` | Ollama connection status |
-
-### Tools
-
-| Prefix | Endpoints | Module |
-|--------|-----------|--------|
-| `/chat` | Sessions CRUD | `chat.py` |
-| `/profile` | Profiles CRUD | `profiles.py` |
-| `/code` | `/execute`, `/audit`, `/audit/report/{id}` | `tools_code.py` |
-| `/web` | `/search` | `tools_web.py` |
-| `/local` | Whitelisted shell commands | `tools_local.py` |
-| `/quality` | `/validate`, `/feedback` | `tools_quality.py` |
-| `/rag` | `/add`, `/search`, `/stats` | `rag.py` |
-| `/improve` | Self-improvement module | `improvement.py` |
-| `/agent` | `/execute` | `agent_core.py` |
-| `/api` | `/settings`, `/memory`, `/enhance` | `settings.py, memory.py, enhance.py` |
-| `/screenshot` | `/local`, `/remote` | `tools_screenshot.py` |
-| `/image` | `/generate`, `/gallery` | `tools_image.py` |
-| `/audio` | Audio tools | `tools_audio.py` |
-| `/browser` | `/navigate`, `/click`, `/type`, `/extract` | `tools_browser.py` |
-| `/cron` | `/jobs` CRUD, `/toggle` | `tools_cron.py` |
-| `/skills` | `/create`, `/list`, `/rebuild`, `/pin` | `tools_skills.py` |
-| `/document` | Document operations | `tools_document.py` |
-| `/telegram` | `/webhook` | `integrations_telegram.py` |
-| `/models` | `/list`, `/pull`, `/delete`, `/status` | `model_manager.py` |
-| `/presentation` | Presentation tools | `tools_presentation.py` |
-| `/automation` | Automation tools | `tools_automation.py` |
-| `/docgen` | Document generation | `tools_document_gen.py` |
-| `/research` | Research tools | `tools_research.py` |
-| `/twitter` | Twitter integrations | `tools_twitter.py` |
-| `/project` | Project and task management | `tools_project.py` |
-| `/spec` | Specifications tools | `tools_spec.py` |
-| `/agents` | Agent dispatch | `agent_dispatch.py` |
-| `/playbook` | Playbook engine | `playbook_engine.py` |
-
-### Agentic / Plugins
-
-| Method | Endpoint | Description |
-|--------|----------|-------------|
-| `GET` | `/plugins` | List all plugins |
-| `GET/POST` | `/plugins/{name}` | Get/toggle plugin |
-| `GET` | `/replays` | List replay sessions |
-| `GET` | `/replays/{id}` | Get full replay |
-| `GET` | `/replays/{id}/summary` | Replay analytics |
-| `GET` | `/replays/{id}/workflow` | Export as workflow |
-| `DELETE` | `/replays/{id}` | Delete replay |
-| `POST` | `/apps` | Create mini-app |
-| `GET` | `/apps` | List apps |
-| `GET` | `/apps/templates` | Starter templates |
-| `GET` | `/apps/{id}/meta` | App metadata |
-| `GET` | `/apps/{id}/preview` | Live HTML preview |
-| `PUT` | `/apps/{id}` | Update app files |
-| `DELETE` | `/apps/{id}` | Delete app |
-| `GET` | `/dashboard/metrics` | System health metrics |
-| `GET` | `/artifacts` | List artifacts |
-| `POST` | `/artifacts/{id}/pin` | Pin artifact |
-| `DELETE` | `/artifacts/{id}` | Delete artifact |
-| `GET` | `/uploads` | List uploaded files |
-| `GET` | `/notifications` | Recent notifications |
-
----
-
-## 🔗 Integrations
-
-### Discord Bot
-
-1. Create a bot at [Discord Developer Portal](https://discord.com/developers/applications)
-2. Enable **Message Content Intent**
-3. Add to `.env`:
-   ```bash
-   DISCORD_BOT_TOKEN=your-bot-token
-   DISCORD_CHANNEL_IDS=channel_id_1,channel_id_2
-   ```
-4. Restart Clawzd — the bot starts automatically
-
-### Telegram Bot
-
-1. Create a bot via [@BotFather](https://t.me/BotFather) on Telegram
-2. Set webhook URL: `https://your-domain/telegram/webhook`
-3. Add to `.env`:
-   ```bash
-   TELEGRAM_BOT_TOKEN=your-bot-token
-   TELEGRAM_ALLOWED_IDS=your-user-id  # Optional: Comma-separated allowlist
-   ```
 
 ---
 
