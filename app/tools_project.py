@@ -320,8 +320,8 @@ Return ONLY valid JSON matching this schema:
 }
 
 Priority values: "critical", "high", "medium", "low"
-Status values must match one of the columns.
-Generate 8-15 realistic tasks with varied statuses, priorities, and assignees.
+Status values must be "To Do".
+Generate 8-15 realistic tasks with varied priorities, and assignees.
 Use realistic dates starting from today. Include logical task dependencies.
 Assign tasks across team members. Estimate hours and costs realistically.
 Return ONLY the JSON, no markdown fences, no extra text."""
