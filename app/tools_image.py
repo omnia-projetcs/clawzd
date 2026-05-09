@@ -79,7 +79,6 @@ except Exception:
 # NOTE: Only free open-weights models from Hugging Face are allowed here.
 _IMAGE_STYLE_MODELS = {
     "none": {"repo": "black-forest-labs/FLUX.2-klein-9B", "is_lora": False},
-    "flux_schnell": {"repo": "black-forest-labs/FLUX.1-schnell", "is_lora": False},
     "flux2_klein": {"repo": "black-forest-labs/FLUX.2-klein-9B", "is_lora": False},
     "photorealistic": {"repo": "RunDiffusion/Juggernaut-XL-v9", "is_lora": False},
     "realvis": {"repo": "SG161222/RealVisXL_V4.0", "is_lora": False},
@@ -1370,12 +1369,6 @@ async def generate_image_core(
                     steps = 12
                     guidance = 5.0
                     logger.info(f"Adjusted steps={steps} and guidance={guidance} for non-Turbo model {repo_id}")
-
-            # FLUX.1-schnell REQUIRES guidance_scale=0.0 (distilled model, no CFG)
-            if "flux" in repo_id.lower() and "schnell" in repo_id.lower():
-                guidance = 0.0
-                steps = min(steps, 4)
-                logger.info(f"FLUX.1-schnell: forcing guidance=0.0, steps={steps}")
 
             # FLUX.2 Klein: fast distilled model, guidance=0.0, 4 steps max
             if "flux.2" in repo_id.lower() and "klein" in repo_id.lower():
