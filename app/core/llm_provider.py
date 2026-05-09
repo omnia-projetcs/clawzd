@@ -14,6 +14,7 @@ import openai
 from config import (
     OLLAMA_HOST,
     OLLAMA_MODEL,
+    OLLAMA_API_KEY,
     ANTHROPIC_API_KEY,
     GOOGLE_API_KEY,
     GROK_API_KEY,
@@ -30,8 +31,9 @@ logger = logging.getLogger("clawzd.llm")
 async def _get_local_models() -> list[dict]:
     """Build local model list dynamically from Ollama."""
     try:
+        headers = {"Authorization": f"Bearer {OLLAMA_API_KEY}"} if OLLAMA_API_KEY else {}
         async with httpx.AsyncClient() as client:
-            resp = await client.get(f"{OLLAMA_HOST}/api/tags", timeout=3)
+            resp = await client.get(f"{OLLAMA_HOST}/api/tags", timeout=3, headers=headers)
         if resp.status_code == 200:
             data = resp.json()
             models = []
@@ -139,7 +141,7 @@ class OllamaLLM(LLMProvider):
     def __init__(self):
         self.client = openai.AsyncOpenAI(
             base_url=f"{OLLAMA_HOST}/v1",
-            api_key="ollama",  # required but ignored by Ollama
+            api_key=OLLAMA_API_KEY or "ollama",  # use configured key, or dummy for local Ollama
         )
 
     # Cached health-check state (avoid HTTP call on every inference)
@@ -153,8 +155,9 @@ class OllamaLLM(LLMProvider):
         if self._health_cache["ok"] and now - self._health_cache["ts"] < self._HEALTH_TTL:
             return True
         try:
+            headers = {"Authorization": f"Bearer {OLLAMA_API_KEY}"} if OLLAMA_API_KEY else {}
             async with httpx.AsyncClient() as client:
-                resp = await client.get(f"{OLLAMA_HOST}/api/tags", timeout=2.0)
+                resp = await client.get(f"{OLLAMA_HOST}/api/tags", timeout=2.0, headers=headers)
             alive = resp.status_code == 200
         except Exception:
             alive = False

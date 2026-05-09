@@ -179,14 +179,14 @@ git https://github.com/omnia-projetcs/clawsd.git
 cd clawsd
 
 # 2. Run the install script (creates venv, installs Ollama, deps, model, assets)
-chmod +x install.sh
+chmod +x *.sh
 ./install.sh
 
-# 3. Configure your API keys (optional, for cloud providers)
+# 3. Configure your API keys (optional, for cloud providers, you can use the setting menu too)
 nano .env
 
-# 4. Launch
-./run.sh
+# 4. Update 
+./update.sh
 ```
 
 Then open **http://localhost:8888** in your browser.
@@ -306,6 +306,155 @@ DEBUG=false
 | **Groq** | `GROQ_API_KEY` | ✅ | 8K–128K |
 | **Mistral** | `MISTRAL_API_KEY` | Limited | 8K–32K |
 | **Google Gemini** | `GOOGLE_API_KEY` | ✅ | Up to 1M |
+| **Anthropic Claude** | `ANTHROPIC_API_KEY` | ❌ Pay-as-you-go | 200K |
+| **Grok (xAI)** | `GROK_API_KEY` | ✅ (limited) | 128K |
+| **HuggingFace** | `HUGGINGFACE_API_KEY` | ✅ | Model-dependent |
+| **Tavily** | `TAVILY_API_KEY` | ✅ (1000 req/mo) | — (Search API) |
+
+### 🔑 API Keys & Tokens — How to Get Them
+
+Below is the step-by-step process for every provider. Click the links to go directly to the token creation page.
+
+---
+
+#### Ollama (Local — No Token Required)
+
+Ollama runs locally on your machine. **No API key or subscription is needed.**
+
+1. Install: `curl -fsSL https://ollama.com/install.sh | sh`
+2. Pull a model: `ollama pull qwen3.5:9b`
+3. It's ready — Clawzd connects automatically via `OLLAMA_HOST`.
+
+> 💡 Set `OLLAMA_API_KEY` only if you use a remote/secured Ollama instance.
+
+---
+
+#### OpenAI
+
+| | |
+|---|---|
+| **Subscription** | Pay-as-you-go (credit-based). Free $5 trial credit for new accounts. |
+| **Create Token** | [platform.openai.com/api-keys](https://platform.openai.com/api-keys) |
+
+1. Sign up or log in at [platform.openai.com](https://platform.openai.com/)
+2. Go to **API Keys** → **Create new secret key**
+3. Copy the key (starts with `sk-...`)
+4. Paste into `.env`: `OPENAI_API_KEY=sk-...`
+
+---
+
+#### Google Gemini
+
+| | |
+|---|---|
+| **Subscription** | ✅ Free tier available (15 RPM). Pay-as-you-go for higher limits. |
+| **Create Token** | [aistudio.google.com/apikey](https://aistudio.google.com/apikey) |
+
+1. Sign in with your Google account at [Google AI Studio](https://aistudio.google.com/)
+2. Click **Get API key** → **Create API key**
+3. Select or create a Google Cloud project
+4. Copy the key (starts with `AIzaSy...`)
+5. Paste into `.env`: `GOOGLE_API_KEY=AIzaSy...`
+
+---
+
+#### Anthropic (Claude)
+
+| | |
+|---|---|
+| **Subscription** | ❌ Pay-as-you-go only. No free tier. Requires billing setup. |
+| **Create Token** | [console.anthropic.com/settings/keys](https://console.anthropic.com/settings/keys) |
+
+1. Sign up at [console.anthropic.com](https://console.anthropic.com/)
+2. Add a payment method in **Settings → Billing**
+3. Go to **Settings → API Keys** → **Create Key**
+4. Copy the key (starts with `sk-ant-...`)
+5. Paste into `.env`: `ANTHROPIC_API_KEY=sk-ant-...`
+
+---
+
+#### Groq
+
+| | |
+|---|---|
+| **Subscription** | ✅ Free tier available (30 RPM, 14,400 req/day). Paid plans for higher limits. |
+| **Create Token** | [console.groq.com/keys](https://console.groq.com/keys) |
+
+1. Sign up at [console.groq.com](https://console.groq.com/)
+2. Go to **API Keys** → **Create API Key**
+3. Copy the key (starts with `gsk_...`)
+4. Paste into `.env`: `GROQ_API_KEY=gsk_...`
+
+---
+
+#### Mistral
+
+| | |
+|---|---|
+| **Subscription** | ✅ Limited free tier available. Pay-as-you-go for full access. |
+| **Create Token** | [console.mistral.ai/api-keys](https://console.mistral.ai/api-keys) |
+
+1. Sign up at [console.mistral.ai](https://console.mistral.ai/)
+2. Go to **API Keys** → **Create new key**
+3. Copy the key
+4. Paste into `.env`: `MISTRAL_API_KEY=...`
+
+---
+
+#### Grok (xAI)
+
+| | |
+|---|---|
+| **Subscription** | ✅ Free tier with $25/month free credits. Pay-as-you-go beyond that. |
+| **Create Token** | [console.x.ai/team/default/api-keys](https://console.x.ai/team/default/api-keys) |
+
+1. Sign up at [console.x.ai](https://console.x.ai/)
+2. Go to **API Keys** → **Create new key**
+3. Copy the key (starts with `xai-...`)
+4. Paste into `.env`: `GROK_API_KEY=xai-...`
+
+---
+
+#### OpenRouter
+
+| | |
+|---|---|
+| **Subscription** | ✅ Free models available. Pay-as-you-go for premium models. |
+| **Create Token** | [openrouter.ai/settings/keys](https://openrouter.ai/settings/keys) |
+
+1. Sign up at [openrouter.ai](https://openrouter.ai/)
+2. Go to **Settings → Keys** → **Create Key**
+3. Copy the key (starts with `sk-or-...`)
+4. Paste into `.env`: `OPENROUTER_API_KEY=sk-or-...`
+
+---
+
+#### HuggingFace
+
+| | |
+|---|---|
+| **Subscription** | ✅ Free tier available. PRO subscription ($9/mo) for priority access. |
+| **Create Token** | [huggingface.co/settings/tokens](https://huggingface.co/settings/tokens) |
+
+1. Sign up at [huggingface.co](https://huggingface.co/)
+2. Go to **Settings → Access Tokens** → **New token**
+3. Select scope: `read` (minimum) or `write` if needed
+4. Copy the token (starts with `hf_...`)
+5. Paste into `.env`: `HUGGINGFACE_API_KEY=hf_...`
+
+---
+
+#### Tavily (Web Search)
+
+| | |
+|---|---|
+| **Subscription** | ✅ Free tier: 1,000 searches/month. Paid plans from $50/mo. |
+| **Create Token** | [app.tavily.com/home](https://app.tavily.com/home) |
+
+1. Sign up at [app.tavily.com](https://app.tavily.com/)
+2. Your API key is displayed on the dashboard
+3. Copy the key (starts with `tvly-...`)
+4. Paste into `.env`: `TAVILY_API_KEY=tvly-...`
 
 ---
 

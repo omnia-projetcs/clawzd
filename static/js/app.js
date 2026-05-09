@@ -4206,10 +4206,90 @@
 
       let tableHtml = `<div style="display:flex; flex-direction:column; gap:24px;">`;
 
+      // Provider documentation for help links in the env modal
+      const PROVIDER_DOCS = {
+        ANTHROPIC: {
+          name: 'Anthropic (Claude)',
+          url: 'https://console.anthropic.com/settings/keys',
+          subscription: '❌ Pay-as-you-go only — no free tier. Requires billing setup.',
+          keyFormat: 'sk-ant-...'
+        },
+        GOOGLE: {
+          name: 'Google Gemini',
+          url: 'https://aistudio.google.com/apikey',
+          subscription: '✅ Free tier available (15 RPM). Pay-as-you-go for higher limits.',
+          keyFormat: 'AIzaSy...'
+        },
+        GROK: {
+          name: 'Grok (xAI)',
+          url: 'https://console.x.ai/team/default/api-keys',
+          subscription: '✅ Free tier with $25/month free credits.',
+          keyFormat: 'xai-...'
+        },
+        GROQ: {
+          name: 'Groq',
+          url: 'https://console.groq.com/keys',
+          subscription: '✅ Free tier available (30 RPM, 14,400 req/day).',
+          keyFormat: 'gsk_...'
+        },
+        HUGGINGFACE: {
+          name: 'HuggingFace',
+          url: 'https://huggingface.co/settings/tokens',
+          subscription: '✅ Free tier available. PRO ($9/mo) for priority access.',
+          keyFormat: 'hf_...'
+        },
+        MISTRAL: {
+          name: 'Mistral',
+          url: 'https://console.mistral.ai/api-keys',
+          subscription: '✅ Limited free tier. Pay-as-you-go for full access.',
+          keyFormat: ''
+        },
+        OLLAMA: {
+          name: 'Ollama (Local)',
+          url: 'https://ollama.com/',
+          subscription: '✅ Free & self-hosted. No API key needed (unless remote instance).',
+          keyFormat: ''
+        },
+        OPENAI: {
+          name: 'OpenAI',
+          url: 'https://platform.openai.com/api-keys',
+          subscription: 'Pay-as-you-go. Free $5 trial credit for new accounts.',
+          keyFormat: 'sk-...'
+        },
+        OPENROUTER: {
+          name: 'OpenRouter',
+          url: 'https://openrouter.ai/settings/keys',
+          subscription: '✅ Free models available. Pay-as-you-go for premium models.',
+          keyFormat: 'sk-or-...'
+        },
+        TAVILY: {
+          name: 'Tavily (Web Search)',
+          url: 'https://app.tavily.com/home',
+          subscription: '✅ Free: 1,000 searches/month. Paid plans from $50/mo.',
+          keyFormat: 'tvly-...'
+        }
+      };
+
       for (const [groupName, groupKeys] of Object.entries(groups).sort()) {
+        const doc = PROVIDER_DOCS[groupName];
+        const helpRow = doc ? `
+          <div style="padding:8px 10px; margin-bottom:6px; background:var(--bg-elevated); border-radius:6px; border-left:3px solid var(--accent); font-size:11px; line-height:1.6; color:var(--text-muted);">
+            <div style="margin-bottom:2px;">
+              <span>${doc.subscription}</span>
+            </div>
+            <div>
+              <a href="${doc.url}" target="_blank" rel="noopener noreferrer" style="color:var(--accent); text-decoration:underline; font-weight:500;">
+                🔑 Get your ${doc.name} API key →
+              </a>
+              ${doc.keyFormat ? `<span style="margin-left:8px; opacity:0.7;">Format: <code style="font-size:10px; padding:1px 4px; background:var(--bg-default); border-radius:3px;">${doc.keyFormat}</code></span>` : ''}
+            </div>
+          </div>
+        ` : '';
+
         tableHtml += `
           <div>
             <h3 style="font-size:13px; color:var(--text-primary); margin-bottom:8px; border-bottom:1px solid var(--border); padding-bottom:4px;">${groupName}</h3>
+            ${helpRow}
             <table style="width:100%; border-collapse:collapse; font-size:12px; text-align:left;">
               <tbody>
         `;

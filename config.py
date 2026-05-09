@@ -19,6 +19,7 @@ GROK_API_KEY = os.getenv("GROK_API_KEY", "")
 GROQ_API_KEY = os.getenv("GROQ_API_KEY", "")
 HUGGINGFACE_API_KEY = os.getenv("HUGGINGFACE_API_KEY", "")
 MISTRAL_API_KEY = os.getenv("MISTRAL_API_KEY", "")
+OLLAMA_API_KEY = os.getenv("OLLAMA_API_KEY", "")
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY", "")
 OPENROUTER_API_KEY = os.getenv("OPENROUTER_API_KEY", "")
 TAVILY_API_KEY = os.getenv("TAVILY_API_KEY", "")
@@ -28,6 +29,9 @@ OLLAMA_HOST = os.getenv("OLLAMA_HOST", "http://localhost:11434")
 OLLAMA_MODEL = os.getenv("OLLAMA_MODEL", "qwen3.5:9b")
 OLLAMA_NUM_GPU = int(os.getenv("OLLAMA_NUM_GPU", "999"))  # 999 = all layers on GPU (100% VRAM)
 OLLAMA_NUM_CTX = int(os.getenv("OLLAMA_NUM_CTX", "-1"))    # -1 = max context window
+
+# Expose Ollama settings so the ollama client library picks them up natively
+os.environ.setdefault("OLLAMA_HOST", OLLAMA_HOST)
 
 # --- Application Paths ---
 CHROMA_DB_PATH = os.getenv("CHROMA_DB_PATH", str(BASE_DIR / "chroma_db"))
@@ -45,6 +49,10 @@ MODELS_DIR = os.getenv("MODELS_DIR", str(BASE_DIR / "models"))
 
 # Force Hugging Face to store models in our MODELS_DIR
 os.environ["HF_HOME"] = MODELS_DIR
+
+# Expose HUGGINGFACE_API_KEY as HF_TOKEN so huggingface_hub authenticates natively
+if HUGGINGFACE_API_KEY and not os.environ.get("HF_TOKEN"):
+    os.environ["HF_TOKEN"] = HUGGINGFACE_API_KEY
 
 # --- Security ---
 API_SECRET_TOKEN = os.getenv("API_SECRET_TOKEN", "")  # empty = no auth

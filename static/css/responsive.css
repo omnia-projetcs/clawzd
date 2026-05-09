@@ -11,16 +11,43 @@
   }
   .sidebar .sidebar-label,
   .sidebar .sidebar-search,
-  .sidebar .session-list-label,
-  .sidebar .session-item-text {
+  .sidebar .sidebar-tab span,
+  .sidebar .btn span,
+  .sidebar .session-title,
+  .sidebar .session-time,
+  .sidebar .session-delete,
+  .sidebar .file-tree-dir .dir-name,
+  .sidebar .file-tree-item .file-name,
+  .sidebar .file-tree-item .file-delete,
+  .sidebar .file-tree-dir .dir-arrow {
     display: none;
   }
-  .sidebar .sidebar-item {
+  .sidebar .sidebar-tab,
+  .sidebar .session-item,
+  .sidebar .file-tree-dir,
+  .sidebar .file-tree-item {
     justify-content: center;
     padding: 10px 0;
   }
-  .sidebar .sidebar-item .ic {
+  .sidebar .sidebar-tab .ic,
+  .sidebar .session-item .ic,
+  .sidebar .file-tree-dir .dir-icon,
+  .sidebar .file-tree-item .file-icon {
     margin: 0;
+  }
+  .sidebar .sidebar-panel-header {
+    justify-content: center;
+    padding: 12px 6px;
+  }
+  .sidebar .sidebar-footer {
+    padding: 10px 6px;
+  }
+  /* Mode toggle compact on tablet too to avoid overlap */
+  .mode-toggle .mode-btn span:not(.ic) {
+    display: none;
+  }
+  .mode-toggle .mode-btn {
+    padding: 6px;
   }
 
   /* Narrower editor panels */
@@ -59,9 +86,45 @@
   }
   .sidebar:not(.collapsed) .sidebar-label,
   .sidebar:not(.collapsed) .sidebar-search,
-  .sidebar:not(.collapsed) .session-list-label,
-  .sidebar:not(.collapsed) .session-item-text {
+  .sidebar:not(.collapsed) .sidebar-tab span,
+  .sidebar:not(.collapsed) .btn span,
+  .sidebar:not(.collapsed) .session-title,
+  .sidebar:not(.collapsed) .session-time,
+  .sidebar:not(.collapsed) .session-delete,
+  .sidebar:not(.collapsed) .file-tree-dir .dir-name,
+  .sidebar:not(.collapsed) .file-tree-item .file-name,
+  .sidebar:not(.collapsed) .file-tree-item .file-delete,
+  .sidebar:not(.collapsed) .file-tree-dir .dir-arrow {
     display: revert;
+  }
+  .sidebar:not(.collapsed) .sidebar-tab {
+    justify-content: flex-start;
+    padding: 10px;
+  }
+  .sidebar:not(.collapsed) .session-item {
+    justify-content: flex-start;
+    padding: 10px 12px;
+  }
+  .sidebar:not(.collapsed) .file-tree-dir {
+    justify-content: flex-start;
+    padding: 5px 12px;
+  }
+  .sidebar:not(.collapsed) .file-tree-item {
+    justify-content: flex-start;
+    padding: 5px 12px 5px 16px;
+  }
+  .sidebar:not(.collapsed) .sidebar-tab .ic,
+  .sidebar:not(.collapsed) .session-item .ic,
+  .sidebar:not(.collapsed) .file-tree-dir .dir-icon,
+  .sidebar:not(.collapsed) .file-tree-item .file-icon {
+    margin: 0;
+  }
+  .sidebar:not(.collapsed) .sidebar-panel-header {
+    justify-content: space-between;
+    padding: 12px;
+  }
+  .sidebar:not(.collapsed) .sidebar-footer {
+    padding: 10px 12px;
   }
   .sidebar.collapsed {
     transform: translateX(-100%);
@@ -69,7 +132,7 @@
   }
 
   /* Header adjustments */
-  .header {
+  .app-header {
     padding: 0 12px;
     height: 48px;
   }
@@ -224,10 +287,10 @@
 
 /* ── Small phone (≤ 480px) ─────────── */
 @media (max-width: 480px) {
-  .header h1 {
+  .app-header h1 {
     font-size: 14px;
   }
-  .header-logo-text {
+  .app-logo-text {
     display: none;
   }
 
