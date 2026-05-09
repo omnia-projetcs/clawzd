@@ -76,6 +76,16 @@ _hf_download_state = {
     "repo": "",
 }
 
+# Shared generation progress state (image / video / audio)
+_generation_progress = {
+    "active": False,
+    "type": "",       # 'image', 'video', 'audio'
+    "step": 0,
+    "total_steps": 0,
+    "progress": 0.0,  # 0-100
+    "stage": "",      # e.g. 'loading_model', 'generating', 'encoding'
+}
+
 
 def _should_use_local_files(repo_id: str) -> bool:
     import os
@@ -1355,6 +1365,13 @@ async def generate_image_core(
                 logger.info(f"Qwen-Image-Edit-2511: true_cfg_scale=4.0, steps={steps}")
 
             def step_callback(p, step_index, timestep, callback_kwargs):
+                global _generation_progress
+                pct = min(100.0, ((step_index + 1) / max(steps, 1)) * 100)
+                _generation_progress = {
+                    "active": True, "type": "image",
+                    "step": step_index + 1, "total_steps": steps,
+                    "progress": pct, "stage": "generating",
+                }
                 if stream_queue is not None:
                     latents = callback_kwargs.get("latents")
                     if latents is not None:
@@ -1380,9 +1397,11 @@ async def generate_image_core(
                                 image.thumbnail((512, 512))
                                 image.save(buf, format="JPEG", quality=60)
                                 b64 = base64.b64encode(buf.getvalue()).decode()
-                                stream_queue.put({"status": "generating", "step": step_index, "base64": b64})
+                                stream_queue.put({"status": "generating", "step": step_index, "progress": pct, "base64": b64})
                         except Exception as e:
                             logger.warning(f"Stream preview error: {e}")
+                    else:
+                        stream_queue.put({"status": "generating", "step": step_index, "progress": pct})
                 return callback_kwargs
 
             import asyncio
@@ -1464,6 +1483,7 @@ async def generate_image_core(
             with open(filepath, "rb") as f:
                 b64 = base64.b64encode(f.read()).decode()
 
+            _generation_progress["active"] = False
             return {
                 "status": "ok",
                 "method": "local_gpu",
@@ -1474,6 +1494,7 @@ async def generate_image_core(
                 "prompt": prompt,
             }
         except Exception as e:
+            _generation_progress["active"] = False
             _release_pipeline()
             raise RuntimeError(f"Local GPU generation failed: {e}")
 
@@ -1606,15 +1627,34 @@ async def generate_animation_core(
         else:
             negative_prompt = anti_watermark
 
+        # Video step callback for progress tracking
+        def video_step_callback(p, step_index, timestep, callback_kwargs):
+            global _generation_progress
+            pct = min(100.0, ((step_index + 1) / max(steps, 1)) * 100)
+            _generation_progress = {
+                "active": True, "type": "video",
+                "step": step_index + 1, "total_steps": steps,
+                "progress": pct, "stage": "generating",
+            }
+            return callback_kwargs
+
         # Build model-specific inference kwargs
         gen_kwargs = {
             "prompt": prompt,
             "num_inference_steps": steps,
+            "callback_on_step_end": video_step_callback,
         }
 
         # Ensure dimensions are divisible by 32
         width = (width // 32) * 32
         height = (height // 32) * 32
+
+        global _generation_progress
+        _generation_progress = {
+            "active": True, "type": "video",
+            "step": 0, "total_steps": steps,
+            "progress": 0.0, "stage": "generating",
+        }
 
         # AnimateDiff Lightning uses guidance_scale, not negative_prompt
         if pipeline_type == "animatediff":
@@ -1660,6 +1700,13 @@ async def generate_animation_core(
         
         video_frames = result.frames[0]
 
+        # Progress: encoding stage
+        _generation_progress = {
+            "active": True, "type": "video",
+            "step": steps, "total_steps": steps,
+            "progress": 95.0, "stage": "encoding",
+        }
+
         base_name = f"anim_{datetime.now().strftime('%Y%m%d_%H%M%S')}_{uuid.uuid4().hex[:6]}"
 
         from diffusers.utils import export_to_video
@@ -1680,6 +1727,7 @@ async def generate_animation_core(
 
             _release_video_pipeline()
             _release_i2v_pipeline()
+            _generation_progress["active"] = False
             return {
                 "status": "ok",
                 "method": "diffusion_video_mp4",
@@ -1712,6 +1760,7 @@ async def generate_animation_core(
 
             _release_video_pipeline()
             _release_i2v_pipeline()
+            _generation_progress["active"] = False
             return {
                 "status": "ok",
                 "method": "diffusion_video_gif",
@@ -1724,9 +1773,11 @@ async def generate_animation_core(
             }
 
     except ImportError as e:
+        _generation_progress["active"] = False
         logger.error("Missing dependency for video: %s", e)
         raise RuntimeError("diffusers and accelerate are required for video generation. Please install them.")
     except Exception as e:
+        _generation_progress["active"] = False
         logger.error("Video generation failed: %s", e)
         _release_video_pipeline()
         _release_i2v_pipeline()
@@ -1768,6 +1819,11 @@ async def check_model(type: str = "image", style: str = "none", video_model: str
 async def get_download_status():
     """Return the current progress of HuggingFace model download."""
     return _hf_download_state
+
+@router.get("/generation-progress")
+async def get_generation_progress():
+    """Return the current generation progress (image/video)."""
+    return _generation_progress
 
 @router.post("/animate")
 async def animate_image(request: Request):

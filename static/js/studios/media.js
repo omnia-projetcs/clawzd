@@ -934,16 +934,22 @@ class MediaStudio {
                   try {
                     const d = JSON.parse(line.substring(6));
                     if (d.status === 'generating') {
-                      const prevCont = document.getElementById('media-stream-preview-container');
-                      const prevImg = document.getElementById('media-stream-preview');
-                      if (prevCont && prevImg) {
-                        prevCont.style.display = 'block';
-                        prevImg.src = 'data:image/jpeg;base64,' + d.base64;
+                      if (d.base64) {
+                        const prevCont = document.getElementById('media-stream-preview-container');
+                        const prevImg = document.getElementById('media-stream-preview');
+                        if (prevCont && prevImg) {
+                          prevCont.style.display = 'block';
+                          prevImg.src = 'data:image/jpeg;base64,' + d.base64;
+                        }
                       }
                       if (d.progress !== undefined && genBtn) {
                         const lbl = genBtn.querySelector('.gen-label');
-                        const pct = d.progress <= 1 ? Math.round(d.progress * 100) : Math.round(d.progress);
-                        if (lbl) lbl.innerHTML = `<span class="media-icon" data-icon="sparkles"></span> Génération... ${pct}%`;
+                        const pct = Math.round(d.progress);
+                        if (lbl) lbl.textContent = `Generating... ${pct}%`;
+                        if (progressBar) {
+                          progress.classList.remove('indeterminate');
+                          progressBar.style.width = pct + '%';
+                        }
                       }
                     } else if (d.status === 'done') {
                       result = d.result;
@@ -969,6 +975,25 @@ class MediaStudio {
           if (this.referenceImage && !i2vModels.includes(videoModel)) {
             toast(`⚠️ Le modèle ${videoModel} ne supporte pas Image→Vidéo. L'image sera ignorée. Utilisez CogVideoX 5B ou Wan 14B.`, 6000);
           }
+
+          // Start progress polling for video generation
+          this._genProgressPoll = setInterval(async () => {
+            try {
+              const pr = await fetch('/image/generation-progress');
+              if (pr.ok) {
+                const pg = await pr.json();
+                if (pg.active && genBtn) {
+                  const lbl = genBtn.querySelector('.gen-label');
+                  const pct = Math.round(pg.progress);
+                  if (lbl) lbl.textContent = `Generating... ${pct}%`;
+                  if (progressBar) {
+                    progress.classList.remove('indeterminate');
+                    progressBar.style.width = pct + '%';
+                  }
+                }
+              }
+            } catch (_) { /* ignore poll errors */ }
+          }, 1000);
 
           resp = await fetch('/image/animate', {
             method: 'POST',
@@ -996,6 +1021,26 @@ class MediaStudio {
           const tempoBpm = parseInt(($('#media-tempo') || {}).value) || 120;
           const audioDur = parseFloat(($('#media-audio-duration') || {}).value) || 30;
           const language = ($('#media-language') || {}).value || 'auto';
+          // Start progress polling for audio generation
+          this._genProgressPoll = setInterval(async () => {
+            try {
+              const pr = await fetch('/audio/generation-progress');
+              if (pr.ok) {
+                const pg = await pr.json();
+                if (pg.active && genBtn) {
+                  const lbl = genBtn.querySelector('.gen-label');
+                  const pct = Math.round(pg.progress);
+                  const stage = pg.stage === 'saving' ? 'Saving...' : `Generating... ${pct}%`;
+                  if (lbl) lbl.textContent = stage;
+                  if (progressBar) {
+                    progress.classList.remove('indeterminate');
+                    progressBar.style.width = pct + '%';
+                  }
+                }
+              }
+            } catch (_) { /* ignore poll errors */ }
+          }, 1000);
+
           resp = await fetch('/audio/generate', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
@@ -1057,6 +1102,10 @@ class MediaStudio {
         toast(' Generation failed: ' + e.message);
       }
     } finally {
+      if (this._genProgressPoll) {
+        clearInterval(this._genProgressPoll);
+        this._genProgressPoll = null;
+      }
       if (this._hfDlPoll) {
         clearInterval(this._hfDlPoll);
         this._hfDlPoll = null;

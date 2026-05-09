@@ -85,6 +85,12 @@ _audio_download_state = {
     "model": "",
 }
 
+_audio_generation_progress = {
+    "active": False,
+    "progress": 0.0,  # 0-100
+    "stage": "",      # 'loading_model', 'generating', 'saving'
+}
+
 
 def _release_all_audio():
     """Release all audio pipelines and free VRAM."""
@@ -507,20 +513,36 @@ async def generate_audio(request: Request):
 
     generated_prompt = None
 
+    global _audio_generation_progress
+    _audio_generation_progress = {
+        "active": True, "progress": 5.0, "stage": "loading_model",
+    }
+
     try:
         if mode == "tts":
             if not text:
                 raise HTTPException(400, "Text is required for TTS")
             
+            _audio_generation_progress = {
+                "active": True, "progress": 20.0, "stage": "generating",
+            }
             if tts_engine == "bark":
                 audio, sr = await _generate_tts_bark(text, voice_style, language)
+                _audio_generation_progress["progress"] = 80.0
             else:
                 audio, sr = await _generate_tts(text, voice_style, language, duration)
+                _audio_generation_progress["progress"] = 80.0
 
+            _audio_generation_progress = {
+                "active": True, "progress": 90.0, "stage": "saving",
+            }
             meta_prompt = f"[TTS/{voice_style}] {text[:200]}"
             filename = _save_audio(audio, sr, format_type, meta_prompt, mode=mode)
 
         elif mode == "voice_clone":
+            _audio_generation_progress = {
+                "active": True, "progress": 20.0, "stage": "generating",
+            }
             ref_audio = data.get("reference_audio", "")
             if not ref_audio or not text:
                 raise HTTPException(400, "Text and reference audio required for voice cloning")
@@ -583,6 +605,9 @@ async def generate_audio(request: Request):
                 raise HTTPException(500, "TTS library (Coqui) not installed. Run: pip install TTS")
 
         elif mode in ("music", "song"):
+            _audio_generation_progress = {
+                "active": True, "progress": 15.0, "stage": "generating",
+            }
             desc = prompt or text or "upbeat electronic music"
             
             if mode == "song" and text:
@@ -592,12 +617,16 @@ async def generate_audio(request: Request):
                 desc = f"song with lyrics theme: {text[:100]}, {desc}"
 
             audio, sr = await _generate_music(desc, genre, tempo_bpm, duration)
+            _audio_generation_progress = {
+                "active": True, "progress": 90.0, "stage": "saving",
+            }
             meta_prompt = f"[{'Song' if mode == 'song' else 'Music'}/{genre or 'auto'}] {desc[:200]}"
             filename = _save_audio(audio, sr, format_type, meta_prompt, mode=mode)
 
         else:
             raise HTTPException(400, f"Unknown mode: {mode}")
 
+        _audio_generation_progress["active"] = False
         result = {
             "status": "ok",
             "filename": filename,
@@ -609,8 +638,10 @@ async def generate_audio(request: Request):
         return result
 
     except HTTPException:
+        _audio_generation_progress["active"] = False
         raise
     except Exception as e:
+        _audio_generation_progress["active"] = False
         logger.error("Audio generation failed: %s", e, exc_info=True)
         return {"error": str(e)}
 
@@ -722,3 +753,8 @@ async def check_audio_model(mode: str = "tts", tts_engine: str = "speecht5"):
 async def download_status():
     """Return current model download progress."""
     return _audio_download_state
+
+@router.get("/generation-progress")
+async def audio_generation_progress():
+    """Return the current audio generation progress."""
+    return _audio_generation_progress
