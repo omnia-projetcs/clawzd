@@ -83,7 +83,6 @@ _IMAGE_STYLE_MODELS = {
     "flux2_klein": {"repo": "black-forest-labs/FLUX.2-klein-4b-fp8", "is_lora": False},
     "photorealistic": {"repo": "RunDiffusion/Juggernaut-XL-v9", "is_lora": False},
     "realvis": {"repo": "SG161222/RealVisXL_V4.0", "is_lora": False},
-    "anime": {"repo": "cagliostrolab/animagine-xl-3.1", "is_lora": False},
     "pixel_art": {"repo": "nerijs/pixel-art-xl", "is_lora": True},
     # Unsloth-curated models (using original HF repos via diffusers)
     "z_image_turbo": {"repo": "Tongyi-MAI/Z-Image-Turbo", "is_lora": False, "pipeline": "zimage"},
@@ -1031,7 +1030,6 @@ async def _enhance_prompt_with_llm(prompt: str, style: str = "none", model_repo:
 
     # --- Build model-aware instructions ---
     is_flux = "flux" in model_repo.lower() if model_repo else (style in ("none", "flux_schnell", "flux2_klein"))
-    is_anime = style == "anime" or "animagine" in model_repo.lower()
     is_photo = style in ("photorealistic", "realvis") or "juggernaut" in model_repo.lower() or "realvis" in model_repo.lower()
     is_zimage = style in ("z_image_turbo", "z_image") or "z-image" in model_repo.lower()
     if is_zimage:
@@ -1050,13 +1048,6 @@ async def _enhance_prompt_with_llm(prompt: str, style: str = "none", model_repo:
             "Write a clear, descriptive sentence (30-50 words). "
             "Do NOT add quality tags like 'masterpiece, best quality, 8k' — FLUX ignores them. "
             "Focus on: subject, scene, lighting, mood, composition, camera angle."
-        )
-    elif is_anime:
-        model_guidance = (
-            "TARGET MODEL: Animagine XL (anime/manga style). "
-            "Use anime-specific tags: '1girl', '1boy', 'solo', hair color, eye color, outfit details. "
-            "Add quality tags: 'masterpiece, best quality, ultra-detailed'. "
-            "Use comma-separated danbooru-style tags (40-60 words)."
         )
     elif is_photo:
         model_guidance = (
