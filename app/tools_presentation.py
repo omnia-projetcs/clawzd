@@ -1584,6 +1584,36 @@ def _build_slide_layout(slide_data: dict, cw: int, ch: int, theme: dict, font: s
     
     return {"elements": elements}
 
+@router.get("/templates")
+async def list_templates():
+    templates = []
+    for t_name, t_colors in _THEMES.items():
+        templates.append({
+            "id": f"theme_{t_name}",
+            "title": f"{t_name.capitalize().replace('_', ' ')}",
+            "theme": t_name,
+            "colors": t_colors
+        })
+    return {"templates": templates}
+
+@router.get("/template/{theme_name}")
+async def get_template(theme_name: str):
+    theme = _THEMES.get(theme_name, _THEMES["midnight"])
+    font = "Sans-Serif"
+    cw, ch = 960, 540
+    slides = [
+        {"type": "title", "title": "Presentation Title", "subtitle": "Add your subtitle here"},
+        {"type": "bullets", "title": "Key Points", "points": ["First key point", "Second key point", "Third key point"]},
+        {"type": "two_column", "title": "Details", "left_title": "Column 1", "left_body": "Details for column 1", "right_title": "Column 2", "right_body": "Details for column 2"},
+        {"type": "closing", "title": "Thank You", "subtitle": "Questions?"}
+    ]
+    pages = []
+    for i, slide in enumerate(slides):
+        slide["page_num"] = i + 1
+        page = _build_slide_layout(slide, cw, ch, theme, font)
+        pages.append(page)
+    return {"title": f"{theme_name.capitalize().replace('_', ' ')} Template", "pages": pages, "canvas_width": cw, "canvas_height": ch}
+
 
 @router.post("/ai-generate")
 async def ai_generate_presentation(request: Request):

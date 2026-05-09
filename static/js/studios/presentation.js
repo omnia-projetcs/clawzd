@@ -40,6 +40,7 @@ class PresentationStudio {
     this.initEvents();
     this.loadRecent();
     this.loadTemplates();
+    this.loadSavedPresentations();
   }
 
   async loadRecent() {
@@ -116,6 +117,16 @@ class PresentationStudio {
       const chevron = $('#pt-templates-toggle .ic');
       if (grid && chevron) {
         grid.classList.toggle('collapsed');
+        grid.style.display = grid.classList.contains('collapsed') ? 'none' : 'grid';
+        chevron.style.transform = grid.classList.contains('collapsed') ? 'rotate(0deg)' : 'rotate(180deg)';
+      }
+    });
+    $('#pt-saved-toggle')?.addEventListener('click', () => {
+      const grid = $('#pt-saved-grid');
+      const chevron = $('#pt-saved-toggle .ic');
+      if (grid && chevron) {
+        grid.classList.toggle('collapsed');
+        grid.style.display = grid.classList.contains('collapsed') ? 'none' : 'grid';
         chevron.style.transform = grid.classList.contains('collapsed') ? 'rotate(0deg)' : 'rotate(180deg)';
       }
     });
@@ -1877,14 +1888,100 @@ class PresentationStudio {
   async loadTemplates() {
     const list = $('#pt-templates-list');
     if (!list) return;
-    list.innerHTML = '<div style="color:var(--text-muted)">Loading...</div>';
+    list.innerHTML = '<div style="color:var(--text-muted)">Loading templates...</div>';
     try {
-      const res = await fetch('/presentation/list');
+      const res = await fetch('/presentation/templates');
       if (!res.ok) throw new Error('Failed to load templates');
       const data = await res.json();
       list.innerHTML = '';
+      if (!data.templates || data.templates.length === 0) {
+        list.innerHTML = '<div style="color:var(--text-muted)">No templates found.</div>';
+        return;
+      }
+      data.templates.forEach(t => {
+        const btn = document.createElement('div');
+        btn.className = 'presentation-template-tile';
+        btn.style.position = 'relative';
+        btn.style.cursor = 'pointer';
+        
+        // Simple visual preview using the theme colors
+        const colors = t.colors || {};
+        const bg = colors.bg || '#000';
+        const accent = colors.accent || '#fff';
+        const surface = colors.surface || '#222';
+        
+        btn.innerHTML = `
+           <div style="width:100%; height:80px; background:${bg}; border-radius:4px; margin-bottom:4px; position:relative; overflow:hidden; border:1px solid var(--border)">
+             <div style="position:absolute; top:10%; left:10%; width:80%; height:20%; background:${accent}; opacity:0.8; border-radius:2px;"></div>
+             <div style="position:absolute; top:40%; left:10%; width:40%; height:40%; background:${surface}; border-radius:2px;"></div>
+             <div style="position:absolute; top:40%; right:10%; width:30%; height:40%; background:${surface}; border-radius:2px;"></div>
+           </div>
+           <div class="template-info" style="display:flex; flex-direction:column; gap:2px; text-align:center;">
+             <strong style="font-size:11px;">${t.title}</strong>
+           </div>
+         `;
+         
+        btn.onclick = async () => {
+          const isEmpty = this.pages.length === 0 || (this.pages.length === 1 && this.pages[0].elements.length === 0);
+          let mode = 'replace';
+          if (!isEmpty) {
+            const action = confirm('Cliquez sur OK pour REMPLACER vos slides actuels par ce template.\nCliquez sur Annuler pour AJOUTER ces slides à votre présentation actuelle.');
+            mode = action ? 'replace' : 'add';
+          }
+          
+          try {
+            const lr = await fetch(`/presentation/template/${t.theme}`);
+            if (lr.ok) {
+              const ldata = await lr.json();
+              const loadedPages = ldata.pages || [{ elements: [] }];
+
+              if (mode === 'replace') {
+                this.pages = loadedPages;
+                this.canvasW = ldata.canvas_width || 960;
+                this.canvasH = ldata.canvas_height || 540;
+                this.currentPage = 0;
+              } else {
+                const newPages = JSON.parse(JSON.stringify(loadedPages));
+                newPages.forEach(page => {
+                  page.elements.forEach(el => el.id = 'el_' + Math.random().toString(36).substr(2, 9));
+                  this.pages.push(page);
+                });
+                this.currentPage = this.pages.length - newPages.length;
+              }
+
+              this.presId = null;
+              localStorage.removeItem('pt-last-id');
+              this.title = ldata.title || 'Nouveau Template';
+              if ($('#pt-pres-title')) $('#pt-pres-title').value = this.title;
+
+              this.selectElement(null);
+              this.renderPages();
+              this.renderCanvas();
+
+              toast(mode === 'replace' ? ' Template chargé!' : ' Slides ajoutés!');
+            }
+          } catch (e) {
+            toast(' Échec du chargement du template', 4000);
+          }
+        };
+        list.appendChild(btn);
+      });
+    } catch (e) {
+      list.innerHTML = `<div style="color:var(--red)">${e.message}</div>`;
+    }
+  }
+
+  async loadSavedPresentations() {
+    const list = $('#pt-saved-list');
+    if (!list) return;
+    list.innerHTML = '<div style="color:var(--text-muted)">Loading...</div>';
+    try {
+      const res = await fetch('/presentation/list');
+      if (!res.ok) throw new Error('Failed to load saved presentations');
+      const data = await res.json();
+      list.innerHTML = '';
       if (!data.presentations || data.presentations.length === 0) {
-        list.innerHTML = '<div style="color:var(--text-muted)">No saved presentations found.</div>';
+        list.innerHTML = '<div style="color:var(--text-muted); grid-column: span 2;">No saved presentations found.</div>';
         return;
       }
       data.presentations.forEach(p => {
@@ -1902,10 +1999,10 @@ class PresentationStudio {
              <strong>${p.title || p.id}</strong>
              <small>${dateStr}</small>
            </div>
-           <button class="pt-template-rename" title="Rename Template" style="position: absolute; top: 4px; right: 32px; background: rgba(0,0,0,0.6); border: none; color: white; border-radius: 4px; padding: 4px; cursor: pointer; display: flex; align-items: center; justify-content: center; width: 24px; height: 24px; z-index: 10;">
+           <button class="pt-template-rename" title="Rename" style="position: absolute; top: 4px; right: 32px; background: rgba(0,0,0,0.6); border: none; color: white; border-radius: 4px; padding: 4px; cursor: pointer; display: flex; align-items: center; justify-content: center; width: 24px; height: 24px; z-index: 10;">
              ${window.icon ? window.icon('pen', 14) : '✎'}
            </button>
-           <button class="pt-template-delete" title="Delete Template" style="position: absolute; top: 4px; right: 4px; background: rgba(0,0,0,0.6); border: none; color: white; border-radius: 4px; padding: 4px; cursor: pointer; display: flex; align-items: center; justify-content: center; width: 24px; height: 24px; z-index: 10;">
+           <button class="pt-template-delete" title="Delete" style="position: absolute; top: 4px; right: 4px; background: rgba(0,0,0,0.6); border: none; color: white; border-radius: 4px; padding: 4px; cursor: pointer; display: flex; align-items: center; justify-content: center; width: 24px; height: 24px; z-index: 10;">
              ${window.icon ? window.icon('trash', 14) : '×'}
            </button>
          `;
@@ -1913,7 +2010,7 @@ class PresentationStudio {
         const renBtn = btn.querySelector('.pt-template-rename');
         renBtn.onclick = async (e) => {
           e.stopPropagation();
-          const newTitle = prompt('Rename template to:', p.title || p.id);
+          const newTitle = prompt('Rename presentation to:', p.title || p.id);
           if (newTitle && newTitle.trim() !== '') {
             try {
               const rr = await fetch(`/presentation/rename/${p.id}`, {
@@ -1922,13 +2019,13 @@ class PresentationStudio {
                 body: JSON.stringify({ title: newTitle.trim() })
               });
               if (rr.ok) {
-                toast(ICONS.check(14) + ' Template renamed');
-                this.loadTemplates();
+                toast(ICONS.check(14) + ' Renamed');
+                this.loadSavedPresentations();
               } else {
                 toast(' Failed to rename', 4000);
               }
             } catch (err) {
-              toast(' Error renaming template', 4000);
+              toast(' Error renaming', 4000);
             }
           }
         };
@@ -1936,7 +2033,7 @@ class PresentationStudio {
         const delBtn = btn.querySelector('.pt-template-delete');
         delBtn.onclick = async (e) => {
           e.stopPropagation();
-          if (confirm('Delete this template?')) {
+          if (confirm('Delete this presentation?')) {
             try {
               const dr = await fetch(`/presentation/delete/${p.id}`, { method: 'DELETE' });
               if (dr.ok) {
@@ -1945,64 +2042,36 @@ class PresentationStudio {
                   this.presId = null;
                   localStorage.removeItem('pt-last-id');
                 }
-                toast(ICONS.check(14) + ' Template deleted');
+                toast(ICONS.check(14) + ' Deleted');
               } else {
-                toast(' Failed to delete template', 4000);
+                toast(' Failed to delete', 4000);
               }
             } catch (err) {
-              toast(' Failed to delete template', 4000);
+              toast(' Failed to delete', 4000);
             }
           }
         };
 
         btn.onclick = async () => {
-          const isEmpty = this.pages.length === 0 || (this.pages.length === 1 && this.pages[0].elements.length === 0);
-
-          let mode = 'replace';
-          if (!isEmpty) {
-            const action = confirm('Cliquez sur OK pour REMPLACER vos slides actuels par ce template.\nCliquez sur Annuler pour AJOUTER ces slides à votre présentation actuelle.');
-            mode = action ? 'replace' : 'add';
-          } else {
-            if (!confirm('Charger ce template ?')) return;
-          }
-
           try {
             const lr = await fetch(`/presentation/load/${p.id}`);
             if (lr.ok) {
               const ldata = await lr.json();
-              const loadedPages = ldata.pages || [{ elements: [] }];
-
-              if (mode === 'replace') {
-                this.pages = loadedPages;
-                this.canvasW = ldata.canvas_width || 960;
-                this.canvasH = ldata.canvas_height || 540;
-                this.currentPage = 0;
-              } else {
-                const newPages = JSON.parse(JSON.stringify(loadedPages));
-                newPages.forEach(page => {
-                  page.elements.forEach(el => el.id = 'el_' + Math.random().toString(36).substr(2, 9));
-                  this.pages.push(page);
-                });
-                this.currentPage = this.pages.length - newPages.length; // Jump to the first newly added page
-              }
-
-              // Sauvegarde par défaut a un nouveau template
-              this.presId = null;
-              localStorage.removeItem('pt-last-id');
-              this.title = (ldata.title ? ldata.title + ' (Copie)' : 'Nouveau Template');
+              this.pages = ldata.pages || [{ elements: [] }];
+              this.canvasW = ldata.canvas_width || 960;
+              this.canvasH = ldata.canvas_height || 540;
+              this.currentPage = 0;
+              this.presId = p.id;
+              localStorage.setItem('pt-last-id', p.id);
+              this.title = ldata.title || 'Loaded Presentation';
               if ($('#pt-pres-title')) $('#pt-pres-title').value = this.title;
-
               this.selectElement(null);
               this.renderPages();
               this.renderCanvas();
-
-              const tplBrowser = $('#presentation-templates-browser');
-              if (tplBrowser) tplBrowser.style.display = 'none';
-
-              toast(mode === 'replace' ? ' Template chargé!' : ' Slides ajoutés!');
+              toast(' Presentation loaded!');
             }
           } catch (e) {
-            toast(' Échec du chargement du template', 4000);
+            toast(' Failed to load presentation', 4000);
           }
         };
         list.appendChild(btn);

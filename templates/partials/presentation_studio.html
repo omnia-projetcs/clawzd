@@ -132,6 +132,28 @@
       </div>
       <div style="height:1px; background:var(--border); margin:6px 0;"></div>
 
+      <!-- Saved Presentations Section -->
+      <div class="presentation-shapes-section-label"
+           id="pt-saved-toggle"
+           style="cursor: pointer;
+                  display: flex;
+                  align-items: center;
+                  justify-content: space-between;
+                  padding-top: 8px"
+           title="Toggle Saved Presentations">
+        <span>My Presentations</span>
+        <svg class="ic" width="12" height="12" style="transition: transform 0.2s; transform: rotate(180deg)"><use href="#icon-chevron-down"></use></svg>
+      </div>
+      <div class="presentation-templates-grid" 
+           id="pt-saved-grid" 
+           style="overflow-y: auto; max-height: 400px; padding-bottom: 10px; display: none;">
+        <div id="pt-saved-list" 
+             style="display: grid; grid-template-columns: 1fr 1fr; gap: 6px; padding: 4px;">
+           <!-- Saved docs will be loaded here -->
+        </div>
+      </div>
+      <div style="height:1px; background:var(--border); margin:6px 0;"></div>
+
       <!-- Document Generation Section (CV / Business Card) -->
       <div class="presentation-shapes-section-label"
            id="pt-docgen-toggle"
