@@ -108,10 +108,11 @@ _FRAG_MERMAID = (
 
 _FRAG_APP_BUILDER = (
     "APP BUILDER: You can create and update live mini web-apps.\n"
-    "- create_app: {\"name\": \"App Name\", \"files\": {\"index.html\": \"...\", \"style.css\": \"...\", \"app.js\": \"...\"}, \"template\": \"blank\"}\n"
-    "- update_app: {\"app_id\": \"app-xxx\", \"files\": {\"index.html\": \"new content...\"}}\n"
+    "- create_app: {\"name\": \"App Name\", \"files\": {\"index.html\": \"...\", \"style.css\": \"...\", \"app.js\": \"...\"}, \"template\": \"blank\", \"icon\": \"📦\", \"visual\": \"#1e293b\"}\n"
+    "- update_app: {\"app_id\": \"app-xxx\", \"files\": {\"index.html\": \"new content...\"}, \"name\": \"New Name\", \"icon\": \"🚀\", \"visual\": \"#ff0000\"}\n"
     "When asked to build an app, use create_app with complete HTML/CSS/JS files.\n"
-    "When asked to edit/update an existing app, use update_app with the app_id and modified files.\n"
+    "When asked to edit/update an existing app, use update_app with the app_id and modified files/metadata.\n"
+    "CRITICAL: After creating or updating an app's code, you MUST automatically verify the generated code for correctness, completeness, and lack of errors.\n"
     "Apps are served live at /apps/{app_id}/preview.\n"
 )
 

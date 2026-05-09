@@ -424,12 +424,19 @@ def _adapt_params(resolved_tool: str, original_tool: str, params: dict) -> dict:
         name = params.get("name", params.get("app_name", "My App"))
         files = params.get("files", {})
         template = params.get("template", "blank")
-        return {"name": name, "files": files, "template": template}
+        res = {"name": name, "files": files, "template": template}
+        if "icon" in params: res["icon"] = params["icon"]
+        if "visual" in params: res["visual"] = params["visual"]
+        return res
 
     elif resolved == "update_app":
         app_id = params.get("app_id", params.get("id", ""))
         files = params.get("files", {})
-        return {"app_id": app_id, "files": files}
+        res = {"app_id": app_id, "files": files}
+        if "name" in params: res["name"] = params["name"]
+        if "icon" in params: res["icon"] = params["icon"]
+        if "visual" in params: res["visual"] = params["visual"]
+        return res
 
     # Fallback: return params as-is
     return params
@@ -853,21 +860,30 @@ async def execute_tool(tool_name: str, params: dict, context: dict = None) -> di
             name = params.get("name", "My App")
             files = params.get("files", {})
             template = params.get("template", "blank")
+            icon = params.get("icon")
+            visual = params.get("visual")
             session_id = (context or {}).get("session_id")
-            result = create_app(name, files, session_id=session_id, template=template)
+            result = create_app(name, files, session_id=session_id, template=template, icon=icon, visual=visual)
+            if files:
+                result["_hint"] = "App created successfully. Remember to verify the generated code for correctness."
             return result
 
         elif resolved == "update_app":
             from app.core.app_builder import update_app
             app_id = params.get("app_id", "")
             files = params.get("files", {})
+            name = params.get("name")
+            icon = params.get("icon")
+            visual = params.get("visual")
             if not app_id:
                 return {"error": "app_id is required"}
-            if not files:
-                return {"error": "files dict is required (filename → content)"}
-            result = update_app(app_id, files)
+            if not files and name is None and icon is None and visual is None:
+                return {"error": "At least one of files, name, icon, or visual is required to update"}
+            result = update_app(app_id, files=files, name=name, icon=icon, visual=visual)
             if not result:
                 return {"error": f"App '{app_id}' not found"}
+            if files:
+                result["_hint"] = "App updated successfully. Remember to verify the generated code for correctness."
             return result
 
         else:

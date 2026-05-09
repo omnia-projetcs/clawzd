@@ -95,7 +95,7 @@ const AppBuilderPanel = (() => {
         <div class="ab-card-body">
           <div class="ab-card-name" style="display:flex; justify-content:space-between; align-items:center;">
             <span>${app.name || 'Untitled'}</span>
-            <button class="ab-btn-sm" style="background:transparent; border:none; color:var(--text-muted); cursor:pointer; padding:0 4px;" onclick="AppBuilderPanel.rename('${app.id}', '${escapedName}')" title="Rename App">${ICONS.penTool(12)}</button>
+            <button class="ab-btn-sm" style="background:transparent; border:none; color:var(--text-muted); cursor:pointer; padding:0 4px;" onclick="AppBuilderPanel.showEdit('${app.id}')" title="Edit App Settings">${ICONS.penTool(12)}</button>
           </div>
           <div class="ab-card-meta">
             <span>v${app.version || 1}</span>
@@ -197,22 +197,47 @@ const AppBuilderPanel = (() => {
     }
   }
 
-  async function rename(appId, currentName) {
-    const newName = prompt('Enter new app name:', currentName);
-    if (!newName || newName.trim() === currentName) return;
+  function showEdit(appId) {
+    const app = _apps.find(a => a.id === appId);
+    if (!app) return;
+    const body = document.getElementById('ab-body');
+    if (!body) return;
+
+    body.innerHTML = `
+      <div class="ab-create">
+        <button class="ab-btn-back" onclick="AppBuilderPanel.open()">${ICONS.chevronLeft(14)} Back</button>
+        <h4>Edit Application Settings</h4>
+        <div style="display: flex; gap: 8px; margin-bottom: 12px;">
+          <input type="text" id="ab-app-name" class="ab-input" placeholder="App name..." value="${(app.name || '').replace(/"/g, '&quot;')}" style="flex: 1;">
+          <input type="text" id="ab-app-icon" class="ab-input" placeholder="Icon (e.g. 📦)" value="${(app.icon || '').replace(/"/g, '&quot;')}" style="width: 100px;">
+          <input type="color" id="ab-app-visual" class="ab-input" value="${app.visual || '#1e293b'}" title="App Theme Color" style="width: 50px; padding: 2px;">
+        </div>
+        <button class="ab-btn ab-btn-primary" onclick="AppBuilderPanel.saveEdit('${app.id}')">Save Changes</button>
+      </div>
+    `;
+  }
+
+  async function saveEdit(appId) {
+    const nameEl = document.getElementById('ab-app-name');
+    const iconEl = document.getElementById('ab-app-icon');
+    const visualEl = document.getElementById('ab-app-visual');
+    const name = nameEl?.value || 'My App';
+    const icon = iconEl?.value || '📦';
+    const visual = visualEl?.value || '#1e293b';
+
     try {
       await fetch(`/apps/${appId}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ name: newName.trim() }),
+        body: JSON.stringify({ name: name.trim(), icon, visual }),
       });
       await _loadApps();
       _renderList();
       if (typeof window.toast === 'function') {
-        window.toast('App renamed', 'success');
+        window.toast('App updated successfully', 'success');
       }
     } catch (e) {
-      if (typeof window.toast === 'function') window.toast('Failed to rename app', 'error');
+      if (typeof window.toast === 'function') window.toast('Failed to update app', 'error');
     }
   }
 
@@ -243,7 +268,7 @@ const AppBuilderPanel = (() => {
     return Math.floor(d / 86400) + 'd ago';
   }
 
-  return { init, open, close, showCreate, create, preview, remove, editInChat, rename };
+  return { init, open, close, showCreate, create, preview, remove, editInChat, showEdit, saveEdit };
 })();
 
 window.AppBuilderPanel = AppBuilderPanel;
