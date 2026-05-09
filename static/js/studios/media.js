@@ -352,7 +352,7 @@ class MediaStudio {
     const videoModelSel = $('#media-model-video');
     if (videoModelSel && isVideo) {
       const hasRefImage = !!this.referenceImage;
-      const i2vModels = ['cogvideox', 'wan22']; // Models that support I2V
+      const i2vModels = ['svd_xt', 'cogvideox', 'wan22']; // Models that support I2V
       let firstAvailable = null;
 
       Array.from(videoModelSel.options).forEach(opt => {
@@ -971,29 +971,10 @@ class MediaStudio {
           const [vidW, vidH] = videoSize.split('x').map(Number);
 
           // Warn if reference image is set but model doesn't support I2V
-          const i2vModels = ['cogvideox', 'wan22'];
+          const i2vModels = ['svd_xt', 'cogvideox', 'wan22'];
           if (this.referenceImage && !i2vModels.includes(videoModel)) {
-            toast(`⚠️ Le modèle ${videoModel} ne supporte pas Image→Vidéo. L'image sera ignorée. Utilisez CogVideoX 5B ou Wan 14B.`, 6000);
+            toast(`⚠️ Model ${videoModel} does not support Image→Video. The image will be ignored. Use CogVideoX 5B or Wan 14B.`, 6000);
           }
-
-          // Start progress polling for video generation
-          this._genProgressPoll = setInterval(async () => {
-            try {
-              const pr = await fetch('/image/generation-progress');
-              if (pr.ok) {
-                const pg = await pr.json();
-                if (pg.active && genBtn) {
-                  const lbl = genBtn.querySelector('.gen-label');
-                  const pct = Math.round(pg.progress);
-                  if (lbl) lbl.textContent = `Generating... ${pct}%`;
-                  if (progressBar) {
-                    progress.classList.remove('indeterminate');
-                    progressBar.style.width = pct + '%';
-                  }
-                }
-              }
-            } catch (_) { /* ignore poll errors */ }
-          }, 1000);
 
           resp = await fetch('/image/animate', {
             method: 'POST',
@@ -1011,7 +992,46 @@ class MediaStudio {
               reference_image: this.referenceImage,
             }),
           });
-          result = await resp.json();
+
+          // Read SSE stream (keepalive + progress + result)
+          if (resp.headers.get('content-type')?.includes('text/event-stream')) {
+            const reader = resp.body.getReader();
+            const decoder = new TextDecoder();
+            let buffer = '';
+            while (true) {
+              const { done, value } = await reader.read();
+              if (done) break;
+              buffer += decoder.decode(value, { stream: true });
+              let lines = buffer.split('\n');
+              buffer = lines.pop();
+              for (let line of lines) {
+                if (line.startsWith('data: ')) {
+                  try {
+                    const d = JSON.parse(line.substring(6));
+                    if (d.status === 'progress') {
+                      if (genBtn) {
+                        const lbl = genBtn.querySelector('.gen-label');
+                        const pct = Math.round(d.progress);
+                        const stage = d.stage === 'encoding' ? 'Encoding...' : `Generating... ${pct}%`;
+                        if (lbl) lbl.textContent = stage;
+                        if (progressBar) {
+                          progress.classList.remove('indeterminate');
+                          progressBar.style.width = pct + '%';
+                        }
+                      }
+                    } else if (d.status === 'done') {
+                      result = d.result;
+                    } else if (d.status === 'error') {
+                      result = { error: d.message };
+                    }
+                  } catch (_) { }
+                }
+                // SSE comments (": keepalive") are silently ignored
+              }
+            }
+          } else {
+            result = await resp.json();
+          }
         } else if (this.type === 'audio') {
           const audioText = ($('#media-audio-text') || {}).value || '';
           const audioFmt = ($('#media-format-audio') || {}).value || 'wav';
@@ -1535,10 +1555,10 @@ class MediaStudio {
     this._updateFormVisibility();
 
     // 3. Auto-select an I2V-compatible model
-    const i2vModels = ['cogvideox', 'wan22'];
+    const i2vModels = ['svd_xt', 'cogvideox', 'wan22'];
     const videoModelSel = $('#media-model-video');
     if (videoModelSel && !i2vModels.includes(videoModelSel.value)) {
-      videoModelSel.value = 'cogvideox'; // CogVideoX 5B is the most accessible I2V model
+      videoModelSel.value = 'svd_xt'; // SVD-XT is the lightest I2V model (6GB)
     }
 
     // 4. Pre-fill video prompt from image prompt

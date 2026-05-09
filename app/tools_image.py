@@ -88,17 +88,13 @@ _generation_progress = {
 
 
 def _should_use_local_files(repo_id: str) -> bool:
-    import os
-    from config import MODELS_DIR
-    if repo_id.startswith("http") or repo_id.endswith(".gguf"):
-        return False
-    safe_name = "models--" + repo_id.replace("/", "--")
-    model_path = os.path.join(MODELS_DIR, "hub", safe_name)
-    if os.path.exists(model_path):
-        for root, dirs, files in os.walk(model_path):
-            for file in files:
-                if file.endswith(".safetensors") or file.endswith(".bin"):
-                    return True
+    """Whether to force local-only loading (no network).
+
+    Always returns False: HuggingFace Hub's from_pretrained already uses
+    the local cache when available and only downloads missing files.
+    Forcing local_files_only=True on partially-downloaded models blocks
+    downloads and causes silent pipeline failures.
+    """
     return False
 
 import tqdm.auto
@@ -412,6 +408,17 @@ def _release_i2i_pipeline():
 
 # Video model catalog — maps UI keys to HuggingFace repo IDs and metadata
 _VIDEO_MODELS = {
+    "svd_xt": {
+        "repo": "stabilityai/stable-video-diffusion-img2vid-xt",
+        "i2v_repo": "stabilityai/stable-video-diffusion-img2vid-xt",
+        "pipeline": "svd",
+        "steps": 25,
+        "guidance": 0.0,  # SVD doesn't use CFG
+        "fps": 7,
+        "max_frames": 25,
+        "vram_gb": 6,
+        "dtype": "float16",
+    },
     "animatediff": {
         "repo": "ByteDance/AnimateDiff-Lightning",
         "base_model": "emilianJR/epiCRealism",
@@ -667,7 +674,9 @@ def _get_i2v_pipeline(repo_id: str, pipeline_type: str = "auto"):
 
     Args:
         repo_id: HuggingFace repo ID for the I2V model.
-        pipeline_type: 'wan' for WanImageToVideoPipeline, otherwise CogVideoXImageToVideoPipeline.
+        pipeline_type: 'svd' for StableVideoDiffusionPipeline,
+                       'wan' for WanImageToVideoPipeline,
+                       otherwise CogVideoXImageToVideoPipeline.
     """
     global _i2v_pipeline, _current_i2v_model
     if _i2v_pipeline is not None and _current_i2v_model == repo_id:
@@ -684,7 +693,27 @@ def _get_i2v_pipeline(repo_id: str, pipeline_type: str = "auto"):
         _hf_download_state = {"active": True, "progress": 0.0, "repo": repo_id}
         hf_token = _get_hf_token()
 
-        if pipeline_type == "wan":
+        if pipeline_type == "svd":
+            # Stable Video Diffusion — lightweight I2V (~6GB)
+            from diffusers import StableVideoDiffusionPipeline
+
+            dtype = torch.float16 if torch.cuda.is_available() else torch.float32
+            try:
+                _i2v_pipeline = StableVideoDiffusionPipeline.from_pretrained(
+                    repo_id, torch_dtype=dtype, variant="fp16", token=hf_token,
+                )
+            except Exception as ev:
+                if "variant" in str(ev).lower() or "fp16" in str(ev).lower():
+                    logger.warning("SVD: retrying without fp16 variant: %s", ev)
+                    _i2v_pipeline = StableVideoDiffusionPipeline.from_pretrained(
+                        repo_id, torch_dtype=dtype, variant=None, token=hf_token,
+                    )
+                else:
+                    raise
+            if torch.cuda.is_available():
+                _i2v_pipeline.enable_model_cpu_offload()
+
+        elif pipeline_type == "wan":
             from diffusers import WanImageToVideoPipeline, AutoencoderKLWan
             from transformers import CLIPVisionModel
 
@@ -705,7 +734,6 @@ def _get_i2v_pipeline(repo_id: str, pipeline_type: str = "auto"):
                 vae=vae,
                 image_encoder=image_encoder,
                 torch_dtype=dtype,
-                local_files_only=_should_use_local_files(repo_id),
                 token=hf_token,
             )
             if torch.cuda.is_available():
@@ -723,15 +751,13 @@ def _get_i2v_pipeline(repo_id: str, pipeline_type: str = "auto"):
                     repo_id,
                     torch_dtype=dtype,
                     variant=variant,
-                    local_files_only=_should_use_local_files(repo_id),
                     token=hf_token,
                 )
             except Exception as ev:
                 if "variant" in str(ev).lower() or "fp16" in str(ev).lower() or "safetensors" in str(ev).lower():
                     logger.warning("Failed with variant %s, retrying without: %s", variant, ev)
                     _i2v_pipeline = CogVideoXImageToVideoPipeline.from_pretrained(
-                        repo_id, torch_dtype=dtype, variant=None,
-                        local_files_only=_should_use_local_files(base_model if "base_model" in locals() and "stabilityai" in base_model else repo_id), token=hf_token,
+                        repo_id, torch_dtype=dtype, variant=None, token=hf_token,
                     )
                 else:
                     raise
@@ -1589,6 +1615,10 @@ async def generate_animation_core(
     if backend == "api":
         raise RuntimeError("Remote API video generation is not yet supported. Please use local mode.")
 
+    # SVD is I2V-only — require a reference image
+    if pipeline_type == "svd" and not reference_image:
+        raise RuntimeError("SVD is an Image-to-Video only model. Please provide a reference image or select a different model.")
+
     try:
         import asyncio
         
@@ -1657,7 +1687,14 @@ async def generate_animation_core(
         }
 
         # AnimateDiff Lightning uses guidance_scale, not negative_prompt
-        if pipeline_type == "animatediff":
+        if pipeline_type == "svd":
+            # SVD is image-only (no prompt) — will be set below with init_img
+            gen_kwargs.pop("prompt", None)
+            gen_kwargs["num_frames"] = min(num_frames, 25)
+            gen_kwargs["decode_chunk_size"] = 4  # Low VRAM usage
+            gen_kwargs["motion_bucket_id"] = 127
+            gen_kwargs["noise_aug_strength"] = 0.02
+        elif pipeline_type == "animatediff":
             gen_kwargs["guidance_scale"] = guidance
             gen_kwargs["num_frames"] = num_frames
             gen_kwargs["width"] = min(width, 512)
@@ -1685,7 +1722,12 @@ async def generate_animation_core(
             target_w = gen_kwargs.get("width", width)
             target_h = gen_kwargs.get("height", height)
             
-            if "cogvideo" in (model_cfg.get("i2v_repo") or "").lower():
+            if pipeline_type == "svd":
+                # SVD native resolution
+                target_w, target_h = 1024, 576
+                gen_kwargs.pop("width", None)
+                gen_kwargs.pop("height", None)
+            elif "cogvideo" in (model_cfg.get("i2v_repo") or "").lower():
                 target_w, target_h = 720, 480
                 gen_kwargs.pop("width", None)
                 gen_kwargs.pop("height", None)
@@ -1827,7 +1869,11 @@ async def get_generation_progress():
 
 @router.post("/animate")
 async def animate_image(request: Request):
-    """Generate an animation (gif or mp4) from a text prompt."""
+    """Generate an animation (gif or mp4) from a text prompt.
+
+    Returns an SSE stream with keepalive comments and progress events
+    so the browser connection doesn't drop during long GPU inference.
+    """
     data = await request.json()
     prompt = data.get("prompt", "")
     if not prompt.strip():
@@ -1854,25 +1900,61 @@ async def animate_image(request: Request):
     width = min(data.get("width", 704), 1920)
     height = min(data.get("height", 480), 1920)
 
-    try:
-        result = await generate_animation_core(
-            prompt=prompt,
-            negative_prompt=data.get("negative_prompt", "blurry, low quality, distorted"),
-            format=fmt,
-            duration=duration,
-            fps=fps,
-            width=width,
-            height=height,
-            video_model=video_model,
-            enhance_prompt=enhance_prompt,
-            backend=backend,
-            reference_image=data.get("reference_image", None),
-        )
-        return result
-    except RuntimeError as e:
-        raise HTTPException(500, str(e))
-    except Exception as e:
-        raise HTTPException(500, f"Animation generation failed: {e}")
+    from fastapi.responses import StreamingResponse
+    import asyncio
+    import json
+    import time as _time
+
+    async def sse_generator():
+        try:
+            task = asyncio.create_task(
+                generate_animation_core(
+                    prompt=prompt,
+                    negative_prompt=data.get("negative_prompt", "blurry, low quality, distorted"),
+                    format=fmt,
+                    duration=duration,
+                    fps=fps,
+                    width=width,
+                    height=height,
+                    video_model=video_model,
+                    enhance_prompt=enhance_prompt,
+                    backend=backend,
+                    reference_image=data.get("reference_image", None),
+                )
+            )
+
+            last_keepalive = _time.monotonic()
+            last_progress = 0.0
+
+            while not task.done():
+                now = _time.monotonic()
+                # Stream progress events from the shared state
+                gp = _generation_progress
+                if gp.get("active") and gp.get("progress", 0) != last_progress:
+                    last_progress = gp["progress"]
+                    yield f"data: {json.dumps({'status': 'progress', 'progress': last_progress, 'stage': gp.get('stage', ''), 'step': gp.get('step', 0), 'total_steps': gp.get('total_steps', 0)})}\n\n"
+                    last_keepalive = now
+                elif now - last_keepalive > 2.0:
+                    # SSE comment keepalive to prevent connection drop
+                    yield ": keepalive\n\n"
+                    last_keepalive = now
+                await asyncio.sleep(0.3)
+
+            try:
+                result = await task
+                yield f"data: {json.dumps({'status': 'done', 'result': result})}\n\n"
+            except RuntimeError as e:
+                yield f"data: {json.dumps({'status': 'error', 'message': str(e)})}\n\n"
+            except Exception as e:
+                yield f"data: {json.dumps({'status': 'error', 'message': str(e)})}\n\n"
+        except Exception as e:
+            logger.error("SSE animate generator crashed: %s", e, exc_info=True)
+            try:
+                yield f"data: {json.dumps({'status': 'error', 'message': str(e)})}\n\n"
+            except Exception:
+                pass
+
+    return StreamingResponse(sse_generator(), media_type="text/event-stream")
 
 
 # ---------------------------------------------------------------------------
@@ -1912,41 +1994,60 @@ async def generate_image(request: Request):
             q = queue.Queue()
             
             async def generator():
-                task = asyncio.create_task(
-                    generate_image_core(
-                        prompt=prompt,
-                        negative_prompt=data.get("negative_prompt", "blurry, low quality, distorted"),
-                        width=min(data.get("width", 1024), 2048),
-                        height=min(data.get("height", 1024), 2048),
-                        steps=min(data.get("steps", 4), 50),
-                        guidance=data.get("guidance_scale", 0.0),
-                        format=fmt,
-                        style=style,
-                        enhance_prompt=enhance_prompt,
-                        backend=backend,
-                        reference_image=data.get("reference_image", None),
-                        strength=data.get("strength", 0.5),
-                        stream_queue=q,
-                    )
-                )
-                
-                while not task.done() or not q.empty():
-                    try:
-                        item = await asyncio.to_thread(q.get, timeout=0.1)
-                        yield f"data: {json.dumps(item)}\n\n"
-                    except queue.Empty:
-                        pass
-                
                 try:
-                    result = await task
-                    yield f"data: {json.dumps({'status': 'done', 'result': result})}\n\n"
-                except RuntimeError as e:
-                    error_msg = str(e)
-                    if "403 Forbidden" in error_msg or "401 Unauthorized" in error_msg or "private repository" in error_msg:
-                        error_msg = f"Hugging Face Token is invalid or does not have access to this model. Please check your token permissions: {error_msg}"
-                    yield f"data: {json.dumps({'status': 'error', 'message': error_msg})}\n\n"
+                    task = asyncio.create_task(
+                        generate_image_core(
+                            prompt=prompt,
+                            negative_prompt=data.get("negative_prompt", "blurry, low quality, distorted"),
+                            width=min(data.get("width", 1024), 2048),
+                            height=min(data.get("height", 1024), 2048),
+                            steps=min(data.get("steps", 4), 50),
+                            guidance=data.get("guidance_scale", 0.0),
+                            format=fmt,
+                            style=style,
+                            enhance_prompt=enhance_prompt,
+                            backend=backend,
+                            reference_image=data.get("reference_image", None),
+                            strength=data.get("strength", 0.5),
+                            stream_queue=q,
+                        )
+                    )
+
+                    import time as _time
+                    _last_keepalive = _time.monotonic()
+
+                    while not task.done() or not q.empty():
+                        try:
+                            item = await asyncio.to_thread(q.get, timeout=0.5)
+                            yield f"data: {json.dumps(item)}\n\n"
+                            _last_keepalive = _time.monotonic()
+                        except queue.Empty:
+                            # Send SSE keepalive comment every 2s to prevent
+                            # browser / proxy from closing the connection
+                            now = _time.monotonic()
+                            if now - _last_keepalive > 2.0:
+                                yield ": keepalive\n\n"
+                                _last_keepalive = now
+                            await asyncio.sleep(0.05)
+
+                    try:
+                        result = await task
+                        yield f"data: {json.dumps({'status': 'done', 'result': result})}\n\n"
+                    except RuntimeError as e:
+                        error_msg = str(e)
+                        if "403 Forbidden" in error_msg or "401 Unauthorized" in error_msg or "private repository" in error_msg:
+                            error_msg = f"Hugging Face Token is invalid or does not have access to this model. Please check your token permissions: {error_msg}"
+                        yield f"data: {json.dumps({'status': 'error', 'message': error_msg})}\n\n"
+                    except Exception as e:
+                        yield f"data: {json.dumps({'status': 'error', 'message': str(e)})}\n\n"
                 except Exception as e:
-                    yield f"data: {json.dumps({'status': 'error', 'message': str(e)})}\n\n"
+                    # Top-level catch: ensure we ALWAYS send an error event
+                    # instead of silently dropping the connection
+                    logger.error("SSE generator crashed: %s", e, exc_info=True)
+                    try:
+                        yield f"data: {json.dumps({'status': 'error', 'message': str(e)})}\n\n"
+                    except Exception:
+                        pass
 
             return StreamingResponse(generator(), media_type="text/event-stream")
         else:
