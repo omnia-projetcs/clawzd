@@ -78,9 +78,9 @@ except Exception:
 
 # NOTE: Only free open-weights models from Hugging Face are allowed here.
 _IMAGE_STYLE_MODELS = {
-    "none": {"repo": "black-forest-labs/FLUX.2-klein-4b-fp8", "is_lora": False},
+    "none": {"repo": "hf://black-forest-labs/FLUX.2-klein-4b-fp8/flux-2-klein-4b-fp8.safetensors", "is_lora": False},
     "flux_schnell": {"repo": "black-forest-labs/FLUX.1-schnell", "is_lora": False},
-    "flux2_klein": {"repo": "black-forest-labs/FLUX.2-klein-4b-fp8", "is_lora": False},
+    "flux2_klein": {"repo": "hf://black-forest-labs/FLUX.2-klein-4b-fp8/flux-2-klein-4b-fp8.safetensors", "is_lora": False},
     "photorealistic": {"repo": "RunDiffusion/Juggernaut-XL-v9", "is_lora": False},
     "realvis": {"repo": "SG161222/RealVisXL_V4.0", "is_lora": False},
     "pixel_art": {"repo": "nerijs/pixel-art-xl", "is_lora": True},
@@ -229,15 +229,22 @@ def _get_pipeline(repo_id: str, is_lora: bool = False):
                 local_files_only=_should_use_local_files(repo_id), token=hf_token,
             )
 
-        elif repo_id.endswith(".gguf") or repo_id.startswith("http"):
+        elif repo_id.endswith(".gguf") or repo_id.endswith(".safetensors") or repo_id.startswith("http") or repo_id.startswith("hf://"):
             clean_url = repo_id.split("?")[0] if repo_id.startswith("http") else repo_id
             if "huggingface.co" in clean_url and "/resolve/main/" in clean_url:
                 clean_url = clean_url.replace("/resolve/main/", "/blob/main/")
-            from diffusers import StableDiffusionXLPipeline
-            _pipeline = StableDiffusionXLPipeline.from_single_file(
-                clean_url, torch_dtype=dtype,
-                local_files_only=_should_use_local_files(repo_id), token=hf_token,
-            )
+            if "flux" in repo_id.lower():
+                from diffusers import FluxPipeline
+                _pipeline = FluxPipeline.from_single_file(
+                    clean_url, torch_dtype=dtype,
+                    local_files_only=_should_use_local_files(repo_id), token=hf_token,
+                )
+            else:
+                from diffusers import StableDiffusionXLPipeline
+                _pipeline = StableDiffusionXLPipeline.from_single_file(
+                    clean_url, torch_dtype=dtype,
+                    local_files_only=_should_use_local_files(repo_id), token=hf_token,
+                )
         else:
             _pipeline = AutoPipelineForText2Image.from_pretrained(
                 repo_id, torch_dtype=dtype, variant=variant,
@@ -253,15 +260,22 @@ def _get_pipeline(repo_id: str, is_lora: bool = False):
                     local_files_only=_should_use_local_files(base_model), token=hf_token,
                 )
                 _pipeline.load_lora_weights(repo_id, token=hf_token)
-            elif repo_id.endswith(".gguf") or repo_id.startswith("http"):
+            elif repo_id.endswith(".gguf") or repo_id.endswith(".safetensors") or repo_id.startswith("http") or repo_id.startswith("hf://"):
                 clean_url = repo_id.split("?")[0] if repo_id.startswith("http") else repo_id
                 if "huggingface.co" in clean_url and "/resolve/main/" in clean_url:
                     clean_url = clean_url.replace("/resolve/main/", "/blob/main/")
-                from diffusers import StableDiffusionXLPipeline
-                _pipeline = StableDiffusionXLPipeline.from_single_file(
-                    clean_url, torch_dtype=dtype,
-                    local_files_only=_should_use_local_files(repo_id), token=hf_token,
-                )
+                if "flux" in repo_id.lower():
+                    from diffusers import FluxPipeline
+                    _pipeline = FluxPipeline.from_single_file(
+                        clean_url, torch_dtype=dtype,
+                        local_files_only=_should_use_local_files(repo_id), token=hf_token,
+                    )
+                else:
+                    from diffusers import StableDiffusionXLPipeline
+                    _pipeline = StableDiffusionXLPipeline.from_single_file(
+                        clean_url, torch_dtype=dtype,
+                        local_files_only=_should_use_local_files(repo_id), token=hf_token,
+                    )
             else:
                 _pipeline = AutoPipelineForText2Image.from_pretrained(
                     repo_id, torch_dtype=dtype, variant=None,
@@ -353,14 +367,20 @@ def _get_i2i_pipeline(repo_id: str, is_lora: bool = False):
             )
             _i2i_pipeline.load_lora_weights(repo_id, token=hf_token)
         else:
-            if repo_id.endswith(".gguf") or repo_id.startswith("http"):
+            if repo_id.endswith(".gguf") or repo_id.endswith(".safetensors") or repo_id.startswith("http") or repo_id.startswith("hf://"):
                 clean_url = repo_id.split("?")[0] if repo_id.startswith("http") else repo_id
                 if "huggingface.co" in clean_url and "/resolve/main/" in clean_url:
                     clean_url = clean_url.replace("/resolve/main/", "/blob/main/")
-                from diffusers import StableDiffusionXLImg2ImgPipeline
-                _i2i_pipeline = StableDiffusionXLImg2ImgPipeline.from_single_file(
-                    clean_url, torch_dtype=dtype, local_files_only=_should_use_local_files(base_model if "base_model" in locals() and "stabilityai" in base_model else repo_id), token=hf_token
-                )
+                if "flux" in repo_id.lower():
+                    from diffusers import FluxImg2ImgPipeline
+                    _i2i_pipeline = FluxImg2ImgPipeline.from_single_file(
+                        clean_url, torch_dtype=dtype, local_files_only=_should_use_local_files(base_model if "base_model" in locals() and "stabilityai" in base_model else repo_id), token=hf_token
+                    )
+                else:
+                    from diffusers import StableDiffusionXLImg2ImgPipeline
+                    _i2i_pipeline = StableDiffusionXLImg2ImgPipeline.from_single_file(
+                        clean_url, torch_dtype=dtype, local_files_only=_should_use_local_files(base_model if "base_model" in locals() and "stabilityai" in base_model else repo_id), token=hf_token
+                    )
             else:
                 _i2i_pipeline = AutoPipelineForImage2Image.from_pretrained(
                     repo_id, torch_dtype=dtype, variant=variant, local_files_only=_should_use_local_files(base_model if "base_model" in locals() and "stabilityai" in base_model else repo_id), token=hf_token
@@ -372,12 +392,16 @@ def _get_i2i_pipeline(repo_id: str, is_lora: bool = False):
                 _i2i_pipeline = AutoPipelineForImage2Image.from_pretrained(base_model, torch_dtype=dtype, variant=None, local_files_only=_should_use_local_files(base_model if "base_model" in locals() and "stabilityai" in base_model else repo_id), token=hf_token)
                 _i2i_pipeline.load_lora_weights(repo_id, token=hf_token)
             else:
-                if repo_id.endswith(".gguf") or repo_id.startswith("http"):
+                if repo_id.endswith(".gguf") or repo_id.endswith(".safetensors") or repo_id.startswith("http") or repo_id.startswith("hf://"):
                     clean_url = repo_id.split("?")[0] if repo_id.startswith("http") else repo_id
                     if "huggingface.co" in clean_url and "/resolve/main/" in clean_url:
                         clean_url = clean_url.replace("/resolve/main/", "/blob/main/")
-                    from diffusers import StableDiffusionXLImg2ImgPipeline
-                    _i2i_pipeline = StableDiffusionXLImg2ImgPipeline.from_single_file(clean_url, torch_dtype=dtype, local_files_only=_should_use_local_files(base_model if "base_model" in locals() and "stabilityai" in base_model else repo_id), token=hf_token)
+                    if "flux" in repo_id.lower():
+                        from diffusers import FluxImg2ImgPipeline
+                        _i2i_pipeline = FluxImg2ImgPipeline.from_single_file(clean_url, torch_dtype=dtype, local_files_only=_should_use_local_files(base_model if "base_model" in locals() and "stabilityai" in base_model else repo_id), token=hf_token)
+                    else:
+                        from diffusers import StableDiffusionXLImg2ImgPipeline
+                        _i2i_pipeline = StableDiffusionXLImg2ImgPipeline.from_single_file(clean_url, torch_dtype=dtype, local_files_only=_should_use_local_files(base_model if "base_model" in locals() and "stabilityai" in base_model else repo_id), token=hf_token)
                 else:
                     _i2i_pipeline = AutoPipelineForImage2Image.from_pretrained(repo_id, torch_dtype=dtype, variant=None, local_files_only=_should_use_local_files(base_model if "base_model" in locals() and "stabilityai" in base_model else repo_id), token=hf_token)
         else:
