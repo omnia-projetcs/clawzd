@@ -472,7 +472,6 @@ _VIDEO_MODELS = {
         "max_frames": 257,
         "vram_gb": 20,
         "dtype": "bfloat16",
-        "quantize": "int8",
     },
     "ltx_23_distilled": {
         "repo": "Lightricks/LTX-2.3",
@@ -483,7 +482,6 @@ _VIDEO_MODELS = {
         "max_frames": 257,
         "vram_gb": 16,
         "dtype": "bfloat16",
-        "quantize": "int8",
         "distilled": True,
     },
     "cogvideox": {
@@ -496,7 +494,6 @@ _VIDEO_MODELS = {
         "max_frames": 49,
         "vram_gb": 16,
         "dtype": "float16",
-        "quantize": "int8",
     },
     "hunyuanvideo": {
         "repo": "hunyuanvideo-community/HunyuanVideo",
@@ -507,7 +504,6 @@ _VIDEO_MODELS = {
         "max_frames": 61,
         "vram_gb": 14,
         "dtype": "bfloat16",
-        "quantize": "int8",
     },
     "wan22": {
         "repo": "Wan-AI/Wan2.2-T2V-A14B-Diffusers",
@@ -519,7 +515,6 @@ _VIDEO_MODELS = {
         "max_frames": 81,
         "vram_gb": 20,
         "dtype": "bfloat16",
-        "quantize": "int8",
     },
 }
 
