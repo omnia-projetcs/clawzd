@@ -124,6 +124,13 @@ class SendEmailParams(BaseModel):
     to_email: Optional[str] = Field(None, description="Recipient email (default from config)")
 
 
+class AnalyzeDataParams(BaseModel):
+    """Parameters for the analyze_data tool."""
+    file_path: str = Field(..., description="Path to CSV or Excel file to analyze")
+    focus: str = Field("", description="Optional focus area: trends, correlations, anomalies, summary")
+    max_charts: int = Field(5, description="Maximum number of charts to generate", ge=1, le=10)
+
+
 # ---------------------------------------------------------------------------
 # Schema Registry
 # ---------------------------------------------------------------------------
@@ -143,6 +150,7 @@ _TOOL_SCHEMAS: dict[str, type[BaseModel]] = {
     "create_document": CreateDocumentParams,
     "memory": MemoryParams,
     "send_email": SendEmailParams,
+    "analyze_data": AnalyzeDataParams,
 }
 
 

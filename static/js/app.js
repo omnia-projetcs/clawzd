@@ -1601,6 +1601,49 @@
           this.send();
         });
         actionsBar.appendChild(regenBtn);
+        // Humanize text (Abacus.ai-inspired)
+        const humanizeBtn = el('button', { class: 'msg-action-btn', title: 'Rewrite to sound more human', html: `${icon('edit', 13)} Humanize` });
+        humanizeBtn.addEventListener('click', async () => {
+          const originalHtml = bubble.innerHTML;
+          const originalText = bubble.innerText || bubble.textContent || '';
+          if (!originalText.trim()) return;
+          humanizeBtn.disabled = true;
+          humanizeBtn.innerHTML = `${icon('clock', 13)} Humanizing...`;
+          try {
+            const r = await fetch('/chat/humanize', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                text: originalText,
+                provider: $('#provider-select').value,
+                model: $('#model-select').value
+              })
+            });
+            const d = await r.json();
+            if (!r.ok) throw new Error(d.detail || 'Failed');
+            if (d.humanized) {
+              bubble.innerHTML = renderMd(d.humanized);
+              highlightAll(bubble);
+              humanizeBtn.innerHTML = `${icon('check', 13)} Humanized`;
+              // Add undo button
+              const undoBtn = el('button', { class: 'msg-action-btn', title: 'Undo humanization', html: `${icon('refresh-cw', 13)} Undo` });
+              undoBtn.addEventListener('click', () => {
+                bubble.innerHTML = originalHtml;
+                highlightAll(bubble);
+                undoBtn.remove();
+                humanizeBtn.innerHTML = `${icon('edit', 13)} Humanize`;
+              });
+              actionsBar.insertBefore(undoBtn, humanizeBtn.nextSibling);
+              setTimeout(() => { humanizeBtn.innerHTML = `${icon('edit', 13)} Humanize`; }, 2000);
+            }
+          } catch (e) {
+            toast(ICONS.x(14) + ' Humanize failed: ' + e.message);
+            humanizeBtn.innerHTML = `${icon('edit', 13)} Humanize`;
+          } finally {
+            humanizeBtn.disabled = false;
+          }
+        });
+        actionsBar.appendChild(humanizeBtn);
       } else {
         // Edit user message
         const editBtn = el('button', { class: 'msg-action-btn', title: 'Edit message', html: `${icon('edit', 13)} Edit` });

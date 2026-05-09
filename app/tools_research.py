@@ -1038,7 +1038,158 @@ async def export_report(pid: str, request: Request):
             return FileResponse(path, filename=f"research_{proj['title'][:30]}.pdf")
         except ImportError:
             raise HTTPException(500, "fpdf2 not installed")
+    elif fmt == "pptx":
+        return await _export_research_pptx(proj, pdir)
     raise HTTPException(400, f"Unsupported format: {fmt}")
+
+
+async def _export_research_pptx(proj: dict, pdir: str) -> FileResponse:
+    """Export research report as a professional PPTX presentation.
+
+    Parses the markdown report into structured slides:
+    - Title slide with research query and metadata
+    - One slide per H2 section
+    - Bullet points for content
+    """
+    try:
+        from pptx import Presentation
+        from pptx.util import Inches, Pt
+        from pptx.enum.text import PP_ALIGN
+        from pptx.dml.color import RGBColor
+    except ImportError:
+        raise HTTPException(500, "python-pptx not installed")
+
+    report = proj.get("report_md", "")
+    title = proj.get("title", "Research Report")
+
+    prs = Presentation()
+    prs.slide_width = Inches(13.33)
+    prs.slide_height = Inches(7.5)
+
+    # --- Title Slide ---
+    slide = prs.slides.add_slide(prs.slide_layouts[6])
+    txBox = slide.shapes.add_textbox(Inches(1), Inches(2), Inches(11), Inches(2))
+    tf = txBox.text_frame
+    tf.word_wrap = True
+    p = tf.paragraphs[0]
+    p.text = title
+    p.font.size = Pt(36)
+    p.font.bold = True
+    p.font.color.rgb = RGBColor(30, 30, 30)
+    p.alignment = PP_ALIGN.CENTER
+    # Subtitle
+    p2 = tf.add_paragraph()
+    score = proj.get("current_score", 0)
+    iters = len(proj.get("iterations", []))
+    p2.text = f"Score: {score:.0%} | {iters} iterations | Clawzd Research Studio"
+    p2.font.size = Pt(18)
+    p2.font.color.rgb = RGBColor(100, 100, 100)
+    p2.alignment = PP_ALIGN.CENTER
+
+    # --- Content Slides (one per H2 section) ---
+    sections = _split_report_sections(report)
+    for section_title, section_body in sections:
+        slide = prs.slides.add_slide(prs.slide_layouts[6])
+
+        # Section title
+        txTitle = slide.shapes.add_textbox(
+            Inches(0.5), Inches(0.3), Inches(12), Inches(1),
+        )
+        tf_title = txTitle.text_frame
+        tf_title.word_wrap = True
+        p_title = tf_title.paragraphs[0]
+        p_title.text = section_title
+        p_title.font.size = Pt(28)
+        p_title.font.bold = True
+        p_title.font.color.rgb = RGBColor(30, 30, 30)
+
+        # Section content (bullet points)
+        txBody = slide.shapes.add_textbox(
+            Inches(0.5), Inches(1.5), Inches(12), Inches(5.5),
+        )
+        tf_body = txBody.text_frame
+        tf_body.word_wrap = True
+
+        lines = section_body.strip().split("\n")
+        first_line = True
+        for line in lines:
+            # Skip marker lines (__CHART__, __TABLE__, etc.)
+            if line.strip().startswith("__") and line.strip().endswith("__"):
+                continue
+            if not line.strip():
+                continue
+
+            if first_line:
+                p = tf_body.paragraphs[0]
+                first_line = False
+            else:
+                p = tf_body.add_paragraph()
+
+            # Handle bullet points
+            if line.strip().startswith("- "):
+                p.text = "• " + line.strip()[2:]
+                p.level = 1
+            elif line.strip().startswith("### "):
+                p.text = line.strip()[4:]
+                p.font.bold = True
+                p.font.size = Pt(18)
+                continue
+            else:
+                p.text = line.strip()
+
+            p.font.size = Pt(14)
+            p.font.color.rgb = RGBColor(50, 50, 50)
+            p.space_after = Pt(6)
+
+    path = os.path.join(pdir, "report.pptx")
+    prs.save(path)
+    return FileResponse(
+        path,
+        filename=f"research_{proj['title'][:30]}.pptx",
+    )
+
+
+def _split_report_sections(report_md: str) -> list[tuple[str, str]]:
+    """Split a markdown report into (title, body) sections at H2 boundaries."""
+    sections = []
+    current_title = ""
+    current_body = []
+
+    for line in report_md.split("\n"):
+        if line.startswith("## "):
+            if current_title or current_body:
+                sections.append((current_title, "\n".join(current_body)))
+            current_title = line[3:].strip()
+            current_body = []
+        elif line.startswith("# "):
+            # H1 is the report title, skip it for slides
+            continue
+        else:
+            current_body.append(line)
+
+    if current_title or current_body:
+        sections.append((current_title, "\n".join(current_body)))
+
+    return sections
+
+
+@router.post("/projects/{pid}/to-presentation")
+async def research_to_presentation(pid: str, request: Request):
+    """Convert research report directly to a professional presentation.
+
+    Bridge between Research Studio and Presentation Studio.
+    Takes the research report markdown and generates a PPTX file
+    with structured slides, one per section.
+    """
+    proj = _load(pid)
+    if not proj:
+        raise HTTPException(404, "Project not found")
+    report = proj.get("report_md", "")
+    if not report:
+        raise HTTPException(400, "No report available — run research first")
+
+    pdir = _proj_dir(pid)
+    return await _export_research_pptx(proj, pdir)
 
 @router.get("/projects/{pid}/export-zip")
 async def export_zip(pid: str):

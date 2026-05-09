@@ -495,4 +495,56 @@ async def generate_report_with_citations(
             bib += f"[{s['id']}] {s['title']} — {s['url']}\n\n"
         report += bib
 
+    # --- Inject Structured UI Components ---
+    # Prepend interactive research metrics (rendered by frontend)
+    import json as _json
+
+    # Executive summary metrics table
+    metrics_table = {
+        "title": "Research Metrics",
+        "headers": ["Metric", "Value"],
+        "rows": [
+            ["Quality Score", f"{score:.0%}"],
+            ["Iterations", str(num_iterations)],
+            ["Total Sources", str(len(numbered_sources))],
+            ["Perspectives", str(len(perspectives))],
+            ["Assets Downloaded", str(len(assets))],
+        ],
+    }
+    metrics_marker = f'__TABLE__{_json.dumps(metrics_table)}__TABLE__'
+
+    # Source distribution chart
+    source_counts = {}
+    for r in results:
+        src = r.get("source", "web")
+        source_counts[src] = source_counts.get(src, 0) + 1
+
+    if source_counts:
+        source_chart = {
+            "type": "pie",
+            "title": "Source Distribution",
+            "labels": list(source_counts.keys()),
+            "datasets": [{
+                "label": "Sources",
+                "data": list(source_counts.values()),
+            }],
+        }
+        chart_marker = f'__CHART__{_json.dumps(source_chart)}__CHART__'
+    else:
+        chart_marker = ""
+
+    # Inject metrics right after the first H1 or at the top
+    if "\n## " in report:
+        # Insert after the first paragraph
+        first_section = report.find("\n## ")
+        report = (
+            report[:first_section]
+            + f"\n\n{metrics_marker}\n\n"
+            + (f"{chart_marker}\n\n" if chart_marker else "")
+            + report[first_section:]
+        )
+    else:
+        report = f"{metrics_marker}\n\n{chart_marker}\n\n{report}"
+
     return report
+

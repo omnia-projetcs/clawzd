@@ -131,6 +131,11 @@ TOOL_KEYWORDS: dict[str, list[str]] = {
         "update", "app", "application", "edit", "modify", "change",
         "improve", "fix", "upgrade", "redesign",
     ],
+    "analyze_data": [
+        "analyze", "data", "csv", "excel", "dataset", "spreadsheet",
+        "dataframe", "statistics", "profile", "insights", "xlsx",
+        "tsv", "analysis", "visualize", "chart", "dashboard",
+    ],
 }
 
 # Direct alias map for common invented names
@@ -238,6 +243,19 @@ TOOL_ALIASES: dict[str, str] = {
     "modify_app": "update_app",
     "update-application": "update_app",
     "update_application": "update_app",
+    # Data analysis
+    "data-analysis": "analyze_data",
+    "data_analysis": "analyze_data",
+    "analyze-csv": "analyze_data",
+    "analyze_csv": "analyze_data",
+    "analyze-excel": "analyze_data",
+    "analyze_excel": "analyze_data",
+    "data-analyst": "analyze_data",
+    "data_analyst": "analyze_data",
+    "csv-analysis": "analyze_data",
+    "excel-analysis": "analyze_data",
+    "data-profiling": "analyze_data",
+    "dataset-analysis": "analyze_data",
 }
 
 
@@ -566,7 +584,7 @@ async def execute_tool(tool_name: str, params: dict, context: dict = None) -> di
         pass  # Schema validation is non-critical
 
     # --- Pipeline Step: Path sanity check ---
-    if resolved in ("edit_file", "read_file", "audit_code"):
+    if resolved in ("edit_file", "read_file", "audit_code", "analyze_data"):
         path_err = _path_sanity_check(params, resolved)
         if path_err:
             return {"error": f"Path sanity check failed: {path_err}"}
@@ -726,12 +744,20 @@ async def execute_tool(tool_name: str, params: dict, context: dict = None) -> di
             return await search(query=query, k=k)
 
         elif resolved == "browse_web":
-            from app.tools_browser import navigate
-            from starlette.requests import Request as _Req2
             url = params.get("url", "")
             if not url:
                 return {"error": "URL is required"}
-            return await _browse_web_direct(url)
+            actions = params.get("actions", [])
+            # Try Playwright-based automation first
+            try:
+                from app.tools_browser import execute_actions
+                return await execute_actions(
+                    url, actions, take_final_screenshot=True,
+                )
+            except (ImportError, HTTPException):
+                # Fallback to simulated browser (requests + BeautifulSoup)
+                from app.web_browser_simul import simul_browse
+                return await simul_browse(url, actions)
 
         elif resolved == "create_document":
             from app.tools_document import create_document_core
@@ -901,6 +927,15 @@ async def execute_tool(tool_name: str, params: dict, context: dict = None) -> di
                 result["_hint"] = "App updated successfully. Remember to verify the generated code for correctness."
             return result
 
+        elif resolved == "analyze_data":
+            from app.tools_data_analysis import analyze_file
+            file_path = params.get("file_path", "")
+            if not file_path:
+                return {"error": "file_path is required (CSV or Excel file)"}
+            focus = params.get("focus", "")
+            max_charts = params.get("max_charts", 5)
+            return await analyze_file(file_path, focus=focus, max_charts=max_charts)
+
         else:
             return {"error": f"Tool '{resolved}' is registered but has no executor"}
 
@@ -1002,23 +1037,6 @@ async def _generate_animation_direct(prompt: str, format: str = "gif", duration:
     except Exception as e:
         return {"error": f"Animation generation failed: {e}"}
 
-
-async def _browse_web_direct(url: str) -> dict:
-    """Navigate to a URL without going through the HTTP endpoint."""
-    try:
-        from app.tools_browser import _ensure_browser
-        from playwright.async_api import TimeoutError as PwTimeoutError
-        page = await _ensure_browser()
-        try:
-            await page.goto(url, wait_until="domcontentloaded", timeout=20000)
-        except PwTimeoutError:
-            pass  # Ignore timeout, try to extract whatever loaded
-        
-        title = await page.title()
-        text = await page.inner_text("body", timeout=5000)
-        return {"status": "ok", "url": page.url, "title": title, "text": text[:5000]}
-    except Exception as e:
-        return {"error": f"Browse failed: {e}"}
 
 
 # Fence labels that should be treated as tool calls

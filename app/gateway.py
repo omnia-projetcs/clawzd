@@ -1395,6 +1395,66 @@ async def chat_upload_image(file: UploadFile = File(...)):
     }
 
 
+@app.post("/chat/humanize")
+async def humanize_text(request: Request):
+    """Rewrite AI-generated text to sound more natural and human.
+
+    Inspired by Abacus.ai's Humanize Text feature.
+    Uses the dedicated humanizer preprompt to reformulate text
+    while preserving meaning, code blocks, and technical accuracy.
+    """
+    data = await request.json()
+    text = data.get("text", "")
+    if not text.strip():
+        raise HTTPException(400, "No text provided")
+
+    # Cap input to avoid excessive token usage
+    if len(text) > 20_000:
+        text = text[:20_000] + "\n\n... (truncated)"
+
+    provider_key = data.get("provider", "")
+    model_key = data.get("model", "")
+    provider = get_llm_provider(provider_key or None)
+
+    from app.core.preprompts import PREPROMPTS
+    humanizer_prompt = PREPROMPTS["humanizer"]["system_prompt"]
+
+    messages = [
+        {"role": "system", "content": humanizer_prompt},
+        {"role": "user", "content": f"Humanize this text:\n\n{text}"},
+    ]
+
+    kwargs = {}
+    if model_key:
+        kwargs["model"] = model_key
+
+    import time as _time
+    t0 = _time.time()
+    result = ""
+    async for chunk in provider.chat_stream(messages, **kwargs):
+        result += chunk
+    elapsed = _time.time() - t0
+
+    # Record metrics
+    input_tokens = count_tokens(text, model=model_key or "")
+    output_tokens = count_tokens(result, model=model_key or "")
+    get_metrics().record_llm_call(
+        provider=provider_key or "default",
+        model=model_key or "default",
+        input_tokens=input_tokens,
+        output_tokens=output_tokens,
+        latency_s=elapsed,
+        session_id="humanize",
+    )
+
+    return {
+        "humanized": result,
+        "original_length": len(text),
+        "humanized_length": len(result),
+        "latency_s": round(elapsed, 2),
+    }
+
+
 # --- WebSocket chat endpoint ---
 @app.websocket("/ws/{session_id}")
 async def ws_chat(websocket: WebSocket, session_id: str):

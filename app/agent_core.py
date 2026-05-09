@@ -159,7 +159,22 @@ BUILTIN_TOOL_DEFINITIONS = [
         "name": "browse_web",
         "description": (
             "Control a headless browser to navigate, interact with, and extract data from web pages. "
-            "Use this for complex web interactions like filling forms, clicking buttons, or scraping content."
+            "Use this for web scraping, form filling, clicking buttons, scrolling, and multi-step automation. "
+            "Provide a URL and an optional list of sequential actions to perform.\n\n"
+            "Supported actions:\n"
+            "- {action: 'click', selector: 'CSS'} — click an element\n"
+            "- {action: 'type', selector: 'CSS', text: '...'} — type into a field\n"
+            "- {action: 'select', selector: 'CSS', value: '...'} — select dropdown option\n"
+            "- {action: 'scroll', direction: 'down'|'up', amount: 500} — scroll the page\n"
+            "- {action: 'wait', selector: 'CSS'} or {action: 'wait', time: 2} — wait for element/time\n"
+            "- {action: 'extract', selector: 'CSS'} — extract text from element\n"
+            "- {action: 'screenshot'} — capture current page state\n"
+            "- {action: 'evaluate', script: 'JS code'} — run JavaScript\n"
+            "- {action: 'hover', selector: 'CSS'} — hover over element\n"
+            "- {action: 'press', key: 'Enter'} — press keyboard key\n"
+            "- {action: 'go_back'} — navigate back\n"
+            "- {action: 'navigate', url: '...'} — navigate to another URL\n\n"
+            "Falls back to HTTP-based simulation if no browser engine is available."
         ),
         "parameters": {
             "type": "object",
@@ -167,8 +182,32 @@ BUILTIN_TOOL_DEFINITIONS = [
                 "url": {"type": "string", "description": "URL to navigate to"},
                 "actions": {
                     "type": "array",
-                    "description": "List of browser actions to perform",
-                    "items": {"type": "object"},
+                    "description": "Sequential browser actions to perform after navigation",
+                    "items": {
+                        "type": "object",
+                        "properties": {
+                            "action": {
+                                "type": "string",
+                                "enum": [
+                                    "click", "type", "select", "scroll",
+                                    "wait", "extract", "screenshot",
+                                    "evaluate", "hover", "press",
+                                    "go_back", "navigate",
+                                ],
+                            },
+                            "selector": {"type": "string"},
+                            "text": {"type": "string"},
+                            "value": {"type": "string"},
+                            "script": {"type": "string"},
+                            "key": {"type": "string"},
+                            "url": {"type": "string"},
+                            "direction": {"type": "string"},
+                            "amount": {"type": "integer"},
+                            "time": {"type": "number"},
+                            "attribute": {"type": "string"},
+                        },
+                        "required": ["action"],
+                    },
                 },
             },
             "required": ["url"],
