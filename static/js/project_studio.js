@@ -3,7 +3,7 @@
   'use strict';
   function $(s, c) { return (c || document).querySelector(s) }
   function $$(s, c) { return Array.from((c || document).querySelectorAll(s)) }
-  function toast(m) { const t = document.createElement('div'); t.className = 'toast'; t.innerHTML = m; document.body.appendChild(t); setTimeout(() => t.remove(), 3100) }
+  function toast(m) { const t = document.createElement('div'); t.className = 'toast'; t.innerHTML = m; t.style.animation = 'toastIn .3s ease forwards, toastOut .3s ease 2.8s forwards'; document.body.appendChild(t); setTimeout(() => t.remove(), 3100) }
 
   class ProjectStudio {
     constructor() {

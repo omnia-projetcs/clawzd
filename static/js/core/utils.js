@@ -37,10 +37,14 @@ export function el(tag, attrs, children) {
 }
 
 /** Show a toast notification */
-export function toast(msg) {
+export function toast(msg, duration = 3000) {
   const t = el('div', { class: 'toast', html: msg });
   document.body.appendChild(t);
-  setTimeout(() => t.remove(), 20300);
+  
+  const delay = Math.max(0, (duration / 1000) - 0.3);
+  t.style.animation = `toastIn .3s ease forwards, toastOut .3s ease ${delay}s forwards`;
+  
+  setTimeout(() => t.remove(), duration);
 }
 
 /** Escape HTML entities */

@@ -15,9 +15,13 @@
     if (children) children.forEach(c => { if (c) e.appendChild(typeof c === 'string' ? document.createTextNode(c) : c); });
     return e;
   }
-  function toast(msg) {
+  function toast(msg, duration = 3000) {
     const t = el('div', { class: 'toast', html: msg });
-    document.body.appendChild(t); setTimeout(() => t.remove(), 20300);
+    document.body.appendChild(t);
+    // Apply dynamic exit animation based on duration (duration minus 300ms for the animation length)
+    const delay = Math.max(0, (duration / 1000) - 0.3);
+    t.style.animation = `toastIn .3s ease forwards, toastOut .3s ease ${delay}s forwards`;
+    setTimeout(() => t.remove(), duration);
   }
   function escHtml(s) {
     return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
