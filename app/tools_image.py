@@ -200,10 +200,10 @@ def _get_pipeline(repo_id: str, is_lora: bool = False):
         or _pipe_type == "zimage"
     )
     if is_bf16_model:
-        dtype = torch.bfloat16 if torch.cuda.is_available() else torch.float32
+        dtype = torch.bfloat16
         variant = None
     else:
-        dtype = torch.float16 if torch.cuda.is_available() else torch.float32
+        dtype = torch.float16
         variant = "fp16"
 
     logger.info(f"Loading image pipeline for {repo_id} (LoRA: {is_lora}, type: {_pipe_type or 'auto'})")
