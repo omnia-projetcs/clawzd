@@ -54,9 +54,9 @@ except Exception as e:
 
 # NOTE: Only free open-weights models from Hugging Face are allowed here.
 _IMAGE_STYLE_MODELS = {
-    "none": {"repo": "black-forest-labs/FLUX.2-klein-4B", "is_lora": False},
+    "none": {"repo": "black-forest-labs/FLUX.2-klein-4b-fp8", "is_lora": False},
     "flux_schnell": {"repo": "black-forest-labs/FLUX.1-schnell", "is_lora": False},
-    "flux2_klein": {"repo": "black-forest-labs/FLUX.2-klein-4B", "is_lora": False},
+    "flux2_klein": {"repo": "black-forest-labs/FLUX.2-klein-4b-fp8", "is_lora": False},
     "photorealistic": {"repo": "RunDiffusion/Juggernaut-XL-v9", "is_lora": False},
     "realvis": {"repo": "SG161222/RealVisXL_V4.0", "is_lora": False},
     "anime": {"repo": "cagliostrolab/animagine-xl-3.1", "is_lora": False},
