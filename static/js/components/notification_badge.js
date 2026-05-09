@@ -62,6 +62,25 @@ const NotificationBadge = (() => {
     _pollInterval = setInterval(_poll, 15000); // Every 15s
   }
 
+  function _getMergedItems() {
+    // Merge server notifications with local toast history
+    const local = (window._toastHistory || []).map(n => ({
+      title: n.title || '',
+      body: n.body || '',
+      timestamp: n.timestamp,
+      read: !!n.read,
+      local: true,
+    }));
+    const all = [..._items, ...local];
+    // Sort by timestamp descending (newest first)
+    all.sort((a, b) => {
+      const ta = a.timestamp ? (typeof a.timestamp === 'number' ? a.timestamp * 1000 : new Date(a.timestamp).getTime()) : 0;
+      const tb = b.timestamp ? (typeof b.timestamp === 'number' ? b.timestamp * 1000 : new Date(b.timestamp).getTime()) : 0;
+      return tb - ta;
+    });
+    return all.slice(0, 20);
+  }
+
   async function _poll() {
     try {
       const res = await fetch('/notifications?limit=10');
@@ -76,7 +95,8 @@ const NotificationBadge = (() => {
     const countEl = document.getElementById('notif-count');
     if (!countEl) return;
 
-    const unread = _items.filter(n => !n.read).length;
+    const merged = _getMergedItems();
+    const unread = merged.filter(n => !n.read).length;
     if (unread > 0) {
       countEl.textContent = unread > 9 ? '9+' : unread;
       countEl.style.display = 'inline-flex';
@@ -88,9 +108,16 @@ const NotificationBadge = (() => {
   function _renderDropdown() {
     if (!_dropdownEl) return;
 
-    if (_items.length === 0) {
+    const merged = _getMergedItems();
+
+    if (merged.length === 0) {
       _dropdownEl.innerHTML = '<div class="notif-empty">No notifications</div>';
       return;
+    }
+
+    // Mark all local toasts as read when opening dropdown
+    if (window._toastHistory) {
+      window._toastHistory.forEach(n => { n.read = true; });
     }
 
     _dropdownEl.innerHTML = `
@@ -99,7 +126,7 @@ const NotificationBadge = (() => {
         <button class="notif-clear" onclick="NotificationBadge.clear()">Clear</button>
       </div>
       <div class="notif-list">
-        ${_items.slice(0, 8).map(n => `
+        ${merged.slice(0, 15).map(n => `
           <div class="notif-item ${n.read ? '' : 'notif-unread'}">
             <div class="notif-title">${n.title || ''}</div>
             <div class="notif-body">${n.body || ''}</div>
@@ -108,6 +135,9 @@ const NotificationBadge = (() => {
         `).join('')}
       </div>
     `;
+
+    // Update count after marking as read
+    _updateCount();
   }
 
   function toggle(force) {
@@ -128,6 +158,7 @@ const NotificationBadge = (() => {
 
   async function clear() {
     _items = [];
+    if (window._toastHistory) window._toastHistory.length = 0;
     _updateCount();
     _renderDropdown();
     toggle(false);

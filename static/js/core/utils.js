@@ -37,7 +37,11 @@ export function el(tag, attrs, children) {
 }
 
 /** Show a toast notification */
-export function toast(msg, duration = 3000) {
+export function toast(msg, duration = 5000) {
+  // Delegate to the global toast if loaded (ensures notification history integration)
+  if (window.toast && window.toast !== toast) {
+    return window.toast(msg, duration);
+  }
   const t = el('div', { class: 'toast', html: msg });
   document.body.appendChild(t);
   

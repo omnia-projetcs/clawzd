@@ -152,8 +152,6 @@ def _get_pipeline(repo_id: str, is_lora: bool = False):
 
     Detects model-specific pipeline classes:
     - Z-Image family → ZImagePipeline
-    - Qwen-Image-2512 → DiffusionPipeline
-    - Qwen-Image-Edit → QwenImageEditPlusPipeline
     - FLUX / SDXL / default → AutoPipelineForText2Image
     """
     global _pipeline, _current_image_model, _current_is_lora
@@ -176,7 +174,7 @@ def _get_pipeline(repo_id: str, is_lora: bool = False):
     is_bf16_model = (
         "flux" in repo_id.lower()
         or "stable-diffusion-3" in repo_id.lower()
-        or _pipe_type in ("zimage", "qwen_image", "qwen_image_edit")
+        or _pipe_type == "zimage"
     )
     if is_bf16_model:
         dtype = torch.bfloat16 if torch.cuda.is_available() else torch.float32
@@ -205,22 +203,6 @@ def _get_pipeline(repo_id: str, is_lora: bool = False):
             from diffusers import ZImagePipeline
             _pipeline = ZImagePipeline.from_pretrained(
                 repo_id, torch_dtype=dtype, low_cpu_mem_usage=False,
-                local_files_only=_should_use_local_files(repo_id), token=hf_token,
-            )
-
-        elif _pipe_type == "qwen_image":
-            # Qwen-Image-2512 — generic DiffusionPipeline (auto-detects class)
-            from diffusers import DiffusionPipeline
-            _pipeline = DiffusionPipeline.from_pretrained(
-                repo_id, torch_dtype=dtype,
-                local_files_only=_should_use_local_files(repo_id), token=hf_token,
-            )
-
-        elif _pipe_type == "qwen_image_edit":
-            # Qwen-Image-Edit-2511 — uses QwenImageEditPlusPipeline
-            from diffusers import QwenImageEditPlusPipeline
-            _pipeline = QwenImageEditPlusPipeline.from_pretrained(
-                repo_id, torch_dtype=dtype,
                 local_files_only=_should_use_local_files(repo_id), token=hf_token,
             )
 
@@ -821,10 +803,7 @@ _IMAGE_STYLES = {
         "positive": "",
         "negative": "lowres, bad anatomy, bad hands, text, error, worst quality, low quality, watermark, blurry",
     },
-    "qwen_image": {
-        "positive": "",
-        "negative": "low resolution, low quality, distorted limbs, distorted fingers, oversaturated, wax figure, no facial detail, overly smooth, AI-looking, chaotic composition, blurry text, distorted text",
-    },
+
 }
 
 # Keywords that strongly suggest raster (photorealistic) generation
@@ -924,6 +903,7 @@ def _detect_non_english(text: str) -> bool:
     
     # Common French words/patterns have been removed to comply with English-only codebase rules.
     # We now rely primarily on the non-ASCII check above for detecting non-English languages.
+    return False
 
 
 async def _translate_prompt(prompt: str) -> str:
@@ -956,11 +936,7 @@ async def _translate_prompt(prompt: str) -> str:
         translated = translated.strip()
             
         # Remove <think>...</think> block if present
-        translated = re.sub(r"<think>.*?(?:</think>|$)", "", translated, flags=re.DOTALL).strip()
-        # Remove conversational prefixes
-        translated = re.sub(r"^(translation:|here is.*?:|the translation.*?:)\s*", "", translated, flags=re.IGNORECASE).strip()
-        # Remove enclosing quotes
-        translated = re.sub(r'^["\'](.*)["\']$', r'\1', translated).strip()
+        translated = _clean_llm_output(translated)
             
         if translated:
             logger.info("Prompt translated: '%s' -> '%s'", prompt, translated)
@@ -1034,8 +1010,6 @@ async def _enhance_prompt_with_llm(prompt: str, style: str = "none", model_repo:
     is_anime = style == "anime" or "animagine" in model_repo.lower()
     is_photo = style in ("photorealistic", "realvis") or "juggernaut" in model_repo.lower() or "realvis" in model_repo.lower()
     is_zimage = style in ("z_image_turbo", "z_image") or "z-image" in model_repo.lower()
-    is_qwen = style in ("qwen_image", "qwen_image_edit") or "qwen-image" in model_repo.lower()
-
     if is_zimage:
         model_guidance = (
             "TARGET MODEL: Z-Image (S3-DiT flow-matching model, 6B params). "
@@ -1044,15 +1018,6 @@ async def _enhance_prompt_with_llm(prompt: str, style: str = "none", model_repo:
             "Do NOT use quality tags — describe the scene, lighting, mood, composition, camera. "
             "If text should appear in the image, include it in quotes within the prompt. "
             "Focus on: subject, atmosphere, cinematic details, photo-like realism."
-        )
-    elif is_qwen:
-        model_guidance = (
-            "TARGET MODEL: Qwen-Image (high-resolution text-to-image, bilingual EN/CN). "
-            "Qwen-Image excels at photorealism, text rendering, and complex compositions. "
-            "Use NATURAL LANGUAGE descriptions (40-80 words). "
-            "Do NOT use quality tags. Describe the scene precisely and cinematically. "
-            "If text or typography should appear, include the exact text in quotes. "
-            "Focus on: subject, composition, lighting, mood, camera angle, material textures."
         )
     elif is_flux:
         model_guidance = (
@@ -1394,21 +1359,7 @@ async def generate_image_core(
                 _extra_kwargs["cfg_normalization"] = False
                 logger.info(f"Z-Image: guidance={guidance}, steps={steps}")
 
-            # Qwen-Image-2512: uses true_cfg_scale instead of guidance_scale
-            elif _pipe_type == "qwen_image":
-                if steps <= 4:
-                    steps = 50
-                guidance = 1.0  # guidance_scale must be 1.0 for Qwen-Image
-                _extra_kwargs["true_cfg_scale"] = 4.0
-                logger.info(f"Qwen-Image-2512: true_cfg_scale=4.0, steps={steps}")
 
-            # Qwen-Image-Edit-2511: editing pipeline
-            elif _pipe_type == "qwen_image_edit":
-                if steps <= 4:
-                    steps = 40
-                guidance = 1.0
-                _extra_kwargs["true_cfg_scale"] = 4.0
-                logger.info(f"Qwen-Image-Edit-2511: true_cfg_scale=4.0, steps={steps}")
 
             def step_callback(p, step_index, timestep, callback_kwargs):
                 global _generation_progress
@@ -1458,26 +1409,6 @@ async def generate_image_core(
                 _no_neg = True
 
             if reference_image:
-                # Qwen-Image-Edit handles reference images natively via its pipeline
-                if _pipe_type == "qwen_image_edit":
-                    from PIL import Image
-                    ref_path = os.path.join(IMAGES_DIR, os.path.basename(reference_image))
-                    if not os.path.exists(ref_path):
-                        raise RuntimeError(f"Reference image not found: {reference_image}")
-                    init_img = Image.open(ref_path).convert("RGB")
-                    pipe = await asyncio.to_thread(_get_pipeline, repo_id, is_lora)
-                    pipe_kwargs = dict(
-                        prompt=prompt,
-                        image=[init_img],
-                        num_inference_steps=steps,
-                        guidance_scale=guidance,
-                        **_extra_kwargs,
-                    )
-                    if not _no_neg:
-                        pipe_kwargs["negative_prompt"] = negative_prompt
-                    result = await asyncio.to_thread(pipe, **pipe_kwargs)
-                    image = result.images[0]
-                else:
                     # Standard Img2Img
                     from PIL import Image
                     ref_path = os.path.join(IMAGES_DIR, os.path.basename(reference_image))
@@ -2221,70 +2152,7 @@ async def list_images():
     return {"images": images[:200]}
 
 
-@router.post("/remove-bg")
-async def remove_background(request: Request):
-    """Remove background from an image using rembg (U2-Net).
-
-    Accepts either a filename (of an existing generated image) or
-    a base64-encoded image. Returns the processed image with transparent
-    background as a new file.
-    """
-    data = await request.json()
-    filename = data.get("filename", "")
-    input_b64 = data.get("base64", "")
-
-    try:
-        from PIL import Image
-        import io
-
-        # Load the input image
-        if filename:
-            # Look in the images directory
-            filepath = os.path.join(IMAGES_DIR, os.path.basename(filename))
-            if not os.path.exists(filepath):
-                raise HTTPException(404, f"Image not found: {filename}")
-            with open(filepath, "rb") as f:
-                input_data = f.read()
-        elif input_b64:
-            input_data = base64.b64decode(input_b64)
-        else:
-            raise HTTPException(400, "Provide 'filename' or 'base64'")
-
-        logger.info("Removing background from %s (%d KB)...", filename or "base64", len(input_data) // 1024)
-
-        # Run background removal
-        output_data = _remove_bg_enhanced(input_data)
-
-        # Save the result
-        base_name = os.path.splitext(os.path.basename(filename))[0] if filename else f"img_{uuid.uuid4().hex[:6]}"
-        out_filename = f"{base_name}_nobg.png"
-        out_filepath = os.path.join(IMAGES_DIR, out_filename)
-        with open(out_filepath, "wb") as f:
-            f.write(output_data)
-
-        out_b64 = base64.b64encode(output_data).decode()
-
-        logger.info("Background removed → %s (%d KB)", out_filename, len(output_data) // 1024)
-
-        return {
-            "status": "ok",
-            "filename": out_filename,
-            "path": out_filepath,
-            "url": f"/data/images/{out_filename}",
-            "base64": out_b64,
-            "original": filename,
-        }
-
-    except ImportError:
-        raise HTTPException(
-            500,
-            "rembg is not installed. Run: pip install rembg[gpu]",
-        )
-    except HTTPException:
-        raise
-    except Exception as e:
-        logger.error("Background removal failed: %s", e)
-        raise HTTPException(500, f"Background removal failed: {e}")
+# (Duplicate /remove-bg route removed — see remove_bg() above)
 
 @router.post("/make-coloring")
 async def make_coloring(request: Request):
@@ -2380,6 +2248,7 @@ async def convert_video(request: Request):
     out_filepath = os.path.join(IMAGES_DIR, out_filename)
 
     import subprocess
+    import asyncio
 
     try:
         if target_format == "gif":
@@ -2695,11 +2564,7 @@ async def suggest_prompt(request: Request):
             
             # Remove <think>...</think> block if present
             import re
-            enhanced = re.sub(r"<think>.*?(?:</think>|$)", "", enhanced, flags=re.DOTALL).strip()
-            
-            # Remove conversational prefixes
-            enhanced = re.sub(r"^(here is .*?:|here's .*?:|enhanced prompt:|prompt:|\*\*prompt\*\*.*?:)\s*", "", enhanced, flags=re.IGNORECASE).strip()
-            enhanced = re.sub(r'^["\'](.*)["\']$', r'\1', enhanced).strip()
+            enhanced = _clean_llm_output(enhanced)
             
             if enhanced:
                 return {"prompt": enhanced}

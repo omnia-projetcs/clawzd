@@ -15,13 +15,40 @@
     if (children) children.forEach(c => { if (c) e.appendChild(typeof c === 'string' ? document.createTextNode(c) : c); });
     return e;
   }
-  function toast(msg, duration = 3000) {
+  // Local toast history — accessible by NotificationBadge
+  window._toastHistory = window._toastHistory || [];
+
+  function toast(msg, duration = 5000) {
     const t = el('div', { class: 'toast', html: msg });
     document.body.appendChild(t);
     // Apply dynamic exit animation based on duration (duration minus 300ms for the animation length)
     const delay = Math.max(0, (duration / 1000) - 0.3);
     t.style.animation = `toastIn .3s ease forwards, toastOut .3s ease ${delay}s forwards`;
     setTimeout(() => t.remove(), duration);
+
+    // Store in local notification history for the NotificationBadge dropdown
+    const plainText = msg.replace(/<[^>]*>/g, '').trim();
+    if (plainText) {
+      window._toastHistory.push({
+        title: plainText.length > 60 ? plainText.slice(0, 60) + '…' : plainText,
+        body: plainText,
+        timestamp: new Date().toISOString(),
+        read: false,
+        local: true,
+      });
+      // Cap history at 50 items
+      if (window._toastHistory.length > 50) window._toastHistory.shift();
+
+      // Update notification badge count in real-time
+      const countEl = document.getElementById('notif-count');
+      if (countEl) {
+        const unread = window._toastHistory.filter(n => !n.read).length;
+        if (unread > 0) {
+          countEl.textContent = unread > 9 ? '9+' : unread;
+          countEl.style.display = 'inline-flex';
+        }
+      }
+    }
   }
   function escHtml(s) {
     return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
