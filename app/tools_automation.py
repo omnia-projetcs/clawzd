@@ -33,11 +33,11 @@ NODE_TYPES = {
         "icon": "link", "inputs": [], "outputs": ["main"],
         "params": [{"key": "method", "label": "Method", "type": "select", "options": ["GET","POST","PUT"], "default": "POST"}]},
     "trigger_discord": {"label": "Discord Message Received", "category": "trigger", "color": "#5865F2",
-        "icon": "chat", "inputs": [], "outputs": ["main"],
+        "icon": "discord", "inputs": [], "outputs": ["main"],
         "params": [{"key": "channel_id", "label": "Channel ID (optional)", "type": "text", "default": ""},
                    {"key": "keyword", "label": "Keyword Filter (regex)", "type": "text", "default": ""}]},
     "trigger_telegram": {"label": "Telegram Message Received", "category": "trigger", "color": "#0088cc",
-        "icon": "send", "inputs": [], "outputs": ["main"],
+        "icon": "telegram", "inputs": [], "outputs": ["main"],
         "params": [{"key": "chat_id", "label": "Chat ID (optional)", "type": "text", "default": ""},
                    {"key": "keyword", "label": "Keyword Filter (regex)", "type": "text", "default": ""}]},
     "email_send": {"label": "Send Email", "category": "communication", "color": "#8b5cf6",
@@ -46,20 +46,20 @@ NODE_TYPES = {
                    {"key": "subject", "label": "Subject", "type": "text", "default": ""},
                    {"key": "body", "label": "Body (HTML)", "type": "textarea", "default": ""},
                    {"key": "template", "label": "Template Name", "type": "text", "default": ""}]},
-    "discord_send": {"label": "Discord Message", "category": "communication", "color": "#8b5cf6",
-        "icon": "chat", "inputs": ["main"], "outputs": ["main"],
+    "discord_send": {"label": "Discord Message", "category": "communication", "color": "#5865F2",
+        "icon": "discord", "inputs": ["main"], "outputs": ["main"],
         "params": [{"key": "channel_id", "label": "Channel ID", "type": "text", "default": ""},
                    {"key": "message", "label": "Message", "type": "textarea", "default": ""}]},
-    "signal_send": {"label": "Signal Message", "category": "communication", "color": "#8b5cf6",
-        "icon": "smartphone", "inputs": ["main"], "outputs": ["main"],
+    "signal_send": {"label": "Signal Message", "category": "communication", "color": "#3A76F0",
+        "icon": "signal", "inputs": ["main"], "outputs": ["main"],
         "params": [{"key": "recipient", "label": "Recipient (+phone)", "type": "text", "default": ""},
                    {"key": "message", "label": "Message", "type": "textarea", "default": ""}]},
-    "telegram_send": {"label": "Telegram Message", "category": "communication", "color": "#8b5cf6",
-        "icon": "send", "inputs": ["main"], "outputs": ["main"],
+    "telegram_send": {"label": "Telegram Message", "category": "communication", "color": "#0088cc",
+        "icon": "telegram", "inputs": ["main"], "outputs": ["main"],
         "params": [{"key": "chat_id", "label": "Chat ID", "type": "text", "default": ""},
                    {"key": "message", "label": "Message", "type": "textarea", "default": ""}]},
     "whatsapp_send": {"label": "WhatsApp Message", "category": "communication", "color": "#25D366",
-        "icon": "smartphone", "inputs": ["main"], "outputs": ["main"],
+        "icon": "whatsapp", "inputs": ["main"], "outputs": ["main"],
         "params": [{"key": "recipient", "label": "Recipient (+phone)", "type": "text", "default": ""},
                    {"key": "message", "label": "Message", "type": "textarea", "default": ""}]},
     "db_query": {"label": "Database Query", "category": "data", "color": "#06b6d4",
@@ -133,16 +133,20 @@ NODE_TYPES = {
         "params": [{"key": "format", "label": "Format", "type": "select", "options": ["markdown", "html"], "default": "markdown"},
                    {"key": "output_path", "label": "Output Path (optional)", "type": "text", "default": ""}]},
     "medium_publish": {"label": "Publish to Medium", "category": "publish", "color": "#00ab6c",
-        "icon": "pen", "inputs": ["main"], "outputs": ["main"],
+        "icon": "medium", "inputs": ["main"], "outputs": ["main"],
         "params": [{"key": "title", "label": "Title", "type": "text", "default": ""},
                    {"key": "content", "label": "Content (Markdown/HTML)", "type": "textarea", "default": ""},
                    {"key": "content_format", "label": "Format", "type": "select", "options": ["markdown", "html"], "default": "markdown"},
                    {"key": "tags", "label": "Tags (comma-sep)", "type": "text", "default": ""},
                    {"key": "publish_status", "label": "Status", "type": "select", "options": ["draft", "public", "unlisted"], "default": "draft"}]},
     "twitter_publish": {"label": "Publish to X (Twitter)", "category": "publish", "color": "#000000",
-        "icon": "send", "inputs": ["main"], "outputs": ["main"],
+        "icon": "xTwitter", "inputs": ["main"], "outputs": ["main"],
         "params": [{"key": "text", "label": "Tweet Text (280 chars)", "type": "textarea", "default": ""},
                    {"key": "reply_to", "label": "Reply To (Tweet ID, optional)", "type": "text", "default": ""}]},
+    "linkedin_publish": {"label": "Publish to LinkedIn", "category": "publish", "color": "#0A66C2",
+        "icon": "linkedin", "inputs": ["main"], "outputs": ["main"],
+        "params": [{"key": "text", "label": "Post Text", "type": "textarea", "default": ""},
+                   {"key": "visibility", "label": "Visibility", "type": "select", "options": ["PUBLIC", "CONNECTIONS"], "default": "PUBLIC"}]},
     "rag_search": {"label": "RAG Search", "category": "data", "color": "#06b6d4",
         "icon": "layers", "inputs": ["main"], "outputs": ["main"],
         "params": [{"key": "query", "label": "Search Query", "type": "text", "default": ""},
@@ -362,7 +366,7 @@ def _resolve_template(text: str, ctx: dict) -> str:
     return re.sub(r"\{\{(.+?)\}\}", repl, text)
 
 
-COMMUNICATION_NODES = {"email_send", "discord_send", "signal_send", "telegram_send", "whatsapp_send", "export_email"}
+COMMUNICATION_NODES = {"email_send", "discord_send", "signal_send", "telegram_send", "whatsapp_send", "export_email", "linkedin_publish"}
 
 async def _exec_node(node: dict, input_data: dict, wf: dict, testing_mode: bool = False) -> dict:
     """Execute a single node and return its output data.
@@ -814,6 +818,42 @@ async def _exec_node(node: dict, input_data: dict, wf: dict, testing_mode: bool 
                 rdata = resp.json()
             return {**input_data, "twitter_published": True,
                     "tweet_id": rdata.get("data", {}).get("id", ""), "tweet_text": text}
+
+        elif ntype == "linkedin_publish":
+            import httpx
+            access_token = os.environ.get("LINKEDIN_ACCESS_TOKEN", "")
+            author_id = os.environ.get("LINKEDIN_AUTHOR_ID", "")
+            text = resolved.get("text", "")
+            visibility = resolved.get("visibility", "PUBLIC")
+            if not text:
+                return {**input_data, "linkedin_published": False, "error": "Post text is empty"}
+            if not access_token or not author_id:
+                return {**input_data, "linkedin_published": False,
+                        "error": "Missing LINKEDIN_ACCESS_TOKEN or LINKEDIN_AUTHOR_ID env variables"}
+            payload = {
+                "author": author_id,
+                "lifecycleState": "PUBLISHED",
+                "specificContent": {
+                    "com.linkedin.ugc.ShareContent": {
+                        "shareCommentary": {"text": text},
+                        "shareMediaCategory": "NONE"
+                    }
+                },
+                "visibility": {
+                    "com.linkedin.ugc.MemberNetworkVisibility": visibility
+                }
+            }
+            async with httpx.AsyncClient(timeout=20) as c:
+                resp = await c.post("https://api.linkedin.com/v2/ugcPosts",
+                    headers={
+                        "Authorization": f"Bearer {access_token}",
+                        "X-Restli-Protocol-Version": "2.0.0",
+                        "Content-Type": "application/json"
+                    },
+                    json=payload)
+                rdata = resp.json()
+            return {**input_data, "linkedin_published": True,
+                    "linkedin_post_id": rdata.get("id", ""), "linkedin_text": text}
 
         elif ntype in ("trigger_discord", "trigger_telegram"):
             # These are handled by the background listener, not direct execution

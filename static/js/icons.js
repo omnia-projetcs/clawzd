@@ -192,6 +192,15 @@ const ICONS = {
   redoIcon: (s = 16) => `<svg class="ic" width="${s}" height="${s}"><use href="#icon-redo-icon"></use></svg>`,
   settingsIcon: (s = 16) => `<svg class="ic" width="${s}" height="${s}"><use href="#icon-settings-icon"></use></svg>`,
   bell: (s = 16) => `<svg class="ic" width="${s}" height="${s}"><use href="#icon-bell"></use></svg>`,
+
+  // ---- Brand / Social ----
+  discord: (s = 16) => `<svg class="ic" width="${s}" height="${s}"><use href="#icon-discord"></use></svg>`,
+  signal: (s = 16) => `<svg class="ic" width="${s}" height="${s}"><use href="#icon-signal"></use></svg>`,
+  telegram: (s = 16) => `<svg class="ic" width="${s}" height="${s}"><use href="#icon-telegram"></use></svg>`,
+  whatsapp: (s = 16) => `<svg class="ic" width="${s}" height="${s}"><use href="#icon-whatsapp"></use></svg>`,
+  medium: (s = 16) => `<svg class="ic" width="${s}" height="${s}"><use href="#icon-medium"></use></svg>`,
+  xTwitter: (s = 16) => `<svg class="ic" width="${s}" height="${s}"><use href="#icon-x-twitter"></use></svg>`,
+  linkedin: (s = 16) => `<svg class="ic" width="${s}" height="${s}"><use href="#icon-linkedin"></use></svg>`,
 };
 
 // Helper: create icon element
