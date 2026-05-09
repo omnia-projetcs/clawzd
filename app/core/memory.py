@@ -430,6 +430,112 @@ async def optimize_memory_files():
 
     logger.info("Memory optimization complete — %d/%d files processed.", optimized_count, len(md_files))
 
+
+# ---------------------------------------------------------------------------
+# Automatic memory extraction (post-response hook)
+# ---------------------------------------------------------------------------
+
+_EXTRACT_SYSTEM = (
+    "You are a memory extraction engine. Given a conversation snippet, "
+    "extract ONLY facts worth remembering long-term. Output a JSON object with two keys:\n"
+    '  "user": list of facts about the USER (preferences, name, expertise, language, goals)\n'
+    '  "memory": list of facts about the ENVIRONMENT or PROJECT (tools, conventions, corrections, lessons)\n'
+    "Rules:\n"
+    "- Each fact must be a short, standalone sentence (max 120 chars).\n"
+    "- Do NOT extract trivial, session-specific, or easily re-discovered info.\n"
+    "- Do NOT extract the content of the conversation itself.\n"
+    "- If nothing is worth remembering, return empty lists.\n"
+    "- Output ONLY valid JSON, no markdown fences, no explanation.\n"
+    "Example: {\"user\": [\"User prefers concise answers\", \"User speaks French\"], "
+    "\"memory\": [\"Project uses FastAPI + Jinja2\"]}\n"
+)
+
+# Minimum number of user+assistant turns before extraction triggers
+_MIN_TURNS_FOR_EXTRACTION = 2
+# Cooldown: skip extraction if last one was < N seconds ago
+_EXTRACTION_COOLDOWN_S = 120
+_last_extraction_ts: float = 0.0
+
+
+async def auto_extract_memory(messages: list[dict]):
+    """Analyze recent conversation messages and auto-populate memory files.
+
+    Called as a background task after each assistant response.
+    Uses the configured LLM to extract persistent facts from the conversation.
+    """
+    global _last_extraction_ts
+    import time
+
+    # Cooldown check
+    now = time.time()
+    if now - _last_extraction_ts < _EXTRACTION_COOLDOWN_S:
+        return
+    _last_extraction_ts = now
+
+    # Only process if there are enough turns
+    user_msgs = [m for m in messages if m.get("role") == "user"]
+    asst_msgs = [m for m in messages if m.get("role") == "assistant"]
+    if len(user_msgs) < _MIN_TURNS_FOR_EXTRACTION or not asst_msgs:
+        return
+
+    # Take the last few messages (to keep the extraction prompt small)
+    recent = messages[-6:] if len(messages) > 6 else messages
+    conversation_text = "\n".join(
+        f"{m['role'].upper()}: {m.get('content', '')[:500]}"
+        for m in recent if m.get("content")
+    )
+
+    if len(conversation_text.strip()) < 50:
+        return
+
+    try:
+        from app.core.llm_provider import get_llm_provider
+        from config import LLM_PROVIDER
+
+        provider = get_llm_provider(LLM_PROVIDER)
+        extraction_messages = [
+            {"role": "system", "content": _EXTRACT_SYSTEM},
+            {"role": "user", "content": f"Extract memorable facts from this conversation:\n\n{conversation_text}"},
+        ]
+        response = await provider.chat(extraction_messages)
+        response = response.strip()
+
+        # Strip markdown fences if present
+        if response.startswith("```"):
+            response = re.sub(r"^```(?:json)?\s*", "", response)
+            response = re.sub(r"\s*```$", "", response)
+
+        data = json.loads(response)
+        if not isinstance(data, dict):
+            return
+
+        user_facts = data.get("user", [])
+        memory_facts = data.get("memory", [])
+
+        added_count = 0
+        user_store = _get_user_store()
+        for fact in user_facts:
+            if isinstance(fact, str) and fact.strip():
+                result = user_store.add(fact.strip())
+                if result.get("success"):
+                    added_count += 1
+
+        mem_store = _get_memory_store()
+        for fact in memory_facts:
+            if isinstance(fact, str) and fact.strip():
+                result = mem_store.add(fact.strip())
+                if result.get("success"):
+                    added_count += 1
+
+        if added_count:
+            logger.info("Auto-extracted %d memory entries from conversation", added_count)
+
+    except (json.JSONDecodeError, ValueError) as e:
+        logger.debug("Memory extraction returned non-JSON: %s", e)
+    except Exception as e:
+        logger.warning("Auto memory extraction failed: %s", e)
+
+
 # ---------------------------------------------------------------------------
 # REST API routes (for frontend Settings UI)
 # ---------------------------------------------------------------------------

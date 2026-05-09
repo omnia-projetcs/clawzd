@@ -25,28 +25,52 @@ IMAGES_DIR = os.path.join(DATA_DIR, "images")
 os.makedirs(IMAGES_DIR, exist_ok=True)
 
 # ---------------------------------------------------------------------------
-# GPU capability check (run once at import)
+# GPU capability check (lazy — re-evaluated on first pipeline load)
 # ---------------------------------------------------------------------------
-_gpu_ok = False
-try:
-    import torch
-    if torch.cuda.is_available():
-        # Check that the GPU architecture is supported by this PyTorch build
-        arch_list = torch.cuda.get_arch_list() if hasattr(torch.cuda, "get_arch_list") else []
-        cap = torch.cuda.get_device_capability()
-        cap_str = f"sm_{cap[0]}{cap[1]}0" if cap else ""
-        if not arch_list or cap_str in arch_list or any(a.startswith(f"sm_{cap[0]}") for a in arch_list):
-            _gpu_ok = True
-            logger.info("GPU OK for image generation: %s (cap %s)", torch.cuda.get_device_name(), cap)
+_gpu_ok: bool | None = None  # None = not yet checked
+
+
+def _check_gpu() -> bool:
+    """Lazy GPU capability check. Cached after first successful evaluation.
+
+    At import time, ``torch.cuda.is_available()`` can return False due to
+    transient driver initialization issues. This function re-evaluates on
+    demand, allowing CUDA to become available after the initial import.
+    """
+    global _gpu_ok
+    if _gpu_ok is not None:
+        return _gpu_ok
+
+    try:
+        import torch
+        if torch.cuda.is_available():
+            arch_list = torch.cuda.get_arch_list() if hasattr(torch.cuda, "get_arch_list") else []
+            cap = torch.cuda.get_device_capability()
+            cap_str = f"sm_{cap[0]}{cap[1]}0" if cap else ""
+            if not arch_list or cap_str in arch_list or any(a.startswith(f"sm_{cap[0]}") for a in arch_list):
+                _gpu_ok = True
+                logger.info("GPU OK for image generation: %s (cap %s)", torch.cuda.get_device_name(), cap)
+            else:
+                _gpu_ok = False
+                logger.warning(
+                    "GPU %s (cap %s) not in PyTorch arch_list %s — will use API fallback",
+                    torch.cuda.get_device_name(), cap_str, arch_list,
+                )
         else:
-            logger.warning(
-                "GPU %s (cap %s) not in PyTorch arch_list %s — will use API fallback",
-                torch.cuda.get_device_name(), cap_str, arch_list,
-            )
-    else:
-        logger.info("CUDA not available — will use API fallback for image generation")
-except Exception as e:
-    logger.info("PyTorch not available (%s) — will use API fallback", e)
+            _gpu_ok = False
+            logger.info("CUDA not available — will use API fallback for image generation")
+    except Exception as e:
+        _gpu_ok = False
+        logger.info("PyTorch not available (%s) — will use API fallback", e)
+
+    return _gpu_ok
+
+
+# Run initial check (non-blocking — sets _gpu_ok or leaves None for retry)
+try:
+    _check_gpu()
+except Exception:
+    pass
 
 # ---------------------------------------------------------------------------
 # Local pipeline (GPU)

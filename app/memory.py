@@ -10,4 +10,5 @@ from app.core.memory import (  # noqa: F401 — explicit re-exports
     MEMORY_GUIDANCE,
     handle_memory_tool,
     optimize_memory_files,
+    auto_extract_memory,
 )

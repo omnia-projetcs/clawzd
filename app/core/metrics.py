@@ -41,6 +41,7 @@ class MetricsCollector:
         self._requests: deque[dict] = deque(maxlen=1000)
         self._token_savings: deque[dict] = deque(maxlen=500)
         self._initialised = True
+        self._load_persisted()
 
     # ------------------------------------------------------------------
     # LLM call tracking
@@ -270,6 +271,36 @@ class MetricsCollector:
     # ------------------------------------------------------------------
     # Persistence
     # ------------------------------------------------------------------
+
+    def _load_persisted(self):
+        """Load historical metrics from the JSONL file on startup."""
+        if not os.path.exists(METRICS_FILE):
+            return
+        loaded = 0
+        try:
+            with open(METRICS_FILE, "r", encoding="utf-8") as f:
+                for line in f:
+                    line = line.strip()
+                    if not line:
+                        continue
+                    try:
+                        entry = json.loads(line)
+                    except (json.JSONDecodeError, ValueError):
+                        continue
+                    entry_type = entry.get("type", "")
+                    if entry_type == "llm_call":
+                        self._llm_calls.append(entry)
+                    elif entry_type == "token_savings":
+                        self._token_savings.append(entry)
+                    # requests are transient — not persisted/restored
+                    loaded += 1
+        except Exception as e:
+            logger.error("Failed to load persisted metrics: %s", e)
+        if loaded:
+            logger.info(
+                "Restored %d persisted metrics (%d LLM calls, %d token savings)",
+                loaded, len(self._llm_calls), len(self._token_savings),
+            )
 
     def _persist(self, entry: dict):
         """Append a metric entry to the JSONL file."""

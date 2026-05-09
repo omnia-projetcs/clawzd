@@ -1364,6 +1364,14 @@ async def _process_chat(session_id: str, data: dict) -> dict:
                 except Exception:
                     pass  # Plugin hooks are non-critical
 
+                # --- Auto-populate memory files (background) ---
+                try:
+                    from app.memory import auto_extract_memory
+                    conv_messages = get_messages(session_id)
+                    asyncio.create_task(auto_extract_memory(conv_messages))
+                except Exception:
+                    pass  # Memory extraction is non-critical
+
             _active_generations.pop(session_id, None)
 
     asyncio.create_task(generate())
