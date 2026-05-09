@@ -61,6 +61,15 @@ logging.getLogger("httpcore").setLevel(logging.WARNING)
 logging.getLogger("websockets").setLevel(logging.WARNING)
 logging.getLogger("websockets.server").setLevel(logging.WARNING)
 
+class PollingEndpointFilter(logging.Filter):
+    def filter(self, record: logging.LogRecord) -> bool:
+        msg = record.getMessage()
+        if "/image/download-status" in msg or "/notifications" in msg:
+            return False
+        return True
+
+logging.getLogger("uvicorn.access").addFilter(PollingEndpointFilter())
+
 logger = logging.getLogger("clawzd.gateway")
 
 # Regex to strip base64 data URIs from text (images bloat LLM context)
