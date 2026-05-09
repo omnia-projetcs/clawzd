@@ -109,66 +109,49 @@
         </button>
       </div>
       <div style="height:1px; background:var(--border); margin:6px 0;"></div>
-
-      <!-- New Templates Section -->
-      <div class="presentation-shapes-section-label"
-           id="pt-templates-toggle"
-           style="cursor: pointer;
-                  display: flex;
-                  align-items: center;
-                  justify-content: space-between;
-                  padding-top: 8px"
-           title="Toggle Templates">
-        <span>Templates</span>
-        <svg class="ic" width="12" height="12" style="transition: transform 0.2s; transform: rotate(180deg)"><use href="#icon-chevron-down"></use></svg>
-      </div>
-      <div class="presentation-templates-grid" 
-           id="pt-templates-grid" 
-           style="overflow-y: auto; max-height: 400px; padding-bottom: 10px;">
-        <div id="pt-templates-list" 
-             style="display: grid; grid-template-columns: 1fr 1fr; gap: 6px; padding: 4px;">
-           <!-- Templates will be loaded here -->
-        </div>
+      <div class="presentation-shapes-section-label" style="padding-top: 8px">Modules</div>
+      <div class="presentation-shapes-grid" style="margin-bottom: 6px;">
+        <button class="presentation-shape-tile" id="pt-show-templates" title="Templates">
+          <svg class="ic" width="16" height="16"><use href="#icon-layout"></use></svg>
+        </button>
+        <button class="presentation-shape-tile" id="pt-show-saved" title="My Presentations">
+          <svg class="ic" width="16" height="16"><use href="#icon-folder"></use></svg>
+        </button>
+        <button class="presentation-shape-tile" id="pt-show-docgen" title="Resume & Business Card">
+          <svg class="ic" width="16" height="16"><use href="#icon-file-text"></use></svg>
+        </button>
       </div>
       <div style="height:1px; background:var(--border); margin:6px 0;"></div>
+    </div>
 
-      <!-- Saved Presentations Section -->
-      <div class="presentation-shapes-section-label"
-           id="pt-saved-toggle"
-           style="cursor: pointer;
-                  display: flex;
-                  align-items: center;
-                  justify-content: space-between;
-                  padding-top: 8px"
-           title="Toggle Saved Presentations">
-        <span>My Presentations</span>
-        <svg class="ic" width="12" height="12" style="transition: transform 0.2s; transform: rotate(180deg)"><use href="#icon-chevron-down"></use></svg>
+    <!-- Templates Browser -->
+    <div id="presentation-templates-browser"
+         style="display:none; position:absolute; top:0; left:250px; width:340px; height:100%; background:var(--bg-surface); border-right:1px solid var(--border); z-index:100; flex-direction:column; box-shadow: 4px 0 10px rgba(0,0,0,0.2)">
+      <div style="padding: 10px; font-weight: bold; border-bottom: 1px solid var(--border); display: flex; justify-content: space-between; align-items: center">
+        <span style="display:flex; align-items:center; gap:6px"><svg class="ic" width="14" height="14"><use href="#icon-layout"></use></svg> Templates</span>
+        <button class="icon-btn" id="pt-templates-close" title="Close"><svg class="ic" width="16" height="16"><use href="#icon-x"></use></svg></button>
       </div>
-      <div class="presentation-templates-grid" 
-           id="pt-saved-grid" 
-           style="overflow-y: auto; max-height: 400px; padding-bottom: 10px; display: none;">
-        <div id="pt-saved-list" 
-             style="display: grid; grid-template-columns: 1fr 1fr; gap: 6px; padding: 4px;">
-           <!-- Saved docs will be loaded here -->
-        </div>
-      </div>
-      <div style="height:1px; background:var(--border); margin:6px 0;"></div>
+      <div id="pt-templates-list" style="overflow-y:auto; padding:10px; display:grid; grid-template-columns:1fr 1fr; gap:10px"></div>
+    </div>
 
-      <!-- Document Generation Section (CV / Business Card) -->
-      <div class="presentation-shapes-section-label"
-           id="pt-docgen-toggle"
-           style="cursor: pointer;
-                  display: flex;
-                  align-items: center;
-                  justify-content: space-between;
-                  padding-top: 8px"
-           title="Toggle Document Generator">
-        <span>Resume & Business Card</span>
-        <svg class="ic" width="12" height="12" style="transition: transform 0.2s; transform: rotate(180deg)"><use href="#icon-chevron-down"></use></svg>
+    <!-- Saved Presentations Browser -->
+    <div id="presentation-saved-browser"
+         style="display:none; position:absolute; top:0; left:250px; width:340px; height:100%; background:var(--bg-surface); border-right:1px solid var(--border); z-index:100; flex-direction:column; box-shadow: 4px 0 10px rgba(0,0,0,0.2)">
+      <div style="padding: 10px; font-weight: bold; border-bottom: 1px solid var(--border); display: flex; justify-content: space-between; align-items: center">
+        <span style="display:flex; align-items:center; gap:6px"><svg class="ic" width="14" height="14"><use href="#icon-folder"></use></svg> My Presentations</span>
+        <button class="icon-btn" id="pt-saved-close" title="Close"><svg class="ic" width="16" height="16"><use href="#icon-x"></use></svg></button>
       </div>
-      <div class="presentation-docgen-panel" 
-           id="pt-docgen-panel" 
-           style="display: none; padding: 10px 4px; flex-direction: column; gap: 10px; overflow-y: auto; max-height: 400px;">
+      <div id="pt-saved-list" style="overflow-y:auto; padding:10px; display:grid; grid-template-columns:1fr 1fr; gap:10px"></div>
+    </div>
+
+    <!-- Docgen Browser -->
+    <div id="presentation-docgen-browser"
+         style="display:none; position:absolute; top:0; left:250px; width:340px; height:100%; background:var(--bg-surface); border-right:1px solid var(--border); z-index:100; flex-direction:column; box-shadow: 4px 0 10px rgba(0,0,0,0.2)">
+      <div style="padding: 10px; font-weight: bold; border-bottom: 1px solid var(--border); display: flex; justify-content: space-between; align-items: center">
+        <span style="display:flex; align-items:center; gap:6px"><svg class="ic" width="14" height="14"><use href="#icon-file-text"></use></svg> Resume & Card</span>
+        <button class="icon-btn" id="pt-docgen-close" title="Close"><svg class="ic" width="16" height="16"><use href="#icon-x"></use></svg></button>
+      </div>
+      <div id="pt-docgen-panel" style="overflow-y:auto; padding:10px; display:flex; flex-direction:column; gap:10px">
         <!-- Template Sub-mode -->
         <div class="media-form-group" id="pt-tpl-submode-group">
           <label class="media-form-label">Template Type</label>
@@ -269,8 +252,8 @@
           <span class="gen-label"><span class="media-icon" data-icon="sparkles"></span> Generate</span>
         </button>
       </div>
-      <div style="height:1px; background:var(--border); margin:6px 0;"></div>
     </div>
+
     <div class="presentation-gallery-browser"
          id="presentation-gallery-browser"
          style="display:none;

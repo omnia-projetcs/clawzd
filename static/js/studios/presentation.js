@@ -104,40 +104,45 @@ class PresentationStudio {
         chevron.style.transform = grid.classList.contains('collapsed') ? 'rotate(0deg)' : 'rotate(180deg)';
       }
     });
+    const closeAllBrowsers = () => {
+      ['presentation-gallery-browser', 'presentation-library-browser', 
+       'presentation-illustrations-browser', 'presentation-stock-browser',
+       'presentation-templates-browser', 'presentation-saved-browser',
+       'presentation-docgen-browser'].forEach(id => {
+         const el = $('#' + id);
+         if (el) el.style.display = 'none';
+      });
+    };
+
     $('#pt-add-text')?.addEventListener('click', () => this.addElement('text', 'Double click to edit'));
     $('#pt-add-table')?.addEventListener('click', () => this.addElement('table', '| Header 1 | Header 2 |\n|---|---|\n| Data 1 | Data 2 |'));
     $('#pt-add-image')?.addEventListener('click', () => {
+      closeAllBrowsers();
       $('#presentation-gallery-browser').style.display = 'flex';
-      const lb = $('#presentation-library-browser');
-      if (lb) lb.style.display = 'none';
       this.openGallery();
     });
-    $('#pt-templates-toggle')?.addEventListener('click', () => {
-      const grid = $('#pt-templates-grid');
-      const chevron = $('#pt-templates-toggle .ic');
-      if (grid && chevron) {
-        grid.classList.toggle('collapsed');
-        grid.style.display = grid.classList.contains('collapsed') ? 'none' : 'grid';
-        chevron.style.transform = grid.classList.contains('collapsed') ? 'rotate(0deg)' : 'rotate(180deg)';
-      }
+    $('#pt-show-templates')?.addEventListener('click', () => {
+      closeAllBrowsers();
+      $('#presentation-templates-browser').style.display = 'flex';
     });
-    $('#pt-saved-toggle')?.addEventListener('click', () => {
-      const grid = $('#pt-saved-grid');
-      const chevron = $('#pt-saved-toggle .ic');
-      if (grid && chevron) {
-        grid.classList.toggle('collapsed');
-        grid.style.display = grid.classList.contains('collapsed') ? 'none' : 'grid';
-        chevron.style.transform = grid.classList.contains('collapsed') ? 'rotate(0deg)' : 'rotate(180deg)';
-      }
+    $('#pt-templates-close')?.addEventListener('click', () => {
+      $('#presentation-templates-browser').style.display = 'none';
     });
-    $('#pt-docgen-toggle')?.addEventListener('click', () => {
-      const panel = $('#pt-docgen-panel');
-      const chevron = $('#pt-docgen-toggle .ic');
-      if (panel && chevron) {
-        const isHidden = panel.style.display === 'none';
-        panel.style.display = isHidden ? 'flex' : 'none';
-        chevron.style.transform = isHidden ? 'rotate(0deg)' : 'rotate(180deg)';
-      }
+
+    $('#pt-show-saved')?.addEventListener('click', () => {
+      closeAllBrowsers();
+      $('#presentation-saved-browser').style.display = 'flex';
+    });
+    $('#pt-saved-close')?.addEventListener('click', () => {
+      $('#presentation-saved-browser').style.display = 'none';
+    });
+
+    $('#pt-show-docgen')?.addEventListener('click', () => {
+      closeAllBrowsers();
+      $('#presentation-docgen-browser').style.display = 'flex';
+    });
+    $('#pt-docgen-close')?.addEventListener('click', () => {
+      $('#presentation-docgen-browser').style.display = 'none';
     });
 
     // Template sub-mode toggle
@@ -157,9 +162,8 @@ class PresentationStudio {
     const docgenBtn = $('#pt-tpl-generate-btn');
     if (docgenBtn) docgenBtn.addEventListener('click', () => this.generateTemplate());
     $('#pt-show-library')?.addEventListener('click', () => {
+      closeAllBrowsers();
       $('#presentation-library-browser').style.display = 'flex';
-      const gb = $('#presentation-gallery-browser');
-      if (gb) gb.style.display = 'none';
       this.loadLibrary();
     });
     $('#pt-library-close')?.addEventListener('click', () => {
@@ -188,6 +192,7 @@ class PresentationStudio {
 
     // SVG Illustrations browser
     $('#pt-show-illustrations')?.addEventListener('click', () => {
+      closeAllBrowsers();
       const browser = $('#presentation-illustrations-browser');
       if (browser) {
         browser.style.display = 'flex';
@@ -204,6 +209,7 @@ class PresentationStudio {
 
     // Stock Photo browser (local open-source library)
     $('#pt-show-stock-photos')?.addEventListener('click', () => {
+      closeAllBrowsers();
       const browser = $('#presentation-stock-browser');
       if (browser) {
         browser.style.display = 'flex';
