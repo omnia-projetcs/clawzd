@@ -64,8 +64,8 @@ _IMAGE_STYLE_MODELS = {
     # Unsloth-curated models (using original HF repos via diffusers)
     "z_image_turbo": {"repo": "Tongyi-MAI/Z-Image-Turbo", "is_lora": False, "pipeline": "zimage"},
     "z_image": {"repo": "Tongyi-MAI/Z-Image", "is_lora": False, "pipeline": "zimage"},
-    "qwen_image": {"repo": "unsloth/Qwen-Image-2512-FP8", "is_lora": False, "pipeline": "qwen_image"},
-    "qwen_image_edit": {"repo": "1038lab/Qwen-Image-Edit-2511-FP8", "is_lora": False, "pipeline": "qwen_image_edit"},
+    "qwen_image": {"repo": "Qwen/Qwen-Image-2512", "is_lora": False, "pipeline": "qwen_image"},
+    "qwen_image_edit": {"repo": "Qwen/Qwen-Image-Edit-2511", "is_lora": False, "pipeline": "qwen_image_edit"},
 }
 
 
