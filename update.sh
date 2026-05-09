@@ -128,4 +128,4 @@ echo "=============================================="
 echo "  Update complete!"
 echo "=============================================="
 
-tail -f /var/log/syslog
+tail -f /var/log/syslog | grep "run.sh"
