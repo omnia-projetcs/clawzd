@@ -1021,20 +1021,26 @@ async def _process_chat(session_id: str, data: dict) -> dict:
                     break
 
                 # --- Doom-loop detection ---
-                # Build a fingerprint of this round's tool calls
-                _round_sig = "|".join(sorted(tc["tool"] for tc in tool_calls))
+                # Build a fingerprint of this round's tool calls, including parameters
+                import json as _dl_json
+                _round_sig_parts = []
+                for tc in tool_calls:
+                    _param_str = _dl_json.dumps(tc.get("params", {}), sort_keys=True)
+                    _round_sig_parts.append(f"{tc['tool']}::{_param_str}")
+                _round_sig = "|".join(sorted(_round_sig_parts))
                 _recent_tool_sequences.append(_round_sig)
                 if len(_recent_tool_sequences) >= 3:
                     _last3 = _recent_tool_sequences[-3:]
                     if _last3[0] == _last3[1] == _last3[2]:
+                        _sig_display = _round_sig if len(_round_sig) < 200 else _round_sig[:197] + "..."
                         doom_msg = (
                             "\n\n⚠️ **Doom-loop detected** — the same tools "
-                            f"(`{_round_sig}`) were called 3 times in a row. "
+                            f"(`{_sig_display}`) were called 3 times in a row. "
                             "Aborting to prevent infinite looping.\n\n"
                         )
                         await queue.put(doom_msg)
                         full_conversation += doom_msg
-                        logger.warning("Doom-loop detected: %s", _round_sig)
+                        logger.warning("Doom-loop detected: %s", _sig_display)
                         break
 
                 # Execute each tool call
