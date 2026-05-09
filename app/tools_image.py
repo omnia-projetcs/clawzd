@@ -972,14 +972,32 @@ async def _translate_prompt(prompt: str) -> str:
 
 
 def _clean_llm_output(text: str) -> str:
-    """Clean common LLM artifacts from generated prompts."""
-    # Remove <think>...</think> block if present (even if unclosed)
-    text = re.sub(r"<think>.*?(?:</think>|$)", "", text, flags=re.DOTALL).strip()
+    """Clean common LLM artifacts from generated prompts.
+
+    Handles reasoning-model leakage (DeepSeek, QwQ, etc.) where the model
+    emits ``<think>…</think>`` blocks — sometimes without the opening tag,
+    sometimes repeated dozens of times.
+    """
+    # 1. Strip full <think>…</think> blocks (greedy to catch nested repeats)
+    text = re.sub(r"<think>.*?</think>", "", text, flags=re.DOTALL).strip()
+    # 2. If an unclosed <think> remains, drop everything from it onward
+    text = re.sub(r"<think>.*$", "", text, flags=re.DOTALL).strip()
+    # 3. If only </think> tags remain (model started thinking implicitly),
+    #    keep only the content AFTER the *last* </think>
+    if "</think>" in text:
+        text = text.rsplit("</think>", 1)[-1].strip()
+    # 4. Remove any stray think tags that survived
+    text = re.sub(r"</?think>", "", text).strip()
+
     # Remove conversational prefixes
     text = re.sub(
         r"^(here is .*?:|here's .*?:|enhanced prompt:|prompt:|\*\*prompt\*\*.*?:"
         r"|sure.*?:|of course.*?:|certainly.*?:|the enhanced.*?:|translated.*?:|result.*?:)\s*",
         "", text, flags=re.IGNORECASE
+    ).strip()
+    # Remove self-commentary (e.g. "43 words. English only. No intro/outro. …")
+    text = re.sub(
+        r"\b\d+\s*words\..*$", "", text, flags=re.IGNORECASE
     ).strip()
     # Remove enclosing quotes if any
     text = re.sub(r'^["\'](.*)["\']$', r'\1', text).strip()
@@ -991,6 +1009,12 @@ def _clean_llm_output(text: str) -> str:
     text = re.sub(r'^[-•]\s+', '', text).strip()
     # Collapse multiple spaces/newlines
     text = re.sub(r'\s+', ' ', text).strip()
+
+    # --- Hard cap: keep at most 80 words ---
+    words = text.split()
+    if len(words) > 80:
+        text = " ".join(words[:80])
+
     return text
 
 
