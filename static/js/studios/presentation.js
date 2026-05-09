@@ -1936,7 +1936,7 @@ class PresentationStudio {
           }
           
           try {
-            const lr = await fetch(`/presentation/template/${t.theme}`);
+            const lr = await fetch(`/presentation/template/${t.id}`);
             if (lr.ok) {
               const ldata = await lr.json();
               const loadedPages = ldata.pages || [{ elements: [] }];

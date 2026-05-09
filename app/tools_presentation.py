@@ -1584,35 +1584,108 @@ def _build_slide_layout(slide_data: dict, cw: int, ch: int, theme: dict, font: s
     
     return {"elements": elements}
 
+_PREDEFINED_TEMPLATES = {
+    "pitch_deck": {
+        "title": "Startup Pitch Deck",
+        "theme": "sapphire",
+        "slides": [
+            {"type": "title", "title": "Our Vision", "subtitle": "Disrupting the industry"},
+            {"type": "bullets", "title": "The Problem", "points": ["Current solutions are slow", "High costs", "Poor user experience"]},
+            {"type": "two_column", "title": "Our Solution", "left_title": "Faster", "left_body": "10x faster than competitors", "right_title": "Cheaper", "right_body": "50% lower cost"},
+            {"type": "two_column", "title": "Market Size", "left_title": "TAM", "left_body": "$10 Billion total addressable market", "right_title": "SAM", "right_body": "$2 Billion serviceable addressable market"},
+            {"type": "closing", "title": "Join Us", "subtitle": "Contact: founders@example.com"}
+        ]
+    },
+    "portfolio": {
+        "title": "Creative Portfolio",
+        "theme": "monochrome",
+        "slides": [
+            {"type": "title", "title": "My Portfolio", "subtitle": "Creative Designer & Developer"},
+            {"type": "two_column", "title": "About Me", "left_title": "Background", "left_body": "5+ years in digital design", "right_title": "Skills", "right_body": "UI/UX, Branding, Web Dev"},
+            {"type": "bullets", "title": "Featured Projects", "points": ["E-commerce Redesign", "Brand Identity for Startup", "Mobile App UI"]},
+            {"type": "closing", "title": "Let's Connect", "subtitle": "hello@myportfolio.com"}
+        ]
+    },
+    "course_module": {
+        "title": "Course Module",
+        "theme": "nordic",
+        "slides": [
+            {"type": "title", "title": "Introduction to React", "subtitle": "Module 1: Fundamentals"},
+            {"type": "bullets", "title": "Learning Objectives", "points": ["Understand components", "Learn state management", "Master props"]},
+            {"type": "two_column", "title": "Core Concepts", "left_title": "JSX", "left_body": "JavaScript XML syntax", "right_title": "Virtual DOM", "right_body": "Efficient UI rendering"},
+            {"type": "closing", "title": "Homework", "subtitle": "Build a simple counter app"}
+        ]
+    },
+    "status_report": {
+        "title": "Weekly Status Report",
+        "theme": "corporate",
+        "slides": [
+            {"type": "title", "title": "Weekly Sync", "subtitle": "Project Alpha Status"},
+            {"type": "bullets", "title": "Executive Summary", "points": ["Milestone 1 completed", "Budget is on track", "Minor delay in QQA"]},
+            {"type": "two_column", "title": "Metrics", "left_title": "Completed", "left_body": "45 tasks finished this week", "right_title": "Pending", "right_body": "12 tasks in backlog"},
+            {"type": "bullets", "title": "Roadblocks", "points": ["Waiting on API access", "Design approvals delayed"]},
+            {"type": "closing", "title": "Next Steps", "subtitle": "Focus on backend integration"}
+        ]
+    },
+    "marketing_plan": {
+        "title": "Marketing Strategy",
+        "theme": "emerald",
+        "slides": [
+            {"type": "title", "title": "Q3 Marketing Plan", "subtitle": "Growth & Acquisition"},
+            {"type": "bullets", "title": "Target Audience", "points": ["Gen Z professionals", "Tech enthusiasts", "Small business owners"]},
+            {"type": "two_column", "title": "Channels", "left_title": "Social Media", "left_body": "Instagram, TikTok, LinkedIn", "right_title": "Paid Search", "right_body": "Google Ads, Bing"},
+            {"type": "closing", "title": "Q&A", "subtitle": "Open floor for questions"}
+        ]
+    },
+    "event_planning": {
+        "title": "Event Logistics",
+        "theme": "lavender",
+        "slides": [
+            {"type": "title", "title": "Annual Conference", "subtitle": "Planning & Logistics"},
+            {"type": "bullets", "title": "Schedule Overview", "points": ["Day 1: Keynotes", "Day 2: Workshops", "Day 3: Networking"]},
+            {"type": "two_column", "title": "Venue", "left_title": "Location", "left_body": "Downtown Convention Center", "right_title": "Capacity", "right_body": "Up to 500 attendees"},
+            {"type": "closing", "title": "Action Items", "subtitle": "Finalize catering by Friday"}
+        ]
+    }
+}
+
 @router.get("/templates")
 async def list_templates():
     templates = []
-    for t_name, t_colors in _THEMES.items():
+    for t_id, t_data in _PREDEFINED_TEMPLATES.items():
+        theme_name = t_data["theme"]
+        theme_colors = _THEMES.get(theme_name, _THEMES["midnight"])
         templates.append({
-            "id": f"theme_{t_name}",
-            "title": f"{t_name.capitalize().replace('_', ' ')}",
-            "theme": t_name,
-            "colors": t_colors
+            "id": t_id,
+            "title": t_data["title"],
+            "theme": theme_name,
+            "colors": theme_colors
         })
     return {"templates": templates}
 
-@router.get("/template/{theme_name}")
-async def get_template(theme_name: str):
+@router.get("/template/{template_id}")
+async def get_template(template_id: str):
+    t_data = _PREDEFINED_TEMPLATES.get(template_id)
+    if not t_data:
+        raise HTTPException(404, "Template not found")
+        
+    theme_name = t_data["theme"]
     theme = _THEMES.get(theme_name, _THEMES["midnight"])
     font = "Sans-Serif"
     cw, ch = 960, 540
-    slides = [
-        {"type": "title", "title": "Presentation Title", "subtitle": "Add your subtitle here"},
-        {"type": "bullets", "title": "Key Points", "points": ["First key point", "Second key point", "Third key point"]},
-        {"type": "two_column", "title": "Details", "left_title": "Column 1", "left_body": "Details for column 1", "right_title": "Column 2", "right_body": "Details for column 2"},
-        {"type": "closing", "title": "Thank You", "subtitle": "Questions?"}
-    ]
+    
     pages = []
-    for i, slide in enumerate(slides):
+    for i, slide in enumerate(t_data["slides"]):
         slide["page_num"] = i + 1
         page = _build_slide_layout(slide, cw, ch, theme, font)
         pages.append(page)
-    return {"title": f"{theme_name.capitalize().replace('_', ' ')} Template", "pages": pages, "canvas_width": cw, "canvas_height": ch}
+        
+    return {
+        "title": t_data["title"], 
+        "pages": pages, 
+        "canvas_width": cw, 
+        "canvas_height": ch
+    }
 
 
 @router.post("/ai-generate")
