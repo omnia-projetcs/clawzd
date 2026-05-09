@@ -1796,7 +1796,7 @@ RULES:
         "prompt": f"Create a presentation about: {prompt}",
         "system": system_prompt,
         "stream": False,
-        "options": {"temperature": 0.7, "num_predict": 4096},
+        "options": {"temperature": 0.7, "num_predict": 4096, "num_ctx": 8192},
     }
     
     try:
