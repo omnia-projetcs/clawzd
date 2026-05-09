@@ -507,13 +507,20 @@ def _path_sanity_check(params: dict, tool_name: str) -> Optional[str]:
         val = params.get(key, "")
         if not val or not isinstance(val, str):
             continue
+        if val.startswith("/workspace/"):
+            val = val.replace("/workspace/", "", 1)
+        elif val == "/workspace":
+            val = "./"
+        elif val.startswith("/apps/"):
+            val = val.replace("/apps/", "apps/", 1)
+            
         # Block absolute paths and parent directory traversal
         if val.startswith("/") or val.startswith("~") or ".." in val:
             return f"Path '{val}' is not allowed — must be relative to workspace with no '..' segments."
-        # Resolve and verify it stays within workspace
+        # Resolve and verify it stays within workspace (allowing symlinks like apps/)
         import os
         full = os.path.realpath(os.path.join(WORKSPACE_DIR, val))
-        if not full.startswith(os.path.realpath(WORKSPACE_DIR)):
+        if not full.startswith(os.path.realpath(WORKSPACE_DIR)) and not full.startswith(os.path.realpath(os.path.join(WORKSPACE_DIR, "../data/apps"))):
             return f"Path '{val}' escapes the workspace boundary."
     return None
 
@@ -677,9 +684,17 @@ async def execute_tool(tool_name: str, params: dict, context: dict = None) -> di
                 return {"error": f"Command '{raw_base_cmd}' not allowed"}
             
             # Prevent escaping the workspace
-            for token in tokens:
+            for i, token in enumerate(tokens):
+                if token.startswith("/workspace/") or token == "/workspace":
+                    tokens[i] = token.replace("/workspace", ".", 1)
+                    if tokens[i] == ".": tokens[i] = "./"
+                    token = tokens[i]
+                elif token.startswith("/apps/"):
+                    tokens[i] = token.replace("/apps/", "./apps/", 1)
+                    token = tokens[i]
+                    
                 if token.startswith("/") or token.startswith("~") or ".." in token:
-                    return {"error": f"Access denied: Path '{token}' is not allowed. You must stay within the workspace."}
+                    return {"error": f"Access denied: Path '{token}' is not allowed. Use relative paths within the workspace (e.g., apps/app-id/index.html)."}
                     
             cwd = "./workspace"
             if context and context.get("active_project") and context["active_project"] != ".":
