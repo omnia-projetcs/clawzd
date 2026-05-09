@@ -124,13 +124,25 @@
         <select class="media-form-select" id="media-style">
           <option value="none" selected>Auto (FLUX.2 Klein)</option>
           <option value="all_models">All Models (One each)</option>
-          <option value="flux_schnell">⚡ FLUX.1 Schnell (Best quality)</option>
-          <option value="flux2_klein">🚀 FLUX.2 Klein (Ultra-fast)</option>
-          <option value="photorealistic">📸 Juggernaut XL (Photo)</option>
-          <option value="realvis">📷 RealVisXL V4.0 (Natural)</option>
-          <option value="anime">🌸 Animagine XL (Anime)</option>
-          <option value="pixel_art">👾 Pixel Art</option>
-          <option value="logo">🏷️ Logo</option>
+          <optgroup label="FLUX Family">
+            <option value="flux_schnell">⚡ FLUX.1 Schnell (Best quality)</option>
+            <option value="flux2_klein">🚀 FLUX.2 Klein (Ultra-fast)</option>
+          </optgroup>
+          <optgroup label="Z-Image (Unsloth)">
+            <option value="z_image_turbo">⚡ Z-Image Turbo (Fast, 6B)</option>
+            <option value="z_image">🎨 Z-Image (High Quality, 6B)</option>
+          </optgroup>
+          <optgroup label="Qwen-Image (Unsloth)">
+            <option value="qwen_image">🖼️ Qwen-Image 2512 (Photo+Text)</option>
+            <option value="qwen_image_edit">✍️ Qwen-Image Edit (Image Editing)</option>
+          </optgroup>
+          <optgroup label="SDXL Models">
+            <option value="photorealistic">📸 Juggernaut XL (Photo)</option>
+            <option value="realvis">📷 RealVisXL V4.0 (Natural)</option>
+            <option value="anime">🌸 Animagine XL (Anime)</option>
+            <option value="pixel_art">👾 Pixel Art</option>
+            <option value="logo">🏷️ Logo</option>
+          </optgroup>
         </select>
       </div>
       <!-- Size / Resolution (Image only) -->
@@ -166,6 +178,7 @@
           <option value="cogvideox_2b">🎥 CogVideoX 2B (10GB)</option>
           <option value="ltx_video">🎬 LTX-Video 0.9.7 (10GB)</option>
           <option value="ltx_23">🏆 LTX 2.3 — 4K+Audio (20GB ⚠️)</option>
+          <option value="ltx_23_distilled">⚡ LTX 2.3 Distilled (Fast, 4-8 steps)</option>
           <option value="hunyuanvideo">✨ HunyuanVideo (14GB ⚠️)</option>
           <option value="cogvideox">🎥 CogVideoX 5B (16GB ⚠️) — I2V ✓</option>
           <option value="wan22">👑 Wan 2.2 MoE 27B (20GB ⚠️) — I2V ✓</option>

@@ -61,6 +61,11 @@ _IMAGE_STYLE_MODELS = {
     "realvis": {"repo": "SG161222/RealVisXL_V4.0", "is_lora": False},
     "anime": {"repo": "cagliostrolab/animagine-xl-3.1", "is_lora": False},
     "pixel_art": {"repo": "nerijs/pixel-art-xl", "is_lora": True},
+    # Unsloth-curated models (using original HF repos via diffusers)
+    "z_image_turbo": {"repo": "Tongyi-MAI/Z-Image-Turbo", "is_lora": False, "pipeline": "zimage"},
+    "z_image": {"repo": "Tongyi-MAI/Z-Image", "is_lora": False, "pipeline": "zimage"},
+    "qwen_image": {"repo": "Qwen/Qwen-Image-2512", "is_lora": False, "pipeline": "qwen_image"},
+    "qwen_image_edit": {"repo": "Qwen/Qwen-Image-Edit-2511", "is_lora": False, "pipeline": "qwen_image_edit"},
 }
 
 
@@ -136,7 +141,14 @@ def _get_hf_token():
     return hf_token if hf_token else None
 
 def _get_pipeline(repo_id: str, is_lora: bool = False):
-    """Lazy-load the Stable Diffusion pipeline with CPU offload."""
+    """Lazy-load the image generation pipeline with CPU offload.
+
+    Detects model-specific pipeline classes:
+    - Z-Image family → ZImagePipeline
+    - Qwen-Image-2512 → DiffusionPipeline
+    - Qwen-Image-Edit → QwenImageEditPlusPipeline
+    - FLUX / SDXL / default → AutoPipelineForText2Image
+    """
     global _pipeline, _current_image_model, _current_is_lora
     if _pipeline is not None and _current_image_model == repo_id and _current_is_lora == is_lora:
         return _pipeline
@@ -146,56 +158,103 @@ def _get_pipeline(repo_id: str, is_lora: bool = False):
     import torch
     from diffusers import AutoPipelineForText2Image
 
-    # FLUX and SD3.5 need bfloat16; SDXL models use float16
-    is_bf16_model = "flux" in repo_id.lower() or "stable-diffusion-3" in repo_id.lower()
+    # Determine pipeline type from model catalog metadata
+    _pipe_type = ""
+    for _cfg in _IMAGE_STYLE_MODELS.values():
+        if _cfg["repo"] == repo_id:
+            _pipe_type = _cfg.get("pipeline", "")
+            break
+
+    # Z-Image / Qwen-Image / FLUX / SD3.5 all need bfloat16
+    is_bf16_model = (
+        "flux" in repo_id.lower()
+        or "stable-diffusion-3" in repo_id.lower()
+        or _pipe_type in ("zimage", "qwen_image", "qwen_image_edit")
+    )
     if is_bf16_model:
         dtype = torch.bfloat16 if torch.cuda.is_available() else torch.float32
-        variant = None  # FLUX/SD3.5 don't use fp16 variant
+        variant = None
     else:
         dtype = torch.float16 if torch.cuda.is_available() else torch.float32
         variant = "fp16"
 
-    logger.info(f"Loading image pipeline for {repo_id} (LoRA: {is_lora})")
+    logger.info(f"Loading image pipeline for {repo_id} (LoRA: {is_lora}, type: {_pipe_type or 'auto'})")
 
     try:
         global _hf_download_state
         _hf_download_state = {"active": True, "progress": 0.0, "repo": repo_id}
         hf_token = _get_hf_token()
-        
+
         if is_lora:
             base_model = "stabilityai/stable-diffusion-xl-base-1.0"
             _pipeline = AutoPipelineForText2Image.from_pretrained(
-                base_model, torch_dtype=dtype, variant=variant, local_files_only=_should_use_local_files(base_model if "base_model" in locals() and "stabilityai" in base_model else repo_id), token=hf_token
+                base_model, torch_dtype=dtype, variant=variant,
+                local_files_only=_should_use_local_files(base_model), token=hf_token,
             )
             _pipeline.load_lora_weights(repo_id, token=hf_token)
+
+        elif _pipe_type == "zimage":
+            # Z-Image family (Turbo & Base) — uses ZImagePipeline
+            from diffusers import ZImagePipeline
+            _pipeline = ZImagePipeline.from_pretrained(
+                repo_id, torch_dtype=dtype, low_cpu_mem_usage=False,
+                local_files_only=_should_use_local_files(repo_id), token=hf_token,
+            )
+
+        elif _pipe_type == "qwen_image":
+            # Qwen-Image-2512 — generic DiffusionPipeline (auto-detects class)
+            from diffusers import DiffusionPipeline
+            _pipeline = DiffusionPipeline.from_pretrained(
+                repo_id, torch_dtype=dtype,
+                local_files_only=_should_use_local_files(repo_id), token=hf_token,
+            )
+
+        elif _pipe_type == "qwen_image_edit":
+            # Qwen-Image-Edit-2511 — uses QwenImageEditPlusPipeline
+            from diffusers import QwenImageEditPlusPipeline
+            _pipeline = QwenImageEditPlusPipeline.from_pretrained(
+                repo_id, torch_dtype=dtype,
+                local_files_only=_should_use_local_files(repo_id), token=hf_token,
+            )
+
+        elif repo_id.endswith(".gguf") or repo_id.startswith("http"):
+            clean_url = repo_id.split("?")[0] if repo_id.startswith("http") else repo_id
+            if "huggingface.co" in clean_url and "/resolve/main/" in clean_url:
+                clean_url = clean_url.replace("/resolve/main/", "/blob/main/")
+            from diffusers import StableDiffusionXLPipeline
+            _pipeline = StableDiffusionXLPipeline.from_single_file(
+                clean_url, torch_dtype=dtype,
+                local_files_only=_should_use_local_files(repo_id), token=hf_token,
+            )
         else:
-            if repo_id.endswith(".gguf") or repo_id.startswith("http"):
+            _pipeline = AutoPipelineForText2Image.from_pretrained(
+                repo_id, torch_dtype=dtype, variant=variant,
+                local_files_only=_should_use_local_files(repo_id), token=hf_token,
+            )
+    except Exception as e:
+        if "variant" in str(e).lower() or "fp16" in str(e).lower() or "safetensors" in str(e).lower():
+            logger.warning(f"Failed with variant {variant}, retrying without variant: {e}")
+            if is_lora:
+                base_model = "stabilityai/stable-diffusion-xl-base-1.0"
+                _pipeline = AutoPipelineForText2Image.from_pretrained(
+                    base_model, torch_dtype=dtype, variant=None,
+                    local_files_only=_should_use_local_files(base_model), token=hf_token,
+                )
+                _pipeline.load_lora_weights(repo_id, token=hf_token)
+            elif repo_id.endswith(".gguf") or repo_id.startswith("http"):
                 clean_url = repo_id.split("?")[0] if repo_id.startswith("http") else repo_id
                 if "huggingface.co" in clean_url and "/resolve/main/" in clean_url:
                     clean_url = clean_url.replace("/resolve/main/", "/blob/main/")
                 from diffusers import StableDiffusionXLPipeline
                 _pipeline = StableDiffusionXLPipeline.from_single_file(
-                    clean_url, torch_dtype=dtype, local_files_only=_should_use_local_files(base_model if "base_model" in locals() and "stabilityai" in base_model else repo_id), token=hf_token
+                    clean_url, torch_dtype=dtype,
+                    local_files_only=_should_use_local_files(repo_id), token=hf_token,
                 )
             else:
                 _pipeline = AutoPipelineForText2Image.from_pretrained(
-                    repo_id, torch_dtype=dtype, variant=variant, local_files_only=_should_use_local_files(base_model if "base_model" in locals() and "stabilityai" in base_model else repo_id), token=hf_token
+                    repo_id, torch_dtype=dtype, variant=None,
+                    local_files_only=_should_use_local_files(repo_id), token=hf_token,
                 )
-    except Exception as e:
-        if "variant" in str(e).lower() or "fp16" in str(e).lower() or "safetensors" in str(e).lower():
-            logger.warning(f"Failed with variant {variant}, retrying without variant: {e}")
-            if is_lora:
-                _pipeline = AutoPipelineForText2Image.from_pretrained(base_model, torch_dtype=dtype, variant=None, local_files_only=_should_use_local_files(base_model if "base_model" in locals() and "stabilityai" in base_model else repo_id), token=hf_token)
-                _pipeline.load_lora_weights(repo_id, token=hf_token)
-            else:
-                if repo_id.endswith(".gguf") or repo_id.startswith("http"):
-                    clean_url = repo_id.split("?")[0] if repo_id.startswith("http") else repo_id
-                    if "huggingface.co" in clean_url and "/resolve/main/" in clean_url:
-                        clean_url = clean_url.replace("/resolve/main/", "/blob/main/")
-                    from diffusers import StableDiffusionXLPipeline
-                    _pipeline = StableDiffusionXLPipeline.from_single_file(clean_url, torch_dtype=dtype, local_files_only=_should_use_local_files(base_model if "base_model" in locals() and "stabilityai" in base_model else repo_id), token=hf_token)
-                else:
-                    _pipeline = AutoPipelineForText2Image.from_pretrained(repo_id, torch_dtype=dtype, variant=None, local_files_only=_should_use_local_files(base_model if "base_model" in locals() and "stabilityai" in base_model else repo_id), token=hf_token)
         else:
             _hf_download_state["active"] = False
             logger.error(f"Failed to load {repo_id}: {e}")
@@ -394,6 +453,18 @@ _VIDEO_MODELS = {
         "vram_gb": 20,
         "dtype": "bfloat16",
         "quantize": "int8",
+    },
+    "ltx_23_distilled": {
+        "repo": "Lightricks/LTX-2.3",
+        "pipeline": "ltx",
+        "steps": 8,
+        "guidance": 1.0,
+        "fps": 50,
+        "max_frames": 257,
+        "vram_gb": 16,
+        "dtype": "bfloat16",
+        "quantize": "int8",
+        "distilled": True,
     },
     "cogvideox": {
         "repo": "THUDM/CogVideoX-5b",
@@ -708,6 +779,20 @@ _IMAGE_STYLES = {
         "positive": "masterpiece, best quality, vector logo, flat design, minimalist, clean lines, solid colors, corporate identity, isolated on white background, sharp edges",
         "negative": "photorealistic, 3d, realistic, photo, complex, gradients, messy, ugly, text, watermark, low quality, worst quality, blurry",
     },
+    # Z-Image and Qwen-Image use natural language prompts; no style keyword injection needed.
+    # These entries provide negative prompts only.
+    "z_image_turbo": {
+        "positive": "",
+        "negative": "lowres, bad anatomy, bad hands, text, error, worst quality, low quality, watermark, blurry",
+    },
+    "z_image": {
+        "positive": "",
+        "negative": "lowres, bad anatomy, bad hands, text, error, worst quality, low quality, watermark, blurry",
+    },
+    "qwen_image": {
+        "positive": "",
+        "negative": "low resolution, low quality, distorted limbs, distorted fingers, oversaturated, wax figure, no facial detail, overly smooth, AI-looking, chaotic composition, blurry text, distorted text",
+    },
 }
 
 # Keywords that strongly suggest raster (photorealistic) generation
@@ -892,8 +977,28 @@ async def _enhance_prompt_with_llm(prompt: str, style: str = "none", model_repo:
     is_flux = "flux" in model_repo.lower() if model_repo else (style in ("none", "flux_schnell", "flux2_klein"))
     is_anime = style == "anime" or "animagine" in model_repo.lower()
     is_photo = style in ("photorealistic", "realvis") or "juggernaut" in model_repo.lower() or "realvis" in model_repo.lower()
+    is_zimage = style in ("z_image_turbo", "z_image") or "z-image" in model_repo.lower()
+    is_qwen = style in ("qwen_image", "qwen_image_edit") or "qwen-image" in model_repo.lower()
 
-    if is_flux:
+    if is_zimage:
+        model_guidance = (
+            "TARGET MODEL: Z-Image (S3-DiT flow-matching model, 6B params). "
+            "Z-Image excels at photorealism and text rendering. "
+            "Use NATURAL LANGUAGE descriptions (30-60 words). "
+            "Do NOT use quality tags — describe the scene, lighting, mood, composition, camera. "
+            "If text should appear in the image, include it in quotes within the prompt. "
+            "Focus on: subject, atmosphere, cinematic details, photo-like realism."
+        )
+    elif is_qwen:
+        model_guidance = (
+            "TARGET MODEL: Qwen-Image (high-resolution text-to-image, bilingual EN/CN). "
+            "Qwen-Image excels at photorealism, text rendering, and complex compositions. "
+            "Use NATURAL LANGUAGE descriptions (40-80 words). "
+            "Do NOT use quality tags. Describe the scene precisely and cinematically. "
+            "If text or typography should appear, include the exact text in quotes. "
+            "Focus on: subject, composition, lighting, mood, camera angle, material textures."
+        )
+    elif is_flux:
         model_guidance = (
             "TARGET MODEL: FLUX (flow-matching, distilled). "
             "FLUX works best with NATURAL LANGUAGE descriptions, not keyword lists. "
@@ -1213,6 +1318,42 @@ async def generate_image_core(
                 steps = 4
                 logger.info(f"FLUX.2 Klein: forcing guidance=0.0, steps={steps}")
 
+            # --- Unsloth model-specific parameter overrides ---
+            _pipe_type = model_info.get("pipeline", "")
+            _extra_kwargs = {}
+
+            # Z-Image-Turbo: distilled, guidance=0.0, 9 steps (8 DiT forwards)
+            if _pipe_type == "zimage" and "turbo" in repo_id.lower():
+                guidance = 0.0
+                if steps <= 4:
+                    steps = 9
+                logger.info(f"Z-Image-Turbo: forcing guidance=0.0, steps={steps}")
+
+            # Z-Image (base): non-distilled, guidance=3.0-5.0, 28-50 steps, supports negative prompt
+            elif _pipe_type == "zimage":
+                if steps <= 4:
+                    steps = 50
+                if guidance <= 1.0:
+                    guidance = 4.0
+                _extra_kwargs["cfg_normalization"] = False
+                logger.info(f"Z-Image: guidance={guidance}, steps={steps}")
+
+            # Qwen-Image-2512: uses true_cfg_scale instead of guidance_scale
+            elif _pipe_type == "qwen_image":
+                if steps <= 4:
+                    steps = 50
+                guidance = 1.0  # guidance_scale must be 1.0 for Qwen-Image
+                _extra_kwargs["true_cfg_scale"] = 4.0
+                logger.info(f"Qwen-Image-2512: true_cfg_scale=4.0, steps={steps}")
+
+            # Qwen-Image-Edit-2511: editing pipeline
+            elif _pipe_type == "qwen_image_edit":
+                if steps <= 4:
+                    steps = 40
+                guidance = 1.0
+                _extra_kwargs["true_cfg_scale"] = 4.0
+                logger.info(f"Qwen-Image-Edit-2511: true_cfg_scale=4.0, steps={steps}")
+
             def step_callback(p, step_index, timestep, callback_kwargs):
                 if stream_queue is not None:
                     latents = callback_kwargs.get("latents")
@@ -1247,29 +1388,53 @@ async def generate_image_core(
             import asyncio
             # Distilled / flow-matching models don't support negative_prompt
             _no_neg = "flux" in repo_id.lower()  # FLUX.1, FLUX.2 family
+            # Z-Image-Turbo is distilled — no negative prompt
+            if _pipe_type == "zimage" and "turbo" in repo_id.lower():
+                _no_neg = True
+
             if reference_image:
-                # Load reference image
-                from PIL import Image
-                ref_path = os.path.join(IMAGES_DIR, os.path.basename(reference_image))
-                if not os.path.exists(ref_path):
-                    raise RuntimeError(f"Reference image not found: {reference_image}")
-                init_img = Image.open(ref_path).convert("RGB")
-                # Resize to target dimensions for consistent output
-                init_img = init_img.resize((width, height), Image.LANCZOS)
-                
-                pipe = await asyncio.to_thread(_get_i2i_pipeline, repo_id, is_lora)
-                pipe_kwargs = dict(
-                    prompt=prompt,
-                    image=init_img,
-                    strength=strength,
-                    num_inference_steps=steps,
-                    guidance_scale=guidance,
-                    callback_on_step_end=step_callback,
-                )
-                if not _no_neg:
-                    pipe_kwargs["negative_prompt"] = negative_prompt
-                result = await asyncio.to_thread(pipe, **pipe_kwargs)
-                image = result.images[0]
+                # Qwen-Image-Edit handles reference images natively via its pipeline
+                if _pipe_type == "qwen_image_edit":
+                    from PIL import Image
+                    ref_path = os.path.join(IMAGES_DIR, os.path.basename(reference_image))
+                    if not os.path.exists(ref_path):
+                        raise RuntimeError(f"Reference image not found: {reference_image}")
+                    init_img = Image.open(ref_path).convert("RGB")
+                    pipe = await asyncio.to_thread(_get_pipeline, repo_id, is_lora)
+                    pipe_kwargs = dict(
+                        prompt=prompt,
+                        image=[init_img],
+                        num_inference_steps=steps,
+                        guidance_scale=guidance,
+                        **_extra_kwargs,
+                    )
+                    if not _no_neg:
+                        pipe_kwargs["negative_prompt"] = negative_prompt
+                    result = await asyncio.to_thread(pipe, **pipe_kwargs)
+                    image = result.images[0]
+                else:
+                    # Standard Img2Img
+                    from PIL import Image
+                    ref_path = os.path.join(IMAGES_DIR, os.path.basename(reference_image))
+                    if not os.path.exists(ref_path):
+                        raise RuntimeError(f"Reference image not found: {reference_image}")
+                    init_img = Image.open(ref_path).convert("RGB")
+                    init_img = init_img.resize((width, height), Image.LANCZOS)
+                    
+                    pipe = await asyncio.to_thread(_get_i2i_pipeline, repo_id, is_lora)
+                    pipe_kwargs = dict(
+                        prompt=prompt,
+                        image=init_img,
+                        strength=strength,
+                        num_inference_steps=steps,
+                        guidance_scale=guidance,
+                        callback_on_step_end=step_callback,
+                        **_extra_kwargs,
+                    )
+                    if not _no_neg:
+                        pipe_kwargs["negative_prompt"] = negative_prompt
+                    result = await asyncio.to_thread(pipe, **pipe_kwargs)
+                    image = result.images[0]
             else:
                 pipe = await asyncio.to_thread(_get_pipeline, repo_id, is_lora)
                 pipe_kwargs = dict(
@@ -1279,6 +1444,7 @@ async def generate_image_core(
                     num_inference_steps=steps,
                     guidance_scale=guidance,
                     callback_on_step_end=step_callback,
+                    **_extra_kwargs,
                 )
                 if not _no_neg:
                     pipe_kwargs["negative_prompt"] = negative_prompt
