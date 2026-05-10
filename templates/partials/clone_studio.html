@@ -66,12 +66,8 @@
         </div>
         <div style="display:flex;gap:8px;margin-bottom:12px">
           <select id="clone-test-channel" class="clone-review-mode" style="margin:0;flex:1">
-            <option value="email">📧 Email</option>
-            <option value="whatsapp">💬 WhatsApp</option>
-            <option value="signal">🔒 Signal</option>
-            <option value="telegram">✈️ Telegram</option>
-            <option value="webhook">🔗 Webhook</option>
             <option value="test" selected>🧪 Test</option>
+            <!-- Populated dynamically from /clone/available-connectors -->
           </select>
           <button class="btn btn-primary btn-sm" id="clone-test-send">
             <svg class="ic" width="14" height="14"><use href="#icon-play"></use></svg>
@@ -151,6 +147,11 @@
         </span>
       </div>
       <div class="clone-section-body" id="clone-connectors-list">
+        <!-- Populated by JS from /clone/available-connectors -->
+      </div>
+      <!-- Connector configuration panel (shown on gear icon click) -->
+      <div id="clone-connector-config" class="clone-section-body"
+           style="display:none;margin-top:8px;padding:10px 12px;border-top:1px solid var(--border);border-radius:0 0 8px 8px">
         <!-- Populated by JS -->
       </div>
     </div>

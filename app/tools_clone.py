@@ -219,21 +219,56 @@ async def delete_knowledge_file(path: str):
 
 # ── Connectors ──
 
+# Communication/publish node types exposed to the Clone Studio
+_CLONE_CONNECTOR_CATEGORIES = {"communication", "publish"}
+
+
+def _get_automation_connectors() -> list:
+    """Return connectors from Automation NODE_TYPES (communication + publish)."""
+    try:
+        from app.tools_automation import NODE_TYPES
+        result = []
+        for key, defn in NODE_TYPES.items():
+            if defn.get("category") in _CLONE_CONNECTOR_CATEGORIES:
+                result.append({
+                    "key": key,
+                    "label": defn.get("label", key),
+                    "icon": defn.get("icon", "link"),
+                    "color": defn.get("color", "#6b7280"),
+                    "category": defn.get("category", "communication"),
+                    "params": defn.get("params", []),
+                })
+        return result
+    except Exception as e:
+        logger.error("Failed to load automation connectors: %s", e)
+        return []
+
+
+@router.get("/available-connectors")
+async def get_available_connectors():
+    """Return all connectors available from the Automation engine."""
+    return {"connectors": _get_automation_connectors()}
+
+
 @router.get("/connectors")
 async def get_connectors():
-    """Return connector configurations."""
-    default = {
-        "email": {"enabled": False, "credentials": {}, "auto_reply": False,
-                  "allowed_senders": [], "last_activity": None},
-        "whatsapp": {"enabled": False, "credentials": {}, "auto_reply": False,
-                     "allowed_senders": [], "last_activity": None},
-        "signal": {"enabled": False, "credentials": {}, "auto_reply": False,
-                   "allowed_senders": [], "last_activity": None},
-        "telegram": {"enabled": False, "credentials": {}, "auto_reply": False,
-                     "allowed_senders": [], "last_activity": None},
-        "webhook": {"enabled": False, "credentials": {}, "auto_reply": False,
-                    "allowed_senders": [], "last_activity": None},
-    }
+    """Return connector configurations merged with automation-discovered defaults."""
+    # Build default structure from automation NODE_TYPES
+    default: dict = {}
+    for conn in _get_automation_connectors():
+        key = conn["key"]
+        default[key] = {
+            "enabled": False,
+            "params": {},          # user-configured param values
+            "auto_reply": False,
+            "allowed_senders": [],
+            "last_activity": None,
+        }
+    # Fallback in case automation import fails
+    if not default:
+        for key in ("email_send", "whatsapp_send", "signal_send", "telegram_send"):
+            default[key] = {"enabled": False, "params": {}, "auto_reply": False,
+                            "allowed_senders": [], "last_activity": None}
     saved = _load_json(CONNECTORS_FILE, {})
     for ch in default:
         if ch in saved:
@@ -248,6 +283,47 @@ async def save_connectors(request: Request):
     connectors = data.get("connectors", {})
     _save_json(CONNECTORS_FILE, connectors)
     return {"status": "saved"}
+
+
+@router.post("/connectors/{connector_key}/test")
+async def test_connector(connector_key: str, request: Request):
+    """Test a connector by sending a test message through the Automation engine."""
+    data = await request.json()
+    params = data.get("params", {})
+    message = data.get("message", "🤖 Clone connector test message")
+
+    # Load saved params and merge with provided ones
+    saved = _load_json(CONNECTORS_FILE, {})
+    saved_params = saved.get(connector_key, {}).get("params", {})
+    merged_params = {**saved_params, **params}
+
+    # Inject message into the right param key for each connector type
+    msg_key_map = {
+        "email_send": ("body", "subject"),
+        "discord_send": ("message", None),
+        "signal_send": ("message", None),
+        "telegram_send": ("message", None),
+        "whatsapp_send": ("message", None),
+        "medium_publish": ("content", "title"),
+        "twitter_publish": ("text", None),
+        "linkedin_publish": ("text", None),
+        "export_email": ("body", "subject"),
+    }
+    if connector_key in msg_key_map:
+        body_key, title_key = msg_key_map[connector_key]
+        if body_key and body_key not in merged_params:
+            merged_params[body_key] = message
+        if title_key and title_key not in merged_params:
+            merged_params[title_key] = "Clone Test"
+
+    try:
+        from app.tools_automation import _exec_node
+        node = {"id": "clone_test", "type": connector_key, "params": merged_params}
+        result = await _exec_node(node, {}, {}, testing_mode=False)
+        return {"status": "sent", "result": result}
+    except Exception as e:
+        logger.error("Connector test failed for %s: %s", connector_key, e)
+        return {"status": "error", "error": str(e)}
 
 
 # ── Settings ──

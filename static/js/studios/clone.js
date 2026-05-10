@@ -9,7 +9,8 @@ class CloneStudio {
   constructor() {
     this.layout = $('#clone-layout');
     this._editingFile = null;
-    this._connectors = {};
+    this._connectors = {};        // saved states {key: {enabled, params, ...}}
+    this._availableConnectors = []; // definitions from automation NODE_TYPES
     this._init();
   }
 
@@ -214,56 +215,189 @@ class CloneStudio {
   // ── Connectors ──
   async loadConnectors() {
     try {
-      const r = await fetch('/clone/connectors');
-      const d = await r.json();
-      this._connectors = d.connectors || {};
+      // Load available connectors from automation engine
+      const [avail, saved] = await Promise.all([
+        fetch('/clone/available-connectors').then(r => r.json()),
+        fetch('/clone/connectors').then(r => r.json()),
+      ]);
+      this._availableConnectors = avail.connectors || [];
+      this._connectors = saved.connectors || {};
       this._renderConnectors();
       this._renderConnectorStatus();
+      this._populateChannelSelect();
     } catch (e) { console.error('Clone: loadConnectors failed', e); }
+  }
+
+  // Icon emoji map for well-known connectors
+  _connectorEmoji(key) {
+    const map = {
+      email_send: '📧', discord_send: '💜', signal_send: '🔒',
+      telegram_send: '✈️', whatsapp_send: '💬', medium_publish: '📝',
+      twitter_publish: '𝔺', linkedin_publish: '👤', export_email: '📤',
+    };
+    return map[key] || '🔗';
   }
 
   _renderConnectors() {
     const list = $('#clone-connectors-list');
     if (!list) return;
     list.innerHTML = '';
-    const channels = [
-      { key: 'email', label: 'Email', icon: '📧' },
-      { key: 'whatsapp', label: 'WhatsApp', icon: '💬' },
-      { key: 'signal', label: 'Signal', icon: '🔒' },
-      { key: 'telegram', label: 'Telegram', icon: '✈️' },
-      { key: 'webhook', label: 'Webhook', icon: '🔗' },
-    ];
-    channels.forEach(ch => {
+
+    if (!this._availableConnectors.length) {
+      list.innerHTML = '<div style="color:var(--text-muted);font-size:12px;padding:8px">No connectors available.</div>';
+      return;
+    }
+
+    this._availableConnectors.forEach(ch => {
       const cfg = this._connectors[ch.key] || {};
+      const emoji = this._connectorEmoji(ch.key);
       const div = document.createElement('div');
       div.className = 'clone-connector';
+      div.dataset.connectorKey = ch.key;
+
       div.innerHTML = `
-        <div class="clone-connector-icon ${ch.key}">${ch.icon}</div>
+        <div class="clone-connector-icon" style="background:${ch.color}22;border:1px solid ${ch.color}44">${emoji}</div>
         <div class="clone-connector-info">
-          <div class="clone-connector-name">${ch.label}</div>
-          <div class="clone-connector-status">${cfg.enabled ? 'Connected' : 'Disabled'}</div>
+          <div class="clone-connector-name">${escHtml(ch.label)}</div>
+          <div class="clone-connector-status clone-connector-status-${ch.key}">${cfg.enabled ? 'Active' : 'Disabled'}</div>
         </div>
-        <label class="clone-toggle">
-          <input type="checkbox" data-channel="${ch.key}" ${cfg.enabled ? 'checked' : ''}>
-          <span class="clone-toggle-track"></span>
-        </label>`;
-      div.querySelector('input')?.addEventListener('change', e => {
-        if (!this._connectors[ch.key]) this._connectors[ch.key] = {};
+        <div style="display:flex;align-items:center;gap:6px;margin-left:auto">
+          <button class="icon-btn clone-connector-cfg-btn" data-key="${ch.key}" title="Configure">
+            <svg class="ic" width="11" height="11"><use href="#icon-settings"></use></svg>
+          </button>
+          <label class="clone-toggle">
+            <input type="checkbox" data-channel="${ch.key}" ${cfg.enabled ? 'checked' : ''}>
+            <span class="clone-toggle-track"></span>
+          </label>
+        </div>`;
+
+      div.querySelector('input[type="checkbox"]')?.addEventListener('change', e => {
+        if (!this._connectors[ch.key]) this._connectors[ch.key] = { params: {} };
         this._connectors[ch.key].enabled = e.target.checked;
+        div.querySelector(`.clone-connector-status-${ch.key}`).textContent =
+          e.target.checked ? 'Active' : 'Disabled';
         this._renderConnectorStatus();
+        this._populateChannelSelect();
       });
+
+      div.querySelector('.clone-connector-cfg-btn')?.addEventListener('click', () => {
+        this._renderConnectorConfig(ch);
+      });
+
       list.appendChild(div);
     });
+  }
+
+  _renderConnectorConfig(ch) {
+    const panel = $('#clone-connector-config');
+    if (!panel) return;
+    const cfg = this._connectors[ch.key] || { params: {} };
+    const savedParams = cfg.params || {};
+
+    panel.innerHTML = `
+      <div class="clone-section-header" style="margin-bottom:8px">
+        <span class="clone-section-title" style="font-size:12px">
+          ${this._connectorEmoji(ch.key)} ${escHtml(ch.label)} — Configuration
+        </span>
+        <button class="icon-btn" id="clone-cfg-close" title="Close">
+          <svg class="ic" width="11" height="11"><use href="#icon-x"></use></svg>
+        </button>
+      </div>
+      <div id="clone-cfg-fields" style="display:flex;flex-direction:column;gap:6px">
+        ${(ch.params || []).map(p => `
+          <div>
+            <label style="font-size:11px;color:var(--text-muted);display:block;margin-bottom:3px">${escHtml(p.label)}</label>
+            ${p.type === 'select'
+              ? `<select id="cfg-${escHtml(p.key)}" class="clone-review-mode" style="margin:0;width:100%">
+                  ${(p.options || []).map(o => `<option value="${escHtml(o)}" ${(savedParams[p.key]||p.default)===o?'selected':''}>${escHtml(o)}</option>`).join('')}
+                </select>`
+              : `<input type="text" id="cfg-${escHtml(p.key)}"
+                   value="${escHtml(savedParams[p.key] !== undefined ? savedParams[p.key] : (p.default || ''))}"
+                   placeholder="${escHtml(p.default || '')}"
+                   style="width:100%;box-sizing:border-box;padding:5px 8px;border-radius:6px;border:1px solid var(--border);background:var(--bg);color:var(--text);font-size:12px">`
+            }
+          </div>`).join('')}
+      </div>
+      <div style="display:flex;gap:6px;margin-top:10px">
+        <button class="btn btn-secondary btn-sm" style="flex:1" id="clone-cfg-test">Test Send</button>
+        <button class="btn btn-primary btn-sm" style="flex:1" id="clone-cfg-save">Save</button>
+      </div>
+      <div id="clone-cfg-result" style="margin-top:8px;font-size:11px;display:none"></div>`;
+
+    panel.style.display = 'block';
+
+    $('#clone-cfg-close')?.addEventListener('click', () => { panel.style.display = 'none'; });
+
+    $('#clone-cfg-save')?.addEventListener('click', () => {
+      const params = {};
+      (ch.params || []).forEach(p => {
+        const el = $(`#cfg-${p.key}`);
+        if (el) params[p.key] = el.value;
+      });
+      if (!this._connectors[ch.key]) this._connectors[ch.key] = {};
+      this._connectors[ch.key].params = params;
+      toast(ICONS.check(14) + ` ${ch.label} config saved locally — click "Save All Settings" to persist`);
+    });
+
+    $('#clone-cfg-test')?.addEventListener('click', () => this.testConnector(ch));
+  }
+
+  async testConnector(ch) {
+    const resultEl = $('#clone-cfg-result');
+    if (resultEl) { resultEl.style.display = 'block'; resultEl.textContent = '⏳ Sending test...'; resultEl.style.color = 'var(--text-muted)'; }
+    const params = {};
+    (ch.params || []).forEach(p => {
+      const el = $(`#cfg-${p.key}`);
+      if (el) params[p.key] = el.value;
+    });
+    try {
+      const r = await fetch(`/clone/connectors/${ch.key}/test`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ params, message: '🤖 Clone connector test — ignore this message.' })
+      });
+      const d = await r.json();
+      if (d.status === 'sent') {
+        if (resultEl) { resultEl.textContent = '✅ Test sent successfully!'; resultEl.style.color = 'var(--success, #22c55e)'; }
+      } else {
+        if (resultEl) { resultEl.textContent = '❌ ' + (d.error || 'Failed'); resultEl.style.color = 'var(--danger, #ef4444)'; }
+      }
+    } catch (e) {
+      if (resultEl) { resultEl.textContent = '❌ Network error: ' + e.message; resultEl.style.color = 'var(--danger, #ef4444)'; }
+    }
+  }
+
+  _populateChannelSelect() {
+    const sel = $('#clone-test-channel');
+    if (!sel) return;
+    const current = sel.value;
+    sel.innerHTML = '';
+    // Always show "Test" option first
+    const testOpt = document.createElement('option');
+    testOpt.value = 'test'; testOpt.textContent = '🧪 Test';
+    sel.appendChild(testOpt);
+    this._availableConnectors.forEach(ch => {
+      const opt = document.createElement('option');
+      opt.value = ch.key;
+      opt.textContent = `${this._connectorEmoji(ch.key)} ${ch.label}`;
+      sel.appendChild(opt);
+    });
+    // Restore previous selection if possible
+    if (current && sel.querySelector(`option[value="${current}"]`)) sel.value = current;
+    else sel.value = 'test';
   }
 
   _renderConnectorStatus() {
     const dots = $('#clone-connectors-status');
     if (!dots) return;
     dots.innerHTML = '';
-    Object.entries(this._connectors).forEach(([key, cfg]) => {
+    this._availableConnectors.forEach(ch => {
+      const cfg = this._connectors[ch.key] || {};
+      if (!cfg.enabled) return;
       const dot = document.createElement('span');
-      dot.className = `clone-status-dot${cfg.enabled ? ' active' : ''}`;
-      dot.textContent = key;
+      dot.className = 'clone-status-dot active';
+      dot.title = ch.label;
+      dot.textContent = this._connectorEmoji(ch.key);
       dots.appendChild(dot);
     });
   }
