@@ -320,7 +320,7 @@ class CloneStudio {
     }
 
     body.innerHTML = `
-      <div id="clone-cfg-fields" style="display:flex;flex-direction:column;gap:12px">
+      <div id="clone-cfg-fields" style="display:flex;flex-direction:column;gap:12px;padding:16px;">
         ${(ch.params || []).map(p => `
           <div>
             <label style="font-size:12px;color:var(--text-muted);display:block;margin-bottom:4px">${escHtml(p.label)}</label>
@@ -331,7 +331,7 @@ class CloneStudio {
               : `<input type="text" id="cfg-${escHtml(p.key)}"
                    value="${escHtml(savedParams[p.key] !== undefined ? savedParams[p.key] : (p.default || ''))}"
                    placeholder="${escHtml(p.default || '')}"
-                   style="width:100%;box-sizing:border-box;padding:6px 10px;border-radius:6px;border:1px solid var(--border);background:var(--bg);color:var(--text);font-size:13px">`
+                   style="width:100%;box-sizing:border-box;padding:6px 10px;border-radius:6px;border:1px solid var(--border);background:var(--bg-primary);color:var(--text-primary);font-size:13px">`
             }
           </div>`).join('')}
       </div>

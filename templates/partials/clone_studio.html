@@ -133,7 +133,7 @@
         <div class="clone-confidence-row" style="margin-top:8px" title="Nombre maximal d'actions automatiques autorisées par jour">
           <label>Daily limit</label>
           <input type="number" id="clone-daily-limit" value="50" min="1" max="500"
-                 style="flex:1;min-width:0;padding:6px 10px;border-radius:6px;border:1px solid var(--border);background:var(--bg);color:var(--text);font-size:12px;box-sizing:border-box">
+                 style="flex:1;min-width:0;padding:6px 10px;border-radius:6px;border:1px solid var(--border);background:var(--bg-primary);color:var(--text-primary);font-size:12px;box-sizing:border-box">
         </div>
       </div>
     </div>
@@ -146,7 +146,7 @@
           Connectors
         </span>
       </div>
-      <div class="clone-section-body" id="clone-connectors-list">
+      <div class="clone-section-body" id="clone-connectors-list" style="overflow-y:auto;max-height:400px;">
         <!-- Populated by JS from /clone/available-connectors -->
       </div>
 
