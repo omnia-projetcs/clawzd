@@ -120,13 +120,38 @@ _compression_stats = {
 }
 
 
-def _clean_message_content(content: str, max_len: int = 4000) -> str:
+def _clean_message_content(content, max_len: int = 4000):
     """Strip base64 images, media markers, and truncate overly long content."""
-    content = _BASE64_PATTERN.sub('[image]', content)
-    content = _MEDIA_MARKER_RE.sub('[media]', content)
-    if len(content) > max_len:
-        content = content[:max_len] + "\n...(truncated)"
-    return content
+    if isinstance(content, list):
+        cleaned_parts = []
+        for part in content:
+            if isinstance(part, dict):
+                if part.get("type") == "text":
+                    c = _BASE64_PATTERN.sub('[image]', part["text"])
+                    c = _MEDIA_MARKER_RE.sub('[media]', c)
+                    if len(c) > max_len:
+                        c = c[:max_len] + "\n...(truncated)"
+                    cleaned_parts.append({"type": "text", "text": c})
+                else:
+                    # Preserve image_url or other media parts
+                    cleaned_parts.append(part)
+            elif isinstance(part, str):
+                c = _BASE64_PATTERN.sub('[image]', part)
+                c = _MEDIA_MARKER_RE.sub('[media]', c)
+                if len(c) > max_len:
+                    c = c[:max_len] + "\n...(truncated)"
+                cleaned_parts.append(c)
+            else:
+                cleaned_parts.append(part)
+        return cleaned_parts
+    
+    # Handle string content
+    content_str = str(content) if content else ""
+    content_str = _BASE64_PATTERN.sub('[image]', content_str)
+    content_str = _MEDIA_MARKER_RE.sub('[media]', content_str)
+    if len(content_str) > max_len:
+        content_str = content_str[:max_len] + "\n...(truncated)"
+    return content_str
 
 
 def estimate_tokens(text: str) -> int:
@@ -214,7 +239,7 @@ async def compress_messages(
 
     # Pre-clean: strip base64 and truncate all non-system messages
     messages = [
-        {**m, "content": _clean_message_content(_content_as_str(m["content"]))}
+        {**m, "content": _clean_message_content(m["content"])}
         if m["role"] != "system" else m
         for m in messages
     ]
