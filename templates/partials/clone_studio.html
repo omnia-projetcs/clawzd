@@ -149,11 +149,7 @@
       <div class="clone-section-body" id="clone-connectors-list">
         <!-- Populated by JS from /clone/available-connectors -->
       </div>
-      <!-- Connector configuration panel (shown on gear icon click) -->
-      <div id="clone-connector-config" class="clone-section-body"
-           style="display:none;margin-top:8px;padding:10px 12px;border-top:1px solid var(--border);border-radius:0 0 8px 8px">
-        <!-- Populated by JS -->
-      </div>
+
     </div>
 
     <!-- Quick Actions -->
@@ -189,6 +185,26 @@
     <div class="clone-editor-footer">
       <button class="btn btn-secondary btn-sm" id="clone-editor-cancel">Cancel</button>
       <button class="btn btn-primary btn-sm" id="clone-editor-save">Save</button>
+    </div>
+  </div>
+</div>
+
+<!-- Clone Connector Config Modal -->
+<div id="clone-cfg-overlay" class="clone-editor-overlay">
+  <div class="clone-editor-modal" style="max-width:400px">
+    <div class="clone-editor-header">
+      <h3 id="clone-cfg-title" style="display:flex;align-items:center;margin:0">Configure</h3>
+      <button class="icon-btn" id="clone-cfg-close">
+        <svg class="ic" width="14" height="14"><use href="#icon-x"></use></svg>
+      </button>
+    </div>
+    <div class="clone-editor-body" id="clone-cfg-body">
+      <!-- Populated by JS -->
+    </div>
+    <div class="clone-editor-footer">
+      <button class="btn btn-secondary btn-sm" id="clone-cfg-test">Test Send</button>
+      <div style="flex:1"></div>
+      <button class="btn btn-primary btn-sm" id="clone-cfg-save">Save</button>
     </div>
   </div>
 </div>
