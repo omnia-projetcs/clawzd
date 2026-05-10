@@ -207,7 +207,8 @@
                  min="0.5"
                  max="20"
                  value="2"
-                 step="0.5">
+                 step="0.5"
+                 oninput="document.getElementById('media-duration-value').textContent = this.value + 's'">
           <span class="media-form-range-value" id="media-duration-value">2s</span>
         </div>
       </div>
@@ -221,7 +222,8 @@
                  min="1"
                  max="50"
                  value="1"
-                 step="1">
+                 step="1"
+                 oninput="document.getElementById('media-num-images-value').textContent = this.value">
           <span class="media-form-range-value" id="media-num-images-value">1</span>
         </div>
       </div>
@@ -235,7 +237,8 @@
                  min="4"
                  max="20"
                  value="4"
-                 step="1">
+                 step="1"
+                 oninput="document.getElementById('media-steps-value').textContent = this.value">
           <span class="media-form-range-value" id="media-steps-value">4</span>
         </div>
       </div>
@@ -373,7 +376,8 @@
                  min="60"
                  max="200"
                  value="120"
-                 step="5">
+                 step="5"
+                 oninput="document.getElementById('media-tempo-value').textContent = this.value">
           <span class="media-form-range-value" id="media-tempo-value">120</span>
         </div>
       </div>
@@ -406,7 +410,8 @@
                  min="5"
                  max="300"
                  value="30"
-                 step="5">
+                 step="5"
+                 oninput="document.getElementById('media-audio-duration-value').textContent = this.value + 's'">
           <span class="media-form-range-value" id="media-audio-duration-value">30s</span>
         </div>
       </div>
