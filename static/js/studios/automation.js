@@ -42,6 +42,7 @@ class AutomationStudio {
     $('#auto-exec-log-close')?.addEventListener('click', () => { $('#auto-exec-log').style.display = 'none'; });
     $('#auto-btn-ai-generate')?.addEventListener('click', () => this.generateWorkflowAI());
     $('#auto-ai-prompt')?.addEventListener('keypress', (e) => { if (e.key === 'Enter') this.generateWorkflowAI(); });
+    $('#auto-btn-delete-wf')?.addEventListener('click', () => this.deleteCurrentWorkflow());
 
     // Globals UI
     $('#auto-btn-globals-cancel')?.addEventListener('click', () => { $('#auto-globals-modal').style.display = 'none'; });
@@ -527,7 +528,7 @@ class AutomationStudio {
       const descHint = wf.description ? `<span class="auto-wf-item-desc">${wf.description.substring(0, 40)}</span>` : '';
       item.innerHTML = `<div class="auto-wf-item-info"><span class="auto-wf-item-name">${wf.name}</span>${descHint}</div>` +
         `<span class="auto-wf-item-badge ${wf.active ? 'active' : 'inactive'}">${wf.active ? 'ON' : 'OFF'}</span>` +
-        `<span class="auto-wf-item-delete" title="Delete"></span>`;
+        `<button class="auto-wf-item-delete icon-btn" title="Delete" style="color:var(--red); margin-left: 8px;">${window.icon ? window.icon('trash', 14) : '🗑️'}</button>`;
       item.querySelector('.auto-wf-item-info').addEventListener('click', () => this.loadWorkflow(wf.id));
       item.querySelector('.auto-wf-item-delete').addEventListener('click', async e => {
         e.stopPropagation();
@@ -567,6 +568,7 @@ class AutomationStudio {
       this._nextId = 1;
       this.nodes.forEach(n => { const num = parseInt(n.id.replace('n', '')); if (num >= this._nextId) this._nextId = num + 1; });
       this.deselectNode(); this.renderNodes(); this.renderConnections(); this.loadWorkflows();
+      if ($('#auto-btn-delete-wf')) $('#auto-btn-delete-wf').style.display = 'inline-flex';
       toast(`${ICONS.folderOpen(14)} Loaded: ${wf.name}`);
     } catch (e) { toast(ICONS.x(14) + ' Failed to load workflow'); }
   }
@@ -581,6 +583,7 @@ class AutomationStudio {
       if (this.descInput) this.descInput.value = '';
       if (this.activeToggle) this.activeToggle.checked = false;
       this.deselectNode(); this.renderNodes(); this.renderConnections(); this.loadWorkflows();
+      if ($('#auto-btn-delete-wf')) $('#auto-btn-delete-wf').style.display = 'none';
       toast(`${ICONS.check(14)} Workflow created: ${name.trim()}`);
     } catch (e) { toast(ICONS.x(14) + ' Failed to create workflow'); }
   }
@@ -596,8 +599,29 @@ class AutomationStudio {
       });
       this.currentWf.name = name; this.currentWf.description = description; this.currentWf.active = active;
       this.loadWorkflows(); toast(ICONS.download(14) + ' Workflow saved!');
+      if ($('#auto-btn-delete-wf') && this.currentWf && !this.currentWf.id.startsWith('temp_')) {
+        $('#auto-btn-delete-wf').style.display = 'inline-flex';
+      }
     } catch (e) { toast(ICONS.x(14) + ' Failed to save workflow'); }
   }
+  
+  async deleteCurrentWorkflow() {
+    if (!this.currentWf || this.currentWf.id.startsWith('temp_')) return;
+    if (!confirm(`Are you sure you want to delete workflow "${this.currentWf.name}"?`)) return;
+    try {
+      await fetch(`/automation/workflows/${this.currentWf.id}`, { method: 'DELETE' });
+      this.currentWf = null; this.nodes = []; this.connections = [];
+      this.renderNodes(); this.renderConnections(); this.deselectNode();
+      this.loadWorkflows();
+      if (this.nameInput) this.nameInput.value = 'New Workflow';
+      if (this.descInput) this.descInput.value = '';
+      if ($('#auto-btn-delete-wf')) $('#auto-btn-delete-wf').style.display = 'none';
+      toast(ICONS.circle(14) + ' ️ Workflow deleted');
+    } catch (e) {
+      toast(ICONS.x(14) + ' Failed to delete workflow');
+    }
+  }
+
   async executeWorkflow(testingMode = false) {
     if (!this.currentWf) { toast(ICONS.circle(14) + ' ️ No workflow loaded'); return; }
     // Save first
