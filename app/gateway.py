@@ -645,13 +645,19 @@ async def _process_chat(session_id: str, data: dict) -> dict:
         detected = select_skills(user_msg, top_k=5, min_confidence=0.25)
 
         # Force-inject generate_image when user message contains image-related keywords
+        # BUT exclude mermaid/diagram requests — those should produce markdown, not images.
         _image_keywords = {"image", "photo", "picture", "logo", "illustration", "draw",
                            "icon", "avatar", "banner", "poster", "wallpaper",
-                           "dessin", "dessine", "g\u00e9n\u00e8re", "cr\u00e9e", "cr\u00e9er", "affiche",
+                           "dessin", "dessine", "génère", "crée", "créer", "affiche",
                            "generate an image", "generate a logo", "make a logo",
                            "create an image", "create a logo"}
+        _mermaid_exclusions = {"mermaid", "diagramme", "diagram", "schéma", "schema",
+                               "flowchart", "organigramme", "séquence", "sequence",
+                               "erdiagram", "gantt", "classDiagram", "graph td",
+                               "graph lr", "mindmap", "pie chart"}
         _user_lower = user_msg.lower()
-        if any(kw in _user_lower for kw in _image_keywords):
+        _is_mermaid_request = any(kw in _user_lower for kw in _mermaid_exclusions)
+        if not _is_mermaid_request and any(kw in _user_lower for kw in _image_keywords):
             if not any(d["skill"] == "generate_image" for d in detected):
                 detected.insert(0, {"skill": "generate_image", "confidence": 1.0, "source": "keyword"})
 

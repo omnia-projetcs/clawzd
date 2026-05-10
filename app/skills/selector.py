@@ -52,9 +52,9 @@ BUILTIN_PATTERNS = {
         r"(?:take|capture|screenshot).*(?:https?://\S+|\b\w+\.(?:com|org|net|io|dev|fr|de|uk|co|app|ai)\b)",
     ],
     "generate_image": [
-        r"(?:generate|create|make|draw)\s+.*(?:image|picture|illustration|photo)",
+        r"(?:generate|create|make|draw)\s+.*(?:image|picture|illustration|photo)(?!.*(?:mermaid|diagram|schéma|schema|flowchart))",
         r"(?:image of|picture of|illustration of)",
-        r"(?:generate|create|make)\s+.*(?:svg|icon|logo|badge|vector)",
+        r"(?:generate|create|make)\s+.*(?:svg|icon|logo|badge|vector)(?!.*(?:mermaid|diagram|schéma|schema))",
         r"(?:svg|icon|logo|badge|vector)\s+",
         r"(?:simple|flat|minimalist|geometric)\s+.*(?:image|drawing|illustration)",
     ],
