@@ -218,7 +218,7 @@ def _get_pipeline(repo_id: str, is_lora: bool = False):
 
     try:
         global _hf_download_state
-        _hf_download_state = {"active": True, "progress": 0.0, "repo": repo_id}
+        _hf_download_state = {"active": False, "progress": 0.0, "repo": repo_id}
         hf_token = _get_hf_token()
 
         if is_lora:
@@ -370,7 +370,7 @@ def _get_i2i_pipeline(repo_id: str, is_lora: bool = False):
 
     try:
         global _hf_download_state
-        _hf_download_state = {"active": True, "progress": 0.0, "repo": repo_id}
+        _hf_download_state = {"active": False, "progress": 0.0, "repo": repo_id}
         hf_token = _get_hf_token()
         
         if is_lora:
@@ -591,7 +591,7 @@ def _get_video_pipeline(repo_id: str, model_key: str = ""):
         logger.info("Loading video pipeline [%s] for %s", pipeline_type, repo_id)
 
         global _hf_download_state
-        _hf_download_state = {"active": True, "progress": 0.0, "repo": repo_id}
+        _hf_download_state = {"active": False, "progress": 0.0, "repo": repo_id}
         hf_token = _get_hf_token()
 
         # INT8 quantization for large models (requires bitsandbytes)
@@ -728,7 +728,7 @@ def _get_i2v_pipeline(repo_id: str, pipeline_type: str = "auto"):
         logger.info("Loading image-to-video pipeline [%s] for %s", pipeline_type, repo_id)
 
         global _hf_download_state
-        _hf_download_state = {"active": True, "progress": 0.0, "repo": repo_id}
+        _hf_download_state = {"active": False, "progress": 0.0, "repo": repo_id}
         hf_token = _get_hf_token()
 
         if pipeline_type == "svd":

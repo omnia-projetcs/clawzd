@@ -1011,6 +1011,7 @@ class MediaStudio {
           const currentStyle = isAllModels ? stylesToRun[i] : baseStyle;
           const sizeVal = ($('#media-size') || {}).value || '1024x1024';
           const [width, height] = sizeVal.split('x').map(Number);
+          const stepsVal = parseInt(($('#media-steps') || {}).value) || 4;
 
           resp = await fetch('/image/generate', {
             method: 'POST',
@@ -1025,6 +1026,7 @@ class MediaStudio {
               strength: parseFloat(($('#media-ref-strength') || {}).value) || 0.5,
               width: width || 1024,
               height: height || 1024,
+              steps: stepsVal,
               stream: true // Enable SSE stream preview
             }),
           });
