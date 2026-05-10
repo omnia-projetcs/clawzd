@@ -29,6 +29,13 @@ pip install -r requirements.txt --upgrade --quiet 2>&1 | tail -5
 # --- Ensure data directories exist ---
 mkdir -p data/sessions data/profiles data/skills data/images data/screenshots data/audit_reports workspace chroma_db
 
+# --- Run database migrations ---
+echo ""
+echo "--- Running database migrations ---"
+python3 -c "from app.core.database import init_db; init_db(); print('✓ Database schema up to date')" 2>&1 || {
+    echo "WARNING: Database migration failed. The app will attempt to initialize on startup."
+}
+
 # --- Verify Ollama model hash ---
 echo ""
 echo "--- Verifying Ollama model integrity ---"

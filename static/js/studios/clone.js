@@ -30,8 +30,18 @@ class CloneStudio {
     }
     // Save all settings
     $('#clone-btn-save-all')?.addEventListener('click', () => this.saveSettings());
-    // Feed refresh
+    // Feed refresh & clear
     $('#clone-feed-refresh')?.addEventListener('click', () => this.loadFeed());
+    $('#clone-feed-clear')?.addEventListener('click', async () => {
+      if (!confirm('Are you sure you want to clear the activity history?')) return;
+      try {
+        await fetch('/clone/logs', { method: 'DELETE' });
+        this.loadFeed();
+        this.loadStats();
+      } catch (e) {
+        console.error('Failed to clear logs', e);
+      }
+    });
     // Knowledge tree
     $('#clone-kb-add')?.addEventListener('click', () => this.createFile());
     $('#clone-kb-upload')?.addEventListener('click', () => this._uploadFiles());

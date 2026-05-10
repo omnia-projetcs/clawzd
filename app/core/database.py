@@ -61,7 +61,7 @@ def repair_database():
 
 
 def with_auto_repair(func):
-    """Decorator to catch corruption errors and retry after repairing."""
+    """Decorator to catch corruption and missing-schema errors, then retry."""
     @wraps(func)
     def wrapper(*args, **kwargs):
         try:
@@ -70,6 +70,10 @@ def with_auto_repair(func):
             err_msg = str(e).lower()
             if "malformed" in err_msg or "corruption" in err_msg:
                 repair_database()
+                return func(*args, **kwargs)
+            if "no such table" in err_msg or "no such column" in err_msg:
+                logging.warning("Missing schema detected (%s). Running init_db()…", e)
+                init_db()
                 return func(*args, **kwargs)
             raise
     return wrapper

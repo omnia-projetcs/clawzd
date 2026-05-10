@@ -363,6 +363,20 @@ async def save_settings(request: Request):
 
 # ── Logs ──
 
+@router.delete("/logs")
+async def clear_logs():
+    """Clear all interaction logs."""
+    try:
+        files = os.listdir(LOGS_DIR)
+        for fname in files:
+            if fname.endswith(".json"):
+                os.remove(os.path.join(LOGS_DIR, fname))
+        return {"status": "cleared"}
+    except Exception as e:
+        logger.error("Failed to clear logs: %s", e)
+        raise HTTPException(500, "Failed to clear logs")
+
+
 @router.get("/logs")
 async def get_logs(limit: int = 50):
     """Return recent interactions across all days."""
