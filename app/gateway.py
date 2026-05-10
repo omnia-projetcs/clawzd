@@ -2450,11 +2450,25 @@ async def api_transcribe(file: UploadFile = File(...)):
 
 
 # --- RAG Profile API ---
+@app.get("/api/rag-profiles")
+async def api_list_rag_profiles():
+    import os
+    import glob
+    from config import PROFILES_DIR
+    profil_dir = os.path.join(PROFILES_DIR, "user")
+    os.makedirs(profil_dir, exist_ok=True)
+    files = [os.path.basename(f) for f in glob.glob(os.path.join(profil_dir, "*.md"))]
+    if "USER.md" not in files:
+        files.append("USER.md")
+    if "MEMORY.md" not in files:
+        files.append("MEMORY.md")
+    return {"profiles": sorted(list(set(files)))}
+
 @app.get("/api/rag-profil/{filename}")
 async def api_get_rag_profil(filename: str):
     import os
     from config import PROFILES_DIR
-    if filename not in ["USER.md", "MEMORY.md"]:
+    if not filename.endswith(".md") or "/" in filename or "\\" in filename:
         raise HTTPException(400, "Invalid filename")
     profil_dir = os.path.join(PROFILES_DIR, "user")
     os.makedirs(profil_dir, exist_ok=True)
@@ -2483,7 +2497,7 @@ async def api_get_rag_profil(filename: str):
             ),
         }
         with open(path, "w", encoding="utf-8") as f:
-            f.write(defaults.get(filename, ""))
+            f.write(defaults.get(filename, f"# {filename}\n\n"))
     with open(path, "r", encoding="utf-8") as f:
         return {"content": f.read()}
 
@@ -2491,7 +2505,7 @@ async def api_get_rag_profil(filename: str):
 async def api_save_rag_profil(filename: str, request: Request):
     import os
     from config import PROFILES_DIR
-    if filename not in ["USER.md", "MEMORY.md"]:
+    if not filename.endswith(".md") or "/" in filename or "\\" in filename:
         raise HTTPException(400, "Invalid filename")
     data = await request.json()
     content = data.get("content", "")

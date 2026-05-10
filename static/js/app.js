@@ -4189,7 +4189,7 @@
     window.skillCatalog = new SkillCatalog();
 
     // Load data
-    loadSessions(); loadPreprompts(); loadProviders(); loadRagStats(); loadSettings(); loadEnvSettings();
+    loadSessions(); loadPreprompts(); loadProviders(); loadRagStats(); loadSettings(); loadEnvSettings(); loadRagProfiles();
     window.skillCatalog.refreshBadge();
     window.chat.showWelcome();
   });
@@ -4592,15 +4592,45 @@
 
   // ---- RAG Profil management ----
 
-  const btnOpenUserMd = $('#btn-open-user-md');
-  if (btnOpenUserMd) btnOpenUserMd.addEventListener('click', async () => {
-    await openRagProfilEditor('USER.md');
-  });
+  window.loadRagProfiles = async function() {
+    try {
+      const r = await fetch('/api/rag-profiles');
+      const d = await r.json();
+      const container = $('#rag-profiles-container');
+      if (container) {
+        container.innerHTML = (d.profiles || []).map(p => `
+          <button class="btn btn-secondary btn-sm rag-profile-btn" data-profile="${escHtml(p)}" style="justify-content:flex-start">
+            <svg class="ic" width="14" height="14" style="margin-right: 6px;">
+              <use href="#icon-file-text"></use>
+            </svg>
+            Open ${escHtml(p)}
+          </button>
+        `).join('');
+        
+        container.querySelectorAll('.rag-profile-btn').forEach(btn => {
+          btn.addEventListener('click', async () => {
+            await openRagProfilEditor(btn.dataset.profile);
+          });
+        });
+      }
+    } catch (e) {
+      console.error("Failed to load RAG profiles", e);
+    }
+  };
 
-  const btnOpenMemoryMd = $('#btn-open-memory-md');
-  if (btnOpenMemoryMd) btnOpenMemoryMd.addEventListener('click', async () => {
-    await openRagProfilEditor('MEMORY.md');
-  });
+  const btnAddProfile = $('#btn-add-profile');
+  if (btnAddProfile) {
+    btnAddProfile.addEventListener('click', async () => {
+      const input = $('#new-profile-name');
+      let name = input.value.trim();
+      if (!name) return;
+      if (!name.endsWith('.md')) name += '.md';
+      
+      await openRagProfilEditor(name);
+      input.value = '';
+      setTimeout(window.loadRagProfiles, 1000); // refresh list
+    });
+  }
 
   async function openRagProfilEditor(filename) {
     const overlay = $('#rag-profil-editor-overlay');
