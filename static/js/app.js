@@ -852,6 +852,9 @@
           this._renderTimer = null;
           if (!this.bubble) return;
 
+          // Capture scroll state before modifying DOM
+          const isAtBottom = this.msgEl.scrollHeight - this.msgEl.scrollTop - this.msgEl.clientHeight < 50;
+
           // Capture open details state before re-render
           const openDetails = [];
           this.bubble.querySelectorAll('details').forEach((d, i) => {
@@ -871,7 +874,9 @@
             });
           }
 
-          this.msgEl.scrollTop = this.msgEl.scrollHeight;
+          if (isAtBottom) {
+            this.msgEl.scrollTop = this.msgEl.scrollHeight;
+          }
           // Scope highlight to current bubble only (avoid scanning entire DOM)
           if (typeof highlightAll === 'function') highlightAll(this.bubble);
         }, 150);

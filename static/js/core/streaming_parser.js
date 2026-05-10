@@ -245,6 +245,9 @@
       if (delta < 3 && this._lastRenderLen > 0) return;
       this._lastRenderLen = this._text.length;
 
+      const msgEl = this.container.closest('#chat-messages') || this.container.parentElement;
+      const isAtBottom = msgEl ? (msgEl.scrollHeight - msgEl.scrollTop - msgEl.clientHeight < 50) : false;
+
       // Use lightweight live preview during streaming
       this.container.innerHTML = livePreview(this._text);
 
@@ -267,8 +270,9 @@
       }
 
       // Auto-scroll
-      const msgEl = this.container.closest('#chat-messages') || this.container.parentElement;
-      if (msgEl) msgEl.scrollTop = msgEl.scrollHeight;
+      if (msgEl && isAtBottom) {
+        msgEl.scrollTop = msgEl.scrollHeight;
+      }
     }
   }
 
