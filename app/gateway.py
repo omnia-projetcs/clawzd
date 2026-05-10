@@ -65,7 +65,7 @@ logging.getLogger("websockets.server").setLevel(logging.WARNING)
 class PollingEndpointFilter(logging.Filter):
     def filter(self, record: logging.LogRecord) -> bool:
         msg = record.getMessage()
-        if "/image/download-status" in msg or "/notifications" in msg:
+        if "/image/download-status" in msg or "/notifications" in msg or "/api/tasks/active" in msg:
             return False
         return True
 

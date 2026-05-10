@@ -501,9 +501,114 @@ class MediaStudio {
     if (on) {
       mediaLayout.classList.add('active');
       this.loadGallery();
+      // Check for running background tasks
+      this._checkActiveTasks();
     } else {
       mediaLayout.classList.remove('active');
     }
+  }
+
+  async _checkActiveTasks() {
+    if (this.generating) return; // Already tracking
+    try {
+      const resp = await fetch('/api/tasks/active');
+      if (!resp.ok) return;
+      const data = await resp.json();
+      const mediaTasks = (data.tasks || []).filter(t =>
+        t.type === 'image' || t.type === 'video' || t.type === 'audio'
+      );
+      if (mediaTasks.length > 0) {
+        this._resumeFromTask(mediaTasks[0]);
+      }
+    } catch (e) { /* ignore */ }
+  }
+
+  _resumeFromTask(task) {
+    if (this.generating) return;
+    this.generating = true;
+    const genBtn = $('#media-generate-btn');
+    const progress = $('#media-progress');
+    const progressBar = $('#media-progress-bar');
+    const cancelBtn = $('#media-cancel-btn');
+
+    if (genBtn) {
+      genBtn.classList.add('loading');
+      genBtn.disabled = true;
+      const lbl = genBtn.querySelector('.gen-label');
+      if (lbl) lbl.textContent = `Resuming ${task.type}...`;
+    }
+    if (progress) progress.classList.add('active', 'indeterminate');
+    if (cancelBtn) cancelBtn.style.display = 'inline-flex';
+
+    // Poll generation progress
+    this._genProgressPoll = setInterval(async () => {
+      try {
+        // Check if the task is still active
+        const tResp = await fetch(`/api/tasks/${task.id}`);
+        if (tResp.ok) {
+          const tData = await tResp.json();
+          if (!tData.active) {
+            // Task completed — stop tracking and reload gallery
+            this._finishResumedTask();
+            return;
+          }
+        }
+
+        // Check generation progress
+        const endpoint = task.type === 'audio' ? '/audio/generation-progress' : '/image/generation-progress';
+        const pr = await fetch(endpoint);
+        if (pr.ok) {
+          const pg = await pr.json();
+          if (pg.active && genBtn) {
+            const lbl = genBtn.querySelector('.gen-label');
+            const pct = Math.round(pg.progress);
+            if (lbl) lbl.textContent = `Generating... ${pct}%`;
+            if (progressBar) {
+              progress.classList.remove('indeterminate');
+              progressBar.style.width = pct + '%';
+            }
+          } else if (!pg.active) {
+            this._finishResumedTask();
+          }
+        }
+      } catch (_) { /* ignore poll errors */ }
+    }, 1000);
+
+    // Set up cancel button for the resumed task
+    if (cancelBtn) {
+      cancelBtn.onclick = async () => {
+        try {
+          await fetch(`/api/tasks/${task.id}/stop`, { method: 'POST' });
+          if (window.toast) toast((window.icon ? window.icon('x', 14) : '❌') + ' Generation cancelled');
+        } catch (_) {}
+        this._finishResumedTask();
+      };
+    }
+  }
+
+  _finishResumedTask() {
+    if (this._genProgressPoll) {
+      clearInterval(this._genProgressPoll);
+      this._genProgressPoll = null;
+    }
+    this.generating = false;
+    const genBtn = $('#media-generate-btn');
+    const progress = $('#media-progress');
+    const progressBar = $('#media-progress-bar');
+    const cancelBtn = $('#media-cancel-btn');
+
+    if (cancelBtn) cancelBtn.style.display = 'none';
+    if (genBtn) {
+      genBtn.classList.remove('loading');
+      genBtn.disabled = false;
+      const lbl = genBtn.querySelector('.gen-label');
+      if (lbl) lbl.innerHTML = `<span class="media-icon" data-icon="sparkles"></span> Generate`;
+    }
+    if (progress) progress.classList.remove('active', 'indeterminate');
+    if (progressBar) progressBar.style.width = '0%';
+    // Reload gallery to show the new result
+    this.loadGallery();
+    if (window.taskIndicator) window.taskIndicator.refresh();
   }
 
   async loadGallery() {
