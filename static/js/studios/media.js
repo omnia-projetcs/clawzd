@@ -66,6 +66,14 @@ class MediaStudio {
       });
     }
 
+    // Number of passes (steps) range
+    const stepsSlider = $('#media-steps');
+    if (stepsSlider) {
+      stepsSlider.addEventListener('input', () => {
+        $('#media-steps-value').textContent = stepsSlider.value;
+      });
+    }
+
     // Backend toggle
     $$('#media-backend-toggle .media-type-btn').forEach(btn => {
       btn.addEventListener('click', () => {
