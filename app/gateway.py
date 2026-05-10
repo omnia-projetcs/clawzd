@@ -2323,27 +2323,43 @@ async def api_autocomplete(request: Request):
                 prompt = f"<|fim_prefix|>{context_prefix}<|fim_suffix|>{suffix_preview}<|fim_middle|>"
                 stop_tokens = ["<|fim_pad|>", "<|endoftext|>", "<|fim_prefix|>",
                                "<|fim_suffix|>", "<|fim_middle|>", "\n\n\n"]
+                payload = {
+                    "model": model_key or OLLAMA_MODEL,
+                    "prompt": prompt,
+                    "raw": True,
+                    "stream": False,
+                    "options": {
+                        "num_predict": max_tokens,
+                        "temperature": temperature,
+                        "top_p": 0.9,
+                        "repeat_penalty": 1.1,
+                        "stop": stop_tokens,
+                    },
+                }
             else:
                 prompt, stop_tokens = _build_local_prompt(
                     intent, context_prefix, suffix_preview, file_path, language
                 )
+                payload = {
+                    "model": model_key or OLLAMA_MODEL,
+                    # /no_think disables Qwen 3 reasoning chain for fast output
+                    "prompt": f"/no_think\n{prompt}",
+                    "system": "You are a code completion assistant. Output ONLY the raw code. No markdown, no explanations.",
+                    "raw": False,
+                    "stream": False,
+                    "options": {
+                        "num_predict": max_tokens,
+                        "temperature": temperature,
+                        "top_p": 0.9,
+                        "repeat_penalty": 1.1,
+                        "stop": stop_tokens,
+                    },
+                }
 
             async with httpx.AsyncClient(timeout=15.0) as client:
                 resp = await client.post(
                     f"{OLLAMA_HOST}/api/generate",
-                    json={
-                        "model": model_key or OLLAMA_MODEL,
-                        "prompt": prompt,
-                        "raw": True,
-                        "stream": False,
-                        "options": {
-                            "num_predict": max_tokens,
-                            "temperature": temperature,
-                            "top_p": 0.9,
-                            "repeat_penalty": 1.1,
-                            "stop": stop_tokens,
-                        },
-                    },
+                    json=payload,
                 )
                 if resp.status_code == 200:
                     raw = resp.json().get("response", "")
