@@ -887,45 +887,68 @@
 
       // Handle Auto-Plan workflow
       if (this.autoPlanState === 'planning') {
-        this.autoPlanState = 'building';
         const capturedPlan = this.text;
 
         if (this.bubble) {
           const safeHtml = renderMd(capturedPlan);
-          this.bubble.innerHTML = `<details class="tool-thinking"><summary><em>🧠 Auto-Planning Phase</em></summary><div style="padding:10px">${safeHtml}</div></details>`;
+          this.bubble.innerHTML = `
+            <details class="tool-thinking" open>
+              <summary><em>🧠 Auto-Planning Phase</em></summary>
+              <div style="padding:10px">${safeHtml}</div>
+            </details>
+            <div class="auto-plan-confirm" style="margin-top:10px; display:flex; gap:10px; padding: 10px; background: var(--bg-secondary); border-radius: 8px;">
+              <button class="btn primary confirm-build-btn" style="flex: 1;">${icon('check', 14)} Valider et Générer l'application</button>
+              <button class="btn cancel-build-btn" style="flex: 1;">${icon('x', 14)} Annuler</button>
+            </div>
+          `;
+
+          const confirmBtn = this.bubble.querySelector('.confirm-build-btn');
+          const cancelBtn = this.bubble.querySelector('.cancel-build-btn');
+          const btnContainer = this.bubble.querySelector('.auto-plan-confirm');
+          
+          confirmBtn.addEventListener('click', async () => {
+            this.autoPlanState = 'building';
+            confirmBtn.disabled = true;
+            cancelBtn.style.display = 'none';
+            confirmBtn.innerHTML = '⏳ Génération en cours...';
+            
+            toast('Lancement de la génération...');
+            const buildMsg = `[Auto-Generated Implementation Plan:\n${capturedPlan}]\n\nPlease execute and build the code for this plan exactly as described. Output ONLY the code and required actions.`;
+
+            try {
+              // Drop context by generating a new session id
+              const r = await fetch('/chat/new', {
+                method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({
+                  provider: $('#provider-select').value, model: $('#model-select').value, preprompt: this.originalPreprompt || 'developer'
+                })
+              });
+              const d = await r.json();
+              this.sessionId = d.id;
+              this.connectSSE();
+
+              await fetch(`/send/${this.sessionId}`, {
+                method: 'POST', headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                  message: buildMsg,
+                  provider: $('#provider-select').value,
+                  model: $('#model-select').value,
+                  preprompt: this.originalPreprompt || 'developer'
+                })
+              });
+              btnContainer.remove();
+            } catch (e) { toast(icon('x', 14) + ' Build phase error'); this.sendBtn.disabled = false; }
+          });
+
+          cancelBtn.addEventListener('click', () => {
+            btnContainer.remove();
+            this.autoPlanState = null;
+            toast('Génération annulée.');
+          });
         }
 
         this.bubble = null;
         this.text = '';
         this.status('connected');
-
-        // Start Build phase
-        setTimeout(async () => {
-          toast('Executing the architectural plan...');
-          const buildMsg = `[Auto-Generated Implementation Plan:\n${capturedPlan}]\n\nPlease execute and build the code for this plan exactly as described. Output ONLY the code and required actions.`;
-
-          try {
-            // Drop context by generating a new session id
-            const r = await fetch('/chat/new', {
-              method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({
-                provider: $('#provider-select').value, model: $('#model-select').value, preprompt: this.originalPreprompt || 'developer'
-              })
-            });
-            const d = await r.json();
-            this.sessionId = d.id;
-            this.connectSSE();
-
-            await fetch(`/send/${this.sessionId}`, {
-              method: 'POST', headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({
-                message: buildMsg,
-                provider: $('#provider-select').value,
-                model: $('#model-select').value,
-                preprompt: this.originalPreprompt || 'developer'
-              })
-            });
-          } catch (e) { toast(ICONS.x(14) + ' Build phase error'); this.sendBtn.disabled = false; }
-        }, 500);
         return; // wait for next stream
       }
 
