@@ -450,7 +450,12 @@ class ResearchStudioV2 {
     if (!log) return;
     const empty = log.querySelector('.rs-log-empty');
     if (empty) empty.remove();
-    const time = new Date().toLocaleTimeString();
+    
+    let time = new Date().toLocaleTimeString();
+    if (details && details.timestamp) {
+        time = new Date(details.timestamp).toLocaleTimeString();
+    }
+    
     const entry = document.createElement('div');
     entry.className = 'rs-log-entry ' + cls;
     
@@ -493,7 +498,22 @@ class ResearchStudioV2 {
     
     entry.innerHTML = inner;
     
-    log.prepend(entry);
+    if (msg.includes('── Iteration')) {
+        const block = document.createElement('div');
+        block.className = 'rs-iteration-block';
+        block.style.display = 'flex';
+        block.style.flexDirection = 'column';
+        block.style.gap = '6px';
+        block.style.marginBottom = '12px';
+        this.currentIterationBlock = block;
+        log.prepend(block);
+    }
+
+    if (this.currentIterationBlock && !cls.includes('error')) {
+        this.currentIterationBlock.appendChild(entry);
+    } else {
+        log.prepend(entry);
+    }
   }
 
   _updateStatus(status) {
@@ -538,34 +558,39 @@ class ResearchStudioV2 {
       return;
     }
     log.innerHTML = '';
+    this.currentIterationBlock = null;
+
     iters.forEach(it => {
-      this._addLogEntry(`── Iteration ${it.num} ──`, 'search');
+      this._addLogEntry(`── Iteration ${it.num} ──`, 'search', {timestamp: it.started_at});
       (it.actions||[]).forEach(a => {
+          const ts = a.timestamp || it.started_at;
           if (a.type === 'web_search') {
-              this._addLogEntry(`web_search: ${JSON.stringify(a.params || {}).substring(0,100)}`);
+              this._addLogEntry(`web_search: ${JSON.stringify(a.params || {}).substring(0,100)}`, '', {timestamp: ts});
               if (a.urls && a.urls.length > 0) {
-                  this._addLogEntry(`   Found ${a.count} results`, '', {urls: a.urls});
+                  this._addLogEntry(`   Found ${a.count} results`, '', {urls: a.urls, timestamp: ts});
               } else {
-                  this._addLogEntry(`   Found ${a.count} results`);
+                  this._addLogEntry(`   Found ${a.count} results`, '', {timestamp: ts});
               }
           } else if (a.type === 'smart_scrape') {
-              this._addLogEntry(`smart_scrape: ${a.count} pages`);
+              this._addLogEntry(`smart_scrape: ${a.count} pages`, '', {timestamp: ts});
               if (a.urls && a.urls.length > 0) {
-                  this._addLogEntry(`   🔍 Smart-scraped ${a.count} pages`, '', {urls: a.urls});
+                  this._addLogEntry(`   🔍 Smart-scraped ${a.count} pages`, '', {urls: a.urls, timestamp: ts});
               } else {
-                  this._addLogEntry(`   🔍 Smart-scraped ${a.count} pages`);
+                  this._addLogEntry(`   🔍 Smart-scraped ${a.count} pages`, '', {timestamp: ts});
               }
           } else if (a.type === 'scrape') {
-              this._addLogEntry(`scrape: ${a.url}`);
-              this._addLogEntry(`   Scraped content`, '', {urls: [a.url]});
+              this._addLogEntry(`scrape: ${a.url}`, '', {timestamp: ts});
+              this._addLogEntry(`   Scraped content`, '', {urls: [a.url], timestamp: ts});
           } else if (a.type === 'script') {
-              this._addLogEntry(`write_script: executed`);
-              this._addLogEntry(`   Script output`, '', {code: a.code, output: a.output});
+              this._addLogEntry(`write_script: executed`, '', {timestamp: ts});
+              this._addLogEntry(`   Script output`, '', {code: a.code, output: a.output, timestamp: ts});
           } else {
-              this._addLogEntry(`${a.type}: ${JSON.stringify(a).substring(0,100)}`);
+              this._addLogEntry(`${a.type}: ${JSON.stringify(a).substring(0,100)}`, '', {timestamp: ts});
           }
       });
-      if (it.evaluation) this._addLogEntry(`Score: ${Math.round(it.score*100)}% — ${it.evaluation}`, 'eval');
+      if (it.evaluation) {
+          this._addLogEntry(`Score: ${Math.round(it.score*100)}% — ${it.evaluation}`, 'eval', {timestamp: it.completed_at || it.started_at});
+      }
     });
 
     if (this.currentProject.status === 'error' && this.currentProject.error_msg) {

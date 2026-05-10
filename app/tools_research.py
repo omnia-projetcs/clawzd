@@ -572,7 +572,7 @@ async def _research_loop(pid: str):
                     results = await _do_web_search(params.get("query", query))
                     proj["search_results"].extend(results)
                     urls = [r.get("url") for r in results if r.get("url")]
-                    iter_data["actions"].append({"type": "web_search", "count": len(results), "urls": urls, "params": params})
+                    iter_data["actions"].append({"type": "web_search", "count": len(results), "urls": urls, "params": params, "timestamp": datetime.now(timezone.utc).isoformat()})
                     await _emit_log(f"   Found {len(results)} results", extra={"urls": urls})
 
                 elif action_type == "deep_dive":
@@ -591,6 +591,7 @@ async def _research_loop(pid: str):
                         "type": "deep_dive", "topic": topic,
                         "branches": len(branch.get("sub_branches", [])),
                         "results": len(branch_results),
+                        "timestamp": datetime.now(timezone.utc).isoformat()
                     })
                     await _emit_log(
                         f"   🌿 Deep dive: {len(branch_results)} results, "
@@ -619,7 +620,7 @@ async def _research_loop(pid: str):
                             proj["assets"].append(asset)
                         
                         scraped_urls = [s["url"] for s in scraped if s.get("url")]
-                        iter_data["actions"].append({"type": "smart_scrape", "count": len(scraped), "urls": scraped_urls})
+                        iter_data["actions"].append({"type": "smart_scrape", "count": len(scraped), "urls": scraped_urls, "timestamp": datetime.now(timezone.utc).isoformat()})
                         await _emit_log(f"   🔍 Smart-scraped {len(scraped)} pages", extra={"urls": scraped_urls})
 
                 elif action_type == "scrape_url":
@@ -634,7 +635,7 @@ async def _research_loop(pid: str):
                             })
                             asset = await _save_text_asset(f"Scraped: {url[:60]}", text, "scrape", url, pid)
                             proj["assets"].append(asset)
-                            iter_data["actions"].append({"type": "scrape", "url": url})
+                            iter_data["actions"].append({"type": "scrape", "url": url, "timestamp": datetime.now(timezone.utc).isoformat()})
                             await _emit_log(f"   Scraped {len(text)} chars")
 
                 elif action_type == "download_asset":
@@ -643,7 +644,7 @@ async def _research_loop(pid: str):
                         asset = await _download_asset(url, pid)
                         if asset:
                             proj["assets"].append(asset)
-                            iter_data["actions"].append({"type": "download", "name": asset["name"]})
+                            iter_data["actions"].append({"type": "download", "name": asset["name"], "timestamp": datetime.now(timezone.utc).isoformat()})
                             await _emit_log(f"   Downloaded: {asset['name']}")
 
                 elif action_type == "query_rag":
@@ -658,7 +659,7 @@ async def _research_loop(pid: str):
                             })
                             asset = await _save_text_asset(f"RAG Context: {rag_q[:50]}", rag_ctx, "rag_context", "local", pid)
                             proj["assets"].append(asset)
-                            iter_data["actions"].append({"type": "rag", "query": rag_q})
+                            iter_data["actions"].append({"type": "rag", "query": rag_q, "timestamp": datetime.now(timezone.utc).isoformat()})
                             await _emit_log(f"   RAG returned context")
                     except Exception:
                         pass
@@ -687,10 +688,10 @@ async def _research_loop(pid: str):
                             })
                             asset = await _save_text_asset(f"Script Experiment", f"Code:\n```python\n{script_code}\n```\n\nOutput:\n```\n{output}\n```", "script_experiment", "sandbox", pid)
                             proj["assets"].append(asset)
-                            iter_data["actions"].append({"type": "script", "output": output, "code": script_code})
+                            iter_data["actions"].append({"type": "script", "output": output, "code": script_code, "timestamp": datetime.now(timezone.utc).isoformat()})
                             await _emit_log(f"   🧪 Script output: {output[:200]}...", extra={"code": script_code, "output": output})
                         except Exception as e:
-                            iter_data["actions"].append({"type": "script", "output": str(e), "code": script_code})
+                            iter_data["actions"].append({"type": "script", "output": str(e), "code": script_code, "timestamp": datetime.now(timezone.utc).isoformat()})
                             await _emit_log(f"   ❌ Script error: {e}", extra={"code": script_code, "output": str(e)})
 
                 elif action_type == "ask_model":
@@ -718,7 +719,7 @@ async def _research_loop(pid: str):
                         })
                         asset = await _save_text_asset(f"Model Knowledge: {question[:60]}", knowledge, "model_knowledge", "internal", pid)
                         proj["assets"].append(asset)
-                        iter_data["actions"].append({"type": "ask_model", "question": question[:100]})
+                        iter_data["actions"].append({"type": "ask_model", "question": question[:100], "timestamp": datetime.now(timezone.utc).isoformat()})
                         await _emit_log(f"   🤖 Model knowledge: {len(knowledge)} chars")
 
             # ── 3. Structured Evaluation ──
