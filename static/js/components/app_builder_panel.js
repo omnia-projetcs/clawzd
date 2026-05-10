@@ -20,6 +20,18 @@ const AppBuilderPanel = (() => {
   let _apps = [];
   let _templates = {};
 
+  // 40 curated emojis for the app icon picker
+  const _EMOJIS = [
+    '📦', '🎨', '🎵', '🎬', '🎲', '🏆', '💡', '⛑️', '🔒', '📋', '📅', '📞', '📐', '🌍', '💰', '💎', '🔥', '⚡', '🌟', '🛡️', '🔮', '🧩', '🤖', '👾', '🎮', '🚘', '🚁', '☢️', '🧪', '💡',
+    '🦊', '🐉', '🦄', '🍕', '☕', '🎸', '📊', '📈', '🔧', '⚙️', '🔬', '📝', '📚', '💬', '🔔', '🏠', '🛒', '🏛️', '🚀', '🍔', '📸', '⚓', '⌚'
+  ];
+
+  function _emojiOptions(selected) {
+    return _EMOJIS.map(e =>
+      `<option value="${e}" ${e === selected ? 'selected' : ''} style="font-size:20px;">${e}</option>`
+    ).join('');
+  }
+
   function init() {
     // No overlay creation needed anymore
   }
@@ -81,7 +93,7 @@ const AppBuilderPanel = (() => {
     const time = _timeAgo(app.updated_at || app.created_at);
     const fileCount = app.files ? app.files.length : 0;
     const escapedName = (app.name || 'Untitled').replace(/'/g, "\\'");
-    
+
     // Check if visual is a color or URL, default to empty
     const visualStyle = app.visual ? `style="background: ${app.visual};"` : '';
     // Use app.icon (e.g. emoji) or fallback to monitor icon
@@ -127,7 +139,9 @@ const AppBuilderPanel = (() => {
             <label style="font-weight: 500; font-size: 14px;">1. Application Identity</label>
             <div style="display: flex; gap: 8px;">
               <input type="text" id="ab-app-name" class="ab-input" placeholder="App name..." value="My App" style="flex: 1;">
-              <input type="text" id="ab-app-icon" class="ab-input" placeholder="Icon (e.g. 📦)" value="📦" style="width: 80px;">
+              <select id="ab-app-icon" class="ab-input" style="width: 90px; font-size: 20px; text-align: center;">
+                ${_emojiOptions('📦')}
+              </select>
               <input type="color" id="ab-app-visual" class="ab-input" value="#1e293b" title="App Theme Color" style="width: 50px; padding: 2px;">
             </div>
           </div>
@@ -187,7 +201,7 @@ const AppBuilderPanel = (() => {
     const icon = iconEl?.value || '📦';
     const visual = visualEl?.value || '#1e293b';
     const appType = typeSelect?.value || 'blank';
-    
+
     // Determine the template key for the backend
     const templateKey = appType === 'standard' ? 'dashboard' : 'blank';
 
@@ -201,7 +215,7 @@ const AppBuilderPanel = (() => {
         'arcade_combat': '2D Arcade Combat Game'
       };
       const modelName = gameNames[gameModel];
-      
+
       customPrompt = `I want to create a new Mini-Game application named "${name}".\n\n` +
         `Please build a fully functional **${modelName}** game using vanilla HTML, CSS, and JavaScript. ` +
         `The game MUST be playable directly in the browser using the keyboard (arrow keys for movement, and action buttons like Space/Ctrl for actions if needed). ` +
@@ -223,12 +237,12 @@ const AppBuilderPanel = (() => {
       }
       await _loadApps();
       _renderList();
-      
+
       // Inject the appId into the custom prompt if it exists
       if (customPrompt) {
         customPrompt = customPrompt.replace('[AppID]', app.id);
       }
-      
+
       // Redirect to chat for AI-assisted editing
       editInChat(app.id, name, customPrompt);
     } catch (e) {
@@ -278,7 +292,9 @@ const AppBuilderPanel = (() => {
         <h4>Edit Application Settings</h4>
         <div style="display: flex; gap: 8px; margin-bottom: 12px;">
           <input type="text" id="ab-app-name" class="ab-input" placeholder="App name..." value="${(app.name || '').replace(/"/g, '&quot;')}" style="flex: 1;">
-          <input type="text" id="ab-app-icon" class="ab-input" placeholder="Icon (e.g. 📦)" value="${(app.icon || '').replace(/"/g, '&quot;')}" style="width: 100px;">
+          <select id="ab-app-icon" class="ab-input" style="width: 90px; font-size: 20px; text-align: center;">
+            ${_emojiOptions(app.icon || '📦')}
+          </select>
           <input type="color" id="ab-app-visual" class="ab-input" value="${app.visual || '#1e293b'}" title="App Theme Color" style="width: 50px; padding: 2px;">
         </div>
         <button class="ab-btn ab-btn-primary" onclick="AppBuilderPanel.saveEdit('${app.id}')">Save Changes</button>
