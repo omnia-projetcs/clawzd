@@ -316,26 +316,26 @@ class CloneStudio {
     const savedParams = cfg.params || {};
 
     if (title) {
-      title.innerHTML = \`<svg class="ic" width="14" height="14" style="color:\${ch.color};margin-right:6px"><use href="#icon-\${ch.icon}"></use></svg> Configure \${escHtml(ch.label)}\`;
+      title.innerHTML = `<svg class="ic" width="14" height="14" style="color:${ch.color};margin-right:6px"><use href="#icon-${ch.icon}"></use></svg> Configure ${escHtml(ch.label)}`;
     }
 
-    body.innerHTML = \`
+    body.innerHTML = `
       <div id="clone-cfg-fields" style="display:flex;flex-direction:column;gap:12px">
-        \${(ch.params || []).map(p => \`
+        ${(ch.params || []).map(p => `
           <div>
-            <label style="font-size:12px;color:var(--text-muted);display:block;margin-bottom:4px">\${escHtml(p.label)}</label>
-            \${p.type === 'select'
-              ? \`<select id="cfg-\${escHtml(p.key)}" class="clone-review-mode" style="margin:0;width:100%">
-                  \${(p.options || []).map(o => \`<option value="\${escHtml(o)}" \${(savedParams[p.key]||p.default)===o?'selected':''}>\${escHtml(o)}</option>\`).join('')}
-                </select>\`
-              : \`<input type="text" id="cfg-\${escHtml(p.key)}"
-                   value="\${escHtml(savedParams[p.key] !== undefined ? savedParams[p.key] : (p.default || ''))}"
-                   placeholder="\${escHtml(p.default || '')}"
-                   style="width:100%;box-sizing:border-box;padding:6px 10px;border-radius:6px;border:1px solid var(--border);background:var(--bg);color:var(--text);font-size:13px">\`
+            <label style="font-size:12px;color:var(--text-muted);display:block;margin-bottom:4px">${escHtml(p.label)}</label>
+            ${p.type === 'select'
+              ? `<select id="cfg-${escHtml(p.key)}" class="clone-review-mode" style="margin:0;width:100%">
+                  ${(p.options || []).map(o => `<option value="${escHtml(o)}" ${(savedParams[p.key]||p.default)===o?'selected':''}>${escHtml(o)}</option>`).join('')}
+                </select>`
+              : `<input type="text" id="cfg-${escHtml(p.key)}"
+                   value="${escHtml(savedParams[p.key] !== undefined ? savedParams[p.key] : (p.default || ''))}"
+                   placeholder="${escHtml(p.default || '')}"
+                   style="width:100%;box-sizing:border-box;padding:6px 10px;border-radius:6px;border:1px solid var(--border);background:var(--bg);color:var(--text);font-size:13px">`
             }
-          </div>\`).join('')}
+          </div>`).join('')}
       </div>
-      <div id="clone-cfg-result" style="margin-top:12px;font-size:12px;display:none;padding:8px;border-radius:6px;background:var(--bg-lighter)"></div>\`;
+      <div id="clone-cfg-result" style="margin-top:12px;font-size:12px;display:none;padding:8px;border-radius:6px;background:var(--bg-lighter)"></div>`;
 
     overlay.classList.add('open');
 
@@ -344,29 +344,29 @@ class CloneStudio {
     const btnTest = $('#clone-cfg-test');
     const btnClose = $('#clone-cfg-close');
     
-    const newSave = btnSave.cloneNode(true);
-    const newTest = btnTest.cloneNode(true);
-    const newClose = btnClose.cloneNode(true);
+    const newSave = btnSave?.cloneNode(true);
+    const newTest = btnTest?.cloneNode(true);
+    const newClose = btnClose?.cloneNode(true);
     
-    btnSave.parentNode.replaceChild(newSave, btnSave);
-    btnTest.parentNode.replaceChild(newTest, btnTest);
-    btnClose.parentNode.replaceChild(newClose, btnClose);
+    if (btnSave && newSave) btnSave.parentNode.replaceChild(newSave, btnSave);
+    if (btnTest && newTest) btnTest.parentNode.replaceChild(newTest, btnTest);
+    if (btnClose && newClose) btnClose.parentNode.replaceChild(newClose, btnClose);
 
-    newClose.addEventListener('click', () => overlay.classList.remove('open'));
+    newClose?.addEventListener('click', () => overlay.classList.remove('open'));
 
-    newSave.addEventListener('click', () => {
+    newSave?.addEventListener('click', () => {
       const params = {};
       (ch.params || []).forEach(p => {
-        const el = $(\`#cfg-\${p.key}\`);
+        const el = document.getElementById(`cfg-${p.key}`);
         if (el) params[p.key] = el.value;
       });
       if (!this._connectors[ch.key]) this._connectors[ch.key] = {};
       this._connectors[ch.key].params = params;
-      toast(ICONS.check(14) + \` \${ch.label} config saved locally\`);
+      toast(ICONS.check(14) + ` ${ch.label} config saved locally`);
       overlay.classList.remove('open');
     });
 
-    newTest.addEventListener('click', () => this.testConnector(ch));
+    newTest?.addEventListener('click', () => this.testConnector(ch));
   }
 
   async testConnector(ch) {
@@ -374,7 +374,7 @@ class CloneStudio {
     if (resultEl) { resultEl.style.display = 'block'; resultEl.textContent = '⏳ Sending test...'; resultEl.style.color = 'var(--text-muted)'; }
     const params = {};
     (ch.params || []).forEach(p => {
-      const el = $(`#cfg-${p.key}`);
+      const el = document.getElementById(`cfg-${p.key}`);
       if (el) params[p.key] = el.value;
     });
     try {
@@ -475,7 +475,7 @@ class CloneStudio {
   // ── Test Sandbox ──
   async sendTest() {
     const input = $('#clone-test-input');
-    const message = input?.value.trim();
+    const message = input?.value?.trim();
     if (!message) { toast('Enter a test message'); return; }
     const channel = $('#clone-test-channel')?.value || 'test';
     const btn = $('#clone-test-send');
