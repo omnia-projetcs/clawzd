@@ -50,7 +50,7 @@ from app.tool_executor import parse_tool_calls, execute_tool, format_tool_result
 from app.metrics import get_metrics
 from app.cache import cache_stats
 from app.core.tokens import count_tokens, count_message_tokens
-from config import STATIC_DIR, TEMPLATES_DIR, DATA_DIR, CORS_ORIGINS, RATE_LIMIT
+from config import STATIC_DIR, TEMPLATES_DIR, DATA_DIR, CORS_ORIGINS, RATE_LIMIT, APP_VERSION
 
 import re as _re
 import httpx
@@ -306,6 +306,7 @@ async def index(request: Request):
     context = {
         "request": request,
         "has_hf_token": has_hf_token,
+        "app_version": APP_VERSION,
     }
     return templates.TemplateResponse(request=request, name="index.html", context=context)
 

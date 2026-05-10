@@ -764,6 +764,7 @@ pre code .ln::before {
 .status-dot.offline { background: var(--text-muted); }
 .status-dot.streaming { background: var(--orange); animation: pulse 1.5s infinite; }
 @keyframes pulse { 0%,100% { opacity: 1; } 50% { opacity: .4; } }
+.status-version { font-family: 'JetBrains Mono', monospace; font-size: 10px; color: var(--accent); opacity: .7; letter-spacing: .02em; }
 
 /* ---- Toast ---- */
 .toast {
