@@ -1385,6 +1385,7 @@ async def _process_chat(session_id: str, data: dict) -> dict:
                     pass  # Memory extraction is non-critical
 
             _active_generations.pop(session_id, None)
+            _sse_queues.pop(session_id, None)
 
     asyncio.create_task(generate())
     return {"status": "processing", "session_id": session_id}

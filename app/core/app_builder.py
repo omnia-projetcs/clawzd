@@ -210,13 +210,15 @@ def list_apps(limit: int = 20) -> list[dict]:
         return []
 
     apps = []
-    for dirname in sorted(os.listdir(APPS_DIR), reverse=True):
+    for dirname in os.listdir(APPS_DIR):
         if not dirname.startswith("app-"):
             continue
         meta = get_app(dirname)
         if meta:
             apps.append(meta)
 
+    # Sort by updated_at descending (newest first)
+    apps.sort(key=lambda a: a.get("updated_at", ""), reverse=True)
     return apps[:limit]
 
 
@@ -257,7 +259,8 @@ def update_app(
         if visual is not None:
             meta["visual"] = visual
             
-        meta["version"] = meta.get("version", 1) + 1
+        if files:
+            meta["version"] = meta.get("version", 1) + 1
         meta["updated_at"] = datetime.now(timezone.utc).isoformat()
 
         with open(meta_path, "w", encoding="utf-8") as f:

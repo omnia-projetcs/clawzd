@@ -79,7 +79,6 @@ def with_auto_repair(func):
     return wrapper
 
 
-@with_auto_repair
 def init_db():
     """Create the schema if it does not exist."""
     conn = _get_conn()

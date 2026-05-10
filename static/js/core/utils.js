@@ -53,6 +53,8 @@ export function toast(msg, duration = 5000) {
 
 /** Escape HTML entities */
 export function escHtml(s) {
+  if (s == null) return '';
+  s = String(s);
   return s
     .replace(/&/g, '&amp;')
     .replace(/</g, '&lt;')

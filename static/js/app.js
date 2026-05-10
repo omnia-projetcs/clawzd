@@ -51,6 +51,8 @@
     }
   }
   function escHtml(s) {
+    if (s == null) return '';
+    s = String(s);
     return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
   }
   function timeAgo(iso) {
@@ -1796,7 +1798,7 @@
       if (d.preprompts) {
         sel.innerHTML = ''; if (ssel) ssel.innerHTML = '';
         d.preprompts.forEach(p => {
-          const opt = `<option value="${p.key}">${p.icon} ${p.label}</option>`;
+          const opt = `<option value="${escHtml(p.key)}">${escHtml(p.icon)} ${escHtml(p.label)}</option>`;
           sel.innerHTML += opt; if (ssel) ssel.innerHTML += opt;
         });
       }
@@ -1842,7 +1844,7 @@
     const sel = $('#model-select');
     sel.innerHTML = '<option value="">Default</option>';
     const models = (window._providers || {})[prov] || [];
-    models.forEach(m => { sel.innerHTML += `<option value="${m.id}">${m.label}</option>`; });
+    models.forEach(m => { sel.innerHTML += `<option value="${escHtml(m.id)}">${escHtml(m.label)}</option>`; });
 
     if (savedModel && Array.from(sel.options).some(o => o.value === savedModel)) {
       sel.value = savedModel;
@@ -3131,9 +3133,9 @@
               <div style="display:grid; grid-template-columns:repeat(auto-fill, minmax(100px, 1fr)); gap:10px; max-height:400px; overflow-y:auto; margin-bottom:20px;">
           `;
           images.forEach(img => {
-            html += `<div class="media-import-item" data-filename="${img.filename}" style="cursor:pointer; border:2px solid transparent; border-radius:4px; overflow:hidden;">
-              <img src="/data/images/${img.filename}" style="width:100%; height:100px; object-fit:cover;">
-              <div style="font-size:10px; text-align:center; padding:2px; background:var(--bg-elevated); text-overflow:ellipsis; overflow:hidden; white-space:nowrap;">${img.filename}</div>
+            html += `<div class="media-import-item" data-filename="${escHtml(img.filename)}" style="cursor:pointer; border:2px solid transparent; border-radius:4px; overflow:hidden;">
+              <img src="/data/images/${encodeURIComponent(img.filename)}" style="width:100%; height:100px; object-fit:cover;">
+              <div style="font-size:10px; text-align:center; padding:2px; background:var(--bg-elevated); text-overflow:ellipsis; overflow:hidden; white-space:nowrap;">${escHtml(img.filename)}</div>
             </div>`;
           });
           html += `
@@ -3439,11 +3441,11 @@
     if (auditClose) auditClose.addEventListener('click', () => $('#audit-overlay').classList.remove('open'));
     const auditCopy = $('#audit-copy-prompt');
     if (auditCopy) auditCopy.addEventListener('click', () => {
-      if (!window._auditPrompt) { toast(ICONS.circle(14) + ' {ICONS.circleSlash(14)} No prompt to copy'); return; }
+      if (!window._auditPrompt) { toast(ICONS.x(14) + ' No prompt to copy'); return; }
       // Try modern clipboard API first, fallback to execCommand
       if (navigator.clipboard && window.isSecureContext) {
         navigator.clipboard.writeText(window._auditPrompt)
-          .then(() => toast(ICONS.circle(14) + ' {ICONS.clipboard(14)} Prompt copied to clipboard'))
+          .then(() => toast(ICONS.copy(14) + ' Prompt copied to clipboard'))
           .catch(() => _fallbackCopy(window._auditPrompt));
       } else {
         _fallbackCopy(window._auditPrompt);
@@ -3459,9 +3461,9 @@
         ta.select();
         const ok = document.execCommand('copy');
         document.body.removeChild(ta);
-        toast(ok ? '${ICONS.clipboard(14)} Prompt copied to clipboard' : '${ICONS.x(14)} Copy failed — select text manually');
+        toast(ok ? ICONS.copy(14) + ' Prompt copied to clipboard' : ICONS.x(14) + ' Copy failed — select text manually');
       } catch (e) {
-        toast(ICONS.circle(14) + ' {ICONS.x(14)} Copy failed — select text manually');
+        toast(ICONS.x(14) + ' Copy failed — select text manually');
       }
     }
     const auditSend = $('#audit-send-prompt');
@@ -3476,7 +3478,7 @@
         const chatBtn = $('[data-mode="chat"]');
         if (chatBtn) chatBtn.click();
         $('#audit-overlay').classList.remove('open');
-        toast(ICONS.circle(14) + ' {ICONS.send(14)} Prompt sent to chat');
+        toast(ICONS.check(14) + ' Prompt sent to chat');
       }
     });
     const auditExport = $('#audit-export-html');
@@ -3826,7 +3828,7 @@
                     </a>
                   </div>`;
                 btn.innerHTML = `${icon('check', 14)} Done`;
-                toast(`${ICONS.circle(14)} {ICONS.check(14)} Translation ready: ${outName}`);
+                toast(`${ICONS.check(14)} Translation ready: ${outName}`);
               } catch (err) {
                 status.innerHTML = `<span style="color:#f87171">${ICONS.x(14)} ${escHtml(err.message)}</span>`;
                 btn.disabled = false;
@@ -4271,8 +4273,8 @@
               <div style="display:flex; justify-content:space-between; padding:8px; background:var(--bg-default); border-radius:6px;">
                 <div style="display:flex; align-items:center; gap:8px;">
                   <svg class="ic" width="14" height="14" style="color:var(--text-muted)"><use href="#icon-cpu"></use></svg>
-                  <span style="font-weight:500;">${model}</span>
-                  <span style="font-size:10px; color:var(--text-muted); background:var(--bg-elevated); padding:2px 6px; border-radius:10px;">${stats.provider}</span>
+                  <span style="font-weight:500;">${escHtml(model)}</span>
+                  <span style="font-size:10px; color:var(--text-muted); background:var(--bg-elevated); padding:2px 6px; border-radius:10px;">${escHtml(stats.provider)}</span>
                 </div>
                 <div style="display:flex; gap:16px; font-size:12px;">
                   <span style="color:var(--text-muted);">${stats.calls} calls</span>
@@ -4293,7 +4295,7 @@
               <div style="display:flex; justify-content:space-between; padding:8px; background:var(--bg-default); border-radius:6px;">
                 <div style="display:flex; align-items:center; gap:8px;">
                   <svg class="ic" width="14" height="14" style="color:var(--text-muted)"><use href="#icon-tool"></use></svg>
-                  <span style="font-weight:500;">${tool}</span>
+                  <span style="font-weight:500;">${escHtml(tool)}</span>
                 </div>
                 <div style="display:flex; gap:16px; font-size:12px;">
                   <span style="color:var(--text-muted);">${stats.count} calls</span>

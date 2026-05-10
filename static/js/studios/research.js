@@ -639,11 +639,11 @@ class ResearchStudioV2 {
           card.innerHTML = `
             <div class="rs-result-header">
                 <h4 class="rs-result-title">${this._esc(r.title || 'Untitled')}</h4>
-                <a href="${r.url}" target="_blank" class="rs-result-url">${r.url}</a>
+                <a href="${this._esc(r.url || '')}" target="_blank" class="rs-result-url">${this._esc(r.url || '')}</a>
             </div>
             <div class="rs-result-snippet">${this._esc(r.snippet || '')}</div>
             <div class="rs-result-meta">
-                <span class="rs-result-source">${r.source || 'Web'}</span>
+                <span class="rs-result-source">${this._esc(r.source || 'Web')}</span>
                 ${r.score ? `<span>Score: ${r.score.toFixed(2)}</span>` : ''}
             </div>
           `;

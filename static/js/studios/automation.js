@@ -525,8 +525,8 @@ class AutomationStudio {
     filtered.forEach(wf => {
       const item = document.createElement('div');
       item.className = 'auto-wf-item' + (this.currentWf?.id === wf.id ? ' active' : '');
-      const descHint = wf.description ? `<span class="auto-wf-item-desc">${wf.description.substring(0, 40)}</span>` : '';
-      item.innerHTML = `<div class="auto-wf-item-info"><span class="auto-wf-item-name">${wf.name}</span>${descHint}</div>` +
+      const descHint = wf.description ? `<span class="auto-wf-item-desc">${escHtml(wf.description.substring(0, 40))}</span>` : '';
+      item.innerHTML = `<div class="auto-wf-item-info"><span class="auto-wf-item-name">${escHtml(wf.name)}</span>${descHint}</div>` +
         `<span class="auto-wf-item-badge ${wf.active ? 'active' : 'inactive'}">${wf.active ? 'ON' : 'OFF'}</span>` +
         `<button class="auto-wf-item-delete icon-btn" title="Delete" style="color:var(--red); margin-left: 8px;">${window.icon ? window.icon('trash', 14) : '🗑️'}</button>`;
       item.querySelector('.auto-wf-item-info').addEventListener('click', () => this.loadWorkflow(wf.id));

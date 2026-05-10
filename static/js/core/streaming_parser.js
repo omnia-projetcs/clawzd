@@ -17,6 +17,8 @@
 /* ---- Utility ---- */
 
   function escHtml(s) {
+    if (s == null) return '';
+    s = String(s);
     return s.replace(/&/g, '&amp;').replace(/</g, '&lt;')
             .replace(/>/g, '&gt;').replace(/"/g, '&quot;');
   }

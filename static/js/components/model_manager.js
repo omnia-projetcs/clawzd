@@ -40,10 +40,11 @@ class ModelManager {
     // Build dynamic vendor tabs from catalog
     const tabsEl = $('#models-tabs');
     const vendors = [...new Set(this.catalog.map(m => m.vendor))].sort();
-    tabsEl.innerHTML = '<button class="models-tab active" data-vendor="all">All</button>';
+    let html = '<button class="models-tab active" data-vendor="all">All</button>';
     vendors.forEach(v => {
-      tabsEl.innerHTML += `<button class="models-tab" data-vendor="${escHtml(v)}">${escHtml(v)}</button>`;
+      html += `<button class="models-tab" data-vendor="${escHtml(v)}">${escHtml(v)}</button>`;
     });
+    tabsEl.innerHTML = html;
     this.activeVendor = 'all';
     this._bindTabs();
   }
@@ -166,7 +167,7 @@ class ModelManager {
       toast('⬇ Download started: ' + (d.ollama_id || d.model_id || d.filename));
       this.dlBar.style.display = 'flex';
       this.startPollDownload();
-    } catch (e) { toast('${ICONS.x(14)} Error: ' + e.message); }
+    } catch (e) { toast(`${ICONS.x(14)} Error: ` + e.message); }
   }
 
   async cancelDownload() {
@@ -246,7 +247,7 @@ class ModelManager {
         const d = await r.json();
         toast(' ' + (d.detail || 'Delete failed'));
       }
-    } catch (e) { toast('${ICONS.x(14)} Error: ' + e.message); }
+    } catch (e) { toast(`${ICONS.x(14)} Error: ` + e.message); }
   }
 
   async activateModel(filename) {
@@ -266,7 +267,7 @@ class ModelManager {
       } else {
         toast(' ' + (d.detail || 'Activation failed'));
       }
-    } catch (e) { toast('${ICONS.x(14)} Error: ' + e.message); }
+    } catch (e) { toast(`${ICONS.x(14)} Error: ` + e.message); }
   }
 }
 
