@@ -337,6 +337,10 @@ async def _enhance_lyrics_with_llm(prompt: str) -> str:
             if resp.status_code == 200:
                 data = resp.json()
                 lyrics = data.get("message", {}).get("content", "").strip()
+                # Clean AI reasoning leakage (<think> blocks, self-commentary)
+                if lyrics:
+                    from app.tools_image import _clean_llm_output
+                    lyrics = _clean_llm_output(lyrics)
                 if lyrics:
                     return lyrics
     except Exception as e:

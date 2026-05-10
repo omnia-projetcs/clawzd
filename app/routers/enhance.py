@@ -57,7 +57,9 @@ async def enhance_prompt(req: EnhanceRequest):
         async for token in llm.chat_stream(messages, **kwargs):
             enhanced += token
 
-        enhanced = enhanced.strip().strip('"').strip("'")
+        # Clean AI reasoning leakage (e.g. <think> blocks, self-commentary)
+        from app.tools_image import _clean_llm_output
+        enhanced = _clean_llm_output(enhanced)
 
         return {"enhanced": enhanced, "original": req.prompt}
 

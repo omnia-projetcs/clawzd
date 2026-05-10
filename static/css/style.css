@@ -4066,6 +4066,23 @@ img.is-transparent {
   letter-spacing: .05em; color: var(--text-muted); padding: 0 4px 4px;
 }
 
+/* New Presentation button in sidebar */
+.pt-new-pres-btn {
+  display: flex; align-items: center; justify-content: center; gap: 8px;
+  width: 100%; padding: 9px 12px; margin-bottom: 8px;
+  background: #ffffff; color: #1a1a2e; font-size: 12px; font-weight: 700;
+  font-family: inherit; border: none; border-radius: 6px; cursor: pointer;
+  transition: all var(--transition);
+}
+.pt-new-pres-btn:hover {
+  background: #f0f0f0; transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(255,255,255,.15);
+}
+.pt-new-pres-btn:active { transform: translateY(0); }
+.pt-new-pres-btn .pt-new-pres-plus {
+  color: #22c55e; flex-shrink: 0;
+}
+
 /* Shape Grid (4 per row, icon-only tiles) */
 .presentation-shapes-grid {
   display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px;

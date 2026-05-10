@@ -1026,6 +1026,28 @@ def _clean_llm_output(text: str) -> str:
     text = re.sub(
         r"\b\d+\s*words\..*$", "", text, flags=re.IGNORECASE
     ).strip()
+    # Remove "Word count: N" patterns and everything after
+    text = re.sub(
+        r"\bword\s*count\s*:\s*\d+\.?.*$", "", text, flags=re.IGNORECASE
+    ).strip()
+    # Remove AI reasoning / self-commentary that leaked without <think> tags
+    # Catches patterns like "Okay. I will output this. Wait, I should not..."
+    _reasoning_patterns = [
+        r"\bokay\.?\s+I\s+(will|should|need|can).*$",
+        r"\bwait[,.]?\s+I\s+(should|need|will|must).*$",
+        r"\blet\s+me\s+(think|check|re-?read|reconsider|count|verify|make sure).*$",
+        r"\bI\s+(will|should|need\s+to|must)\s+(output|write|not|include|add|remove|keep|avoid).*$",
+        r"\bI\s+(think|believe|notice|realize|see)\s+.*$",
+        r"\bhmm[,.].*$",
+        r"\bactually[,.]?\s+I\s+.*$",
+        r"\b(note|notes)\s*:\s*.*$",
+        r"\bthis\s+(is|should\s+be|meets|follows|uses)\s+(the\s+)?(prompt|within|under|about|around)\b.*$",
+        r"\b(here|above)\s+is\s+(the|my|a)\s+(enhanced|final|refined|improved|generated|translated).*$",
+        r"\benglis?h\s+only\.?.*$",
+        r"\bno\s+(intro|outro|explanation|markdown|quotes).*$",
+    ]
+    for pat in _reasoning_patterns:
+        text = re.sub(pat, "", text, flags=re.IGNORECASE).strip()
     # Remove enclosing quotes if any
     text = re.sub(r'^["\'](.*)["\']$', r'\1', text).strip()
     # Remove markdown bold/italic wrappers

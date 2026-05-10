@@ -318,6 +318,7 @@ class PresentationStudio {
     });
 
     $('#pt-btn-new')?.addEventListener('click', () => this.newPresentation());
+    $('#pt-sidebar-new')?.addEventListener('click', () => this.newPresentation());
     $('#pt-btn-save')?.addEventListener('click', () => this.save());
 
     // Toolbar Menu Toggle
