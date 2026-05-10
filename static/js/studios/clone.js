@@ -96,31 +96,54 @@ class CloneStudio {
   }
 
   _renderTree(items, parent, depth) {
-    items.forEach(item => {
+    items.sort((a, b) => {
+      if (a.type !== b.type) return a.type === 'dir' ? -1 : 1;
+      return a.name.localeCompare(b.name);
+    }).forEach(item => {
       const div = document.createElement('div');
       div.className = `clone-tree-item ${item.type === 'dir' ? 'clone-tree-dir' : 'clone-tree-file'}`;
       div.style.paddingLeft = (12 + depth * 16) + 'px';
       const iconName = item.type === 'dir' ? 'folder' : 'file';
       div.innerHTML = `<svg class="ic" width="12" height="12"><use href="#icon-${iconName}"></use></svg>
         <span>${escHtml(item.name)}</span>
-        ${item.type === 'file' ? `<div class="clone-tree-actions">
+        <div class="clone-tree-actions">
+          ${item.type === 'dir' ? `
+          <button class="icon-btn" title="New file" data-add="${escHtml(item.path)}">
+            <svg class="ic" width="10" height="10"><use href="#icon-plus"></use></svg>
+          </button>
+          <button class="icon-btn" title="Upload" data-up="${escHtml(item.path)}">
+            <svg class="ic" width="10" height="10"><use href="#icon-upload"></use></svg>
+          </button>
+          <button class="icon-btn" title="Delete folder" data-del="${escHtml(item.path)}" style="color:#ef4444">
+            <svg class="ic" width="10" height="10"><use href="#icon-x"></use></svg>
+          </button>` : `
           <button class="icon-btn" title="Edit" data-path="${escHtml(item.path)}">
             <svg class="ic" width="10" height="10"><use href="#icon-pen"></use></svg>
           </button>
           <button class="icon-btn" title="Delete" data-del="${escHtml(item.path)}" style="color:#ef4444">
             <svg class="ic" width="10" height="10"><use href="#icon-x"></use></svg>
-          </button>
-        </div>` : ''}`;
+          </button>`}
+        </div>`;
       if (item.type === 'file') {
         div.querySelector('[data-path]')?.addEventListener('click', e => {
           e.stopPropagation();
           this.editFile(item.path);
         });
-        div.querySelector('[data-del]')?.addEventListener('click', e => {
+      }
+      if (item.type === 'dir') {
+        div.querySelector('[data-add]')?.addEventListener('click', e => {
           e.stopPropagation();
-          this.deleteFile(item.path);
+          this.createFile(item.path);
+        });
+        div.querySelector('[data-up]')?.addEventListener('click', e => {
+          e.stopPropagation();
+          this._uploadFiles(item.path);
         });
       }
+      div.querySelector('[data-del]')?.addEventListener('click', e => {
+        e.stopPropagation();
+        this.deleteFile(item.path);
+      });
       parent.appendChild(div);
       if (item.type === 'dir' && item.children) {
         this._renderTree(item.children, parent, depth + 1);
@@ -162,8 +185,9 @@ class CloneStudio {
     this._editingFile = null;
   }
 
-  async createFile() {
-    const name = prompt('File name (e.g. expertise/cybersecurity.md):');
+  async createFile(basePath = '') {
+    const defaultName = basePath ? `${basePath}/new_file.md` : 'new_file.md';
+    const name = prompt('File name (e.g. expertise/cybersecurity.md):', defaultName);
     if (!name?.trim()) return;
     const path = name.trim().endsWith('.md') ? name.trim() : name.trim() + '.md';
     try {
@@ -192,7 +216,7 @@ class CloneStudio {
     } catch (e) { toast('Failed to delete file'); }
   }
 
-  _uploadFiles() {
+  _uploadFiles(basePath = '') {
     const input = document.createElement('input');
     input.type = 'file';
     input.accept = '.md';
@@ -200,7 +224,8 @@ class CloneStudio {
     input.onchange = async () => {
       for (const file of input.files) {
         const text = await file.text();
-        await fetch(`/clone/knowledge/${file.name}`, {
+        const uploadPath = basePath ? `${basePath}/${file.name}` : file.name;
+        await fetch(`/clone/knowledge/${uploadPath}`, {
           method: 'PUT',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ content: text })

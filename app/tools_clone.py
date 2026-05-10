@@ -213,7 +213,11 @@ async def delete_knowledge_file(path: str):
     protected = {"profile.md", "communication_style.md", "rules.md", "faq.md"}
     if path in protected:
         raise HTTPException(400, "Cannot delete core profile files")
-    os.remove(full)
+    if os.path.isdir(full):
+        import shutil
+        shutil.rmtree(full)
+    else:
+        os.remove(full)
     return {"status": "deleted", "path": path}
 
 
