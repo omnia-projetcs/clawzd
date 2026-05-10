@@ -951,6 +951,27 @@ async def get_project(pid: str):
     proj = _load(pid)
     if not proj:
         raise HTTPException(404, "Project not found")
+        
+    assets = proj.get("assets", [])
+    known_names = {a.get("name") for a in assets}
+    assets_dir = os.path.join(_proj_dir(pid), "assets")
+    if os.path.isdir(assets_dir):
+        for fname in os.listdir(assets_dir):
+            if fname not in known_names:
+                fpath = os.path.join(assets_dir, fname)
+                if os.path.isfile(fpath):
+                    ext = os.path.splitext(fname)[1].lstrip(".") or "bin"
+                    size = os.path.getsize(fpath)
+                    assets.append({
+                        "name": fname,
+                        "path": fpath,
+                        "type": ext,
+                        "url": "local",
+                        "size": size,
+                        "timestamp": datetime.now(timezone.utc).isoformat()
+                    })
+    proj["assets"] = assets
+    
     return {"project": proj}
 
 @router.delete("/projects/{pid}")
@@ -1278,7 +1299,28 @@ async def list_assets(pid: str):
     proj = _load(pid)
     if not proj:
         raise HTTPException(404, "Project not found")
-    return {"assets": proj.get("assets", [])}
+        
+    assets = proj.get("assets", [])
+    known_names = {a.get("name") for a in assets}
+    
+    assets_dir = os.path.join(_proj_dir(pid), "assets")
+    if os.path.isdir(assets_dir):
+        for fname in os.listdir(assets_dir):
+            if fname not in known_names:
+                fpath = os.path.join(assets_dir, fname)
+                if os.path.isfile(fpath):
+                    ext = os.path.splitext(fname)[1].lstrip(".") or "bin"
+                    size = os.path.getsize(fpath)
+                    assets.append({
+                        "name": fname,
+                        "path": fpath,
+                        "type": ext,
+                        "url": "local",
+                        "size": size,
+                        "timestamp": datetime.now(timezone.utc).isoformat()
+                    })
+                    
+    return {"assets": assets}
 
 @router.get("/projects/{pid}/iterations")
 async def list_iterations(pid: str):
