@@ -394,7 +394,7 @@ class ResearchStudioV2 {
     this._sse.onmessage = e => {
       try {
         const data = JSON.parse(e.data);
-        if (data.type === 'log') this._addLogEntry(data.msg, '', data.urls);
+        if (data.type === 'log') this._addLogEntry(data.msg, '', data);
         else if (data.type === 'status') {
             this._updateStatus(data.status);
             if (data.status === 'completed' || data.status === 'paused' || data.status === 'error') {
@@ -416,7 +416,7 @@ class ResearchStudioV2 {
     if (this._sse) { this._sse.close(); this._sse = null; }
   }
 
-  _addLogEntry(msg, cls='', urls=null) {
+  _addLogEntry(msg, cls='', details=null) {
     const log = this.ui.logArea;
     if (!log) return;
     const empty = log.querySelector('.rs-log-empty');
@@ -426,18 +426,42 @@ class ResearchStudioV2 {
     entry.className = 'rs-log-entry ' + cls;
     
     let inner = `<span class="rs-log-entry-time">${time}</span><span class="rs-log-entry-msg">${this._esc(msg)}</span>`;
+    
+    const urls = Array.isArray(details) ? details : (details?.urls || []);
+    const code = !Array.isArray(details) ? details?.code : null;
+    const output = !Array.isArray(details) ? details?.output : null;
+    
+    let detailsHtml = '';
+    
     if (urls && urls.length > 0) {
-        inner += `<div class="rs-log-urls" style="display:none; margin-top: 4px; font-size: 11px; color: var(--text-muted); padding-left: 10px; max-height: 200px; overflow-y: auto;">
+        detailsHtml += `<div class="rs-log-urls" style="margin-top: 4px; font-size: 11px; color: var(--text-muted); padding-left: 10px; max-height: 200px; overflow-y: auto;">
             ${urls.map(u => `<div><a href="${u}" target="_blank" style="color:var(--primary);text-decoration:none;">${this._esc(u)}</a></div>`).join('')}
         </div>`;
+    }
+    
+    if (code) {
+        detailsHtml += `<div class="rs-log-code" style="margin-top: 4px; font-size: 11px; color: var(--text-muted); padding-left: 10px; max-height: 200px; overflow-y: auto;">
+            <strong>Code:</strong><br><pre style="margin:2px 0; background:rgba(0,0,0,0.1); padding:4px; overflow-x: auto;">${this._esc(code)}</pre>
+        </div>`;
+    }
+    
+    if (output) {
+        detailsHtml += `<div class="rs-log-output" style="margin-top: 4px; font-size: 11px; color: var(--text-muted); padding-left: 10px; max-height: 200px; overflow-y: auto;">
+            <strong>Output:</strong><br><pre style="margin:2px 0; background:rgba(0,0,0,0.1); padding:4px; overflow-x: auto;">${this._esc(output)}</pre>
+        </div>`;
+    }
+    
+    if (detailsHtml) {
+        inner += `<div class="rs-log-details" style="display:none; border-top: 1px solid rgba(255,255,255,0.05); padding-top: 4px; margin-top: 4px;">${detailsHtml}</div>`;
         entry.style.cursor = 'pointer';
-        entry.title = "Click to toggle URLs";
+        entry.title = "Click to toggle details";
         entry.addEventListener('click', (e) => {
             if (e.target.tagName.toLowerCase() === 'a') return;
-            const urlsDiv = entry.querySelector('.rs-log-urls');
-            if (urlsDiv) urlsDiv.style.display = urlsDiv.style.display === 'none' ? 'block' : 'none';
+            const detailsDiv = entry.querySelector('.rs-log-details');
+            if (detailsDiv) detailsDiv.style.display = detailsDiv.style.display === 'none' ? 'block' : 'none';
         });
     }
+    
     entry.innerHTML = inner;
     
     log.appendChild(entry);
@@ -495,17 +519,23 @@ class ResearchStudioV2 {
           if (a.type === 'web_search') {
               this._addLogEntry(`web_search: ${JSON.stringify(a.params || {}).substring(0,100)}`);
               if (a.urls && a.urls.length > 0) {
-                  this._addLogEntry(`   Found ${a.count} results`, '', a.urls);
+                  this._addLogEntry(`   Found ${a.count} results`, '', {urls: a.urls});
               } else {
                   this._addLogEntry(`   Found ${a.count} results`);
               }
           } else if (a.type === 'smart_scrape') {
               this._addLogEntry(`smart_scrape: ${a.count} pages`);
               if (a.urls && a.urls.length > 0) {
-                  this._addLogEntry(`   🔍 Smart-scraped ${a.count} pages`, '', a.urls);
+                  this._addLogEntry(`   🔍 Smart-scraped ${a.count} pages`, '', {urls: a.urls});
               } else {
                   this._addLogEntry(`   🔍 Smart-scraped ${a.count} pages`);
               }
+          } else if (a.type === 'scrape') {
+              this._addLogEntry(`scrape: ${a.url}`);
+              this._addLogEntry(`   Scraped content`, '', {urls: [a.url]});
+          } else if (a.type === 'script') {
+              this._addLogEntry(`write_script: executed`);
+              this._addLogEntry(`   Script output`, '', {code: a.code, output: a.output});
           } else {
               this._addLogEntry(`${a.type}: ${JSON.stringify(a).substring(0,100)}`);
           }
