@@ -6,8 +6,13 @@ import sqlite3
 import json
 import os
 import threading
+import subprocess
+import shutil
+import logging
+import time
 from datetime import datetime, timezone
 from typing import Optional
+from functools import wraps
 from config import DB_PATH
 
 _local = threading.local()
@@ -24,6 +29,53 @@ def _get_conn() -> sqlite3.Connection:
     return _local.conn
 
 
+def repair_database():
+    """Attempt to automatically repair a corrupted SQLite database."""
+    logging.warning(f"Database corruption detected at {DB_PATH}. Attempting auto-repair...")
+    
+    # Close connection if open
+    if hasattr(_local, "conn") and _local.conn is not None:
+        try:
+            _local.conn.close()
+        except Exception:
+            pass
+        _local.conn = None
+
+    corrupt_path = f"{DB_PATH}.corrupt_{int(time.time())}"
+    try:
+        # Move original to corrupt
+        shutil.move(DB_PATH, corrupt_path)
+        
+        # Dump and restore
+        dump_cmd = ["sqlite3", corrupt_path, ".dump"]
+        restore_cmd = ["sqlite3", DB_PATH]
+        
+        p1 = subprocess.Popen(dump_cmd, stdout=subprocess.PIPE)
+        p2 = subprocess.Popen(restore_cmd, stdin=p1.stdout, stdout=subprocess.PIPE)
+        p1.stdout.close()  # Allow p1 to receive a SIGPIPE if p2 exits.
+        p2.communicate()
+        
+        logging.info("Database auto-repair completed successfully.")
+    except Exception as e:
+        logging.error(f"Auto-repair failed: {e}")
+
+
+def with_auto_repair(func):
+    """Decorator to catch corruption errors and retry after repairing."""
+    @wraps(func)
+    def wrapper(*args, **kwargs):
+        try:
+            return func(*args, **kwargs)
+        except sqlite3.DatabaseError as e:
+            err_msg = str(e).lower()
+            if "malformed" in err_msg or "corruption" in err_msg:
+                repair_database()
+                return func(*args, **kwargs)
+            raise
+    return wrapper
+
+
+@with_auto_repair
 def init_db():
     """Create the schema if it does not exist."""
     conn = _get_conn()
@@ -73,6 +125,7 @@ def init_db():
 
 # --- Session CRUD ---
 
+@with_auto_repair
 def create_session(session_id: str, title: str = "New Chat",
                    provider: str = "local", model: str = "",
                    preprompt: str = "") -> dict:
@@ -92,6 +145,7 @@ def create_session(session_id: str, title: str = "New Chat",
     }
 
 
+@with_auto_repair
 def list_sessions(limit: int = 50, offset: int = 0, exclude_preprompts: list[str] | None = None) -> list[dict]:
     """Return recent sessions ordered by last activity."""
     conn = _get_conn()
@@ -107,6 +161,7 @@ def list_sessions(limit: int = 50, offset: int = 0, exclude_preprompts: list[str
     return [dict(r) for r in rows]
 
 
+@with_auto_repair
 def get_session(session_id: str) -> Optional[dict]:
     """Return a single session or None."""
     conn = _get_conn()
@@ -114,6 +169,7 @@ def get_session(session_id: str) -> Optional[dict]:
     return dict(row) if row else None
 
 
+@with_auto_repair
 def update_session(session_id: str, **kwargs):
     """Update arbitrary session fields."""
     allowed = {"title", "provider", "model", "preprompt", "message_count"}
@@ -128,6 +184,7 @@ def update_session(session_id: str, **kwargs):
     conn.commit()
 
 
+@with_auto_repair
 def delete_session(session_id: str):
     """Delete a session and all its messages (cascaded)."""
     conn = _get_conn()
@@ -135,6 +192,7 @@ def delete_session(session_id: str):
     conn.commit()
 
 
+@with_auto_repair
 def clear_all_sessions():
     """Delete all sessions and messages (cascaded)."""
     conn = _get_conn()
@@ -144,6 +202,7 @@ def clear_all_sessions():
 
 # --- Message CRUD ---
 
+@with_auto_repair
 def add_message(session_id: str, role: str, content: str,
                 metadata: dict | None = None) -> dict:
     """Insert a message and update the session's counters."""
@@ -163,6 +222,7 @@ def add_message(session_id: str, role: str, content: str,
     return {"role": role, "content": content, "timestamp": now, "metadata": metadata or {}}
 
 
+@with_auto_repair
 def get_messages(session_id: str) -> list[dict]:
     """Return all messages for a session in chronological order."""
     conn = _get_conn()
