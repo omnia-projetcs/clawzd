@@ -309,10 +309,11 @@ async def _scrape_url(url: str) -> str:
                             self._skip = False
                     def handle_data(self, data):
                         if not self._skip and data.strip():
-                            self.text.append(data.strip())
+                            # Append with a space to prevent words from sticking together
+                            self.text.append(data.strip() + " ")
                 parser = TextExtractor()
                 parser.feed(resp.text)
-                return "\n".join(parser.text)[:8000]
+                return "".join(parser.text).replace("  ", " ")[:8000]
             return resp.text[:8000]
     except Exception as e:
         logger.warning("Scrape failed for %s: %s", url, e)
@@ -877,7 +878,13 @@ async def api_sandbox_execute(pid: str, request: Request):
             stderr=asyncio.subprocess.PIPE,
             cwd=_proj_dir(pid)
         )
-        stdout, stderr = await proc.communicate()
+        try:
+            stdout, stderr = await asyncio.wait_for(proc.communicate(), timeout=60.0)
+        except asyncio.TimeoutError:
+            proc.kill()
+            await proc.communicate()
+            return {"status": "error", "stderr": "Execution timed out after 60 seconds", "stdout": "", "exit_code": 124}
+            
         return {
             "status": "success" if proc.returncode == 0 else "error",
             "stdout": stdout.decode("utf-8", errors="replace"),
@@ -903,7 +910,13 @@ async def api_sandbox_install(pid: str, request: Request):
             stdout=asyncio.subprocess.PIPE,
             stderr=asyncio.subprocess.PIPE,
         )
-        stdout, stderr = await proc.communicate()
+        try:
+            stdout, stderr = await asyncio.wait_for(proc.communicate(), timeout=120.0)
+        except asyncio.TimeoutError:
+            proc.kill()
+            await proc.communicate()
+            return {"status": "error", "stderr": "Installation timed out after 120 seconds", "stdout": ""}
+            
         return {
             "status": "success" if proc.returncode == 0 else "error",
             "stdout": stdout.decode("utf-8", errors="replace"),
@@ -1038,35 +1051,39 @@ async def export_report(pid: str, request: Request):
     elif fmt == "docx":
         try:
             from docx import Document
-            doc = Document()
-            doc.add_heading(proj.get("title", "Research Report"), 0)
-            for line in report.split("\n"):
-                if line.startswith("# "):
-                    doc.add_heading(line[2:], level=1)
-                elif line.startswith("## "):
-                    doc.add_heading(line[3:], level=2)
-                elif line.startswith("### "):
-                    doc.add_heading(line[4:], level=3)
-                elif line.strip():
-                    doc.add_paragraph(line)
             path = os.path.join(pdir, "report.docx")
-            doc.save(path)
+            def _gen_docx():
+                doc = Document()
+                doc.add_heading(proj.get("title", "Research Report"), 0)
+                for line in report.split("\n"):
+                    if line.startswith("# "):
+                        doc.add_heading(line[2:], level=1)
+                    elif line.startswith("## "):
+                        doc.add_heading(line[3:], level=2)
+                    elif line.startswith("### "):
+                        doc.add_heading(line[4:], level=3)
+                    elif line.strip():
+                        doc.add_paragraph(line)
+                doc.save(path)
+            await asyncio.to_thread(_gen_docx)
             return FileResponse(path, filename=f"research_{proj['title'][:30]}.docx")
         except ImportError:
             raise HTTPException(500, "python-docx not installed")
     elif fmt == "pdf":
         try:
             from fpdf import FPDF
-            pdf = FPDF()
-            pdf.add_page()
-            pdf.set_font("Arial", "B", 16)
-            pdf.cell(0, 10, proj.get("title", "Research")[:80].encode("latin-1","replace").decode("latin-1"), ln=1)
-            pdf.set_font("Arial", size=10)
-            for line in report.split("\n"):
-                safe = line.encode("latin-1","replace").decode("latin-1")
-                pdf.multi_cell(0, 5, safe)
             path = os.path.join(pdir, "report.pdf")
-            pdf.output(path)
+            def _gen_pdf():
+                pdf = FPDF()
+                pdf.add_page()
+                pdf.set_font("Arial", "B", 16)
+                pdf.cell(0, 10, proj.get("title", "Research")[:80].encode("latin-1","replace").decode("latin-1"), ln=1)
+                pdf.set_font("Arial", size=10)
+                for line in report.split("\n"):
+                    safe = line.encode("latin-1","replace").decode("latin-1")
+                    pdf.multi_cell(0, 5, safe)
+                pdf.output(path)
+            await asyncio.to_thread(_gen_pdf)
             return FileResponse(path, filename=f"research_{proj['title'][:30]}.pdf")
         except ImportError:
             raise HTTPException(500, "fpdf2 not installed")
@@ -1174,7 +1191,9 @@ async def _export_research_pptx(proj: dict, pdir: str) -> FileResponse:
             p.space_after = Pt(6)
 
     path = os.path.join(pdir, "report.pptx")
-    prs.save(path)
+    def _save_pptx():
+        prs.save(path)
+    await asyncio.to_thread(_save_pptx)
     return FileResponse(
         path,
         filename=f"research_{proj['title'][:30]}.pptx",
@@ -1236,12 +1255,14 @@ async def export_zip(pid: str):
         with open(report_path, "w", encoding="utf-8") as f:
             f.write(proj["report_md"])
     buf = io.BytesIO()
-    with zipfile.ZipFile(buf, "w", zipfile.ZIP_DEFLATED) as zf:
-        for root, dirs, files in os.walk(pdir):
-            for fname in files:
-                fpath = os.path.join(root, fname)
-                arcname = os.path.relpath(fpath, pdir)
-                zf.write(fpath, arcname)
+    def _make_zip():
+        with zipfile.ZipFile(buf, "w", zipfile.ZIP_DEFLATED) as zf:
+            for root, dirs, files in os.walk(pdir):
+                for fname in files:
+                    fpath = os.path.join(root, fname)
+                    arcname = os.path.relpath(fpath, pdir)
+                    zf.write(fpath, arcname)
+    await asyncio.to_thread(_make_zip)
     buf.seek(0)
     safe_title = proj.get("title", "research")[:30].replace(" ", "_")
     return StreamingResponse(buf, media_type="application/zip",

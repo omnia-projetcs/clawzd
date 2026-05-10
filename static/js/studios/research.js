@@ -353,9 +353,9 @@ class ResearchStudioV2 {
       const data = await res.json();
       if (consoleEl) {
         if (data.status === 'success') {
-          consoleEl.innerHTML = `<div class="rs-console-success">[Success] Exit Code: ${data.exit_code}</div>\n${this._esc(data.stdout)}`;
+          consoleEl.innerHTML = `<div class="rs-console-success">[Success] Exit Code: ${data.exit_code !== undefined ? data.exit_code : 0}</div>\n${this._esc(data.stdout)}`;
         } else {
-          consoleEl.innerHTML = `<div class="rs-console-error">[Error] Exit Code: ${data.exit_code}</div>\n${this._esc(data.stderr)}\n${this._esc(data.stdout)}`;
+          consoleEl.innerHTML = `<div class="rs-console-error">[Error] Exit Code: ${data.exit_code !== undefined ? data.exit_code : -1}</div>\n<div style="color:var(--danger)">${this._esc(data.stderr)}</div>\n${this._esc(data.stdout)}`;
         }
       }
     } catch(e) {
@@ -384,7 +384,7 @@ class ResearchStudioV2 {
         if (data.status === 'success') {
           consoleEl.innerHTML = `<div class="rs-console-success">[Installed successfully]</div>\n${this._esc(data.stdout)}`;
         } else {
-          consoleEl.innerHTML = `<div class="rs-console-error">[Installation Failed]</div>\n${this._esc(data.stderr)}\n${this._esc(data.stdout)}`;
+          consoleEl.innerHTML = `<div class="rs-console-error">[Installation Failed]</div>\n<div style="color:var(--danger)">${this._esc(data.stderr)}</div>\n${this._esc(data.stdout)}`;
         }
       }
     } catch(e) {
