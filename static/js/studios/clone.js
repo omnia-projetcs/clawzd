@@ -273,7 +273,7 @@ class CloneStudio {
 
       div.innerHTML = `
         <div class="clone-connector-icon" style="background:${ch.color}22;border:1px solid ${ch.color}44;color:${ch.color}">
-          <svg class="ic" width="16" height="16"><use href="#icon-${ch.icon}"></use></svg>
+          ${window.icon ? window.icon(ch.icon, 16) : `<svg class="ic" width="16" height="16"><use href="#icon-${ch.icon}"></use></svg>`}
         </div>
         <div class="clone-connector-info">
           <div class="clone-connector-name">${escHtml(ch.label)}</div>
@@ -316,7 +316,7 @@ class CloneStudio {
     const savedParams = cfg.params || {};
 
     if (title) {
-      title.innerHTML = `<svg class="ic" width="14" height="14" style="color:${ch.color};margin-right:6px"><use href="#icon-${ch.icon}"></use></svg> Configure ${escHtml(ch.label)}`;
+      title.innerHTML = `<span style="color:${ch.color};margin-right:6px;display:inline-flex;align-items:center;">${window.icon ? window.icon(ch.icon, 14) : `<svg class="ic" width="14" height="14"><use href="#icon-${ch.icon}"></use></svg>`}</span> Configure ${escHtml(ch.label)}`;
     }
 
     body.innerHTML = `
@@ -425,7 +425,7 @@ class CloneStudio {
       dot.className = 'clone-status-dot active';
       dot.title = ch.label;
       dot.style.color = ch.color;
-      dot.innerHTML = `<svg class="ic" width="12" height="12"><use href="#icon-${ch.icon}"></use></svg>`;
+      dot.innerHTML = window.icon ? window.icon(ch.icon, 12) : `<svg class="ic" width="12" height="12"><use href="#icon-${ch.icon}"></use></svg>`;
       dots.appendChild(dot);
     });
   }
