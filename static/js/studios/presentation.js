@@ -1137,6 +1137,11 @@ class PresentationStudio {
     this.renderCanvas(); // updates outlines
   }
 
+  /** Re-sync the properties sidebar with the currently selected element. */
+  updatePropertiesPanel() {
+    this.selectElement(this.selectedElement);
+  }
+
   // Drag and Drop
   onMouseDown(e, el, action, handle = null) {
     e.stopPropagation();

@@ -20,8 +20,6 @@ class MediaStudio {
     this.referenceImage = null; // for image-to-image
     this.audioSubMode = 'tts'; // 'tts', 'voice_clone', 'music', 'song'
     this.referenceAudio = null; // for voice cloning
-    this.templateSubMode = 'business_card'; // 'business_card' or 'cv'
-    this._linkedInData = null; // fetched LinkedIn profile data
     this._bind();
   }
 
@@ -332,8 +330,6 @@ class MediaStudio {
     const isAudio = this.type === 'audio';
     const isImage = this.type === 'image';
     const isTemplate = this.type === 'templates';
-    const isCard = isTemplate && this.templateSubMode === 'business_card';
-    const isCV = isTemplate && this.templateSubMode === 'cv';
 
     // Image-specific groups
     const imgFmt = $('#media-format-image-group');
@@ -921,7 +917,7 @@ class MediaStudio {
   async generate() {
     if (this.generating) return;
     // Delegate to template generator
-    if (this.type === 'templates') { return this.generateTemplate(); }
+    if (this.type === 'templates') { toast(ICONS.circle(14) + ' Templates are available in the Presentation Studio'); return; }
     const prompt = $('#media-prompt');
     if (this.type === 'audio') {
       const audioText = ($('#media-audio-text') || {}).value || '';
