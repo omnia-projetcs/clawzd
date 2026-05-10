@@ -78,7 +78,7 @@ except Exception:
 
 # NOTE: Only free open-weights models from Hugging Face are allowed here.
 _IMAGE_STYLE_MODELS = {
-    "none": {"repo": "Tongyi-MAI/Z-Image-Turbo", "is_lora": False, "pipeline": "zimage"},
+    "none": {"repo": "stabilityai/sdxl-turbo", "is_lora": False},
     "flux2_klein": {"repo": "black-forest-labs/FLUX.2-klein-9B", "is_lora": False},
     "photorealistic": {"repo": "RunDiffusion/Juggernaut-XL-v9", "is_lora": False},
     "realvis": {"repo": "SG161222/RealVisXL_V4.0", "is_lora": False},

@@ -74,25 +74,6 @@
     ]
   },
   {
-    "id": "qwen3.5-9b-flash",
-    "vendor": "Qwen",
-    "name": "Qwen 3.5 9B Flash",
-    "ollama_id": "hf.co/Jackrong/Qwen3.5-9B-DeepSeek-V4-Flash-GGUF:Q8_0",
-    "size_gb": 9.5,
-    "params": "9B",
-    "quant": "Q8_0",
-    "vram_min_gb": 12,
-    "description": "Qwen 3.5 Flash fast and powerful for research and deep analysis.",
-    "recommended": true,
-    "token_limit": "256k",
-    "release_date": "2026-03",
-    "capabilities": [
-      "txt",
-      "code",
-      "mcp"
-    ]
-  },
-  {
     "id": "qwen3.5-27b",
     "vendor": "Qwen",
     "name": "Qwen 3.5 27B",
