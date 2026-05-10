@@ -1124,27 +1124,17 @@ async def _enhance_prompt_with_llm(prompt: str, style: str = "none", model_repo:
             "Keep under 60 words."
         )
 
-    system_prompt = (
-        "You are an expert prompt engineer for AI image generation. "
-        "Your task is to take the user's input, TRANSLATE it to English (if not already), "
-        "then ENRICH it for the target model.\n\n"
-        f"{model_guidance}\n\n"
-        "CRITICAL RULES:\n"
-        "1. Output MUST be entirely in English.\n"
-        "2. PRESERVE the core subject and intent — do NOT add subjects, characters, or elements the user did not ask for.\n"
-        "3. Do NOT invent new subjects or dramatically change the scene.\n"
-        "4. Output ONLY the final prompt. No intro, no explanation, no quotes, no markdown."
-    )
-
-    llm = get_llm_provider(LLM_PROVIDER)
+    system_prompt = "You are an expert prompt engineer. Reply ONLY with the English image generation prompt. No markdown, no explanations."
+    
     messages = [
         {"role": "system", "content": system_prompt},
-        # /no_think disables Qwen 3 reasoning chain for fast output
-        {"role": "user", "content": f"/no_think\n{prompt}"}
+        {"role": "user", "content": prompt}
     ]
 
+    llm = get_llm_provider(LLM_PROVIDER)
+    
     try:
-        raw_response = await llm.chat(messages, max_tokens=256, temperature=0.6)
+        raw_response = await llm.chat(messages, max_tokens=1024, temperature=0.6)
         
         enhanced = _clean_llm_output(raw_response)
         if enhanced:
