@@ -4618,19 +4618,7 @@
     }
   };
 
-  const btnAddProfile = $('#btn-add-profile');
-  if (btnAddProfile) {
-    btnAddProfile.addEventListener('click', async () => {
-      const input = $('#new-profile-name');
-      let name = input.value.trim();
-      if (!name) return;
-      if (!name.endsWith('.md')) name += '.md';
-      
-      await openRagProfilEditor(name);
-      input.value = '';
-      setTimeout(window.loadRagProfiles, 1000); // refresh list
-    });
-  }
+
 
   async function openRagProfilEditor(filename) {
     const overlay = $('#rag-profil-editor-overlay');

@@ -2453,28 +2453,40 @@ async def api_transcribe(file: UploadFile = File(...)):
 @app.get("/api/rag-profiles")
 async def api_list_rag_profiles():
     import os
-    import glob
     from config import PROFILES_DIR
-    profil_dir = os.path.join(PROFILES_DIR, "user")
-    os.makedirs(profil_dir, exist_ok=True)
-    files = [os.path.basename(f) for f in glob.glob(os.path.join(profil_dir, "*.md"))]
-    if "USER.md" not in files:
-        files.append("USER.md")
-    if "MEMORY.md" not in files:
-        files.append("MEMORY.md")
+    os.makedirs(PROFILES_DIR, exist_ok=True)
+    files = []
+    for root, _, filenames in os.walk(PROFILES_DIR):
+        for f in filenames:
+            if f.endswith(".md"):
+                rel_path = os.path.relpath(os.path.join(root, f), PROFILES_DIR)
+                # Normalize path separators for frontend
+                files.append(rel_path.replace("\\", "/"))
+    
+    if "user/USER.md" not in files and "USER.md" not in files:
+        files.append("user/USER.md")
+    if "user/MEMORY.md" not in files and "MEMORY.md" not in files:
+        files.append("user/MEMORY.md")
     return {"profiles": sorted(list(set(files)))}
 
-@app.get("/api/rag-profil/{filename}")
+@app.get("/api/rag-profil/{filename:path}")
 async def api_get_rag_profil(filename: str):
     import os
     from config import PROFILES_DIR
-    if not filename.endswith(".md") or "/" in filename or "\\" in filename:
+    if not filename.endswith(".md"):
         raise HTTPException(400, "Invalid filename")
-    profil_dir = os.path.join(PROFILES_DIR, "user")
-    os.makedirs(profil_dir, exist_ok=True)
-    path = os.path.join(profil_dir, filename)
+    
+    # Prevent directory traversal
+    path = os.path.realpath(os.path.join(PROFILES_DIR, filename))
+    base = os.path.realpath(PROFILES_DIR)
+    if not path.startswith(base):
+        raise HTTPException(403, "Path traversal not allowed")
+
+    os.makedirs(os.path.dirname(path), exist_ok=True)
+    
     if not os.path.exists(path):
         # Auto-create with default template
+        base_name = os.path.basename(filename)
         defaults = {
             "USER.md": (
                 "# User Profile\n\n"
@@ -2497,21 +2509,26 @@ async def api_get_rag_profil(filename: str):
             ),
         }
         with open(path, "w", encoding="utf-8") as f:
-            f.write(defaults.get(filename, f"# {filename}\n\n"))
+            f.write(defaults.get(base_name, f"# {base_name}\n\n"))
     with open(path, "r", encoding="utf-8") as f:
         return {"content": f.read()}
 
-@app.post("/api/rag-profil/{filename}")
+@app.post("/api/rag-profil/{filename:path}")
 async def api_save_rag_profil(filename: str, request: Request):
     import os
     from config import PROFILES_DIR
-    if not filename.endswith(".md") or "/" in filename or "\\" in filename:
+    if not filename.endswith(".md"):
         raise HTTPException(400, "Invalid filename")
+    
+    # Prevent directory traversal
+    path = os.path.realpath(os.path.join(PROFILES_DIR, filename))
+    base = os.path.realpath(PROFILES_DIR)
+    if not path.startswith(base):
+        raise HTTPException(403, "Path traversal not allowed")
+
     data = await request.json()
     content = data.get("content", "")
-    profil_dir = os.path.join(PROFILES_DIR, "user")
-    os.makedirs(profil_dir, exist_ok=True)
-    path = os.path.join(profil_dir, filename)
+    os.makedirs(os.path.dirname(path), exist_ok=True)
     with open(path, "w", encoding="utf-8") as f:
         f.write(content)
     return {"status": "ok"}
