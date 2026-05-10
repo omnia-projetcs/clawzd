@@ -50,6 +50,7 @@
 - [Requirements](#-requirements)
 - [Installation](#-installation)
 - [Configuration](#-configuration)
+- [Image Generation Models](#-image-generation-models)
 - [Usage](#-usage)
 - [Skills System](#-skills-system)
 - [Project Structure](#-project-structure)
@@ -442,6 +443,8 @@ Ollama runs locally on your machine. **No API key or subscription is needed.**
 4. Copy the token (starts with `hf_...`)
 5. Paste into `.env`: `HUGGINGFACE_API_KEY=hf_...`
 
+> 💡 This token is also required for downloading **gated image generation models** (FLUX.1, FLUX.2). See [Image Generation Models](#-image-generation-models) below.
+
 ---
 
 #### Tavily (Web Search)
@@ -455,6 +458,36 @@ Ollama runs locally on your machine. **No API key or subscription is needed.**
 2. Your API key is displayed on the dashboard
 3. Copy the key (starts with `tvly-...`)
 4. Paste into `.env`: `TAVILY_API_KEY=tvly-...`
+
+---
+
+### 🎨 Image Generation Models
+
+Clawzd uses **Z-Image Turbo** as the default image generation model (both in Chat and Media Studio). It requires no special access and downloads automatically.
+
+For higher quality or specialized needs, additional models are available:
+
+| Model | Default | Gated | VRAM |
+|-------|---------|-------|------|
+| **Z-Image Turbo** | ✅ Yes | ❌ No | ~6 GB |
+| **Z-Image** (High Quality) | — | ❌ No | ~6 GB |
+| **FLUX.2 Klein** (Ultra-fast) | — | ✅ Yes | ~9 GB |
+| **FLUX.1 Schnell** | — | ✅ Yes | ~12 GB |
+| **Juggernaut XL** (Photo) | — | ❌ No | ~7 GB |
+| **RealVisXL V4.0** (Natural) | — | ❌ No | ~7 GB |
+
+#### Using FLUX Models (Gated — Requires License Agreement)
+
+FLUX models by Black Forest Labs are **gated** on HuggingFace. Before Clawzd can download them, you must:
+
+1. **Have a HuggingFace API token** in your `.env` file (`HUGGINGFACE_API_KEY=hf_...`)
+2. **Visit the model page** and click **"Agree and access repository"** to accept the license:
+   - **FLUX.1 Schnell**: [huggingface.co/black-forest-labs/FLUX.1-schnell](https://huggingface.co/black-forest-labs/FLUX.1-schnell)
+   - **FLUX.2 Klein**: [huggingface.co/black-forest-labs/FLUX.2-klein-9B](https://huggingface.co/black-forest-labs/FLUX.2-klein-9B)
+
+> ⚠️ **Without completing both steps**, model downloads will fail with a `403 Forbidden` or `401 Unauthorized` error.
+
+Once accepted, select the FLUX model from the **Style** dropdown in the Media Studio, or it will be used automatically when selected in Chat.
 
 ---
 
