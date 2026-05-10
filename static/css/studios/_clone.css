@@ -1,14 +1,14 @@
 /* Clawzd — Clone Studio styles */
 
 /* ── Sub-tab toggle (Workflows / My Clone) ── */
-.auto-subtab-bar{display:flex;gap:0;border-bottom:1px solid var(--border);background:var(--bg-secondary);padding:0 12px}
+.auto-subtab-bar{display:flex;gap:0;border-bottom:1px solid var(--border);background:var(--bg-secondary);padding:0 12px;position:absolute;top:48px;left:0;right:0;z-index:55;height:42px;box-sizing:border-box;align-items:stretch}
 .auto-subtab{padding:10px 20px;cursor:pointer;border:none;background:none;color:var(--text-muted);font-size:13px;font-weight:600;border-bottom:2px solid transparent;transition:all .2s}
 .auto-subtab:hover{color:var(--text)}
 .auto-subtab.active{color:var(--accent);border-bottom-color:var(--accent)}
 .auto-subtab .subtab-icon{margin-right:6px;opacity:.7}
 
 /* ── Clone Layout ── */
-.clone-layout{display:grid;grid-template-columns:300px 1fr 320px;height:100%;overflow:hidden;background:var(--bg)}
+.clone-layout{display:grid;grid-template-columns:300px 1fr 320px;overflow:hidden;background:var(--bg);position:absolute;inset:0;top:90px;bottom:24px;z-index:50}
 .clone-left{border-right:1px solid var(--border);overflow-y:auto;display:flex;flex-direction:column}
 .clone-center{overflow-y:auto;padding:24px;display:flex;flex-direction:column;gap:20px}
 .clone-right{border-left:1px solid var(--border);overflow-y:auto;display:flex;flex-direction:column}

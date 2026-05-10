@@ -4355,7 +4355,7 @@ img.is-transparent {
    ============================================ */
 .automation-layout {
   flex:1; display:flex; overflow:hidden;
-  position:absolute; inset:0; top:48px; bottom:24px;
+  position:absolute; inset:0; top:90px; bottom:24px;
   background:var(--bg-primary); z-index:50;
 }
 
