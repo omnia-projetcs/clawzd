@@ -776,7 +776,7 @@ async def _process_chat(session_id: str, data: dict) -> dict:
     # Maximum auto-continuation rounds for truncated responses
     MAX_CONTINUATION_ROUNDS = 5
     # Maximum total output characters to prevent runaway generation
-    MAX_TOTAL_OUTPUT = 50_000
+    MAX_TOTAL_OUTPUT = 250_000
 
     def _is_truncated(text: str) -> bool:
         """Detect if a response was truncated mid-output.
@@ -1049,7 +1049,7 @@ async def _process_chat(session_id: str, data: dict) -> dict:
 
                 # Check total output cap
                 if len(full_conversation) > MAX_TOTAL_OUTPUT:
-                    cap_msg = "\n\n⚠️ **Output limit reached** — response capped at ~50K characters to prevent excessive generation.\n\n"
+                    cap_msg = "\n\n⚠️ **Output limit reached** — response capped at ~250K characters to prevent excessive generation.\n\n"
                     await queue.put(cap_msg)
                     full_conversation += cap_msg
                     break
