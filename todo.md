@@ -355,3 +355,19 @@ Can be used to rebuild from scratch the project with AI assistance.
     - [x] Route count (⚡)
     - [x] Subsystem area
 - [x] Header panel toggle buttons (📄 🔄 📊 🏗️)
+
+## 15. Application Workflow (Fonctionnement de l'application)
+- [x] **Modular Studio Architecture**: The application is structured into specialized modules to handle distinct workflows:
+    - [x] **Chat Studio**: General-purpose AI interaction with vision, artifacts, and code execution capabilities.
+    - [x] **Research Studio**: Deep, long-running web research, automated reporting, and structured log viewing.
+    - [x] **Media Studio**: Generation of images, videos (SVD, Wan2.1), and audio/lyrics with live streaming progress.
+    - [x] **Automation Studio**: Multi-channel connector management (Email, Discord, Telegram, Signal, WhatsApp) and scheduled tasks.
+    - [x] **My Clone Studio**: Autonomous AI twin configuration, utilizing automation connectors for profile-driven, cross-channel responses and knowledge base management.
+    - [x] **Presentation Studio**: AI-enriched slideshow generation, code autocompletion, and document translation.
+    - [x] **EASM / Security Dashboard**: External Attack Surface Management, vulnerability tracking, and granular email notifications.
+    - [x] **Blog Workflow**: Automated and manual blog article management and rendering.
+- [x] **Centralized Task Management**: Long-running background processes are tracked server-side (`task_manager.py`), allowing users to switch tabs or refresh the page without losing progress, supported by cross-tab UI status badges.
+- [x] **Orchestration & Routing**: The Orchestrator agent analyzes user intents, strips AI internal reasoning (e.g. `<think>` tags) for lower latency, and automatically dispatches tasks to the appropriate specialized agent or studio pipeline.
+- [x] **Autonomous Execution Loop**: Agents execute tools autonomously, review outputs, and iteratively correct themselves before delivering the final result to the user.
+- [x] **Real-time Feedback**: Server-Sent Events (SSE) provide live logs, multi-pass generation progress, and token streaming directly to the offline frontend.
+- [x] **Persistent State & Memory**: Complete persistence across sessions via SQLite (conversations), ChromaDB (RAG embeddings), and structured Markdown (AI profiles, configurations, and artifacts).
