@@ -537,6 +537,7 @@ async def _research_loop(pid: str):
                         "- deep_dive: recursive deep research on a sub-topic (params: {topic, depth, breadth})\n"
                         "- smart_scrape: scrape + LLM extraction of relevant content (params: {urls: [...]})\n"
                         "- ask_model: exploit the AI model's internal knowledge (params: {question: \"...\"})\n"
+                        "- write_script: write and execute python code in a sandbox (params: {code: \"...\", description: \"...\"})\n"
                         "Return JSON array of actions.\n"
                         "Return ONLY valid JSON array, no markdown fences.\n"
                         + _get_dev_profile_summary()
@@ -667,14 +668,15 @@ async def _research_loop(pid: str):
                     if script_code:
                         try:
                             script_path = os.path.join(_proj_dir(pid), "temp_script.py")
-                            with open(script_path, "w") as f:
+                            with open(script_path, "w", encoding="utf-8") as f:
                                 f.write(script_code)
+                            python_exe = _venv_python(pid)
                             result = await asyncio.to_thread(
-                                subprocess.run, ["python3", script_path],
+                                subprocess.run, [python_exe, script_path],
                                 capture_output=True, text=True, timeout=30,
                                 cwd=_proj_dir(pid),
                             )
-                            output = result.stdout[:2000]
+                            output = (result.stdout + "\n" + result.stderr)[:2000].strip()
                             proj["search_results"].append({
                                 "title": f"🧪 Experiment: {params.get('description', 'script')[:50]}",
                                 "snippet": output[:500],
@@ -685,10 +687,11 @@ async def _research_loop(pid: str):
                             })
                             asset = await _save_text_asset(f"Script Experiment", f"Code:\n```python\n{script_code}\n```\n\nOutput:\n```\n{output}\n```", "script_experiment", "sandbox", pid)
                             proj["assets"].append(asset)
-                            iter_data["actions"].append({"type": "script", "output": output[:200]})
-                            await _emit_log(f"   Script output: {output[:200]}")
+                            iter_data["actions"].append({"type": "script", "output": output, "code": script_code})
+                            await _emit_log(f"   🧪 Script output: {output[:200]}...", extra={"code": script_code, "output": output})
                         except Exception as e:
-                            await _emit_log(f"   Script error: {e}")
+                            iter_data["actions"].append({"type": "script", "output": str(e), "code": script_code})
+                            await _emit_log(f"   ❌ Script error: {e}", extra={"code": script_code, "output": str(e)})
 
                 elif action_type == "ask_model":
                     question = params.get("question", params.get("query", query))
