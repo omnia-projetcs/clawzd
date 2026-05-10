@@ -3773,9 +3773,11 @@
             });
 
           } else if (isImage) {
-            // Add image to file tree as reference
-            if (window.ft) window.ft.add(file.name, `[Image: ${file.name}] (${(file.size / 1024).toFixed(0)} KB)`);
-            toast(ICONS.paperclip(14) + ' ' + file.name + ' attached');
+            // Route image to vision chat pipeline for multimodal analysis
+            if (window.visionChatAddImage) {
+              window.visionChatAddImage(file);
+            }
+            toast(ICONS.paperclip(14) + ' ' + file.name + ' attached for vision');
           } else {
             // Read text content and inject into chat input
             try {

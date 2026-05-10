@@ -19,8 +19,7 @@
   function $(id) { return document.getElementById(id); }
 
   function getPreviewStrip() { return $('chat-image-preview'); }
-  function getVisionInput() { return $('chat-vision-input'); }
-  function getVisionBtn() { return $('btn-vision-upload'); }
+  function getAttachBtn() { return $('btn-attach'); }
   function getChatInput() { return $('chat-input'); }
   function getWrapper() { return document.querySelector('.chat-input-wrapper'); }
 
@@ -39,6 +38,11 @@
   /** Check if there are pending images. */
   window.visionChatHasImages = function () {
     return pendingImages.length > 0;
+  };
+
+  /** Add an image file to the vision queue (called from unified attach handler). */
+  window.visionChatAddImage = function (file) {
+    addImageFile(file);
   };
 
   // ---------------------------------------------------------------------------
@@ -74,7 +78,7 @@
 
   function _renderPreview() {
     const strip = getPreviewStrip();
-    const btn = getVisionBtn();
+    const btn = getAttachBtn();
     if (!strip) return;
 
     if (pendingImages.length === 0) {
@@ -110,21 +114,8 @@
   // ---------------------------------------------------------------------------
 
   function init() {
-    const visionBtn = getVisionBtn();
-    const visionInput = getVisionInput();
     const chatInput = getChatInput();
     const wrapper = getWrapper();
-
-    // Vision upload button click
-    if (visionBtn && visionInput) {
-      visionBtn.addEventListener('click', () => visionInput.click());
-      visionInput.addEventListener('change', (e) => {
-        for (const file of e.target.files) {
-          addImageFile(file);
-        }
-        visionInput.value = '';
-      });
-    }
 
     // Paste images into chat input
     if (chatInput) {

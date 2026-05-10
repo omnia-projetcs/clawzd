@@ -579,6 +579,9 @@ pre code .ln::before {
   color: var(--red) !important; background: rgba(244,63,94,.15) !important;
   animation: voicePulse 1.5s ease-in-out infinite;
 }
+.input-tool-btn.has-images {
+  color: var(--accent) !important; background: rgba(124,92,252,.15) !important;
+}
 
 /* Send button */
 .chat-send-btn {
