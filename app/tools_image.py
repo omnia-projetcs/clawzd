@@ -1131,10 +1131,15 @@ async def _enhance_prompt_with_llm(prompt: str, style: str = "none", model_repo:
         {"role": "user", "content": prompt}
     ]
 
-    llm = get_llm_provider(LLM_PROVIDER)
+    llm = get_llm_provider("ollama")
     
     try:
-        raw_response = await llm.chat(messages, max_tokens=1024, temperature=0.6)
+        raw_response = await llm.chat(
+            messages, 
+            model="mistral-nemo:12b-instruct-2407-q4_K_M", 
+            max_tokens=1024, 
+            temperature=0.6
+        )
         
         enhanced = _clean_llm_output(raw_response)
         if enhanced:
