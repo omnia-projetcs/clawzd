@@ -1411,8 +1411,7 @@ async def generate_image_core(
             # Z-Image-Turbo: distilled, guidance=0.0, 4 steps (faster)
             if _pipe_type == "zimage" and "turbo" in repo_id.lower():
                 guidance = 0.0
-                if steps <= 4:
-                    steps = 4
+                steps = 4
                 logger.info(f"Z-Image-Turbo: forcing guidance=0.0, steps={steps}")
 
             # Z-Image (base): non-distilled, guidance=3.0-5.0, 28-50 steps, supports negative prompt
