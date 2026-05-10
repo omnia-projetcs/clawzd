@@ -78,7 +78,7 @@ except Exception:
 
 # NOTE: Only free open-weights models from Hugging Face are allowed here.
 _IMAGE_STYLE_MODELS = {
-    "none": {"repo": "stabilityai/sdxl-turbo", "is_lora": False},
+    "none": {"repo": "Tongyi-MAI/Z-Image-Turbo", "is_lora": False, "pipeline": "zimage"},
     "flux2_klein": {"repo": "black-forest-labs/FLUX.2-klein-9B", "is_lora": False},
     "photorealistic": {"repo": "RunDiffusion/Juggernaut-XL-v9", "is_lora": False},
     "realvis": {"repo": "SG161222/RealVisXL_V4.0", "is_lora": False},
@@ -1408,11 +1408,11 @@ async def generate_image_core(
             _pipe_type = model_info.get("pipeline", "")
             _extra_kwargs = {}
 
-            # Z-Image-Turbo: distilled, guidance=0.0, 9 steps (8 DiT forwards)
+            # Z-Image-Turbo: distilled, guidance=0.0, 4 steps (faster)
             if _pipe_type == "zimage" and "turbo" in repo_id.lower():
                 guidance = 0.0
                 if steps <= 4:
-                    steps = 9
+                    steps = 4
                 logger.info(f"Z-Image-Turbo: forcing guidance=0.0, steps={steps}")
 
             # Z-Image (base): non-distilled, guidance=3.0-5.0, 28-50 steps, supports negative prompt
