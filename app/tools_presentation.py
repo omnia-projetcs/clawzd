@@ -1914,10 +1914,11 @@ async def ai_enrich_presentation(request: Request):
         
     payload = {
         "model": OLLAMA_MODEL,
-        "prompt": user_prompt,
+        # /no_think disables Qwen 3 reasoning chain for fast output
+        "prompt": f"/no_think\n{user_prompt}",
         "system": system_prompt,
         "stream": False,
-        "options": {"temperature": 0.7, "num_predict": 512},
+        "options": {"temperature": 0.6, "num_predict": 256},
     }
     
     try:

@@ -977,13 +977,12 @@ async def _translate_prompt(prompt: str) -> str:
     llm = get_llm_provider(LLM_PROVIDER)
     messages = [
         {"role": "system", "content": system_prompt},
-        {"role": "user", "content": prompt}
+        # /no_think disables Qwen 3 reasoning chain for fast output
+        {"role": "user", "content": f"/no_think\n{prompt}"}
     ]
 
     try:
-        translated = ""
-        async for token in llm.chat_stream(messages):
-            translated += token
+        translated = await llm.chat(messages, max_tokens=256, temperature=0.4)
         translated = translated.strip()
             
         # Remove <think>...</think> block if present
@@ -1131,13 +1130,12 @@ async def _enhance_prompt_with_llm(prompt: str, style: str = "none", model_repo:
     llm = get_llm_provider(LLM_PROVIDER)
     messages = [
         {"role": "system", "content": system_prompt},
-        {"role": "user", "content": prompt}
+        # /no_think disables Qwen 3 reasoning chain for fast output
+        {"role": "user", "content": f"/no_think\n{prompt}"}
     ]
 
     try:
-        raw_response = ""
-        async for token in llm.chat_stream(messages):
-            raw_response += token
+        raw_response = await llm.chat(messages, max_tokens=256, temperature=0.6)
         
         enhanced = _clean_llm_output(raw_response)
         if enhanced:
@@ -1191,13 +1189,12 @@ async def _enhance_video_prompt_with_llm(prompt: str, video_model: str = "cogvid
     llm = get_llm_provider(LLM_PROVIDER)
     messages = [
         {"role": "system", "content": system_prompt},
-        {"role": "user", "content": prompt}
+        # /no_think disables Qwen 3 reasoning chain for fast output
+        {"role": "user", "content": f"/no_think\n{prompt}"}
     ]
 
     try:
-        raw_response = ""
-        async for token in llm.chat_stream(messages):
-            raw_response += token
+        raw_response = await llm.chat(messages, max_tokens=256, temperature=0.6)
             
         enhanced = _clean_llm_output(raw_response)
         if enhanced:
@@ -2605,12 +2602,13 @@ async def suggest_prompt(request: Request):
 
     payload = {
         "model": OLLAMA_MODEL,
-        "prompt": context,
+        # /no_think disables Qwen 3 reasoning chain for fast output
+        "prompt": f"/no_think\n{context}",
         "system": system_prompt,
         "stream": False,
         "options": {
-            "temperature": 0.7,
-            "num_predict": 2048,
+            "temperature": 0.6,
+            "num_predict": 256,
         },
     }
 

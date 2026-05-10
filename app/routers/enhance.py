@@ -46,16 +46,16 @@ async def enhance_prompt(req: EnhanceRequest):
         llm = get_llm_provider(prov_name)
         messages = [
             {"role": "system", "content": ENHANCE_SYSTEM_PROMPT},
-            {"role": "user", "content": req.prompt},
+            # /no_think disables Qwen 3 reasoning chain for fast output
+            {"role": "user", "content": f"/no_think\n{req.prompt}"},
         ]
 
-        kwargs = {}
+        kwargs = {"max_tokens": 512, "temperature": 0.6}
         if req.model:
             kwargs["model"] = req.model
 
-        enhanced = ""
-        async for token in llm.chat_stream(messages, **kwargs):
-            enhanced += token
+        # Non-streaming for lower latency on short outputs
+        enhanced = await llm.chat(messages, **kwargs)
 
         # Clean AI reasoning leakage (e.g. <think> blocks, self-commentary)
         from app.tools_image import _clean_llm_output

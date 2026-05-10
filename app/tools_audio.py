@@ -328,10 +328,11 @@ async def _enhance_lyrics_with_llm(prompt: str) -> str:
                     "model": OLLAMA_MODEL,
                     "messages": [
                         {"role": "system", "content": system_prompt},
-                        {"role": "user", "content": prompt}
+                        # /no_think disables Qwen 3 reasoning chain for fast output
+                        {"role": "user", "content": f"/no_think\n{prompt}"}
                     ],
                     "stream": False,
-                    "options": {"temperature": 0.7}
+                    "options": {"temperature": 0.7, "num_predict": 256}
                 }
             )
             if resp.status_code == 200:
