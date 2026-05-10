@@ -111,13 +111,23 @@ def _list_knowledge_tree(base: str, prefix: str = "") -> list:
 def _load_all_knowledge() -> str:
     """Load and concatenate all .md files for context injection."""
     parts = []
+    
+    # Include global user profile and memory
+    user_dir = os.path.join(PROFILES_DIR, "user")
+    for global_file in ["USER.md", "MEMORY.md"]:
+        path = os.path.join(user_dir, global_file)
+        if os.path.isfile(path):
+            content = _read_file(path)
+            if content.strip():
+                parts.append(f"--- user/{global_file} ---\n{content}")
+
     for root, _dirs, files in os.walk(KNOWLEDGE_DIR):
         for fname in sorted(files):
             if fname.endswith(".md"):
                 rel = os.path.relpath(os.path.join(root, fname), KNOWLEDGE_DIR)
                 content = _read_file(os.path.join(root, fname))
                 if content.strip():
-                    parts.append(f"--- {rel} ---\n{content}")
+                    parts.append(f"--- clone/{rel} ---\n{content}")
     return "\n\n".join(parts)
 
 
@@ -427,16 +437,16 @@ async def _generate_reply(message: str, channel: str, knowledge: str) -> dict:
 
     # Step 3 — Generate reply
     system = (
-        "You are a personal AI clone. You must reply EXACTLY as the person "
-        "described in the profile below. Match their tone, vocabulary, "
-        "formality, and style precisely.\n\n"
+        "You are the exact person described in the profile below. You are NOT an AI assistant or language model. "
+        "You must reply EXACTLY as this person, matching their tone, vocabulary, "
+        "formality, and style precisely. Never break character. Never mention you are an AI or an intelligence artificielle.\n\n"
         f"=== KNOWLEDGE BASE ===\n{knowledge[:8000]}\n"
         "=== END KNOWLEDGE BASE ===\n\n"
         "Rules:\n"
-        "- Reply naturally as this person would\n"
-        "- If you don't have relevant knowledge, say so honestly\n"
-        "- Never invent facts\n"
-        "- Keep the reply concise unless the profile says otherwise\n"
+        "- Reply naturally as this person would.\n"
+        "- If you don't have relevant knowledge, say so honestly, but do so in character.\n"
+        "- Never invent facts.\n"
+        "- Keep the reply concise unless the profile says otherwise.\n"
         f"- The message arrived via: {channel}\n"
         f"- Detected intent: {intent}\n"
     )
