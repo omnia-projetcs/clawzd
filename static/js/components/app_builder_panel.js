@@ -116,37 +116,100 @@ const AppBuilderPanel = (() => {
     const body = document.getElementById('ab-body');
     if (!body) return;
 
-    const _tplIcons = { dashboard: ICONS.barChart(28), blank: ICONS.file(28) };
-    const templateOptions = Object.entries(_templates).map(([key, tpl]) =>
-      `<div class="ab-template" onclick="AppBuilderPanel.create('${key}')">
-        <div class="ab-template-icon">${_tplIcons[key] || ICONS.file(28)}</div>
-        <div class="ab-template-name">${tpl.name || key}</div>
-        <div class="ab-template-desc">${tpl.description || ''}</div>
-        <div class="ab-template-files">${(tpl.files || []).join(', ')}</div>
-      </div>`
-    ).join('');
-
     body.innerHTML = `
-      <div class="ab-create">
-        <button class="ab-btn-back" onclick="AppBuilderPanel.open()">${ICONS.chevronLeft(14)} Back</button>
-        <h4>Choose a template</h4>
-        <div style="display: flex; gap: 8px; margin-bottom: 12px;">
-          <input type="text" id="ab-app-name" class="ab-input" placeholder="App name..." value="My App" style="flex: 1;">
-          <input type="text" id="ab-app-icon" class="ab-input" placeholder="Icon (e.g. 📦)" value="📦" style="width: 100px;">
-          <input type="color" id="ab-app-visual" class="ab-input" value="#1e293b" title="App Theme Color" style="width: 50px; padding: 2px;">
+      <div class="ab-create" style="max-width: 600px; margin: 0 auto; padding: 20px;">
+        <button class="ab-btn-back" onclick="AppBuilderPanel.open()" style="margin-bottom: 20px;">${ICONS.chevronLeft(14)} Back</button>
+        <h3 style="margin-bottom: 24px; font-size: 18px;">Application Creation Wizard</h3>
+        
+        <div style="display: flex; flex-direction: column; gap: 20px;">
+          <!-- Basic Info -->
+          <div style="display: flex; flex-direction: column; gap: 8px;">
+            <label style="font-weight: 500; font-size: 14px;">1. Application Identity</label>
+            <div style="display: flex; gap: 8px;">
+              <input type="text" id="ab-app-name" class="ab-input" placeholder="App name..." value="My App" style="flex: 1;">
+              <input type="text" id="ab-app-icon" class="ab-input" placeholder="Icon (e.g. 📦)" value="📦" style="width: 80px;">
+              <input type="color" id="ab-app-visual" class="ab-input" value="#1e293b" title="App Theme Color" style="width: 50px; padding: 2px;">
+            </div>
+          </div>
+
+          <!-- App Type Selection -->
+          <div style="display: flex; flex-direction: column; gap: 8px;">
+            <label style="font-weight: 500; font-size: 14px;">2. What type of application do you want to create?</label>
+            <select id="ab-app-type" class="ab-input" onchange="AppBuilderPanel.toggleGameOptions()" style="width: 100%;">
+              <option value="standard">Standard App (Dashboard / Tool)</option>
+              <option value="blank">Blank App (Custom)</option>
+              <option value="game">Mini-Game (Arcade / 2D)</option>
+            </select>
+          </div>
+
+          <!-- Game Options (Hidden by default) -->
+          <div id="ab-game-options" style="display: none; flex-direction: column; gap: 8px; padding-left: 16px; border-left: 2px solid var(--border-color);">
+            <label style="font-weight: 500; font-size: 14px; color: var(--accent-color);">Choose your Game Model:</label>
+            <select id="ab-game-model" class="ab-input" style="width: 100%;">
+              <option value="space_invaders">Space Invaders</option>
+              <option value="pacman">Pacman</option>
+              <option value="arcade_combat">2D Arcade Combat Game</option>
+            </select>
+            <small style="color: var(--text-muted); margin-top: 4px;">
+              * The game will be built fully functional in vanilla JavaScript and controlled using keyboard arrows and action buttons.
+            </small>
+          </div>
+
+          <!-- Submit -->
+          <button class="ab-btn ab-btn-primary" onclick="AppBuilderPanel.create()" style="margin-top: 16px; padding: 10px; font-weight: bold;">
+            ${ICONS.bolt(14)} Generate Application
+          </button>
         </div>
-        <div class="ab-templates-grid">${templateOptions}</div>
       </div>
     `;
   }
 
-  async function create(templateKey) {
+  function toggleGameOptions() {
+    const typeSelect = document.getElementById('ab-app-type');
+    const gameOptions = document.getElementById('ab-game-options');
+    if (typeSelect && gameOptions) {
+      if (typeSelect.value === 'game') {
+        gameOptions.style.display = 'flex';
+      } else {
+        gameOptions.style.display = 'none';
+      }
+    }
+  }
+
+  async function create() {
     const nameEl = document.getElementById('ab-app-name');
     const iconEl = document.getElementById('ab-app-icon');
     const visualEl = document.getElementById('ab-app-visual');
+    const typeSelect = document.getElementById('ab-app-type');
+    const gameModelSelect = document.getElementById('ab-game-model');
+
     const name = nameEl?.value || 'My App';
     const icon = iconEl?.value || '📦';
     const visual = visualEl?.value || '#1e293b';
+    const appType = typeSelect?.value || 'blank';
+    
+    // Determine the template key for the backend
+    const templateKey = appType === 'standard' ? 'dashboard' : 'blank';
+
+    // Construct custom prompt if it's a game
+    let customPrompt = '';
+    if (appType === 'game') {
+      const gameModel = gameModelSelect?.value || 'space_invaders';
+      const gameNames = {
+        'space_invaders': 'Space Invaders',
+        'pacman': 'Pacman',
+        'arcade_combat': '2D Arcade Combat Game'
+      };
+      const modelName = gameNames[gameModel];
+      
+      customPrompt = `I want to create a new Mini-Game application named "${name}".\n\n` +
+        `Please build a fully functional **${modelName}** game using vanilla HTML, CSS, and JavaScript. ` +
+        `The game MUST be playable directly in the browser using the keyboard (arrow keys for movement, and action buttons like Space/Ctrl for actions if needed). ` +
+        `Ensure the game has a start screen, a game over screen, score tracking, and smooth 2D animations using Canvas or DOM elements. ` +
+        `Make it look visually appealing with modern CSS and use the theme color ${visual}.\n\n` +
+        `Update the app code and provide a complete working implementation. ` +
+        `Preview URL will be /apps/[AppID]/preview`;
+    }
 
     try {
       const res = await fetch('/apps', {
@@ -160,8 +223,14 @@ const AppBuilderPanel = (() => {
       }
       await _loadApps();
       _renderList();
+      
+      // Inject the appId into the custom prompt if it exists
+      if (customPrompt) {
+        customPrompt = customPrompt.replace('[AppID]', app.id);
+      }
+      
       // Redirect to chat for AI-assisted editing
-      editInChat(app.id, name);
+      editInChat(app.id, name, customPrompt);
     } catch (e) {
       if (typeof window.toast === 'function') {
         window.toast('Failed to create app', 'error');
@@ -173,7 +242,7 @@ const AppBuilderPanel = (() => {
    * Close the Skill Catalog and send a pre-filled prompt to Chat
    * so the user can edit/update the app via the AI assistant.
    */
-  function editInChat(appId, appName) {
+  function editInChat(appId, appName, customPrompt = '') {
     // Close the Skill Catalog overlay
     const overlay = document.getElementById('skills-catalog-overlay');
     if (overlay) overlay.classList.remove('open');
@@ -181,9 +250,9 @@ const AppBuilderPanel = (() => {
     // Pre-fill the chat input with an edit prompt
     const chatInput = document.getElementById('chat-input');
     if (chatInput) {
-      chatInput.value = `Edit my application "${appName}" (ID: ${appId}). ` +
+      chatInput.value = customPrompt || (`Edit my application "${appName}" (ID: ${appId}). ` +
         `Describe what features or changes you'd like to add, and I'll update the app code for you.\n\n` +
-        `Preview: /apps/${appId}/preview`;
+        `Preview: /apps/${appId}/preview`);
       chatInput.focus();
       // Trigger resize
       chatInput.style.height = 'auto';
@@ -268,7 +337,7 @@ const AppBuilderPanel = (() => {
     return Math.floor(d / 86400) + 'd ago';
   }
 
-  return { init, open, close, showCreate, create, preview, remove, editInChat, showEdit, saveEdit };
+  return { init, open, close, showCreate, create, toggleGameOptions, preview, remove, editInChat, showEdit, saveEdit };
 })();
 
 window.AppBuilderPanel = AppBuilderPanel;
