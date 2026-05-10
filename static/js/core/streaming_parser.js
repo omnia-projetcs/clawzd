@@ -58,19 +58,33 @@
     // Remove internal markers
     h = h.replace(/__FILE_EDIT__({.+?})__/g, '');
 
+    function streamingCodeBlock(lang, label, code) {
+      const id = 'cb-' + Math.random().toString(36).slice(2, 8);
+      const ll = (lang || '').toLowerCase();
+      const run = ['python', 'py', 'sh', 'bash'].includes(ll);
+      const preview = ['html', 'htm', 'svg'].includes(ll);
+      const rb = run && window.icon ? `<button class="code-run-btn" onclick="OC.runCode('${id}')">${window.icon('terminal', 14)} Run</button>` : '';
+      const pb = preview && window.icon ? `<button class="code-action-btn code-preview-btn" onclick="OC.previewHtml('${id}')">${window.icon('eye', 14)} Preview</button>` : '';
+      const sb = window.icon ? `<button class="code-action-btn code-save-btn" onclick="OC.saveToFiles('${id}','${escHtml(lang)}','${escHtml(label)}')">${window.icon('save', 14)} Save</button>` : '';
+      const cb = window.icon ? `<button class="code-action-btn" onclick="OC.copyCode('${id}')">${window.icon('copy', 14)} Copy</button>` : '';
+      const lcls = lang ? ` class="language-${lang}"` : '';
+      return ph(
+        `<div class="code-block-header"><span>${escHtml(label)}</span>` +
+        `<div class="code-block-actions">${pb}${sb}${cb}${rb}</div></div>` +
+        `<pre id="${id}"><code${lcls}>${code}</code></pre>`
+      );
+    }
+
     // Code blocks with language
     h = h.replace(/```(\w+)(?::|[ \t])([^\n]*?\.[\w]+)[ \t]*\n([\s\S]*?)```/g, (_, lang, fname, code) => {
-      return ph('<div class="code-block-header"><span>' + escHtml(fname.trim()) + '</span></div>' +
-             '<pre><code class="language-' + lang + '">' + code + '</code></pre>');
+      return streamingCodeBlock(lang, fname.trim(), code);
     });
     h = h.replace(/```(\w+)[ \t]*\n([\s\S]*?)```/g, (_, lang, code) => {
-      return ph('<div class="code-block-header"><span>' + escHtml(lang) + '</span></div>' +
-             '<pre><code class="language-' + lang + '">' + code + '</code></pre>');
+      return streamingCodeBlock(lang, lang, code);
     });
     // Bare code fences
     h = h.replace(/```[ \t]*\n?([\s\S]*?)```/g, (_, code) => {
-      return ph('<div class="code-block-header"><span>code</span></div>' +
-             '<pre><code>' + code + '</code></pre>');
+      return streamingCodeBlock('', 'code', code);
     });
 
     // Auto-close unclosed code fences for live preview
@@ -83,11 +97,7 @@
       const langMatch = fenceLine.match(/^(\w*)/);
       const lang = langMatch ? langMatch[1] : '';
       const codeContent = fenceLine.slice(lang.length).replace(/^\s*\n?/, '');
-      h = before + ph(
-          '<div class="code-block-header"><span>' + (lang || 'code') + '</span></div>' +
-          '<pre><code' + (lang ? ' class="language-' + lang + '"' : '') + '>' +
-          codeContent + '</code></pre>'
-      );
+      h = before + streamingCodeBlock(lang, lang || 'code', codeContent);
     }
 
     // Headings
@@ -186,11 +196,11 @@
       }
 
       // Final render using the full renderMd (with charts, mermaid, tables, etc.)
-      if (typeof window._clawzdRenderMd === 'function') {
-        this.container.innerHTML = window._clawzdRenderMd(this._text);
+      if (typeof window.renderMd === 'function') {
+        this.container.innerHTML = window.renderMd(this._text);
         // Apply syntax highlighting
-        if (typeof window._clawzdHighlightAll === 'function') {
-          window._clawzdHighlightAll(this.container);
+        if (typeof window.highlightAll === 'function') {
+          window.highlightAll(this.container);
         }
       } else {
         // Fallback: use live preview
@@ -261,7 +271,9 @@
       }
 
       // Syntax highlighting for completed code blocks only
-      if (window.hljs) {
+      if (typeof window.highlightAll === 'function') {
+        window.highlightAll(this.container);
+      } else if (window.hljs) {
         this.container.querySelectorAll('pre code').forEach(codeEl => {
           if (!codeEl.dataset.highlighted) {
             window.hljs.highlightElement(codeEl);
