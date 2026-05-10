@@ -1918,7 +1918,7 @@ async def ai_enrich_presentation(request: Request):
         "prompt": f"/no_think\n{user_prompt}",
         "system": system_prompt,
         "stream": False,
-        "options": {"temperature": 0.6, "num_predict": 256},
+        "options": {"temperature": 0.6, "num_predict": 4096},
     }
     
     try:
