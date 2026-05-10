@@ -130,6 +130,20 @@
     h = h.replace(/<br>\s*(<\/?(?:ul|ol|li|h[2-4]|hr|blockquote|div|pre|details))/g, '$1');
     h = h.replace(/(<\/(?:ul|ol|li|h[2-4]|blockquote|div|pre|details)>)\s*<br>/g, '$1');
 
+    // Format tool execution markers nicely
+    h = h.replace(/⚡ \*Executing <code>([^<]+)<\/code>\.\.\.\*/g, '<div class="tool-call-status" style="margin:8px 0;padding:8px 12px;background:var(--bg-secondary);border-radius:6px;font-size:13px;display:flex;align-items:center;gap:8px;color:var(--text-secondary);border:1px solid var(--border);"><span class="tool-spinner" style="display:inline-block;width:12px;height:12px;border:2px solid var(--accent);border-right-color:transparent;border-radius:50%;animation:spin 1s linear infinite;"></span> Executing <strong>$1</strong>...</div>');
+    h = h.replace(/⚡ \*<code>([^<]+)<\/code> → <code>([^<]+)<\/code>\* —/g, '<div class="tool-call-status" style="margin:8px 0;padding:8px 12px;background:var(--bg-secondary);border-radius:6px;font-size:13px;display:flex;align-items:center;gap:8px;color:var(--text-secondary);border:1px solid var(--border);"><span class="tool-spinner" style="display:inline-block;width:12px;height:12px;border:2px solid var(--accent);border-right-color:transparent;border-radius:50%;animation:spin 1s linear infinite;"></span> Routing <strong>$1</strong> → <strong>$2</strong>...</div>');
+    h = h.replace(/✅ \*Done\.\*/g, '<div class="tool-call-status success" style="margin:4px 0 12px 0;color:var(--success);font-size:12px;display:flex;align-items:center;gap:6px;"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="20 6 9 17 4 12"></polyline></svg> Done.</div>');
+
+    // Render basic IMG/SVG tags during streaming
+    h = h.replace(/__IMG__([^|]+)\|([^|]+)\|(.+?)__IMG__/g, (_, url, label) => {
+      return ph(`<div style="margin:12px 0;"><img src="${url}" alt="${escHtml(label)}" style="max-width:100%;border-radius:8px;box-shadow:0 4px 20px rgba(0,0,0,0.4);"></div>`);
+    });
+    h = h.replace(/__SVG__([^|]+)\|([^|]+)\|(.+?)__SVG__/g, (_, url, label) => {
+      return ph(`<div style="margin:12px 0;background:var(--bg-secondary);border-radius:8px;padding:16px;text-align:center;box-shadow:0 4px 20px rgba(0,0,0,0.4);"><img src="${url}" alt="${escHtml(label)}" style="max-width:100%;max-height:300px;"></div>`);
+    });
+
+
     // Restore blocks
     h = h.replace(/\x00BLK(\d+)\x00/g, (_, i) => blocks[parseInt(i)]);
 
