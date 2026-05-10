@@ -1,0 +1,128 @@
+/* Clawzd — Clone Studio styles */
+
+/* ── Sub-tab toggle (Workflows / My Clone) ── */
+.auto-subtab-bar{display:flex;gap:0;border-bottom:1px solid var(--border);background:var(--bg-secondary);padding:0 12px}
+.auto-subtab{padding:10px 20px;cursor:pointer;border:none;background:none;color:var(--text-muted);font-size:13px;font-weight:600;border-bottom:2px solid transparent;transition:all .2s}
+.auto-subtab:hover{color:var(--text)}
+.auto-subtab.active{color:var(--accent);border-bottom-color:var(--accent)}
+.auto-subtab .subtab-icon{margin-right:6px;opacity:.7}
+
+/* ── Clone Layout ── */
+.clone-layout{display:grid;grid-template-columns:300px 1fr 320px;height:100%;overflow:hidden;background:var(--bg)}
+.clone-left{border-right:1px solid var(--border);overflow-y:auto;display:flex;flex-direction:column}
+.clone-center{overflow-y:auto;padding:24px;display:flex;flex-direction:column;gap:20px}
+.clone-right{border-left:1px solid var(--border);overflow-y:auto;display:flex;flex-direction:column}
+
+/* ── Profile Card ── */
+.clone-profile-card{background:linear-gradient(135deg,rgba(99,102,241,.12),rgba(168,85,247,.08));border:1px solid var(--border);border-radius:12px;padding:20px;text-align:center}
+.clone-avatar{width:72px;height:72px;border-radius:50%;background:linear-gradient(135deg,#6366f1,#a855f7);display:flex;align-items:center;justify-content:center;margin:0 auto 12px;font-size:28px;color:#fff;font-weight:700;box-shadow:0 4px 16px rgba(99,102,241,.3)}
+.clone-profile-name{font-size:16px;font-weight:700;color:var(--text);margin-bottom:4px}
+.clone-profile-role{font-size:12px;color:var(--text-muted);margin-bottom:12px}
+.clone-status-dots{display:flex;gap:8px;justify-content:center;flex-wrap:wrap}
+.clone-status-dot{display:flex;align-items:center;gap:4px;font-size:11px;color:var(--text-muted);padding:3px 8px;border-radius:20px;background:var(--bg-secondary)}
+.clone-status-dot::before{content:'';width:6px;height:6px;border-radius:50%;background:#ef4444}
+.clone-status-dot.active::before{background:#22c55e}
+
+/* ── Section Headers ── */
+.clone-section{background:var(--bg-secondary);border:1px solid var(--border);border-radius:10px;overflow:hidden}
+.clone-section-header{display:flex;align-items:center;justify-content:space-between;padding:12px 16px;border-bottom:1px solid var(--border);cursor:pointer;user-select:none}
+.clone-section-header:hover{background:var(--bg-elevated)}
+.clone-section-title{font-size:13px;font-weight:600;color:var(--text);display:flex;align-items:center;gap:8px}
+.clone-section-body{padding:16px}
+.clone-section-body.collapsed{display:none}
+
+/* ── Knowledge Tree ── */
+.clone-tree{font-size:12px}
+.clone-tree-item{display:flex;align-items:center;gap:8px;padding:6px 12px;cursor:pointer;border-radius:6px;transition:background .15s}
+.clone-tree-item:hover{background:var(--bg-elevated)}
+.clone-tree-item.active{background:rgba(99,102,241,.15);color:var(--accent)}
+.clone-tree-dir{font-weight:600;color:var(--text-muted)}
+.clone-tree-file{color:var(--text)}
+.clone-tree-actions{margin-left:auto;display:flex;gap:4px;opacity:0;transition:opacity .15s}
+.clone-tree-item:hover .clone-tree-actions{opacity:1}
+
+/* ── Connector Cards ── */
+.clone-connector{display:flex;align-items:center;gap:12px;padding:12px;border:1px solid var(--border);border-radius:8px;margin-bottom:8px;background:var(--bg);transition:border-color .2s}
+.clone-connector:hover{border-color:var(--accent)}
+.clone-connector-icon{width:36px;height:36px;border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:18px;flex-shrink:0}
+.clone-connector-icon.email{background:rgba(139,92,246,.15);color:#8b5cf6}
+.clone-connector-icon.whatsapp{background:rgba(37,211,102,.15);color:#25d366}
+.clone-connector-icon.signal{background:rgba(58,118,240,.15);color:#3a76f0}
+.clone-connector-icon.telegram{background:rgba(0,136,204,.15);color:#0088cc}
+.clone-connector-icon.webhook{background:rgba(245,158,11,.15);color:#f59e0b}
+.clone-connector-info{flex:1;min-width:0}
+.clone-connector-name{font-size:13px;font-weight:600;color:var(--text)}
+.clone-connector-status{font-size:11px;color:var(--text-muted)}
+
+/* ── Auto Mode Panel ── */
+.clone-auto-panel{padding:16px;background:var(--bg-secondary);border:1px solid var(--border);border-radius:10px}
+.clone-auto-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:16px}
+.clone-auto-title{font-size:14px;font-weight:700;color:var(--text);display:flex;align-items:center;gap:8px}
+.clone-confidence-row{display:flex;align-items:center;gap:12px;margin-top:12px}
+.clone-confidence-row label{font-size:12px;color:var(--text-muted);min-width:80px}
+.clone-confidence-slider{flex:1;-webkit-appearance:none;height:4px;border-radius:2px;background:var(--border);outline:none}
+.clone-confidence-slider::-webkit-slider-thumb{-webkit-appearance:none;width:16px;height:16px;border-radius:50%;background:var(--accent);cursor:pointer;box-shadow:0 2px 6px rgba(99,102,241,.4)}
+.clone-confidence-val{font-size:13px;font-weight:600;color:var(--accent);min-width:36px;text-align:right}
+.clone-review-mode{margin-top:12px}
+.clone-review-mode select{width:100%;padding:8px 12px;border-radius:6px;border:1px solid var(--border);background:var(--bg);color:var(--text);font-size:12px}
+
+/* ── Activity Feed ── */
+.clone-feed{max-height:400px;overflow-y:auto}
+.clone-feed-item{display:flex;gap:10px;padding:10px 12px;border-bottom:1px solid var(--border);font-size:12px;transition:background .15s}
+.clone-feed-item:hover{background:var(--bg-elevated)}
+.clone-feed-channel{min-width:60px;font-weight:600;color:var(--accent);text-transform:uppercase;font-size:10px}
+.clone-feed-msg{flex:1;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.clone-feed-badge{padding:2px 8px;border-radius:10px;font-size:10px;font-weight:600}
+.clone-feed-badge.high{background:rgba(34,197,94,.15);color:#22c55e}
+.clone-feed-badge.medium{background:rgba(245,158,11,.15);color:#f59e0b}
+.clone-feed-badge.low{background:rgba(239,68,68,.15);color:#ef4444}
+.clone-feed-time{color:var(--text-muted);font-size:10px;white-space:nowrap}
+
+/* ── Test Sandbox ── */
+.clone-sandbox{background:var(--bg-secondary);border:1px solid var(--border);border-radius:10px;padding:16px}
+.clone-sandbox-input{display:flex;gap:8px;margin-bottom:12px}
+.clone-sandbox-input textarea{flex:1;resize:vertical;min-height:60px;padding:10px 12px;border-radius:8px;border:1px solid var(--border);background:var(--bg);color:var(--text);font-size:13px;font-family:inherit}
+.clone-sandbox-input textarea:focus{border-color:var(--accent);outline:none;box-shadow:0 0 0 3px rgba(99,102,241,.15)}
+.clone-sandbox-result{padding:14px;background:var(--bg);border:1px solid var(--border);border-radius:8px;font-size:13px;color:var(--text);line-height:1.6;white-space:pre-wrap;min-height:60px}
+.clone-sandbox-meta{display:flex;gap:12px;margin-top:8px;font-size:11px;color:var(--text-muted)}
+.clone-sandbox-meta span{display:flex;align-items:center;gap:4px}
+
+/* ── Stats Cards ── */
+.clone-stats{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-bottom:16px}
+.clone-stat{text-align:center;padding:12px;background:var(--bg-secondary);border:1px solid var(--border);border-radius:8px}
+.clone-stat-val{font-size:22px;font-weight:700;color:var(--accent);line-height:1}
+.clone-stat-label{font-size:10px;color:var(--text-muted);margin-top:4px;text-transform:uppercase;letter-spacing:.5px}
+
+/* ── Editor Modal ── */
+.clone-editor-overlay{position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,.6);z-index:9999;display:none;justify-content:center;align-items:center}
+.clone-editor-overlay.open{display:flex}
+.clone-editor-modal{background:var(--bg);border:1px solid var(--border);border-radius:12px;width:640px;max-width:90%;max-height:85vh;display:flex;flex-direction:column}
+.clone-editor-header{display:flex;justify-content:space-between;align-items:center;padding:14px 18px;border-bottom:1px solid var(--border)}
+.clone-editor-header h3{margin:0;font-size:14px}
+.clone-editor-body{flex:1;overflow:auto;padding:0}
+.clone-editor-body textarea{width:100%;min-height:400px;border:none;background:transparent;color:var(--text);font-family:'Fira Code',monospace;font-size:13px;padding:16px;resize:none;outline:none;line-height:1.6}
+.clone-editor-footer{display:flex;justify-content:flex-end;gap:8px;padding:12px 18px;border-top:1px solid var(--border)}
+
+/* ── Onboarding Wizard ── */
+.clone-onboarding{position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,.7);z-index:10000;display:none;justify-content:center;align-items:center}
+.clone-onboarding.open{display:flex}
+.clone-onboarding-card{background:var(--bg);border:1px solid var(--border);border-radius:16px;width:520px;max-width:90%;padding:32px;text-align:center}
+.clone-onboarding-step{font-size:12px;color:var(--accent);font-weight:600;text-transform:uppercase;letter-spacing:1px;margin-bottom:12px}
+.clone-onboarding-title{font-size:20px;font-weight:700;color:var(--text);margin-bottom:8px}
+.clone-onboarding-desc{font-size:13px;color:var(--text-muted);margin-bottom:24px;line-height:1.6}
+.clone-onboarding-progress{display:flex;gap:6px;justify-content:center;margin-top:20px}
+.clone-onboarding-dot{width:8px;height:8px;border-radius:50%;background:var(--border)}
+.clone-onboarding-dot.done{background:var(--accent)}
+.clone-onboarding-dot.current{background:var(--accent);box-shadow:0 0 8px rgba(99,102,241,.5)}
+
+/* ── Toggle Switch ── */
+.clone-toggle{position:relative;width:44px;height:24px;flex-shrink:0}
+.clone-toggle input{opacity:0;width:0;height:0}
+.clone-toggle-track{position:absolute;inset:0;background:var(--border);border-radius:12px;cursor:pointer;transition:background .2s}
+.clone-toggle-track::after{content:'';position:absolute;width:18px;height:18px;border-radius:50%;background:#fff;left:3px;top:3px;transition:transform .2s}
+.clone-toggle input:checked+.clone-toggle-track{background:var(--accent)}
+.clone-toggle input:checked+.clone-toggle-track::after{transform:translateX(20px)}
+
+/* ── Responsive ── */
+@media(max-width:1024px){.clone-layout{grid-template-columns:1fr}
+  .clone-left,.clone-right{display:none}}

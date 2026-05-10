@@ -449,8 +449,11 @@ async def _research_loop(pid: str):
     branch_summaries = ""
     last_eval = {}
 
-    async def _emit_log(msg: str):
-        await _emit(pid, "log", {"msg": msg})
+    async def _emit_log(msg: str, extra: dict | None = None):
+        payload = {"msg": msg}
+        if extra:
+            payload.update(extra)
+        await _emit(pid, "log", payload)
 
     try:
         # ── Phase 0: Perspective Decomposition (STORM-style) ──
@@ -564,8 +567,9 @@ async def _research_loop(pid: str):
                 if action_type == "web_search":
                     results = await _do_web_search(params.get("query", query))
                     proj["search_results"].extend(results)
-                    iter_data["actions"].append({"type": "web_search", "count": len(results)})
-                    await _emit_log(f"   Found {len(results)} results")
+                    urls = [r.get("url") for r in results if r.get("url")]
+                    iter_data["actions"].append({"type": "web_search", "count": len(results), "urls": urls, "params": params})
+                    await _emit_log(f"   Found {len(results)} results", extra={"urls": urls})
 
                 elif action_type == "deep_dive":
                     topic = params.get("topic", query)
@@ -609,8 +613,10 @@ async def _research_loop(pid: str):
                             })
                             asset = await _save_text_asset(f"Smart Scrape: {s['url'][:60]}", s["relevant_extract"], "smart_scrape", s["url"], pid)
                             proj["assets"].append(asset)
-                        iter_data["actions"].append({"type": "smart_scrape", "count": len(scraped)})
-                        await _emit_log(f"   🔍 Smart-scraped {len(scraped)} pages")
+                        
+                        scraped_urls = [s["url"] for s in scraped if s.get("url")]
+                        iter_data["actions"].append({"type": "smart_scrape", "count": len(scraped), "urls": scraped_urls})
+                        await _emit_log(f"   🔍 Smart-scraped {len(scraped)} pages", extra={"urls": scraped_urls})
 
                 elif action_type == "scrape_url":
                     url = params.get("url", "")

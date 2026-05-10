@@ -394,7 +394,7 @@ class ResearchStudioV2 {
     this._sse.onmessage = e => {
       try {
         const data = JSON.parse(e.data);
-        if (data.type === 'log') this._addLogEntry(data.msg);
+        if (data.type === 'log') this._addLogEntry(data.msg, '', data.urls);
         else if (data.type === 'status') {
             this._updateStatus(data.status);
             if (data.status === 'completed' || data.status === 'paused' || data.status === 'error') {
@@ -416,7 +416,7 @@ class ResearchStudioV2 {
     if (this._sse) { this._sse.close(); this._sse = null; }
   }
 
-  _addLogEntry(msg, cls='') {
+  _addLogEntry(msg, cls='', urls=null) {
     const log = this.ui.logArea;
     if (!log) return;
     const empty = log.querySelector('.rs-log-empty');
@@ -424,7 +424,22 @@ class ResearchStudioV2 {
     const time = new Date().toLocaleTimeString();
     const entry = document.createElement('div');
     entry.className = 'rs-log-entry ' + cls;
-    entry.innerHTML = `<span class="rs-log-entry-time">${time}</span><span class="rs-log-entry-msg">${this._esc(msg)}</span>`;
+    
+    let inner = `<span class="rs-log-entry-time">${time}</span><span class="rs-log-entry-msg">${this._esc(msg)}</span>`;
+    if (urls && urls.length > 0) {
+        inner += `<div class="rs-log-urls" style="display:none; margin-top: 4px; font-size: 11px; color: var(--text-muted); padding-left: 10px; max-height: 200px; overflow-y: auto;">
+            ${urls.map(u => `<div><a href="${u}" target="_blank" style="color:var(--primary);text-decoration:none;">${this._esc(u)}</a></div>`).join('')}
+        </div>`;
+        entry.style.cursor = 'pointer';
+        entry.title = "Click to toggle URLs";
+        entry.addEventListener('click', (e) => {
+            if (e.target.tagName.toLowerCase() === 'a') return;
+            const urlsDiv = entry.querySelector('.rs-log-urls');
+            if (urlsDiv) urlsDiv.style.display = urlsDiv.style.display === 'none' ? 'block' : 'none';
+        });
+    }
+    entry.innerHTML = inner;
+    
     log.appendChild(entry);
     // Scroll the log area and its parent panel to show the newest entry
     log.scrollTop = log.scrollHeight;
@@ -476,7 +491,25 @@ class ResearchStudioV2 {
     log.innerHTML = '';
     iters.forEach(it => {
       this._addLogEntry(`── Iteration ${it.num} ──`, 'search');
-      (it.actions||[]).forEach(a => this._addLogEntry(`${a.type}: ${JSON.stringify(a).substring(0,100)}`));
+      (it.actions||[]).forEach(a => {
+          if (a.type === 'web_search') {
+              this._addLogEntry(`web_search: ${JSON.stringify(a.params || {}).substring(0,100)}`);
+              if (a.urls && a.urls.length > 0) {
+                  this._addLogEntry(`   Found ${a.count} results`, '', a.urls);
+              } else {
+                  this._addLogEntry(`   Found ${a.count} results`);
+              }
+          } else if (a.type === 'smart_scrape') {
+              this._addLogEntry(`smart_scrape: ${a.count} pages`);
+              if (a.urls && a.urls.length > 0) {
+                  this._addLogEntry(`   🔍 Smart-scraped ${a.count} pages`, '', a.urls);
+              } else {
+                  this._addLogEntry(`   🔍 Smart-scraped ${a.count} pages`);
+              }
+          } else {
+              this._addLogEntry(`${a.type}: ${JSON.stringify(a).substring(0,100)}`);
+          }
+      });
       if (it.evaluation) this._addLogEntry(`Score: ${Math.round(it.score*100)}% — ${it.evaluation}`, 'eval');
     });
   }

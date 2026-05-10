@@ -2555,6 +2555,25 @@
     // Automation Studio
     window.automationStudio = new AutomationStudio();
 
+    // Clone Studio (My Clone — sub-mode of Automation)
+    window.cloneStudio = new CloneStudio();
+
+    // Automation sub-tab toggle (Workflows vs My Clone)
+    $$('#auto-subtab-bar .auto-subtab').forEach(tab => {
+      tab.addEventListener('click', () => {
+        $$('#auto-subtab-bar .auto-subtab').forEach(t => t.classList.remove('active'));
+        tab.classList.add('active');
+        const sub = tab.dataset.submode;
+        if (sub === 'workflows') {
+          window.automationStudio?.toggle(true);
+          window.cloneStudio?.toggle(false);
+        } else {
+          window.automationStudio?.toggle(false);
+          window.cloneStudio?.toggle(true);
+        }
+      });
+    });
+
     // Research Studio
     window.researchStudio = new ResearchStudioV2();
 
@@ -2601,7 +2620,19 @@
         window.editor.toggle(mode === 'editor');
         window.mediaStudio.toggle(mode === 'media');
         window.presentationStudio?.toggle(mode === 'presentation');
-        window.automationStudio?.toggle(mode === 'automation');
+        // Automation: show sub-tab bar + active sub-mode
+        const autoSubBar = $('#auto-subtab-bar');
+        if (mode === 'automation') {
+          if (autoSubBar) autoSubBar.style.display = 'flex';
+          const activeSub = document.querySelector('#auto-subtab-bar .auto-subtab.active');
+          const subMode = activeSub?.dataset.submode || 'workflows';
+          window.automationStudio?.toggle(subMode === 'workflows');
+          window.cloneStudio?.toggle(subMode === 'clone');
+        } else {
+          if (autoSubBar) autoSubBar.style.display = 'none';
+          window.automationStudio?.toggle(false);
+          window.cloneStudio?.toggle(false);
+        }
         window.researchStudio?.toggle(mode === 'research');
         window.projectStudio?.toggle(mode === 'project');
 

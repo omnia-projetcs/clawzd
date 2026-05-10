@@ -45,6 +45,7 @@ from app.model_manager import router as models_router
 from app.compression import optimize_for_provider
 from app.tools_presentation import router as presentation_router
 from app.tools_automation import router as automation_router
+from app.tools_clone import router as clone_router
 from app.tools_document_gen import router as docgen_router
 from app.tool_executor import parse_tool_calls, execute_tool, format_tool_result, resolve_tool_name
 from app.metrics import get_metrics
@@ -257,6 +258,7 @@ app.include_router(telegram_router, prefix="/telegram")
 app.include_router(models_router, prefix="/models")
 app.include_router(presentation_router, prefix="/presentation")
 app.include_router(automation_router, prefix="/automation")
+app.include_router(clone_router, prefix="/clone")
 app.include_router(docgen_router, prefix="/docgen")
 
 from app.tools_research import router as research_router

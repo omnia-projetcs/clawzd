@@ -1,0 +1,209 @@
+<!-- ---- Clone Studio Layout ---- -->
+<div class="clone-layout" id="clone-layout" style="display:none">
+  <!-- Left: Profile + Knowledge -->
+  <div class="clone-left">
+    <!-- Profile Card -->
+    <div style="padding:16px">
+      <div class="clone-profile-card" id="clone-profile-card">
+        <div class="clone-avatar" id="clone-avatar">?</div>
+        <div class="clone-profile-name" id="clone-name">My Clone</div>
+        <div class="clone-profile-role" id="clone-role">Not configured</div>
+        <div class="clone-status-dots" id="clone-connectors-status"></div>
+      </div>
+    </div>
+
+    <!-- Knowledge Tree -->
+    <div class="clone-section" style="margin:0 16px 16px;flex:1;display:flex;flex-direction:column">
+      <div class="clone-section-header" id="clone-knowledge-toggle">
+        <span class="clone-section-title">
+          <svg class="ic" width="14" height="14"><use href="#icon-folder"></use></svg>
+          Knowledge Base
+        </span>
+        <div style="display:flex;gap:4px">
+          <button class="icon-btn" id="clone-kb-add" title="New file">
+            <svg class="ic" width="12" height="12"><use href="#icon-plus"></use></svg>
+          </button>
+          <button class="icon-btn" id="clone-kb-upload" title="Upload .md files">
+            <svg class="ic" width="12" height="12"><use href="#icon-upload"></use></svg>
+          </button>
+        </div>
+      </div>
+      <div class="clone-section-body clone-tree" id="clone-knowledge-tree" style="flex:1;overflow-y:auto">
+        <!-- Populated by JS -->
+      </div>
+    </div>
+  </div>
+
+  <!-- Center: Main Content -->
+  <div class="clone-center">
+    <!-- Stats -->
+    <div class="clone-stats" id="clone-stats">
+      <div class="clone-stat">
+        <div class="clone-stat-val" id="clone-stat-replies">0</div>
+        <div class="clone-stat-label">Replies Today</div>
+      </div>
+      <div class="clone-stat">
+        <div class="clone-stat-val" id="clone-stat-confidence">—</div>
+        <div class="clone-stat-label">Avg Confidence</div>
+      </div>
+      <div class="clone-stat">
+        <div class="clone-stat-val" id="clone-stat-interactions">0</div>
+        <div class="clone-stat-label">Interactions</div>
+      </div>
+    </div>
+
+    <!-- Test Sandbox -->
+    <div class="clone-section">
+      <div class="clone-section-header">
+        <span class="clone-section-title">
+          <svg class="ic" width="14" height="14"><use href="#icon-terminal"></use></svg>
+          Test Sandbox
+        </span>
+      </div>
+      <div class="clone-section-body">
+        <div class="clone-sandbox-input">
+          <textarea id="clone-test-input" placeholder="Send a test message to your Clone..." rows="3"></textarea>
+        </div>
+        <div style="display:flex;gap:8px;margin-bottom:12px">
+          <select id="clone-test-channel" class="clone-review-mode" style="margin:0;flex:1">
+            <option value="email">📧 Email</option>
+            <option value="whatsapp">💬 WhatsApp</option>
+            <option value="signal">🔒 Signal</option>
+            <option value="telegram">✈️ Telegram</option>
+            <option value="webhook">🔗 Webhook</option>
+            <option value="test" selected>🧪 Test</option>
+          </select>
+          <button class="btn btn-primary btn-sm" id="clone-test-send">
+            <svg class="ic" width="14" height="14"><use href="#icon-play"></use></svg>
+            Send Test
+          </button>
+        </div>
+        <div class="clone-sandbox-result" id="clone-test-result" style="display:none"></div>
+        <div class="clone-sandbox-meta" id="clone-test-meta" style="display:none">
+          <span id="clone-test-intent">Intent: —</span>
+          <span id="clone-test-conf">Confidence: —</span>
+          <span id="clone-test-flag" style="display:none">⚠️ Flagged</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- Activity Feed -->
+    <div class="clone-section" style="flex:1">
+      <div class="clone-section-header">
+        <span class="clone-section-title">
+          <svg class="ic" width="14" height="14"><use href="#icon-activity"></use></svg>
+          Activity Feed
+        </span>
+        <button class="icon-btn" id="clone-feed-refresh" title="Refresh">
+          <svg class="ic" width="12" height="12"><use href="#icon-refresh"></use></svg>
+        </button>
+      </div>
+      <div class="clone-section-body clone-feed" id="clone-activity-feed">
+        <div style="color:var(--text-muted);font-size:12px;text-align:center;padding:20px">
+          No activity yet. Send a test message to get started.
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Right: Settings + Connectors -->
+  <div class="clone-right">
+    <!-- Auto Mode -->
+    <div style="padding:16px">
+      <div class="clone-auto-panel">
+        <div class="clone-auto-header">
+          <span class="clone-auto-title">
+            <svg class="ic" width="16" height="16"><use href="#icon-bot"></use></svg>
+            Auto Mode
+          </span>
+          <label class="clone-toggle">
+            <input type="checkbox" id="clone-auto-toggle">
+            <span class="clone-toggle-track"></span>
+          </label>
+        </div>
+        <div class="clone-confidence-row">
+          <label>Confidence</label>
+          <input type="range" class="clone-confidence-slider" id="clone-confidence-slider"
+                 min="50" max="100" value="85" step="1">
+          <span class="clone-confidence-val" id="clone-confidence-val">0.85</span>
+        </div>
+        <div class="clone-review-mode" style="margin-top:12px">
+          <select id="clone-review-mode">
+            <option value="human-in-loop">🧑 Human-in-loop</option>
+            <option value="draft-only">📝 Draft only</option>
+            <option value="auto">⚡ Full auto</option>
+          </select>
+        </div>
+        <div class="clone-confidence-row" style="margin-top:8px">
+          <label>Daily limit</label>
+          <input type="number" id="clone-daily-limit" value="50" min="1" max="500"
+                 style="flex:1;padding:6px 10px;border-radius:6px;border:1px solid var(--border);background:var(--bg);color:var(--text);font-size:12px">
+        </div>
+      </div>
+    </div>
+
+    <!-- Connectors -->
+    <div class="clone-section" style="margin:0 16px 16px">
+      <div class="clone-section-header">
+        <span class="clone-section-title">
+          <svg class="ic" width="14" height="14"><use href="#icon-link"></use></svg>
+          Connectors
+        </span>
+      </div>
+      <div class="clone-section-body" id="clone-connectors-list">
+        <!-- Populated by JS -->
+      </div>
+    </div>
+
+    <!-- Quick Actions -->
+    <div style="padding:0 16px 16px;margin-top:auto;display:flex;flex-direction:column;gap:8px">
+      <button class="btn btn-secondary btn-sm btn-block" id="clone-btn-edit-profile">
+        <svg class="ic" width="14" height="14"><use href="#icon-pen"></use></svg>
+        Edit Profile
+      </button>
+      <button class="btn btn-secondary btn-sm btn-block" id="clone-btn-edit-rules">
+        <svg class="ic" width="14" height="14"><use href="#icon-shield"></use></svg>
+        Edit Rules
+      </button>
+      <button class="btn btn-accent btn-sm btn-block" id="clone-btn-save-all">
+        <svg class="ic" width="14" height="14"><use href="#icon-save"></use></svg>
+        Save All Settings
+      </button>
+    </div>
+  </div>
+</div>
+
+<!-- Clone File Editor Modal -->
+<div id="clone-editor-overlay" class="clone-editor-overlay">
+  <div class="clone-editor-modal">
+    <div class="clone-editor-header">
+      <h3 id="clone-editor-title">Edit File</h3>
+      <button class="icon-btn" id="clone-editor-close">
+        <svg class="ic" width="14" height="14"><use href="#icon-x"></use></svg>
+      </button>
+    </div>
+    <div class="clone-editor-body">
+      <textarea id="clone-editor-textarea" spellcheck="false"></textarea>
+    </div>
+    <div class="clone-editor-footer">
+      <button class="btn btn-secondary btn-sm" id="clone-editor-cancel">Cancel</button>
+      <button class="btn btn-primary btn-sm" id="clone-editor-save">Save</button>
+    </div>
+  </div>
+</div>
+
+<!-- Clone Onboarding Wizard -->
+<div id="clone-onboarding" class="clone-onboarding">
+  <div class="clone-onboarding-card">
+    <div class="clone-onboarding-step" id="clone-ob-step">Step 1 of 5</div>
+    <div class="clone-onboarding-title" id="clone-ob-title">Welcome to My Clone</div>
+    <div class="clone-onboarding-desc" id="clone-ob-desc">
+      Set up your AI clone to respond like you across all channels.
+    </div>
+    <div style="display:flex;gap:8px;justify-content:center">
+      <button class="btn btn-secondary btn-sm" id="clone-ob-skip">Skip</button>
+      <button class="btn btn-primary btn-sm" id="clone-ob-next">Get Started</button>
+    </div>
+    <div class="clone-onboarding-progress" id="clone-ob-dots"></div>
+  </div>
+</div>
