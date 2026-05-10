@@ -106,6 +106,15 @@ _generation_progress = {
     "stage": "",      # e.g. 'loading_model', 'generating', 'encoding'
 }
 
+# Cancel flag for stopping generation mid-flight
+_cancel_requested: set[str] = set()
+
+
+def _cancel_generation(task_id: str):
+    """Request cancellation of a running generation task."""
+    _cancel_requested.add(task_id)
+    _generation_progress["active"] = False
+
 
 def _should_use_local_files(repo_id: str) -> bool:
     """Whether to force local-only loading (no network).
@@ -1878,6 +1887,21 @@ async def get_generation_progress():
     """Return the current generation progress (image/video)."""
     return _generation_progress
 
+@router.post("/cancel")
+async def cancel_image_generation(request: Request):
+    """Cancel a running image/video generation."""
+    data = await request.json()
+    task_id = data.get("task_id", "")
+    if task_id:
+        _cancel_generation(task_id)
+    else:
+        # Cancel any active generation
+        _generation_progress["active"] = False
+    from app.tools.task_manager import unregister_task
+    if task_id:
+        unregister_task(task_id)
+    return {"status": "cancelled"}
+
 @router.post("/animate")
 async def animate_image(request: Request):
     """Generate an animation (gif or mp4) from a text prompt.
@@ -1917,6 +1941,10 @@ async def animate_image(request: Request):
     import time as _time
 
     async def sse_generator():
+        from app.tools.task_manager import register_task, unregister_task
+        import uuid as _uuid
+        _task_id = f"video_{_uuid.uuid4().hex[:8]}"
+        register_task(_task_id, "video", prompt[:60], {"model": video_model})
         try:
             task = asyncio.create_task(
                 generate_animation_core(
@@ -1954,12 +1982,16 @@ async def animate_image(request: Request):
             try:
                 result = await task
                 yield f"data: {json.dumps({'status': 'done', 'result': result})}\n\n"
+                unregister_task(_task_id)
             except RuntimeError as e:
                 yield f"data: {json.dumps({'status': 'error', 'message': str(e)})}\n\n"
+                unregister_task(_task_id)
             except Exception as e:
                 yield f"data: {json.dumps({'status': 'error', 'message': str(e)})}\n\n"
+                unregister_task(_task_id)
         except Exception as e:
             logger.error("SSE animate generator crashed: %s", e, exc_info=True)
+            unregister_task(_task_id)
             try:
                 yield f"data: {json.dumps({'status': 'error', 'message': str(e)})}\n\n"
             except Exception:
@@ -2005,6 +2037,10 @@ async def generate_image(request: Request):
             q = queue.Queue()
             
             async def generator():
+                from app.tools.task_manager import register_task, unregister_task
+                import uuid as _uuid
+                _task_id = f"img_{_uuid.uuid4().hex[:8]}"
+                register_task(_task_id, "image", prompt[:60], {"style": style})
                 try:
                     task = asyncio.create_task(
                         generate_image_core(
@@ -2044,17 +2080,21 @@ async def generate_image(request: Request):
                     try:
                         result = await task
                         yield f"data: {json.dumps({'status': 'done', 'result': result})}\n\n"
+                        unregister_task(_task_id)
                     except RuntimeError as e:
                         error_msg = str(e)
                         if "403 Forbidden" in error_msg or "401 Unauthorized" in error_msg or "private repository" in error_msg:
                             error_msg = f"Hugging Face Token is invalid or does not have access to this model. Please check your token permissions: {error_msg}"
                         yield f"data: {json.dumps({'status': 'error', 'message': error_msg})}\n\n"
+                        unregister_task(_task_id)
                     except Exception as e:
                         yield f"data: {json.dumps({'status': 'error', 'message': str(e)})}\n\n"
+                        unregister_task(_task_id)
                 except Exception as e:
                     # Top-level catch: ensure we ALWAYS send an error event
                     # instead of silently dropping the connection
                     logger.error("SSE generator crashed: %s", e, exc_info=True)
+                    unregister_task(_task_id)
                     try:
                         yield f"data: {json.dumps({'status': 'error', 'message': str(e)})}\n\n"
                     except Exception:

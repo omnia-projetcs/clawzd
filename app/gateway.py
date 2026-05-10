@@ -264,6 +264,9 @@ app.include_router(docgen_router, prefix="/docgen")
 from app.tools_research import router as research_router
 app.include_router(research_router, prefix="/research")
 
+from app.tools.task_manager import router as task_manager_router
+app.include_router(task_manager_router, prefix="/api")
+
 from app.tools_twitter import router as twitter_router
 app.include_router(twitter_router, prefix="/twitter")
 

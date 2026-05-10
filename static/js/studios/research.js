@@ -140,7 +140,28 @@ class ResearchStudioV2 {
   toggle(show) {
     const el = document.getElementById('research-layout');
     if (el) el.style.display = show ? 'flex' : 'none';
-    if (show) this.loadProjects();
+    this._isVisible = show;
+    if (show) {
+      this.loadProjects();
+      // Auto-reconnect: if current project is running but SSE disconnected
+      this._checkRunningReconnect();
+    }
+  }
+
+  async _checkRunningReconnect() {
+    if (!this.currentProject) return;
+    try {
+      const resp = await fetch(`/api/tasks/${this.currentProject.id}`);
+      if (!resp.ok) return;
+      const data = await resp.json();
+      if (data.active && !this._sse) {
+        // Project is still running on the server — reconnect SSE
+        this._connectSSE(this.currentProject.id);
+        this._updateStatus('running');
+      }
+    } catch (e) {
+      // Silently ignore — will be caught on next poll
+    }
   }
 
   async loadProfiles() {
@@ -166,6 +187,14 @@ class ResearchStudioV2 {
       const data = await res.json();
       this.projects = data.projects || [];
       this._renderProjectList();
+
+      // Auto-reconnect: if no project is selected, check if any is running
+      if (!this.currentProject) {
+        const running = this.projects.find(p => p.status === 'running');
+        if (running) {
+          await this.selectProject(running.id);
+        }
+      }
     } catch(e) { console.error("Failed to load projects", e); }
   }
 

@@ -2586,6 +2586,9 @@
     // Project Studio
     if (window.ProjectStudio) window.projectStudio = new ProjectStudio();
 
+    // Task Indicator (persistent task badges on mode buttons)
+    if (window.TaskIndicator) window.taskIndicator = new TaskIndicator();
+
     // Auto-select mode from URL if present
     const urlParams = new URLSearchParams(window.location.search);
     const initialMode = urlParams.get('mode') || sessionStorage.getItem('pt-active-mode');

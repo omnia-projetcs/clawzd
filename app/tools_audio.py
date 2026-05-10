@@ -91,6 +91,17 @@ _audio_generation_progress = {
     "stage": "",      # 'loading_model', 'generating', 'saving'
 }
 
+# Cancel flag for audio generation
+_audio_cancel_requested = False
+_audio_current_task_id = ""
+
+
+def _cancel_audio_generation(task_id: str = ""):
+    """Request cancellation of a running audio generation."""
+    global _audio_cancel_requested
+    _audio_cancel_requested = True
+    _audio_generation_progress["active"] = False
+
 
 def _release_all_audio():
     """Release all audio pipelines and free VRAM."""
@@ -518,7 +529,16 @@ async def generate_audio(request: Request):
 
     generated_prompt = None
 
-    global _audio_generation_progress
+    global _audio_generation_progress, _audio_cancel_requested, _audio_current_task_id
+    _audio_cancel_requested = False
+
+    # Generate task ID for tracking
+    import uuid as _uuid
+    _audio_current_task_id = f"audio_{_uuid.uuid4().hex[:8]}"
+
+    from app.tools.task_manager import register_task, unregister_task
+    register_task(_audio_current_task_id, "audio", (text or prompt)[:60], {"mode": mode})
+
     _audio_generation_progress = {
         "active": True, "progress": 5.0, "stage": "loading_model",
     }
@@ -632,6 +652,7 @@ async def generate_audio(request: Request):
             raise HTTPException(400, f"Unknown mode: {mode}")
 
         _audio_generation_progress["active"] = False
+        unregister_task(_audio_current_task_id)
         result = {
             "status": "ok",
             "filename": filename,
@@ -644,9 +665,11 @@ async def generate_audio(request: Request):
 
     except HTTPException:
         _audio_generation_progress["active"] = False
+        unregister_task(_audio_current_task_id)
         raise
     except Exception as e:
         _audio_generation_progress["active"] = False
+        unregister_task(_audio_current_task_id)
         logger.error("Audio generation failed: %s", e, exc_info=True)
         return {"error": str(e)}
 

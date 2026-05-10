@@ -399,12 +399,14 @@ async def _llm_call(messages: list[dict], provider: str = "", model: str = "", p
 
 
 async def _research_loop(pid: str):
+    from app.tools.task_manager import register_task, unregister_task
     proj = _load(pid)
     if not proj:
         return
     proj["status"] = "running"
     _save(proj)
     await _emit(pid, "status", {"status": "running"})
+    register_task(pid, "research", proj.get("title", pid)[:60])
 
     provider = proj.get("provider", "")
     model = proj.get("model", "")
@@ -768,12 +770,14 @@ async def _research_loop(pid: str):
         _save(proj)
         await _emit(pid, "status", {"status": "completed"})
         await _emit_log("🎉 Research completed!")
+        unregister_task(pid)
 
     except asyncio.CancelledError:
         proj = _load(pid) or proj
         proj["status"] = "paused"
         _save(proj)
         await _emit(pid, "status", {"status": "paused"})
+        unregister_task(pid)
     except Exception as e:
         logger.error("Research loop error for %s: %s", pid, e, exc_info=True)
         proj = _load(pid) or proj
@@ -781,6 +785,7 @@ async def _research_loop(pid: str):
         _save(proj)
         await _emit(pid, "status", {"status": "error"})
         await _emit(pid, "log", {"msg": f"❌ Error: {e}"})
+        unregister_task(pid)
     finally:
         _running.pop(pid, None)
 
@@ -954,6 +959,7 @@ async def start_research(pid: str):
 
 @router.post("/projects/{pid}/stop")
 async def stop_research(pid: str):
+    from app.tools.task_manager import unregister_task
     if pid in _running:
         _running[pid].cancel()
         _running.pop(pid, None)
@@ -961,6 +967,7 @@ async def stop_research(pid: str):
     if proj:
         proj["status"] = "paused"
         _save(proj)
+    unregister_task(pid)
     return {"status": "stopped"}
 
 @router.get("/projects/{pid}/status")
