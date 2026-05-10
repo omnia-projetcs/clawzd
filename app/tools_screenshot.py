@@ -55,6 +55,7 @@ async def screenshot_remote(request: Request):
 
     filename = f"remote_{datetime.now().strftime('%Y%m%d_%H%M%S')}_{uuid.uuid4().hex[:6]}.png"
     filepath = os.path.join(SCREENSHOTS_DIR, filename)
+    extract = ""
 
     try:
         from playwright.async_api import async_playwright
@@ -63,6 +64,11 @@ async def screenshot_remote(request: Request):
             page = await browser.new_page(viewport={"width": 1920, "height": 1080})
             await page.goto(url, wait_until="networkidle", timeout=30000)
             await page.screenshot(path=filepath, full_page=data.get("full_page", False))
+            try:
+                text = await page.inner_text("body", timeout=5000)
+                extract = text[:3000] if text else ""
+            except Exception:
+                pass
             await browser.close()
 
         with open(filepath, "rb") as f:
@@ -73,6 +79,7 @@ async def screenshot_remote(request: Request):
             "path": filepath,
             "base64": b64,
             "url": url,
+            "extract": extract,
         }
     except ImportError:
         raise HTTPException(500, "Playwright not installed. Run: pip install playwright && playwright install chromium")

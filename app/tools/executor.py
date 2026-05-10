@@ -961,6 +961,7 @@ async def _screenshot_remote_direct(url: str, full_page: bool = False) -> dict:
     os.makedirs(screenshots_dir, exist_ok=True)
     filename = f"remote_{datetime.now().strftime('%Y%m%d_%H%M%S')}_{uuid.uuid4().hex[:6]}.png"
     filepath = os.path.join(screenshots_dir, filename)
+    extract = ""
 
     try:
         from playwright.async_api import async_playwright
@@ -969,11 +970,16 @@ async def _screenshot_remote_direct(url: str, full_page: bool = False) -> dict:
             page = await browser.new_page(viewport={"width": 1920, "height": 1080})
             await page.goto(url, wait_until="networkidle", timeout=30000)
             await page.screenshot(path=filepath, full_page=full_page)
+            try:
+                text = await page.inner_text("body", timeout=5000)
+                extract = text[:3000] if text else ""
+            except Exception:
+                pass
             await browser.close()
 
         with open(filepath, "rb") as f:
             b64 = base64.b64encode(f.read()).decode()
-        return {"status": "ok", "filename": filename, "base64": b64, "url": url}
+        return {"status": "ok", "filename": filename, "base64": b64, "url": url, "extract": extract}
     except Exception as e:
         return {"error": f"Screenshot failed: {e}"}
 
@@ -1165,7 +1171,10 @@ def format_tool_result(tool_name: str, result: dict) -> str:
         fname = result.get('filename', 'image.png')
         fmt = result.get('format', 'png')
         method = result.get('method', 'unknown')
-        return f"ok {tool_name} ({method},{fmt}) -> {fname}"
+        res_str = f"ok {tool_name} ({method},{fmt}) -> {fname}"
+        if result.get("extract"):
+            res_str += f"\n\nPage Extract:\n{result['extract']}"
+        return res_str
 
     if tool_name == "create_document" and "status" in result and result["status"] == "ok":
         fname = result.get('filename', 'document')
