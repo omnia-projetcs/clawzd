@@ -94,10 +94,12 @@ const AppBuilderPanel = (() => {
     const fileCount = app.files ? app.files.length : 0;
     const escapedName = (app.name || 'Untitled').replace(/'/g, "\\'");
 
-    // Check if visual is a color or URL, default to empty
-    const visualStyle = app.visual ? `style="background: ${app.visual};"` : '';
-    // Use app.icon (e.g. emoji) or fallback to monitor icon
-    const iconContent = app.icon ? `<span style="font-size: 32px;">${app.icon}</span>` : ICONS.monitor(32);
+    // Check if visual is a color or URL, default to empty — sanitize to prevent CSS injection
+    const safeVisual = app.visual ? app.visual.replace(/[;{}"'<>]/g, '') : '';
+    const visualStyle = safeVisual ? `style="background: ${safeVisual};"` : '';
+    // Use app.icon (e.g. emoji) or fallback to monitor icon — escape to prevent XSS
+    const esc = window.escHtml || (s => { const d = document.createElement('div'); d.textContent = String(s ?? ''); return d.innerHTML; });
+    const iconContent = app.icon ? `<span style="font-size: 32px;">${esc(app.icon)}</span>` : ICONS.monitor(32);
 
     return `
       <div class="ab-card" data-id="${app.id}">
@@ -106,7 +108,7 @@ const AppBuilderPanel = (() => {
         </div>
         <div class="ab-card-body">
           <div class="ab-card-name" style="display:flex; justify-content:space-between; align-items:center;">
-            <span>${app.name || 'Untitled'}</span>
+            <span>${esc(app.name || 'Untitled')}</span>
             <button class="ab-btn-sm" style="background:transparent; border:none; color:var(--text-muted); cursor:pointer; padding:0 4px;" onclick="AppBuilderPanel.showEdit('${app.id}')" title="Edit App Settings">${ICONS.penTool(12)}</button>
           </div>
           <div class="ab-card-meta">

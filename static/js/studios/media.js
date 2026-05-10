@@ -526,6 +526,19 @@ class MediaStudio {
         t.type === 'image' || t.type === 'video' || t.type === 'audio'
       );
       if (mediaTasks.length > 0) {
+        // Verify the task is actually still running before resuming
+        const endpoint = mediaTasks[0].type === 'audio' ? '/audio/generation-progress' : '/image/generation-progress';
+        try {
+          const pr = await fetch(endpoint);
+          if (pr.ok) {
+            const pg = await pr.json();
+            if (!pg.active) {
+              // Task is registered but generation already finished — just reload gallery
+              this.loadGallery();
+              return;
+            }
+          }
+        } catch (_) { /* proceed to resume */ }
         this._resumeFromTask(mediaTasks[0]);
       }
     } catch (e) { /* ignore */ }
@@ -534,6 +547,7 @@ class MediaStudio {
   _resumeFromTask(task) {
     if (this.generating) return;
     this.generating = true;
+    this._resumeFinished = false; // reentry guard
     const genBtn = $('#media-generate-btn');
     const progress = $('#media-progress');
     const progressBar = $('#media-progress-bar');
@@ -550,6 +564,8 @@ class MediaStudio {
 
     // Poll generation progress
     this._genProgressPoll = setInterval(async () => {
+      // Guard: don't fire if already finishing or not generating
+      if (this._resumeFinished || !this.generating) return;
       try {
         // Check if the task is still active
         const tResp = await fetch(`/api/tasks/${task.id}`);
@@ -595,6 +611,10 @@ class MediaStudio {
   }
 
   _finishResumedTask() {
+    // Reentry guard — prevent multiple simultaneous calls
+    if (this._resumeFinished) return;
+    this._resumeFinished = true;
+
     if (this._genProgressPoll) {
       clearInterval(this._genProgressPoll);
       this._genProgressPoll = null;
@@ -614,7 +634,7 @@ class MediaStudio {
     }
     if (progress) progress.classList.remove('active', 'indeterminate');
     if (progressBar) progressBar.style.width = '0%';
-    // Reload gallery to show the new result
+    // Reload gallery once to show the new result
     this.loadGallery();
     if (window.taskIndicator) window.taskIndicator.refresh();
   }
@@ -1580,7 +1600,7 @@ class MediaStudio {
         let styleName = styleMatch[1];
         if (styleName === 'none') styleName = 'Z-Image Turbo';
         displayPrompt = styleMatch[2];
-        styleBadgeHTML = `<span class="badge" style="background:var(--accent);color:white;font-size:0.85em;margin-right:8px;padding:3px 8px;border-radius:4px">${styleName}</span>`;
+        styleBadgeHTML = `<span class="badge" style="background:var(--accent);color:white;font-size:0.85em;margin-right:8px;padding:3px 8px;border-radius:4px">${escHtml(styleName)}</span>`;
       }
       info.innerHTML = `<strong>${item.filename}</strong> — ${item.format.toUpperCase()} — ${idx + 1}/${this.filtered.length}<br><div style="font-size: 0.9em; opacity: 0.8; word-wrap: break-word; cursor: pointer; margin-top: 8px;" title="Click to reuse prompt and style" onclick="window.mediaStudio && window.mediaStudio.reusePrompt(${idx})">${styleBadgeHTML}${escHtml(displayPrompt)}</div>`;
     }
