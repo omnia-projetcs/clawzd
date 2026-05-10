@@ -43,7 +43,7 @@ class CloneStudio {
     $('#clone-editor-cancel')?.addEventListener('click', () => this._closeEditor());
     $('#clone-editor-save')?.addEventListener('click', () => this._saveEditor());
     // Onboarding
-    $('#clone-ob-skip')?.addEventListener('click', () => this._closeOnboarding());
+    $('#clone-ob-skip')?.addEventListener('click', () => this._skipOnboarding());
     $('#clone-ob-next')?.addEventListener('click', () => this._advanceOnboarding());
   }
 
@@ -253,15 +253,7 @@ class CloneStudio {
     } catch (e) { console.error('Clone: loadConnectors failed', e); }
   }
 
-  // Icon emoji map for well-known connectors
-  _connectorEmoji(key) {
-    const map = {
-      email_send: '📧', discord_send: '💜', signal_send: '🔒',
-      telegram_send: '✈️', whatsapp_send: '💬', medium_publish: '📝',
-      twitter_publish: '𝔺', linkedin_publish: '👤', export_email: '📤',
-    };
-    return map[key] || '🔗';
-  }
+
 
   _renderConnectors() {
     const list = $('#clone-connectors-list');
@@ -275,13 +267,14 @@ class CloneStudio {
 
     this._availableConnectors.forEach(ch => {
       const cfg = this._connectors[ch.key] || {};
-      const emoji = this._connectorEmoji(ch.key);
       const div = document.createElement('div');
       div.className = 'clone-connector';
       div.dataset.connectorKey = ch.key;
 
       div.innerHTML = `
-        <div class="clone-connector-icon" style="background:${ch.color}22;border:1px solid ${ch.color}44">${emoji}</div>
+        <div class="clone-connector-icon" style="background:${ch.color}22;border:1px solid ${ch.color}44;color:${ch.color}">
+          <svg class="ic" width="16" height="16"><use href="#icon-${ch.icon}"></use></svg>
+        </div>
         <div class="clone-connector-info">
           <div class="clone-connector-name">${escHtml(ch.label)}</div>
           <div class="clone-connector-status clone-connector-status-${ch.key}">${cfg.enabled ? 'Active' : 'Disabled'}</div>
@@ -314,57 +307,66 @@ class CloneStudio {
   }
 
   _renderConnectorConfig(ch) {
-    const panel = $('#clone-connector-config');
-    if (!panel) return;
+    const overlay = $('#clone-cfg-overlay');
+    const title = $('#clone-cfg-title');
+    const body = $('#clone-cfg-body');
+    if (!overlay || !body) return;
+
     const cfg = this._connectors[ch.key] || { params: {} };
     const savedParams = cfg.params || {};
 
-    panel.innerHTML = `
-      <div class="clone-section-header" style="margin-bottom:8px">
-        <span class="clone-section-title" style="font-size:12px">
-          ${this._connectorEmoji(ch.key)} ${escHtml(ch.label)} — Configuration
-        </span>
-        <button class="icon-btn" id="clone-cfg-close" title="Close">
-          <svg class="ic" width="11" height="11"><use href="#icon-x"></use></svg>
-        </button>
-      </div>
-      <div id="clone-cfg-fields" style="display:flex;flex-direction:column;gap:6px">
-        ${(ch.params || []).map(p => `
+    if (title) {
+      title.innerHTML = \`<svg class="ic" width="14" height="14" style="color:\${ch.color};margin-right:6px"><use href="#icon-\${ch.icon}"></use></svg> Configure \${escHtml(ch.label)}\`;
+    }
+
+    body.innerHTML = \`
+      <div id="clone-cfg-fields" style="display:flex;flex-direction:column;gap:12px">
+        \${(ch.params || []).map(p => \`
           <div>
-            <label style="font-size:11px;color:var(--text-muted);display:block;margin-bottom:3px">${escHtml(p.label)}</label>
-            ${p.type === 'select'
-              ? `<select id="cfg-${escHtml(p.key)}" class="clone-review-mode" style="margin:0;width:100%">
-                  ${(p.options || []).map(o => `<option value="${escHtml(o)}" ${(savedParams[p.key]||p.default)===o?'selected':''}>${escHtml(o)}</option>`).join('')}
-                </select>`
-              : `<input type="text" id="cfg-${escHtml(p.key)}"
-                   value="${escHtml(savedParams[p.key] !== undefined ? savedParams[p.key] : (p.default || ''))}"
-                   placeholder="${escHtml(p.default || '')}"
-                   style="width:100%;box-sizing:border-box;padding:5px 8px;border-radius:6px;border:1px solid var(--border);background:var(--bg);color:var(--text);font-size:12px">`
+            <label style="font-size:12px;color:var(--text-muted);display:block;margin-bottom:4px">\${escHtml(p.label)}</label>
+            \${p.type === 'select'
+              ? \`<select id="cfg-\${escHtml(p.key)}" class="clone-review-mode" style="margin:0;width:100%">
+                  \${(p.options || []).map(o => \`<option value="\${escHtml(o)}" \${(savedParams[p.key]||p.default)===o?'selected':''}>\${escHtml(o)}</option>\`).join('')}
+                </select>\`
+              : \`<input type="text" id="cfg-\${escHtml(p.key)}"
+                   value="\${escHtml(savedParams[p.key] !== undefined ? savedParams[p.key] : (p.default || ''))}"
+                   placeholder="\${escHtml(p.default || '')}"
+                   style="width:100%;box-sizing:border-box;padding:6px 10px;border-radius:6px;border:1px solid var(--border);background:var(--bg);color:var(--text);font-size:13px">\`
             }
-          </div>`).join('')}
+          </div>\`).join('')}
       </div>
-      <div style="display:flex;gap:6px;margin-top:10px">
-        <button class="btn btn-secondary btn-sm" style="flex:1" id="clone-cfg-test">Test Send</button>
-        <button class="btn btn-primary btn-sm" style="flex:1" id="clone-cfg-save">Save</button>
-      </div>
-      <div id="clone-cfg-result" style="margin-top:8px;font-size:11px;display:none"></div>`;
+      <div id="clone-cfg-result" style="margin-top:12px;font-size:12px;display:none;padding:8px;border-radius:6px;background:var(--bg-lighter)"></div>\`;
 
-    panel.style.display = 'block';
+    overlay.classList.add('open');
 
-    $('#clone-cfg-close')?.addEventListener('click', () => { panel.style.display = 'none'; });
+    // Remove old listeners
+    const btnSave = $('#clone-cfg-save');
+    const btnTest = $('#clone-cfg-test');
+    const btnClose = $('#clone-cfg-close');
+    
+    const newSave = btnSave.cloneNode(true);
+    const newTest = btnTest.cloneNode(true);
+    const newClose = btnClose.cloneNode(true);
+    
+    btnSave.parentNode.replaceChild(newSave, btnSave);
+    btnTest.parentNode.replaceChild(newTest, btnTest);
+    btnClose.parentNode.replaceChild(newClose, btnClose);
 
-    $('#clone-cfg-save')?.addEventListener('click', () => {
+    newClose.addEventListener('click', () => overlay.classList.remove('open'));
+
+    newSave.addEventListener('click', () => {
       const params = {};
       (ch.params || []).forEach(p => {
-        const el = $(`#cfg-${p.key}`);
+        const el = $(\`#cfg-\${p.key}\`);
         if (el) params[p.key] = el.value;
       });
       if (!this._connectors[ch.key]) this._connectors[ch.key] = {};
       this._connectors[ch.key].params = params;
-      toast(ICONS.check(14) + ` ${ch.label} config saved locally — click "Save All Settings" to persist`);
+      toast(ICONS.check(14) + \` \${ch.label} config saved locally\`);
+      overlay.classList.remove('open');
     });
 
-    $('#clone-cfg-test')?.addEventListener('click', () => this.testConnector(ch));
+    newTest.addEventListener('click', () => this.testConnector(ch));
   }
 
   async testConnector(ch) {
@@ -404,7 +406,7 @@ class CloneStudio {
     this._availableConnectors.forEach(ch => {
       const opt = document.createElement('option');
       opt.value = ch.key;
-      opt.textContent = `${this._connectorEmoji(ch.key)} ${ch.label}`;
+      opt.textContent = `${ch.label}`;
       sel.appendChild(opt);
     });
     // Restore previous selection if possible
@@ -422,7 +424,8 @@ class CloneStudio {
       const dot = document.createElement('span');
       dot.className = 'clone-status-dot active';
       dot.title = ch.label;
-      dot.textContent = this._connectorEmoji(ch.key);
+      dot.style.color = ch.color;
+      dot.innerHTML = `<svg class="ic" width="12" height="12"><use href="#icon-${ch.icon}"></use></svg>`;
       dots.appendChild(dot);
     });
   }
@@ -605,6 +608,17 @@ class CloneStudio {
     if (step === 1) this.editFile('profile.md');
     else if (step === 2) this.createFile();
     else if (step === 5) $('#clone-auto-toggle')?.focus();
+  }
+
+  async _skipOnboarding() {
+    try {
+      await fetch('/clone/onboarding', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ completed: true })
+      });
+    } catch (e) { /* ignore */ }
+    this._closeOnboarding();
   }
 
   _closeOnboarding() {

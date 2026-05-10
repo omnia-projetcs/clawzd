@@ -107,7 +107,7 @@
     <!-- Auto Mode -->
     <div style="padding:16px">
       <div class="clone-auto-panel">
-        <div class="clone-auto-header">
+        <div class="clone-auto-header" title="Activer ou désactiver les réponses automatiques du clone">
           <span class="clone-auto-title">
             <svg class="ic" width="16" height="16"><use href="#icon-bot"></use></svg>
             Auto Mode
@@ -117,23 +117,23 @@
             <span class="clone-toggle-track"></span>
           </label>
         </div>
-        <div class="clone-confidence-row">
+        <div class="clone-confidence-row" title="Seuil de confiance minimum exigé pour que le clone réponde tout seul">
           <label>Confidence</label>
           <input type="range" class="clone-confidence-slider" id="clone-confidence-slider"
-                 min="50" max="100" value="85" step="1">
+                 min="50" max="100" value="85" step="1" style="min-width:0">
           <span class="clone-confidence-val" id="clone-confidence-val">0.85</span>
         </div>
-        <div class="clone-review-mode" style="margin-top:12px">
+        <div class="clone-review-mode" style="margin-top:12px" title="Mode de révision : Human-in-loop (validation), Draft only (brouillon) ou Full auto (autonome)">
           <select id="clone-review-mode">
             <option value="human-in-loop">🧑 Human-in-loop</option>
             <option value="draft-only">📝 Draft only</option>
             <option value="auto">⚡ Full auto</option>
           </select>
         </div>
-        <div class="clone-confidence-row" style="margin-top:8px">
+        <div class="clone-confidence-row" style="margin-top:8px" title="Nombre maximal d'actions automatiques autorisées par jour">
           <label>Daily limit</label>
           <input type="number" id="clone-daily-limit" value="50" min="1" max="500"
-                 style="flex:1;padding:6px 10px;border-radius:6px;border:1px solid var(--border);background:var(--bg);color:var(--text);font-size:12px">
+                 style="flex:1;min-width:0;padding:6px 10px;border-radius:6px;border:1px solid var(--border);background:var(--bg);color:var(--text);font-size:12px;box-sizing:border-box">
         </div>
       </div>
     </div>

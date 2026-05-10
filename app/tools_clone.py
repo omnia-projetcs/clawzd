@@ -516,6 +516,16 @@ async def get_onboarding():
     """Return onboarding state."""
     default = {"completed": False, "current_step": 1, "steps_done": []}
     saved = _load_json(ONBOARDING_FILE, default)
+    
+    if not saved.get("completed"):
+        profile_path = os.path.join(KNOWLEDGE_DIR, "profile.md")
+        has_profile = os.path.exists(profile_path) and os.path.getsize(profile_path) > 10
+        connectors = _load_json(CONNECTORS_FILE, {})
+        has_connector = any(c.get("enabled") for c in connectors.values())
+        if has_profile or has_connector:
+            saved["completed"] = True
+            _save_json(ONBOARDING_FILE, saved)
+            
     return {"onboarding": saved}
 
 
@@ -534,5 +544,7 @@ async def update_onboarding(request: Request):
             state["steps_done"].append(step)
     if len(state["steps_done"]) >= 5:
         state["completed"] = True
+    if "completed" in data:
+        state["completed"] = data["completed"]
     _save_json(ONBOARDING_FILE, state)
     return {"onboarding": state}

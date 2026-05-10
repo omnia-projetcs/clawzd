@@ -55,7 +55,7 @@
 .clone-connector-status{font-size:11px;color:var(--text-muted)}
 
 /* ── Auto Mode Panel ── */
-.clone-auto-panel{padding:16px;background:var(--bg-secondary);border:1px solid var(--border);border-radius:10px}
+.clone-auto-panel{padding:16px;background:var(--bg-secondary);border:1px solid var(--border);border-radius:10px;box-sizing:border-box}
 .clone-auto-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:16px}
 .clone-auto-title{font-size:14px;font-weight:700;color:var(--text);display:flex;align-items:center;gap:8px}
 .clone-confidence-row{display:flex;align-items:center;gap:12px;margin-top:12px}
