@@ -116,7 +116,7 @@ class EditorMode {
           style: `padding-left:${8 + indent}px`,
         }, [
           el('span', { class: 'eft-dir-arrow', text: '►', onclick: e => { e.stopPropagation(); if (this.collapsed.has(dirPath)) this.collapsed.delete(dirPath); else this.collapsed.add(dirPath); this.renderTree(); } }),
-          el('span', { text: isOpen ? '' : '', style: 'font-size:13px', onclick: () => { if (this.collapsed.has(dirPath)) this.collapsed.delete(dirPath); else this.collapsed.add(dirPath); this.renderTree(); } }),
+          el('span', { text: isOpen ? '📂' : '📁', style: 'font-size:13px;margin-right:2px', onclick: () => { if (this.collapsed.has(dirPath)) this.collapsed.delete(dirPath); else this.collapsed.add(dirPath); this.renderTree(); } }),
           el('span', { text: key, style: 'flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;cursor:pointer', onclick: () => { if (this.collapsed.has(dirPath)) this.collapsed.delete(dirPath); else this.collapsed.add(dirPath); this.renderTree(); } }),
           el('div', { class: 'eft-file-actions' }, [
             el('button', { class: 'eft-file-btn rename', html: ICONS.pen(12), title: 'Rename folder', onclick: e => { e.stopPropagation(); this.renameFile(dirPath); } }),
@@ -1371,7 +1371,7 @@ class EditorMode {
     if (this.editorES) { this.editorES.close(); this.editorES = null; }
     const label = mode === 'plan' ? ' Switched to Plan mode — read-only analysis' : ' Switched to Build mode — full edit access';
     this.addEditorMsg('assistant', label);
-    this.addActivity(mode === 'plan' ? '' : '', 'Mode changed', mode.charAt(0).toUpperCase() + mode.slice(1));
+    this.addActivity(mode === 'plan' ? ICONS.fileText(14) : ICONS.pen(14), 'Mode changed', mode.charAt(0).toUpperCase() + mode.slice(1));
   }
 
   _getAgentPreprompt() {
