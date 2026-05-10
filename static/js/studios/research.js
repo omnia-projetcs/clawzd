@@ -493,11 +493,7 @@ class ResearchStudioV2 {
     
     entry.innerHTML = inner;
     
-    log.appendChild(entry);
-    // Scroll the log area and its parent panel to show the newest entry
-    log.scrollTop = log.scrollHeight;
-    const panel = log.closest('.rs-panel');
-    if (panel) panel.scrollTop = panel.scrollHeight;
+    log.prepend(entry);
   }
 
   _updateStatus(status) {
@@ -571,6 +567,10 @@ class ResearchStudioV2 {
       });
       if (it.evaluation) this._addLogEntry(`Score: ${Math.round(it.score*100)}% — ${it.evaluation}`, 'eval');
     });
+
+    if (this.currentProject.status === 'error' && this.currentProject.error_msg) {
+        this._addLogEntry(`❌ Error: ${this.currentProject.error_msg}`, 'error');
+    }
   }
 
   _renderReport() {
@@ -622,7 +622,7 @@ class ResearchStudioV2 {
                 ${r.score ? `<span>Score: ${r.score.toFixed(2)}</span>` : ''}
             </div>
           `;
-          wrap.appendChild(card);
+          wrap.prepend(card);
       });
   }
 

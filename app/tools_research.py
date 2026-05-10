@@ -783,6 +783,7 @@ async def _research_loop(pid: str):
         logger.error("Research loop error for %s: %s", pid, e, exc_info=True)
         proj = _load(pid) or proj
         proj["status"] = "error"
+        proj["error_msg"] = str(e)
         _save(proj)
         await _emit(pid, "status", {"status": "error"})
         await _emit(pid, "log", {"msg": f"❌ Error: {e}"})
