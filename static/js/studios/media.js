@@ -709,7 +709,8 @@ class MediaStudio {
       let styleBadgeHTML = '';
       const styleMatch = displayPrompt.match(/^\[(.*?)\]\s+(.*)/s);
       if (styleMatch) {
-        const styleName = styleMatch[1];
+        let styleName = styleMatch[1];
+        if (styleName === 'none') styleName = 'Z-Image Turbo';
         displayPrompt = styleMatch[2];
         styleBadgeHTML = `<span class="badge" style="background:var(--accent);color:white;font-size:10px;margin-right:6px;padding:2px 6px;border-radius:4px;white-space:nowrap;display:inline-block;">${styleName}</span>`;
       }
@@ -1576,7 +1577,8 @@ class MediaStudio {
       let styleBadgeHTML = '';
       const styleMatch = displayPrompt.match(/^\[(.*?)\]\s+(.*)/s);
       if (styleMatch) {
-        const styleName = styleMatch[1];
+        let styleName = styleMatch[1];
+        if (styleName === 'none') styleName = 'Z-Image Turbo';
         displayPrompt = styleMatch[2];
         styleBadgeHTML = `<span class="badge" style="background:var(--accent);color:white;font-size:0.85em;margin-right:8px;padding:3px 8px;border-radius:4px">${styleName}</span>`;
       }
