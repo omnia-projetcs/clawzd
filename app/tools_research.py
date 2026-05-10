@@ -345,6 +345,15 @@ async def _download_asset(url: str, pid: str) -> dict | None:
         return None
 
 
+async def _save_text_asset(title: str, text: str, source_type: str, url_or_ref: str, pid: str) -> dict:
+    name = f"asset_{uuid.uuid4().hex[:6]}.md"
+    path = os.path.join(_proj_dir(pid), "assets", name)
+    content = f"# {title}\n\n**Source**: {url_or_ref}\n**Type**: {source_type}\n\n{text}"
+    with open(path, "w", encoding="utf-8") as f:
+        f.write(content)
+    return {"name": name, "path": path, "type": "md", "url": url_or_ref, "size": len(content)}
+
+
 async def _llm_call(messages: list[dict], provider: str = "", model: str = "", pid: str = "") -> str:
     from app.llm_provider import get_llm_provider
     from app.metrics import get_metrics
@@ -598,6 +607,8 @@ async def _research_loop(pid: str):
                                 "key_facts": s.get("key_facts", []),
                                 "source": "smart_scrape",
                             })
+                            asset = await _save_text_asset(f"Smart Scrape: {s['url'][:60]}", s["relevant_extract"], "smart_scrape", s["url"], pid)
+                            proj["assets"].append(asset)
                         iter_data["actions"].append({"type": "smart_scrape", "count": len(scraped)})
                         await _emit_log(f"   🔍 Smart-scraped {len(scraped)} pages")
 
@@ -611,6 +622,8 @@ async def _research_loop(pid: str):
                                 "snippet": text[:500], "url": url,
                                 "full_text": text,
                             })
+                            asset = await _save_text_asset(f"Scraped: {url[:60]}", text, "scrape", url, pid)
+                            proj["assets"].append(asset)
                             iter_data["actions"].append({"type": "scrape", "url": url})
                             await _emit_log(f"   Scraped {len(text)} chars")
 
@@ -633,6 +646,8 @@ async def _research_loop(pid: str):
                                 "title": f"RAG: {rag_q[:50]}",
                                 "snippet": rag_ctx[:500], "url": "rag://local",
                             })
+                            asset = await _save_text_asset(f"RAG Context: {rag_q[:50]}", rag_ctx, "rag_context", "local", pid)
+                            proj["assets"].append(asset)
                             iter_data["actions"].append({"type": "rag", "query": rag_q})
                             await _emit_log(f"   RAG returned context")
                     except Exception:
@@ -659,6 +674,8 @@ async def _research_loop(pid: str):
                                 "source": "experiment",
                                 "code": script_code[:500],
                             })
+                            asset = await _save_text_asset(f"Script Experiment", f"Code:\n```python\n{script_code}\n```\n\nOutput:\n```\n{output}\n```", "script_experiment", "sandbox", pid)
+                            proj["assets"].append(asset)
                             iter_data["actions"].append({"type": "script", "output": output[:200]})
                             await _emit_log(f"   Script output: {output[:200]}")
                         except Exception as e:
@@ -687,6 +704,8 @@ async def _research_loop(pid: str):
                             "full_text": knowledge,
                             "source": "model_knowledge",
                         })
+                        asset = await _save_text_asset(f"Model Knowledge: {question[:60]}", knowledge, "model_knowledge", "internal", pid)
+                        proj["assets"].append(asset)
                         iter_data["actions"].append({"type": "ask_model", "question": question[:100]})
                         await _emit_log(f"   🤖 Model knowledge: {len(knowledge)} chars")
 
