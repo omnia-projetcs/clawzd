@@ -1167,7 +1167,7 @@ class EditorMode {
         this.addActivity('', 'Command failed', 'Exit ' + (d.returncode || '?'));
       }
     } catch (e) {
-      body.innerHTML += '<div class="term-line stderr">${ICONS.x(14)} Error: ' + escHtml(e.message) + '</div>';
+      body.innerHTML += '<div class="term-line stderr">' + ICONS.x(14) + ' Error: ' + escHtml(e.message) + '</div>';
     }
     body.scrollTop = body.scrollHeight;
   }

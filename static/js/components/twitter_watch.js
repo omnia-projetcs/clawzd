@@ -94,7 +94,7 @@ class TwitterWatch {
       const card = document.createElement('div');
       card.className = 'tw-card';
       const avatarHtml = t.author_avatar
-        ? `<img src="${t.author_avatar}" alt="">`
+        ? `<img src="${this._esc(t.author_avatar)}" alt="">`
         : `<svg class="ic" width="14" height="14"><use href="#icon-x-twitter"></use></svg>`;
       const timeStr = t.created_at ? this._relTime(t.created_at) : '';
       card.innerHTML = `
@@ -120,8 +120,8 @@ class TwitterWatch {
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
             ${t.replies || 0}
           </span>
-          ${t.url ? `<a class="tw-card-link" href="${t.url}" target="_blank" rel="noopener">Open ↗</a>` : ''}
-          ${t.source ? `<span class="tw-card-source">via ${t.source}</span>` : ''}
+          ${t.url ? `<a class="tw-card-link" href="${this._esc(t.url)}" target="_blank" rel="noopener">Open ↗</a>` : ''}
+          ${t.source ? `<span class="tw-card-source">via ${this._esc(t.source)}</span>` : ''}
         </div>
       `;
       feed.appendChild(card);
@@ -135,10 +135,10 @@ class TwitterWatch {
       const card = document.createElement('div');
       card.className = 'li-card';
       if (item.type === 'profile') {
-        const photoHtml = item.photo ? `<img src="${item.photo}" alt="">` : `<span class="li-initials">${(item.name || '?').split(' ').map(w => w[0]).join('').slice(0, 2)}</span>`;
-        card.innerHTML = `<div class="li-card-header"><div class="li-card-photo">${photoHtml}</div><div class="li-card-info"><div class="li-card-name">${this._esc(item.name || 'Unknown')}</div><div class="li-card-headline">${this._esc(item.headline || '')}</div></div></div>${item.snippet ? `<div class="li-card-snippet">${this._esc(item.snippet)}</div>` : ''}<div class="li-card-footer"><span class="li-card-type profile">Profile</span>${item.url ? `<a class="li-card-link" href="${item.url}" target="_blank" rel="noopener">View on LinkedIn ↗</a>` : ''}</div>`;
+        const photoHtml = item.photo ? `<img src="${this._esc(item.photo)}" alt="">` : `<span class="li-initials">${(item.name || '?').split(' ').map(w => w[0]).join('').slice(0, 2)}</span>`;
+        card.innerHTML = `<div class="li-card-header"><div class="li-card-photo">${photoHtml}</div><div class="li-card-info"><div class="li-card-name">${this._esc(item.name || 'Unknown')}</div><div class="li-card-headline">${this._esc(item.headline || '')}</div></div></div>${item.snippet ? `<div class="li-card-snippet">${this._esc(item.snippet)}</div>` : ''}<div class="li-card-footer"><span class="li-card-type profile">Profile</span>${item.url ? `<a class="li-card-link" href="${this._esc(item.url)}" target="_blank" rel="noopener">View on LinkedIn ↗</a>` : ''}</div>`;
       } else {
-        card.innerHTML = `<div class="li-card-header"><div class="li-card-photo"><svg class="ic" width="18" height="18"><use href="#icon-file-text"></use></svg></div><div class="li-card-info"><div class="li-card-name">${this._esc(item.title || 'Article')}</div><div class="li-card-headline">${item.author ? 'by ' + this._esc(item.author) : ''}</div></div></div>${item.snippet ? `<div class="li-card-snippet">${this._esc(item.snippet)}</div>` : ''}<div class="li-card-footer"><span class="li-card-type article">Article</span>${item.url ? `<a class="li-card-link" href="${item.url}" target="_blank" rel="noopener">Read on LinkedIn ↗</a>` : ''}</div>`;
+        card.innerHTML = `<div class="li-card-header"><div class="li-card-photo"><svg class="ic" width="18" height="18"><use href="#icon-file-text"></use></svg></div><div class="li-card-info"><div class="li-card-name">${this._esc(item.title || 'Article')}</div><div class="li-card-headline">${item.author ? 'by ' + this._esc(item.author) : ''}</div></div></div>${item.snippet ? `<div class="li-card-snippet">${this._esc(item.snippet)}</div>` : ''}<div class="li-card-footer"><span class="li-card-type article">Article</span>${item.url ? `<a class="li-card-link" href="${this._esc(item.url)}" target="_blank" rel="noopener">Read on LinkedIn ↗</a>` : ''}</div>`;
       }
       feed.appendChild(card);
     });

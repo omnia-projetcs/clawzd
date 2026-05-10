@@ -438,7 +438,7 @@ def _adapt_params(resolved_tool: str, original_tool: str, params: dict) -> dict:
             "end_line": params.get("end_line", None),
         }
 
-    elif resolved == "create_app":
+    elif resolved_tool == "create_app":
         name = params.get("name", params.get("app_name", "My App"))
         files = params.get("files", {})
         template = params.get("template", "blank")
@@ -447,7 +447,7 @@ def _adapt_params(resolved_tool: str, original_tool: str, params: dict) -> dict:
         if "visual" in params: res["visual"] = params["visual"]
         return res
 
-    elif resolved == "update_app":
+    elif resolved_tool == "update_app":
         app_id = params.get("app_id", params.get("id", ""))
         files = params.get("files", {})
         res = {"app_id": app_id, "files": files}

@@ -712,7 +712,7 @@ class MediaStudio {
         let styleName = styleMatch[1];
         if (styleName === 'none') styleName = 'Z-Image Turbo';
         displayPrompt = styleMatch[2];
-        styleBadgeHTML = `<span class="badge" style="background:var(--accent);color:white;font-size:10px;margin-right:6px;padding:2px 6px;border-radius:4px;white-space:nowrap;display:inline-block;">${styleName}</span>`;
+        styleBadgeHTML = `<span class="badge" style="background:var(--accent);color:white;font-size:10px;margin-right:6px;padding:2px 6px;border-radius:4px;white-space:nowrap;display:inline-block;">${escHtml(styleName)}</span>`;
       }
 
       // Content (image, video, or audio)

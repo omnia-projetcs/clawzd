@@ -173,7 +173,7 @@ class SkillCatalog {
     const toggleHtml = isCore
       ? '<span class="skill-core-badge">ALWAYS ON</span>'
       : `<label class="skill-toggle">
-           <input type="checkbox" data-skill="${skill.name}" ${skill.active ? 'checked' : ''}>
+           <input type="checkbox" data-skill="${escHtml(skill.name)}" ${skill.active ? 'checked' : ''}>
            <span class="skill-toggle-slider"></span>
          </label>`;
 
@@ -184,15 +184,15 @@ class SkillCatalog {
       ? `<span class="skill-meta-tag">${skill.usage_count}× used</span>` : '';
 
     return `
-      <div class="${cardClass}" data-skill-name="${skill.name}">
+      <div class="${cardClass}" data-skill-name="${escHtml(skill.name)}">
         <div class="skill-card-header">
-          <span class="skill-card-name">${icon} ${skill.name}</span>
+          <span class="skill-card-name">${icon} ${escHtml(skill.name)}</span>
           ${toggleHtml}
         </div>
-        <div class="skill-card-desc">${skill.description || 'No description'}</div>
+        <div class="skill-card-desc">${escHtml(skill.description || 'No description')}</div>
         <div class="skill-card-meta">
-          <span class="skill-meta-tag ${catClass}">${skill.category || 'other'}</span>
-          <span class="skill-meta-tag ${srcClass}">${skill.source || 'user'}</span>
+          <span class="skill-meta-tag ${catClass}">${escHtml(skill.category || 'other')}</span>
+          <span class="skill-meta-tag ${srcClass}">${escHtml(skill.source || 'user')}</span>
           ${versionTag}
           ${usageTag}
         </div>

@@ -4,6 +4,7 @@
   function $(s, c) { return (c || document).querySelector(s) }
   function $$(s, c) { return Array.from((c || document).querySelectorAll(s)) }
   function toast(m) { const t = document.createElement('div'); t.className = 'toast'; t.innerHTML = m; t.style.animation = 'toastIn .3s ease forwards, toastOut .3s ease 2.8s forwards'; document.body.appendChild(t); setTimeout(() => t.remove(), 3100) }
+  function _esc(s) { if (s == null) return ''; const d = document.createElement('div'); d.textContent = String(s); return d.innerHTML; }
 
   class ProjectStudio {
     constructor() {
@@ -151,7 +152,7 @@
         projs.forEach(p => {
           const item = document.createElement('div');
           item.className = 'proj-list-item' + (this.currentProj?.id === p.id ? ' active' : '');
-          item.innerHTML = `<span class="proj-list-item-name">${p.name}</span><span class="proj-list-item-count">${p.task_count}</span><span class="proj-list-item-delete" title="Delete">${ICONS.x(14)}</span>`;
+          item.innerHTML = `<span class="proj-list-item-name">${_esc(p.name)}</span><span class="proj-list-item-count">${p.task_count}</span><span class="proj-list-item-delete" title="Delete">${ICONS.x(14)}</span>`;
           item.querySelector('.proj-list-item-name').addEventListener('click', () => this.loadProject(p.id));
           item.querySelector('.proj-list-item-delete').addEventListener('click', async e => {
             e.stopPropagation();
@@ -235,7 +236,7 @@
       this.currentProj.members.forEach(m => {
         const chip = document.createElement('span'); chip.className = 'proj-member-chip';
         const initial = m.charAt(0).toUpperCase();
-        chip.innerHTML = `<span class="proj-member-avatar">${initial}</span>${m}<span class="remove">${ICONS.x(14)}</span>`;
+        chip.innerHTML = `<span class="proj-member-avatar">${initial}</span>${_esc(m)}<span class="remove">${ICONS.x(14)}</span>`;
         chip.querySelector('.remove').addEventListener('click', () => {
           if (!confirm(`Remove member "${m}"? Tasks assigned to them will be unassigned.`)) return;
           this.currentProj.members = this.currentProj.members.filter(x => x !== m);
@@ -244,7 +245,7 @@
             if (t.assignee === m) { t.assignee = ''; count++; }
           });
           this.renderMembers(); this._render(); this._autoSave();
-          if (count > 0) toast(`${ICONS.circle(14)} {ICONS.circleSlash(14)} ${count} tasks are now not attributed`);
+          if (count > 0) toast(`${ICONS.circle(14)} ${ICONS.circleSlash(14)} ${count} tasks are now not attributed`);
         });
         el.appendChild(chip);
       });
@@ -356,13 +357,13 @@
       if (!this.currentProj) return;
       const tasksInCol = (this.currentProj.tasks || []).filter(t => t.status === col);
       if (tasksInCol.length > 0) {
-        toast(`${ICONS.circle(14)} {ICONS.circleSlash(14)} Move or delete the ${tasksInCol.length} task(s) in "${col}" before removing it.`);
+        toast(`${ICONS.circle(14)} ${ICONS.circleSlash(14)} Move or delete the ${tasksInCol.length} task(s) in "${col}" before removing it.`);
         return;
       }
       if (!confirm(`Delete column "${col}"?`)) return;
       this.currentProj.columns = this.currentProj.columns.filter(c => c !== col);
       this.renderKanban(); this._autoSave();
-      toast(`${ICONS.circle(14)} {ICONS.trash(14)} Column "${col}" deleted`);
+      toast(`${ICONS.circle(14)} ${ICONS.trash(14)} Column "${col}" deleted`);
     }
     addColumn() {
       if (!this.currentProj) return;
@@ -410,14 +411,14 @@
     _createCard(task) {
       const card = document.createElement('div'); card.className = 'proj-kanban-card'; card.dataset.taskId = task.id;
       const isOverdue = task.deadline && new Date(task.deadline) < new Date() && task.status !== 'Done';
-      let html = `<div class="proj-kanban-card-title">${task.title || 'Untitled'}</div>`;
+      let html = `<div class="proj-kanban-card-title">${_esc(task.title || 'Untitled')}</div>`;
       html += `<div class="proj-kanban-card-meta"><span class="proj-card-priority ${task.priority || 'medium'}"></span>`;
-      if (task.assignee) html += `<span class="proj-card-assignee">${task.assignee}</span>`;
+      if (task.assignee) html += `<span class="proj-card-assignee">${_esc(task.assignee)}</span>`;
       else html += `<span class="proj-card-assignee unassigned">${ICONS.circleSlash(14)} Unassigned</span>`;
       if (task.deadline) html += `<span class="proj-card-deadline${isOverdue ? ' overdue' : ''}">${task.deadline}</span>`;
       html += `</div>`;
       if (task.progress > 0) html += `<div class="proj-card-progress"><div class="proj-card-progress-fill" style="width:${task.progress}%"></div></div>`;
-      if (task.tags?.length) html += `<div class="proj-card-tags">${task.tags.map(t => `<span class="proj-card-tag">${t}</span>`).join('')}</div>`;
+      if (task.tags?.length) html += `<div class="proj-card-tags">${task.tags.map(t => `<span class="proj-card-tag">${_esc(t)}</span>`).join('')}</div>`;
       card.innerHTML = html; return card;
     }
     async _moveTask(taskId, newStatus, newOrder) {
@@ -462,8 +463,8 @@
       tbody.innerHTML = '';
       tasks.forEach(task => {
         const tr = document.createElement('tr');
-        const assigneeHtml = task.assignee ? task.assignee : `<span class="proj-table-unassigned">${ICONS.circleSlash(14)} Unassigned</span>`;
-        tr.innerHTML = `<td>${task.title || ''}</td><td>${task.status || ''}</td><td>${assigneeHtml}</td><td><span class="proj-table-priority ${task.priority || 'medium'}">${task.priority || 'medium'}</span></td><td><div class="proj-table-progress"><div class="proj-table-progress-bar"><div class="proj-table-progress-fill" style="width:${task.progress || 0}%"></div></div><span>${task.progress || 0}%</span></div></td><td>${task.deadline || '—'}</td><td>${task.estimated_hours || 0}h</td><td>$${task.estimated_cost || 0}</td><td class="proj-table-actions"><button class="icon-btn" title="Edit">${ICONS.pen(14)}</button><button class="icon-btn" title="Delete" style="color:var(--red)">${ICONS.x(14)}</button></td>`;
+        const assigneeHtml = task.assignee ? _esc(task.assignee) : `<span class="proj-table-unassigned">${ICONS.circleSlash(14)} Unassigned</span>`;
+        tr.innerHTML = `<td>${_esc(task.title || '')}</td><td>${_esc(task.status || '')}</td><td>${assigneeHtml}</td><td><span class="proj-table-priority ${task.priority || 'medium'}">${_esc(task.priority || 'medium')}</span></td><td><div class="proj-table-progress"><div class="proj-table-progress-bar"><div class="proj-table-progress-fill" style="width:${task.progress || 0}%"></div></div><span>${task.progress || 0}%</span></div></td><td>${_esc(task.deadline || '—')}</td><td>${task.estimated_hours || 0}h</td><td>$${task.estimated_cost || 0}</td><td class="proj-table-actions"><button class="icon-btn" title="Edit">${ICONS.pen(14)}</button><button class="icon-btn" title="Delete" style="color:var(--red)">${ICONS.x(14)}</button></td>`;
         tr.querySelector('.icon-btn[title="Edit"]').addEventListener('click', e => { e.stopPropagation(); this.openTaskDetail(task.id) });
         tr.querySelector('.icon-btn[title="Delete"]').addEventListener('click', e => { e.stopPropagation(); this._deleteTask(task.id) });
         tr.addEventListener('click', () => this.openTaskDetail(task.id));
@@ -504,7 +505,7 @@
       tasks.forEach(task => {
         const start = task.start_date ? new Date(task.start_date) : null;
         const end = task.deadline ? new Date(task.deadline) : null;
-        html += `<div class="proj-timeline-row"><div class="proj-timeline-row-label" data-task-id="${task.id}">${task.title || 'Untitled'}</div><div class="proj-timeline-bars">`;
+        html += `<div class="proj-timeline-row"><div class="proj-timeline-row-label" data-task-id="${task.id}">${_esc(task.title || 'Untitled')}</div><div class="proj-timeline-bars">`;
         if (start && end) {
           const startIdx = Math.max(0, Math.round((start - minD) / (86400000)));
           const endIdx = Math.min(totalDays - 1, Math.round((end - minD) / (86400000)));
@@ -721,9 +722,9 @@
         if (movedCount > 0 || newCount > 0) {
           await this.saveProject();
           this._render();
-          toast(`${ICONS.circle(14)} {ICONS.check(14)} Synced with Editor: ${movedCount} moved, ${newCount} added`);
+          toast(`${ICONS.circle(14)} ${ICONS.check(14)} Synced with Editor: ${movedCount} moved, ${newCount} added`);
         } else {
-          toast(`${ICONS.circle(14)} {ICONS.refresh(14)} Synced with Editor: No tasks to update`);
+          toast(`${ICONS.circle(14)} ${ICONS.refresh(14)} Synced with Editor: No tasks to update`);
         }
       } catch (e) {
         toast(ICONS.x(14) + ' Sync failed: ' + e.message);
@@ -786,7 +787,7 @@
           }
         }, 300);
 
-        toast(`${ICONS.circle(14)} {ICONS.folder(14)} Project transferred to Editor: ${basePath}/`);
+        toast(`${ICONS.circle(14)} ${ICONS.folder(14)} Project transferred to Editor: ${basePath}/`);
       } catch (e) { toast(ICONS.x(14) + ' Transfer failed: ' + e.message) }
     }
 
@@ -809,7 +810,7 @@
         if (!r.ok) throw new Error(await r.text());
         const d = await r.json();
         await this.loadProject(this.currentProj.id);
-        toast(`${ICONS.circle(14)} {ICONS.fileText(14)} Imported ${d.imported} tasks from ${file.name}`);
+        toast(`${ICONS.circle(14)} ${ICONS.fileText(14)} Imported ${d.imported} tasks from ${file.name}`);
       } catch (err) { toast(ICONS.x(14) + ' Import failed: ' + err.message) }
       // Reset file input so same file can be re-selected
       e.target.value = '';
@@ -861,7 +862,7 @@
         const r = await fetch(`/project/projects/${this.currentProj.id}/github/import?repo=${encodeURIComponent(repo)}&token=${encodeURIComponent(token)}`);
         const d = await r.json();
         await this.loadProject(this.currentProj.id);
-        toast(`${ICONS.circle(14)} {ICONS.check(14)} Imported ${d.imported} issues from GitHub`);
+        toast(`${ICONS.circle(14)} ${ICONS.check(14)} Imported ${d.imported} issues from GitHub`);
         $('#proj-github-overlay')?.classList.remove('open');
       } catch (e) { toast(ICONS.x(14) + ' GitHub import failed') }
     }
