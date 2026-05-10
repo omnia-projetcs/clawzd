@@ -1698,7 +1698,7 @@ async def generate_animation_core(
             # SVD is image-only (no prompt) — will be set below with init_img
             gen_kwargs.pop("prompt", None)
             gen_kwargs["num_frames"] = min(num_frames, 25)
-            gen_kwargs["decode_chunk_size"] = 4  # Low VRAM usage
+            gen_kwargs["decode_chunk_size"] = 2  # Low VRAM usage
             gen_kwargs["motion_bucket_id"] = 127
             gen_kwargs["noise_aug_strength"] = 0.02
         elif pipeline_type == "animatediff":
@@ -1730,8 +1730,8 @@ async def generate_animation_core(
             target_h = gen_kwargs.get("height", height)
             
             if pipeline_type == "svd":
-                # SVD native resolution
-                target_w, target_h = 1024, 576
+                # SVD native resolution (reduced to prevent OOM freezes)
+                target_w, target_h = 512, 320
                 gen_kwargs.pop("width", None)
                 gen_kwargs.pop("height", None)
             elif "cogvideo" in (model_cfg.get("i2v_repo") or "").lower():
