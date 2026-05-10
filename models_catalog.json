@@ -22,7 +22,7 @@
     "vendor": "Mistral",
     "name": "Mistral Nemo 12B",
     "ollama_id": "mistral-nemo:12b-instruct-2407-q4_K_M",
-    "size_gb": 7.7,
+    "size_gb": 7.5,
     "params": "12B",
     "quant": "Q4_K_M",
     "vram_min_gb": 12,
