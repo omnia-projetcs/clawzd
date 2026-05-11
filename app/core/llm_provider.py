@@ -130,11 +130,20 @@ PROVIDER_MODELS_STATIC = {
         {"id": "o3-mini", "label": "o3 Mini"},
     ],
     "openrouter": [
+        # Research-grade models (DeepResearch-compatible)
+        {"id": "alibaba/tongyi-deepresearch-30b-a3b", "label": "🔬 Tongyi DeepResearch 30B (Alibaba)"},
+        {"id": "perplexity/sonar-reasoning-pro", "label": "🔬 Perplexity Sonar Reasoning Pro"},
+        {"id": "openai/o3-mini", "label": "🧠 o3 Mini (High Reasoning)"},
+        # General purpose
         {"id": "anthropic/claude-3.5-sonnet", "label": "Claude 3.5 Sonnet"},
+        {"id": "anthropic/claude-3.5-haiku", "label": "Claude 3.5 Haiku"},
         {"id": "google/gemini-pro-1.5", "label": "Gemini Pro 1.5"},
+        {"id": "google/gemini-2.0-flash-001", "label": "Gemini 2.0 Flash"},
         {"id": "openai/gpt-4o", "label": "GPT-4o"},
         {"id": "openai/gpt-4o-mini", "label": "GPT-4o Mini"},
         {"id": "meta-llama/llama-3.1-70b-instruct", "label": "Llama 3.1 70B"},
+        {"id": "deepseek/deepseek-r1", "label": "DeepSeek R1"},
+        {"id": "qwen/qwen3-235b-a22b", "label": "Qwen3 235B"},
     ],
 }
 

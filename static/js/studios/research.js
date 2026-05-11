@@ -25,6 +25,9 @@ class ResearchStudioV2 {
       queryInput: bind('rs-query-input'),
       profileSelect: bind('rs-profile-select'),
       providerSelect: bind('rs-provider-select'),
+      modelSelect: bind('rs-model-select'),
+      externalToggle: bind('rs-external-ai-toggle'),
+      providerModelWrap: bind('rs-provider-model-wrap'),
       targetScore: bind('rs-target-score'),
       maxIter: bind('rs-max-iter'),
       
@@ -70,6 +73,27 @@ class ResearchStudioV2 {
       this.ui.processEditor.addEventListener('input', () => {
         clearTimeout(this._processAutoSaveTimer);
         this._processAutoSaveTimer = setTimeout(() => this.saveProcess(), 800);
+      });
+    }
+
+    // External AI toggle
+    if (this.ui.externalToggle) {
+      this.ui.externalToggle.addEventListener('change', () => {
+        const enabled = this.ui.externalToggle.checked;
+        if (this.ui.providerModelWrap) {
+          this.ui.providerModelWrap.style.display = enabled ? 'flex' : 'none';
+        }
+        if (enabled && this.ui.providerSelect) {
+          // Load models for the currently selected provider
+          this._loadModelsForProvider(this.ui.providerSelect.value);
+        }
+      });
+    }
+
+    // Reload model list when provider changes
+    if (this.ui.providerSelect) {
+      this.ui.providerSelect.addEventListener('change', () => {
+        this._loadModelsForProvider(this.ui.providerSelect.value);
       });
     }
 
@@ -230,10 +254,14 @@ class ResearchStudioV2 {
     
     const targetScore = parseFloat(this.ui.targetScore?.value || '0.7');
     const maxIter = parseInt(this.ui.maxIter?.value || '10');
-    const provider = this.ui.providerSelect?.value || '';
+
+    // External AI: only use provider/model when toggle is ON
+    const externalEnabled = this.ui.externalToggle?.checked || false;
+    const provider = externalEnabled ? (this.ui.providerSelect?.value || '') : '';
+    const model = externalEnabled ? (this.ui.modelSelect?.value || '') : '';
     
     const reqBody = {
-      query, provider, profile_id: profileId,
+      query, provider, model, profile_id: profileId,
       target_score: targetScore, max_iterations: maxIter,
       profile_data: profile
     };
@@ -547,6 +575,19 @@ class ResearchStudioV2 {
     if (this.ui.maxIter) this.ui.maxIter.value = p.max_iterations || 10;
     if (this.ui.queryInput) this.ui.queryInput.value = p.query || '';
     if (this.ui.profileSelect) this.ui.profileSelect.value = p.profile_id || '';
+
+    // Restore external AI toggle state from saved project
+    const hasExternalProvider = p.provider && p.provider !== 'ollama';
+    if (this.ui.externalToggle) {
+      this.ui.externalToggle.checked = hasExternalProvider;
+      if (this.ui.providerModelWrap) {
+        this.ui.providerModelWrap.style.display = hasExternalProvider ? 'flex' : 'none';
+      }
+      if (hasExternalProvider && p.provider) {
+        if (this.ui.providerSelect) this.ui.providerSelect.value = p.provider;
+        this._loadModelsForProvider(p.provider, p.model);
+      }
+    }
   }
 
   _renderLog() {
@@ -702,6 +743,33 @@ class ResearchStudioV2 {
   }
 
   _esc(str) { const d = document.createElement('div'); d.textContent = str; return d.innerHTML; }
+
+  // --- External AI: Dynamic model loading ---
+  async _loadModelsForProvider(provider, selectValue = '') {
+    const sel = this.ui.modelSelect;
+    if (!sel || !provider) return;
+    sel.innerHTML = '<option value="">Loading...</option>';
+    try {
+      const res = await fetch('/api/models');
+      if (!res.ok) throw new Error('Failed');
+      const data = await res.json();
+      const models = (data.providers || {})[provider] || [];
+      sel.innerHTML = '';
+      if (!models.length) {
+        sel.innerHTML = '<option value="">No models available</option>';
+        return;
+      }
+      models.forEach(m => {
+        const opt = document.createElement('option');
+        opt.value = m.id;
+        opt.textContent = m.label || m.id;
+        if (m.id === selectValue) opt.selected = true;
+        sel.appendChild(opt);
+      });
+    } catch(e) {
+      sel.innerHTML = '<option value="">Could not load models</option>';
+    }
+  }
   
   // Public API to launch research from chat
   launchFromChat(query, profileId = 'quick_explore') {

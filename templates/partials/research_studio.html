@@ -45,17 +45,30 @@
         <option value="">Select a Profile...</option>
         <!-- Profiles loaded dynamically -->
       </select>
-      <select id="rs-provider-select"
-              class="rs-provider-select"
-              title="LLM Provider">
-        <option value="">System Default</option>
-        <option value="ollama">Ollama</option>
-        <option value="google">Google Gemini</option>
-        <option value="openai">OpenAI</option>
-        <option value="groq">Groq</option>
-        <option value="mistral">Mistral</option>
-        <option value="openrouter">OpenRouter</option>
-      </select>
+      <!-- External AI Toggle -->
+      <label class="rs-external-toggle" title="Enable external (non-local) AI provider">
+        <input type="checkbox" id="rs-external-ai-toggle">
+        <span class="rs-toggle-track">
+          <span class="rs-toggle-thumb"></span>
+        </span>
+        <span class="rs-toggle-label">External AI</span>
+      </label>
+      <!-- Provider + Model selects (hidden until toggle is ON) -->
+      <div class="rs-provider-model-wrap" id="rs-provider-model-wrap" style="display:none">
+        <select id="rs-provider-select" class="rs-provider-select" title="AI Provider">
+          <option value="google">Google Gemini</option>
+          <option value="openai">OpenAI</option>
+          <option value="anthropic">Anthropic</option>
+          <option value="openrouter">OpenRouter</option>
+          <option value="groq">Groq</option>
+          <option value="mistral">Mistral</option>
+          <option value="huggingface">HuggingFace</option>
+          <option value="grok">Grok (xAI)</option>
+        </select>
+        <select id="rs-model-select" class="rs-provider-select" title="Model">
+          <option value="">Loading models...</option>
+        </select>
+      </div>
       <button class="pt-ai-generate-btn" id="rs-btn-start" title="Start Research">
         <span class="pt-ai-gen-label">Research</span>
         <span class="pt-ai-gen-spinner"></span>

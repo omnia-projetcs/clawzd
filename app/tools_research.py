@@ -20,8 +20,18 @@ from app.tools.research_engine import (
     deep_research_branch, flatten_branch_results,
     flatten_branch_summaries, evaluate_structured,
     reflect_on_iteration, generate_report_with_citations,
+    improve_process_md,
+    research_by_perspectives_parallel, synthesize_perspective_branches,
+    update_dynamic_outline, outline_to_report_structure,
 )
 from app.tools.research_scraper import batch_scrape, smart_scrape
+from app.tools.research_archive import (
+    classify_query_domain, save_strategy, get_best_strategy_for_domain,
+    get_archive_stats,
+)
+from app.tools.research_condensation import (
+    should_condense, condense_research_context,
+)
 from app.core.tokens import count_tokens
 
 router = APIRouter()
@@ -110,6 +120,24 @@ def _new_project(
     pdir = _proj_dir(pid)
     with open(os.path.join(pdir, "process.md"), "w", encoding="utf-8") as f:
         f.write(process_md)
+
+    # ── Archive Warm-Start (HyperAgents-inspired) ──────────────────────────
+    # Try to bootstrap from the best known strategy for this query's domain
+    domain = classify_query_domain(query)
+    proj["query_domain"] = domain
+    prior = get_best_strategy_for_domain(domain, min_score=0.65)
+    if prior:
+        proj["warm_start"] = {
+            "domain": domain,
+            "prior_score": prior.get("final_score", 0),
+            "prior_actions": prior.get("action_sequence", []),
+        }
+        logger.info(
+            "Warm-start from archive: domain=%s prior_score=%.0f%%",
+            domain, prior.get("final_score", 0) * 100,
+        )
+    # ───────────────────────────────────────────────────────────────────────
+
     return proj
 
 def _list_projects() -> list:
@@ -284,6 +312,34 @@ async def _do_web_search(query: str, max_results: int = 50) -> list[dict]:
     return merged
 
 
+async def _do_web_search_with_retry(
+    query: str, max_results: int = 50, max_retries: int = 2,
+) -> list[dict]:
+    """
+    Search wrapper with retry + fallback (DeepResearch feature #5).
+    If the primary search returns empty results, retries with a
+    simplified query before giving up.
+    """
+    for attempt in range(max_retries + 1):
+        try:
+            results = await _do_web_search(query, max_results)
+            if results:
+                return results
+            if attempt < max_retries:
+                # Simplify query: remove quotes and special operators
+                import re as _re
+                simpler = _re.sub(r'["\(\)\+\-]', '', query).strip()
+                logger.info("Search retry %d with simpler query: %s", attempt + 1, simpler[:60])
+                query = simpler
+        except Exception as e:
+            if attempt < max_retries:
+                logger.warning("Search attempt %d failed (%s), retrying...", attempt + 1, e)
+                await asyncio.sleep(1)
+            else:
+                logger.error("Search exhausted retries: %s", e)
+    return []
+
+
 async def _scrape_url(url: str) -> str:
     try:
         import httpx
@@ -355,7 +411,120 @@ async def _save_text_asset(title: str, text: str, source_type: str, url_or_ref: 
     return {"name": name, "path": path, "type": "md", "url": url_or_ref, "size": len(content)}
 
 
+# ── Feature #6: Semantic Scholar Academic Search ──────────────────────────────
+
+async def _semantic_scholar_search(query: str, max_results: int = 10) -> list[dict]:
+    """
+    Search Semantic Scholar (free API, no key required) for academic papers.
+
+    Inspired by DeepResearch's tool_scholar.py — treats academic results
+    differently from web results: preserves DOI, abstract, citation count,
+    venue, and year as structured metadata for reliable academic citations.
+
+    Returns result dicts compatible with the main search_results store.
+    """
+    try:
+        import httpx
+        url = "https://api.semanticscholar.org/graph/v1/paper/search"
+        params = {
+            "query": query,
+            "limit": min(max_results, 20),
+            "fields": "title,abstract,year,authors,citationCount,externalIds,venue,url",
+        }
+        async with httpx.AsyncClient(timeout=15) as client:
+            resp = await client.get(url, params=params, headers={
+                "User-Agent": "Clawzd-Research/1.0 (academic search)"
+            })
+            if resp.status_code != 200:
+                logger.warning("Semantic Scholar API returned %d", resp.status_code)
+                return []
+
+            data = resp.json()
+            papers = data.get("data", [])
+            results = []
+            for p in papers:
+                doi = (p.get("externalIds") or {}).get("DOI", "")
+                paper_url = p.get("url", "")
+                if doi and not paper_url:
+                    paper_url = f"https://doi.org/{doi}"
+
+                authors = ", ".join(
+                    a.get("name", "") for a in (p.get("authors") or [])[:3]
+                )
+                year = p.get("year", "")
+                citations = p.get("citationCount", 0)
+                venue = p.get("venue", "")
+                abstract = (p.get("abstract") or "")[:400]
+
+                snippet = (
+                    f"{abstract} "
+                    f"[{authors}{', ' + str(year) if year else ''}. "
+                    f"{venue + '. ' if venue else ''}"
+                    f"Cited by {citations}]"
+                ).strip()
+
+                results.append({
+                    "title": p.get("title", "Untitled"),
+                    "snippet": snippet,
+                    "url": paper_url or f"https://www.semanticscholar.org/search?q={query}",
+                    "source": "semantic_scholar",
+                    "doi": doi,
+                    "year": year,
+                    "citations": citations,
+                    "venue": venue,
+                    "relevance_score": min(1.0, (citations or 0) / 1000 + 0.3),
+                })
+
+            logger.info(
+                "Semantic Scholar: %d papers for '%s'",
+                len(results), query[:60],
+            )
+            return results
+
+    except Exception as e:
+        logger.warning("Semantic Scholar search failed: %s — falling back to Scholar scrape", e)
+        try:
+            from app.tools_web import _scrape_scholar
+            raw = await asyncio.to_thread(_scrape_scholar, query, max_results)
+            return [{
+                "title": r.get("title", ""),
+                "snippet": r.get("snippet", ""),
+                "url": r.get("url", ""),
+                "source": "scholar_fallback",
+                "relevance_score": 0.5,
+            } for r in raw]
+        except Exception:
+            return []
+
+
+# ── Feature #7: Context Budget Monitor ───────────────────────────────────────
+
+def _log_context_budget(
+    results: list[dict],
+    report_draft: str,
+    branch_summaries: str,
+    iteration: int,
+) -> None:
+    """Log estimated context size; warns when approaching the budget ceiling."""
+    from app.tools.research_condensation import (
+        estimate_context_size, CONTEXT_BUDGET_TOKENS,
+    )
+    estimated = estimate_context_size(results, report_draft, branch_summaries)
+    pct = estimated / CONTEXT_BUDGET_TOKENS * 100
+    if pct > 85:
+        logger.warning(
+            "Context budget (iter %d): ~%d tokens (%.0f%% — near ceiling %d)",
+            iteration, estimated, pct, CONTEXT_BUDGET_TOKENS,
+        )
+    else:
+        logger.debug(
+            "Context budget (iter %d): ~%d tokens (%.0f%%)",
+            iteration, estimated, pct,
+        )
+
+
 async def _llm_call(messages: list[dict], provider: str = "", model: str = "", pid: str = "") -> str:
+
     from app.llm_provider import get_llm_provider
     from app.metrics import get_metrics
     import time
@@ -452,6 +621,12 @@ async def _research_loop(pid: str):
     branch_summaries = ""
     last_eval = {}
 
+    # ── New DeepResearch state tracking ────────────────────────────────────
+    dynamic_outline: dict = {}          # WebWeaver-style evolving outline
+    report_draft: str = ""              # IterResearch evolving report draft
+    perspective_synthesis: str = ""     # Multi-agent synthesis result
+    # ───────────────────────────────────────────────────────────────────────
+
     async def _emit_log(msg: str, extra: dict | None = None):
         payload = {"msg": msg}
         if extra:
@@ -480,6 +655,53 @@ async def _research_loop(pid: str):
             uncovered_questions = list(sub_questions)
             await _emit_log(f"❓ {len(sub_questions)} sub-questions generated")
             _update_pm_task(0, "Done", 100)
+
+            # ── Parallel Perspective Research (DeepResearch #2) ──────────────
+            # For deep_research profile: launch all perspective branches in parallel
+            # immediately after decomposition (Research-Synthesis paradigm)
+            profile_id = proj.get("profile_id", "")
+            if profile_id == "deep_research" and len(perspectives) >= 2:
+                await _emit_log(
+                    f"🔬 Launching {len(perspectives)} parallel perspective branches "
+                    "(DeepResearch multi-agent mode)..."
+                )
+                try:
+                    persp_branches = await research_by_perspectives_parallel(
+                        query=query,
+                        perspectives=perspectives,
+                        search_fn=_do_web_search_with_retry,
+                        scrape_fn=_scrape_url,
+                        llm_call=_project_llm_call,
+                        provider=provider,
+                        model=model,
+                        depth=1,
+                        breadth=2,
+                        emit_fn=_emit_log,
+                    )
+                    # Collect all results from perspective branches
+                    for b in persp_branches:
+                        proj["search_results"].extend(flatten_branch_results(b))
+                        branch_summaries += "\n\n" + flatten_branch_summaries(b)
+
+                    # Synthesis Agent step
+                    if persp_branches:
+                        perspective_synthesis = await synthesize_perspective_branches(
+                            query=query,
+                            branches=persp_branches,
+                            perspectives=perspectives,
+                            llm_call=_project_llm_call,
+                            provider=provider,
+                            model=model,
+                        )
+                        await _emit_log(
+                            f"🧬 Perspective synthesis complete "
+                            f"({len(perspective_synthesis)} chars)"
+                        )
+                        _save(proj)
+                except Exception as _pe:
+                    logger.warning("Parallel perspective research failed: %s", _pe)
+                    await _emit_log(f"⚠️ Parallel research partial failure: {_pe}")
+            # ────────────────────────────────────────────────────────────────
 
         # ── Iteration Loop ──
         for iteration in range(len(proj["iterations"]), proj["max_iterations"]):
@@ -532,12 +754,14 @@ async def _research_loop(pid: str):
                     {"role": "system", "content": (
                         "You are an autonomous research assistant. Plan the next actions.\n"
                         "Available actions: web_search, scrape_url, deep_dive, "
-                        "download_asset, write_script, query_rag, smart_scrape, ask_model\n"
+                        "download_asset, write_script, query_rag, smart_scrape, ask_model, academic_search\n"
                         "- web_search: searches Tavily, DDG, Scholar, Reddit, X, News in parallel\n"
                         "- deep_dive: recursive deep research on a sub-topic (params: {topic, depth, breadth})\n"
                         "- smart_scrape: scrape + LLM extraction of relevant content (params: {urls: [...]})\n"
                         "- ask_model: exploit the AI model's internal knowledge (params: {question: \"...\"})\n"
                         "- write_script: write and execute python code in a sandbox (params: {code: \"...\", description: \"...\"})\n"
+                        "- academic_search: search Semantic Scholar for peer-reviewed papers (params: {query: \"...\", max_results: 10})\n"
+                        "  Use academic_search for scientific topics, medical, technical, or when citations matter.\n"
                         "Return JSON array of actions.\n"
                         "Return ONLY valid JSON array, no markdown fences.\n"
                         + _get_dev_profile_summary()
@@ -569,7 +793,7 @@ async def _research_loop(pid: str):
                 await _emit_log(f"⚡ {action_type} — {json.dumps(params)[:100]}")
 
                 if action_type == "web_search":
-                    results = await _do_web_search(params.get("query", query))
+                    results = await _do_web_search_with_retry(params.get("query", query))
                     proj["search_results"].extend(results)
                     urls = [r.get("url") for r in results if r.get("url")]
                     iter_data["actions"].append({"type": "web_search", "count": len(results), "urls": urls, "params": params, "timestamp": datetime.now(timezone.utc).isoformat()})
@@ -722,6 +946,25 @@ async def _research_loop(pid: str):
                         iter_data["actions"].append({"type": "ask_model", "question": question[:100], "timestamp": datetime.now(timezone.utc).isoformat()})
                         await _emit_log(f"   🤖 Model knowledge: {len(knowledge)} chars")
 
+                elif action_type == "academic_search":
+                    # Feature #6: Dedicated Semantic Scholar search
+                    academic_query = params.get("query", query)
+                    await _emit_log(f"   📚 Semantic Scholar: {academic_query[:60]}")
+                    try:
+                        sem_results = await _semantic_scholar_search(
+                            academic_query,
+                            max_results=params.get("max_results", 10),
+                        )
+                        proj["search_results"].extend(sem_results)
+                        iter_data["actions"].append({
+                            "type": "academic_search", "query": academic_query,
+                            "count": len(sem_results),
+                            "timestamp": datetime.now(timezone.utc).isoformat(),
+                        })
+                        await _emit_log(f"   📚 Found {len(sem_results)} academic papers")
+                    except Exception as e:
+                        await _emit_log(f"   ⚠️ Academic search failed: {e}")
+
             # ── 3. Structured Evaluation ──
             _update_pm_task(1, "In Progress", int((iter_num - 0.5) / proj["max_iterations"] * 100))
             _update_pm_task(2, "In Progress", int((iter_num - 1) / proj["max_iterations"] * 100))
@@ -742,6 +985,12 @@ async def _research_loop(pid: str):
             if last_eval.get("gaps"):
                 await _emit_log(f"   Gaps: {', '.join(last_eval['gaps'][:3])}")
 
+            # ── Feature #7: Context Budget Monitor ─────────────────────────────
+            _log_context_budget(
+                proj["search_results"], report_draft, branch_summaries, iter_num
+            )
+            # ───────────────────────────────────────────────────────────────
+
             iter_data["completed_at"] = datetime.now(timezone.utc).isoformat()
             proj["iterations"].append(iter_data)
             _save(proj)
@@ -751,6 +1000,77 @@ async def _research_loop(pid: str):
                 "evaluation": iter_data.get("evaluation", ""),
                 "scores_detail": iter_data.get("scores_detail", {}),
             })
+
+            # ── Dynamic Outline Update (WebWeaver #3) ─────────────────────
+            try:
+                dynamic_outline = await update_dynamic_outline(
+                    current_outline=dynamic_outline,
+                    new_findings=proj["search_results"][-30:],
+                    query=query,
+                    iteration_num=iter_num,
+                    llm_call=_project_llm_call,
+                    provider=provider,
+                    model=model,
+                )
+                if dynamic_outline.get("focus_next"):
+                    await _emit_log(
+                        f"📋 Outline updated — next focus: "
+                        f"{', '.join(dynamic_outline['focus_next'][:3])}"
+                    )
+            except Exception as _oe:
+                logger.warning("Dynamic outline update failed: %s", _oe)
+            # ─────────────────────────────────────────────────────────────
+
+            # ── IterResearch Condensation (DeepResearch #1) ───────────────
+            if should_condense(iter_num, proj["search_results"], report_draft, branch_summaries):
+                await _emit_log(
+                    f"🗜️ Context condensation triggered (iter {iter_num}, "
+                    f"{len(proj['search_results'])} results)..."
+                )
+                try:
+                    condensed_results, core_findings, report_draft = \
+                        await condense_research_context(
+                            results=proj["search_results"],
+                            report_draft=report_draft,
+                            query=query,
+                            iteration_num=iter_num,
+                            eval_scores=last_eval.get("scores", {}),
+                            llm_call=_project_llm_call,
+                            provider=provider,
+                            model=model,
+                            emit_fn=_emit_log,
+                        )
+                    proj["search_results"] = condensed_results
+                    _save(proj)
+                except Exception as _ce:
+                    logger.warning("IterResearch condensation failed: %s", _ce)
+            # ─────────────────────────────────────────────────────────────
+
+            # ── Self-Referential Process Improvement (HyperAgents-inspired) ──
+            # Every 2 iterations, let the LLM improve the process.md itself
+            if iter_num % 2 == 0 and proj["current_score"] < 0.82:
+                try:
+                    current_process = _read_process(pid)
+                    improved = await improve_process_md(
+                        current_process=current_process,
+                        query=query,
+                        eval_result=last_eval,
+                        iteration_num=iter_num,
+                        max_iterations=proj["max_iterations"],
+                        llm_call=_project_llm_call,
+                        provider=provider,
+                        model=model,
+                    )
+                    if improved:
+                        _write_process(pid, improved)
+                        await _emit_log(
+                            f"🔄 Process self-improved (iter {iter_num}) "
+                            f"— weakest axis: {last_eval.get('weakest_axis', '?')}",
+                            extra={"process_updated": True},
+                        )
+                except Exception as _e:
+                    logger.warning("Self-improvement step failed: %s", _e)
+            # ─────────────────────────────────────────────────────────────────
 
             # ── 4. Check if done ──
             if proj["current_score"] >= proj["target_score"]:
@@ -768,13 +1088,41 @@ async def _research_loop(pid: str):
         _update_pm_task(1, "Done", 100)
         _update_pm_task(2, "Done", 100)
         _update_pm_task(3, "In Progress", 10)
-        await _generate_report(pid, provider, model, perspectives, branch_summaries)
+        await _generate_report(
+            pid, provider, model, perspectives, branch_summaries,
+            dynamic_outline=dynamic_outline,
+            report_draft=report_draft,
+            perspective_synthesis=perspective_synthesis,
+        )
         _update_pm_task(3, "Done", 100)
         proj = _load(pid)
         proj["status"] = "completed"
         _save(proj)
         await _emit(pid, "status", {"status": "completed"})
         await _emit_log("🎉 Research completed!")
+
+        # ── Archive Winning Strategy (HyperAgents-inspired) ────────────────
+        try:
+            scores_per_iter = [
+                it.get("score", 0) for it in proj.get("iterations", [])
+            ]
+            all_actions = []
+            for it in proj.get("iterations", []):
+                all_actions.extend(it.get("actions", []))
+            save_strategy(
+                query=query,
+                domain=proj.get("query_domain", classify_query_domain(query)),
+                action_sequence=all_actions,
+                scores_per_iteration=scores_per_iter,
+                final_score=proj.get("current_score", 0),
+                num_iterations=len(proj.get("iterations", [])),
+                profile_id=proj.get("profile_id", ""),
+            )
+            await _emit_log("📚 Strategy saved to archive for future warm-starts")
+        except Exception as _e:
+            logger.warning("Failed to archive strategy: %s", _e)
+        # ──────────────────────────────────────────────────────────────────
+
         unregister_task(pid)
 
     except asyncio.CancelledError:
@@ -800,6 +1148,9 @@ async def _generate_report(
     pid: str, provider: str = "", model: str = "",
     perspectives: list[dict] | None = None,
     branch_summaries: str = "",
+    dynamic_outline: dict | None = None,
+    report_draft: str = "",
+    perspective_synthesis: str = "",
 ):
     proj = _load(pid)
     if not proj:
@@ -821,6 +1172,9 @@ async def _generate_report(
         llm_call=_report_llm_call,
         provider=provider,
         model=model,
+        dynamic_outline=dynamic_outline or {},
+        report_draft=report_draft,
+        perspective_synthesis=perspective_synthesis,
     )
     proj["report_md"] = report
     report_path = os.path.join(_proj_dir(pid), "report.md")
@@ -831,6 +1185,12 @@ async def _generate_report(
 
 
 # ── API Endpoints ──
+
+@router.get("/archive/stats")
+async def api_archive_stats():
+    """Return global strategy archive statistics (HyperAgents-inspired)."""
+    return get_archive_stats()
+
 
 @router.get("/profiles")
 async def api_list_profiles():

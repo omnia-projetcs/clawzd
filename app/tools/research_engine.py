@@ -2,10 +2,13 @@
 Clawzd — Deep Research Engine.
 Core functions for advanced research: perspective-guided question decomposition
 (STORM), recursive deep research branches (GPT-Researcher), structured
-multi-criteria evaluation, inter-iteration reflection, and citation-tracked
-report generation. No external dependencies beyond the existing LLM provider.
+multi-criteria evaluation, inter-iteration reflection, citation-tracked
+report generation, self-referential process improvement (HyperAgents),
+and score-proportional topic selection for open-ended exploration.
 """
 import json
+import math
+import random
 import asyncio
 import logging
 from typing import Callable, Awaitable
@@ -182,33 +185,49 @@ async def deep_research_branch(
     if depth > 0:
         subtopics_prompt = [
             {"role": "system", "content": (
-                f"Given research on a topic, identify {breadth} specific "
-                "sub-topics that need deeper investigation.\n"
-                "Return a JSON array of short topic strings.\n"
+                f"Given research on a topic, identify {breadth * 2} specific "
+                "sub-topics that need deeper investigation, ranked by importance.\n"
+                "Return a JSON array of objects with 'topic' and 'importance' (0-1).\n"
+                "Example: [{\"topic\": \"...\", \"importance\": 0.9}]\n"
                 "Return ONLY valid JSON, no markdown."
             )},
             {"role": "user", "content": (
                 f"Main query: {query}\n"
                 f"Current topic: {topic}\n"
                 f"Findings summary: {summary[:1000]}\n\n"
-                f"Identify {breadth} sub-topics for deeper research."
+                f"Identify {breadth * 2} sub-topics with importance scores."
             )},
         ]
         st_text = await llm_call(subtopics_prompt, provider, model)
-        sub_topics = _parse_json_block(st_text, fallback=[])
-        if not isinstance(sub_topics, list):
-            sub_topics = []
-        sub_topics = [t for t in sub_topics if isinstance(t, str)][:breadth]
+        raw_topics = _parse_json_block(st_text, fallback=[])
+
+        # Support both [{topic, importance}] and plain string arrays
+        if isinstance(raw_topics, list):
+            topic_strings, topic_scores = [], []
+            for item in raw_topics:
+                if isinstance(item, dict) and "topic" in item:
+                    topic_strings.append(str(item["topic"]))
+                    topic_scores.append(float(item.get("importance", 0.5)))
+                elif isinstance(item, str):
+                    topic_strings.append(item)
+                    topic_scores.append(0.5)
+        else:
+            topic_strings, topic_scores = [], []
+
+        # HyperAgents-style: score-proportional selection for exploration diversity
+        selected_topics = _score_proportional_selection(
+            topic_strings, topic_scores, breadth
+        )
 
         # Research sub-topics in parallel
-        if sub_topics:
+        if selected_topics:
             sub_tasks = [
                 deep_research_branch(
                     st, query, depth - 1, breadth,
                     search_fn, scrape_fn, llm_call,
                     provider, model, emit_fn,
                 )
-                for st in sub_topics
+                for st in selected_topics
             ]
             sub_results = await asyncio.gather(
                 *sub_tasks, return_exceptions=True,
@@ -235,6 +254,348 @@ def flatten_branch_summaries(branch: dict, level: int = 0) -> str:
     for sub in branch.get("sub_branches", []):
         parts.append(flatten_branch_summaries(sub, level + 1))
     return "\n\n".join(parts)
+
+
+# ── Parallel Perspective Research (DeepResearch Research-Synthesis style) ─────
+
+async def research_by_perspectives_parallel(
+    query: str,
+    perspectives: list[dict],
+    search_fn,
+    scrape_fn,
+    llm_call: LLMCallFn,
+    provider: str = "",
+    model: str = "",
+    depth: int = 1,
+    breadth: int = 2,
+    emit_fn=None,
+) -> list[dict]:
+    """
+    Launch one deep research branch per perspective in parallel.
+
+    Inspired by DeepResearch's Research-Synthesis paradigm:
+    multiple Research Agents explore the topic from different angles
+    simultaneously, then a Synthesis Agent integrates their reports.
+
+    Each perspective becomes the top-level topic of a deep_research_branch,
+    allowing true parallel exploration vs. the sequential approach.
+
+    Args:
+        perspectives: List of perspective dicts (from generate_perspectives)
+        depth / breadth: Recursion params for each branch
+        emit_fn: Optional SSE emit for progress updates
+
+    Returns:
+        List of branch dicts, one per perspective.
+    """
+    if not perspectives:
+        return []
+
+    if emit_fn:
+        await emit_fn(
+            f"🔬 Parallel perspective research: launching {len(perspectives)} "
+            f"branches simultaneously..."
+        )
+
+    async def _research_one_perspective(p: dict) -> dict:
+        topic = p.get("perspective", "General")
+        desc = p.get("description", "")
+        if emit_fn:
+            await emit_fn(f"  ↳ [{topic}] starting parallel branch...")
+        try:
+            branch = await deep_research_branch(
+                topic=f"{topic}: {desc}" if desc else topic,
+                query=query,
+                depth=depth,
+                breadth=breadth,
+                search_fn=search_fn,
+                scrape_fn=scrape_fn,
+                llm_call=llm_call,
+                provider=provider,
+                model=model,
+                emit_fn=None,  # Suppress sub-branch emit to avoid noise
+            )
+            branch["_perspective"] = p.get("perspective", topic)
+            return branch
+        except Exception as e:
+            logger.warning("Perspective branch failed [%s]: %s", topic, e)
+            return {
+                "topic": topic,
+                "results": [],
+                "scraped": [],
+                "summary": f"[Branch failed: {e}]",
+                "sub_branches": [],
+                "_perspective": topic,
+            }
+
+    tasks = [_research_one_perspective(p) for p in perspectives]
+    branches = await asyncio.gather(*tasks, return_exceptions=True)
+
+    valid_branches = []
+    for b in branches:
+        if isinstance(b, dict):
+            valid_branches.append(b)
+        elif isinstance(b, Exception):
+            logger.warning("Perspective branch exception: %s", b)
+
+    if emit_fn:
+        total_results = sum(len(flatten_branch_results(b)) for b in valid_branches)
+        await emit_fn(
+            f"✅ Parallel research complete: {len(valid_branches)} perspectives, "
+            f"~{total_results} total results"
+        )
+
+    logger.info(
+        "Parallel perspective research: %d/%d branches succeeded",
+        len(valid_branches), len(perspectives),
+    )
+    return valid_branches
+
+
+async def synthesize_perspective_branches(
+    query: str,
+    branches: list[dict],
+    perspectives: list[dict],
+    llm_call: LLMCallFn,
+    provider: str = "",
+    model: str = "",
+) -> str:
+    """
+    Synthesis Agent step: integrate reports from all parallel perspective branches.
+
+    Produces a coherent synthesis that:
+      - Identifies cross-perspective agreements and conflicts
+      - Highlights unique findings from each perspective
+      - Proposes an integrated narrative structure
+
+    Returns a synthesis text that can seed the final report generation.
+    """
+    if not branches:
+        return ""
+
+    # Build a compact representation of each branch's findings
+    branches_text = "\n\n".join(
+        f"### Perspective: {b.get('_perspective', b.get('topic', 'Unknown'))}\n"
+        f"{b.get('summary', 'No summary')[:800]}"
+        for b in branches
+    )
+
+    perspectives_text = "\n".join(
+        f"- {p['perspective']}: {p.get('description', '')}"
+        for p in perspectives
+    ) if perspectives else ""
+
+    prompt = [
+        {"role": "system", "content": (
+            "You are a synthesis agent integrating reports from multiple "
+            "parallel research streams. Your role is to:\n"
+            "  1. Identify key agreements across perspectives\n"
+            "  2. Surface unique insights from each angle\n"
+            "  3. Flag contradictions or tensions between perspectives\n"
+            "  4. Propose a unified narrative that weaves all perspectives together\n\n"
+            "Write a structured synthesis (600-1000 words) with sections:\n"
+            "## Cross-Perspective Agreements\n"
+            "## Unique Insights by Perspective\n"
+            "## Tensions & Contradictions\n"
+            "## Unified Narrative\n\n"
+            "Be analytical, not just descriptive. This synthesis will seed the final report."
+        )},
+        {"role": "user", "content": (
+            f"Research topic: {query}\n\n"
+            f"Target perspectives:\n{perspectives_text}\n\n"
+            f"Parallel research findings:\n{branches_text}\n\n"
+            "Synthesize these into a unified multi-perspective analysis."
+        )},
+    ]
+
+    try:
+        synthesis = await llm_call(prompt, provider, model)
+        logger.info(
+            "Perspective synthesis complete: %d branches → %d chars",
+            len(branches), len(synthesis),
+        )
+        return synthesis
+    except Exception as e:
+        logger.warning("Perspective synthesis failed: %s", e)
+        return "\n\n".join(
+            f"## {b.get('_perspective', 'Unknown')}\n{b.get('summary', '')}"
+            for b in branches
+        )
+
+
+# ── Dynamic Outline (WebWeaver-inspired) ─────────────────────────────────────
+
+async def update_dynamic_outline(
+    current_outline: dict,
+    new_findings: list[dict],
+    query: str,
+    iteration_num: int,
+    llm_call: LLMCallFn,
+    provider: str = "",
+    model: str = "",
+) -> dict:
+    """
+    Dynamically restructure the report outline based on accumulated findings.
+
+    Inspired by WebWeaver (https://arxiv.org/abs/2509.13312):
+    instead of a fixed 7-section template, the outline evolves as new
+    evidence is discovered. Each iteration may add, rename, or reorder
+    sections to best represent the emerging knowledge structure.
+
+    Args:
+        current_outline: Current outline dict {sections: [{title, coverage, key_points}]}
+        new_findings: Latest batch of search results
+        query: Research query
+        iteration_num: Current iteration number
+
+    Returns:
+        Updated outline dict with revised sections and coverage scores.
+    """
+    # Build current outline text
+    if current_outline and current_outline.get("sections"):
+        current_text = "\n".join(
+            f"- [{s.get('coverage', 0):.0%}] {s['title']}: "
+            f"{', '.join(s.get('key_points', [])[:3])}"
+            for s in current_outline["sections"]
+        )
+    else:
+        current_text = "No outline yet — create one from scratch."
+
+    # Summarise new findings
+    findings_text = "\n".join(
+        f"- {r.get('title', '')}: {r.get('snippet', '')[:150]}"
+        for r in new_findings[-20:]
+    )
+
+    prompt = [
+        {"role": "system", "content": (
+            "You are a research outline architect. Maintain and evolve a dynamic "
+            "report outline as new evidence is discovered.\n\n"
+            "Rules:\n"
+            "  - Add new sections for topics with sufficient evidence (>2 sources)\n"
+            "  - Update coverage scores based on how well each section is supported\n"
+            "  - Rename sections to better reflect actual findings\n"
+            "  - Merge sections that overlap significantly\n"
+            "  - Keep 5-9 sections maximum\n\n"
+            "Return JSON:\n"
+            '{"sections": [{"title": "...", "coverage": 0.0-1.0, '
+            '"key_points": ["..."], "needs_more": true|false}], '
+            '"focus_next": ["topic to research next", ...]}\n\n'
+            "Return ONLY valid JSON, no markdown."
+        )},
+        {"role": "user", "content": (
+            f"Research topic: {query}\n"
+            f"Iteration: {iteration_num}\n\n"
+            f"Current outline:\n{current_text}\n\n"
+            f"New findings ({len(new_findings)} results):\n{findings_text}\n\n"
+            "Update the outline to reflect new evidence."
+        )},
+    ]
+
+    try:
+        text = await llm_call(prompt, provider, model)
+        # Parse JSON
+        start = text.find("{")
+        end = text.rfind("}")
+        if start != -1 and end > start:
+            import json as _json
+            data = _json.loads(text[start:end + 1])
+            if isinstance(data, dict) and "sections" in data:
+                logger.info(
+                    "Dynamic outline updated: %d sections (iter %d)",
+                    len(data["sections"]), iteration_num,
+                )
+                return data
+    except Exception as e:
+        logger.warning("Dynamic outline update failed: %s", e)
+
+    # Return unchanged outline or minimal default
+    if current_outline:
+        return current_outline
+    return {
+        "sections": [
+            {"title": query, "coverage": 0.0, "key_points": [], "needs_more": True}
+        ],
+        "focus_next": [],
+    }
+
+
+def outline_to_report_structure(outline: dict) -> str:
+    """Convert a dynamic outline to a structured prompt for report generation."""
+    if not outline or not outline.get("sections"):
+        return ""
+
+    lines = ["Report Structure (dynamic outline — follow this structure):"]
+    for i, section in enumerate(outline["sections"], 1):
+        coverage = section.get("coverage", 0)
+        marker = "✅" if coverage >= 0.7 else ("⚠️" if coverage >= 0.4 else "❌")
+        lines.append(
+            f"{i}. {marker} {section['title']} "
+            f"[{coverage:.0%} covered]"
+        )
+        for kp in section.get("key_points", [])[:3]:
+            lines.append(f"   • {kp}")
+    return "\n".join(lines)
+
+
+# ── Helper: Score-Proportional Selection (HyperAgents-inspired) ─────────────
+
+def _score_proportional_selection(
+    items: list[str],
+    scores: list[float],
+    n: int,
+    temperature: float = 0.4,
+) -> list[str]:
+    """
+    Select n items with probability proportional to their scores (softmax).
+
+    Directly inspired by HyperAgents' select_next_parent algorithm:
+    the best items are favoured but not always chosen, maintaining
+    open-ended exploratory diversity rather than pure greedy selection.
+
+    Args:
+        items: Candidate topic strings.
+        scores: Importance scores [0-1] for each item.
+        n: Number of items to select.
+        temperature: Controls randomness (lower = more greedy).
+
+    Returns:
+        List of up to n selected items.
+    """
+    if not items:
+        return []
+    if len(items) <= n:
+        return list(items)
+
+    # Softmax normalisation
+    max_s = max(scores) if scores else 1.0
+    weights = [math.exp((s - max_s) / temperature) for s in scores]
+    total = sum(weights)
+    probs = [w / total for w in weights]
+
+    selected: list[str] = []
+    remaining_items = list(items)
+    remaining_probs = list(probs)
+
+    for _ in range(min(n, len(remaining_items))):
+        r = random.random()
+        cumsum = 0.0
+        for i, p in enumerate(remaining_probs):
+            cumsum += p
+            if cumsum >= r:
+                selected.append(remaining_items.pop(i))
+                remaining_probs.pop(i)
+                rem_total = sum(remaining_probs)
+                if rem_total > 0:
+                    remaining_probs = [p / rem_total for p in remaining_probs]
+                break
+        else:
+            # Fallback: pick last item
+            if remaining_items:
+                selected.append(remaining_items.pop())
+                remaining_probs = remaining_probs[:-1] if remaining_probs else []
+
+    return selected
 
 
 # ── 3. Structured Multi-Criteria Evaluation ──
@@ -318,6 +679,74 @@ async def evaluate_structured(
     }
 
 
+async def ensemble_evaluate(
+    query: str,
+    perspectives: list[dict],
+    results: list[dict],
+    num_assets: int,
+    llm_call: LLMCallFn,
+    llm_configs: list[dict],
+) -> dict:
+    """
+    Evaluate research quality using multiple LLM judges (ensemble consensus).
+
+    Inspired by HyperAgents' ensemble.py: runs N evaluators and averages
+    their scores to produce a robust, bias-reduced quality estimate.
+
+    Args:
+        llm_configs: List of {"provider": str, "model": str} dicts.
+                     Falls back to a single default call if empty.
+
+    Returns:
+        Consensus evaluation dict with an added 'ensemble_size' key.
+    """
+    if not llm_configs:
+        return await evaluate_structured(
+            query, perspectives, results, num_assets, llm_call
+        )
+
+    eval_tasks = [
+        evaluate_structured(
+            query, perspectives, results, num_assets, llm_call,
+            cfg.get("provider", ""), cfg.get("model", ""),
+        )
+        for cfg in llm_configs
+    ]
+    evaluations = await asyncio.gather(*eval_tasks, return_exceptions=True)
+    valid_evals = [e for e in evaluations if isinstance(e, dict)]
+
+    if not valid_evals:
+        return await evaluate_structured(
+            query, perspectives, results, num_assets, llm_call
+        )
+
+    # Average scores across all judges
+    axes = ["coverage", "depth", "reliability", "coherence", "recency"]
+    consensus_scores: dict[str, float] = {}
+    for ax in axes:
+        vals = [e["scores"].get(ax, 0.3) for e in valid_evals]
+        consensus_scores[ax] = round(sum(vals) / len(vals), 3)
+
+    weights = {
+        "coverage": 0.25, "depth": 0.25,
+        "reliability": 0.20, "coherence": 0.15, "recency": 0.15,
+    }
+    overall = round(sum(consensus_scores[ax] * weights[ax] for ax in axes), 3)
+
+    # Pick the evaluation closest to the consensus (most representative judge)
+    best_eval = min(
+        valid_evals,
+        key=lambda e: abs(e.get("overall", 0) - overall),
+    )
+
+    return {
+        **best_eval,
+        "scores": consensus_scores,
+        "overall": overall,
+        "ensemble_size": len(valid_evals),
+    }
+
+
 # ── 4. Inter-Iteration Reflection (WebSeer/ReSearch-style) ──
 
 async def reflect_on_iteration(
@@ -380,6 +809,85 @@ async def reflect_on_iteration(
     }
 
 
+# ── NEW: Self-Referential Process Improvement (HyperAgents-inspired) ─────────
+
+async def improve_process_md(
+    current_process: str,
+    query: str,
+    eval_result: dict,
+    iteration_num: int,
+    max_iterations: int,
+    llm_call: LLMCallFn,
+    provider: str = "",
+    model: str = "",
+) -> str | None:
+    """
+    Self-referentially improve the research process.md based on evaluation.
+
+    This is the core HyperAgents concept adapted for research: the system
+    modifies its own operational process to improve future iterations,
+    rather than just modifying what it searches.
+
+    Only triggers on iterations >= 2 and when score < 0.8 (room to improve).
+    Returns the improved process text, or None if no improvement was made.
+    """
+    overall = eval_result.get("overall", 1.0)
+    if overall >= 0.82 or iteration_num < 2:
+        return None  # No need to self-improve — already good or too early
+
+    weakest = eval_result.get("weakest_axis", "")
+    gaps = eval_result.get("gaps", [])
+    suggestions = eval_result.get("suggestions", [])
+    scores = eval_result.get("scores", {})
+
+    scores_text = " | ".join(
+        f"{ax}: {v:.0%}" for ax, v in scores.items()
+    )
+    gaps_text = "\n".join(f"- {g}" for g in gaps[:4])
+    suggestions_text = "\n".join(f"- {s}" for s in suggestions[:4])
+
+    prompt = [
+        {"role": "system", "content": (
+            "You are a meta-research strategist. Your task is to improve a "
+            "research process document based on mid-run evaluation results.\n\n"
+            "The process.md is a Markdown document describing how the research "
+            "agent should conduct its investigation. You can:\n"
+            "  • Reorder or emphasise action types\n"
+            "  • Add specific instructions for weak areas\n"
+            "  • Adjust priority of sources (e.g. 'prioritise Scholar for depth')\n"
+            "  • Insert targeted sub-queries to address identified gaps\n\n"
+            "RULES:\n"
+            "  - Make MINIMAL, TARGETED changes only\n"
+            "  - Preserve the overall structure and Markdown format\n"
+            "  - Do NOT change the header variables ({{query}}, {{model}}, etc.)\n"
+            "  - Return the COMPLETE improved process.md, nothing else\n"
+        )},
+        {"role": "user", "content": (
+            f"Research topic: {query}\n"
+            f"Iteration: {iteration_num}/{max_iterations}\n"
+            f"Current scores: {scores_text}\n"
+            f"Overall: {overall:.0%} | Weakest axis: {weakest}\n\n"
+            f"Identified gaps:\n{gaps_text}\n\n"
+            f"Suggestions from evaluator:\n{suggestions_text}\n\n"
+            f"Current process.md:\n{current_process}\n\n"
+            "Return the improved process.md with targeted adjustments."
+        )},
+    ]
+    try:
+        improved = await llm_call(prompt, provider, model)
+        # Sanity check: must be non-trivially different and contain structure
+        if (
+            improved
+            and len(improved) > 200
+            and improved != current_process
+            and ("#" in improved or "-" in improved)
+        ):
+            return improved
+    except Exception as e:
+        logger.warning("process.md self-improvement failed: %s", e)
+    return None
+
+
 # ── 5. Report Generation with Inline Citations ──
 
 async def generate_report_with_citations(
@@ -393,14 +901,29 @@ async def generate_report_with_citations(
     llm_call: LLMCallFn,
     provider: str = "",
     model: str = "",
+    dynamic_outline: dict | None = None,
+    report_draft: str = "",
+    perspective_synthesis: str = "",
 ) -> str:
-    """Generate a report with inline citations [1][2] and numbered bibliography."""
-    # Build numbered source list
+    """Generate a report with inline citations [1][2] and numbered bibliography.
+
+    Args:
+        dynamic_outline: If provided (WebWeaver-style), uses it to structure
+                         the report instead of the fixed 7-section template.
+        report_draft: Evolving draft from IterResearch rounds — used as a
+                      synthesis starting point rather than generating from scratch.
+        perspective_synthesis: Cross-perspective synthesis from parallel branches.
+    """
+    # Build numbered source list (skip memory:// and rag:// synthetic entries)
     seen_urls = set()
     numbered_sources = []
     for r in results:
         url = r.get("url", "")
-        if url and url not in seen_urls and not url.startswith("rag://"):
+        if (
+            url and url not in seen_urls
+            and not url.startswith("rag://")
+            and not url.startswith("memory://")
+        ):
             seen_urls.add(url)
             numbered_sources.append({
                 "id": len(numbered_sources) + 1,
@@ -444,6 +967,55 @@ async def generate_report_with_citations(
             evidence_items.append(f"[Extracted Facts] {facts}")
     evidence_text = "\n".join(evidence_items[:20]) if evidence_items else "None"
 
+    # --- Build dynamic structure prompt ---
+    if dynamic_outline and dynamic_outline.get("sections"):
+        structure_prompt = outline_to_report_structure(dynamic_outline)
+        structure_prompt += (
+            "\n\nIMPORTANT: Follow this dynamic outline strictly. "
+            "Sections marked ❌ need more evidence — synthesize what we have. "
+            "Sections marked ✅ have strong evidence — be detailed and cite sources."
+        )
+    else:
+        structure_prompt = (
+            "Report structure:\n"
+            "1. Table of Contents\n"
+            "2. Executive Summary (with key metrics table)\n"
+            "3. Introduction & Context (with concept mindmap)\n"
+            "4. Analysis sections with evidence & diagrams\n"
+            "5. Key Findings with proof & comparison tables\n"
+            "6. Conclusion & Recommendations\n"
+            "7. Bibliography [1]-[N]"
+        )
+
+    # --- Build user content parts ---
+    user_parts = [f"# Research Topic: {query}\n\n"]
+
+    if perspective_synthesis:
+        user_parts.append(
+            f"## Cross-Perspective Synthesis (DeepResearch multi-agent)\n"
+            f"{perspective_synthesis[:3000]}\n\n"
+        )
+
+    if report_draft:
+        user_parts.append(
+            f"## Evolving Report Draft (IterResearch — integrate and expand this)\n"
+            f"{report_draft[:4000]}\n\n"
+        )
+
+    user_parts += [
+        f"## Research Perspectives\n{perspectives_text}\n\n",
+        f"## Deep Research Summaries\n{branch_summaries[:4000]}\n\n",
+        f"## Numbered Sources\n{sources_text[:8000]}\n\n",
+        f"## Evidence & Experimental Data\n{evidence_text}\n\n",
+        f"## Downloaded Assets\n{assets_text}\n\n",
+        f"## Research Metrics\n"
+        f"- Quality Score: {score:.0%}\n"
+        f"- Iterations: {num_iterations}\n"
+        f"- Sources collected: {len(numbered_sources)}\n\n",
+        "Generate the full research report with inline citations, "
+        "evidence blocks, and rich diagrams.",
+    ]
+
     prompt = [
         {"role": "system", "content": (
             "You are an expert research report writer. Generate a "
@@ -462,29 +1034,9 @@ async def generate_report_with_citations(
             "- Add flowcharts for processes, mindmaps for concepts\n"
             "- Use pie/bar charts in Mermaid where data supports it\n"
             "- Create timeline diagrams for chronological data\n\n"
-            "Report structure:\n"
-            "1. Table of Contents\n"
-            "2. Executive Summary (with key metrics table)\n"
-            "3. Introduction & Context (with concept mindmap)\n"
-            "4. Analysis sections with evidence & diagrams\n"
-            "5. Key Findings with proof & comparison tables\n"
-            "6. Conclusion & Recommendations\n"
-            "7. Bibliography [1]-[N]\n"
+            + structure_prompt
         )},
-        {"role": "user", "content": (
-            f"# Research Topic: {query}\n\n"
-            f"## Research Perspectives\n{perspectives_text}\n\n"
-            f"## Deep Research Summaries\n{branch_summaries[:6000]}\n\n"
-            f"## Numbered Sources\n{sources_text[:8000]}\n\n"
-            f"## Evidence & Experimental Data\n{evidence_text}\n\n"
-            f"## Downloaded Assets\n{assets_text}\n\n"
-            f"## Research Metrics\n"
-            f"- Quality Score: {score:.0%}\n"
-            f"- Iterations: {num_iterations}\n"
-            f"- Sources collected: {len(numbered_sources)}\n\n"
-            "Generate the full research report with inline citations, "
-            "evidence blocks, and rich diagrams."
-        )},
+        {"role": "user", "content": "".join(user_parts)},
     ]
     report = await llm_call(prompt, provider, model)
 
