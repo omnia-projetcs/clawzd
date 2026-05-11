@@ -23,6 +23,10 @@ from app.tools.research_engine import (
     improve_process_md,
     research_by_perspectives_parallel, synthesize_perspective_branches,
     update_dynamic_outline, outline_to_report_structure,
+    reflect_after_search, should_stop_early,
+)
+from app.tools.research_brief import (
+    generate_research_brief, brief_to_planning_context,
 )
 from app.tools.research_scraper import batch_scrape, smart_scrape
 from app.tools.research_archive import (
@@ -570,6 +574,10 @@ async def _llm_call(messages: list[dict], provider: str = "", model: str = "", p
 
 async def _research_loop(pid: str):
     from app.tools.task_manager import register_task, unregister_task
+    from config import (
+        RESEARCH_SUMMARIZATION_MODEL, RESEARCH_MAIN_MODEL,
+        RESEARCH_COMPRESSION_MODEL, RESEARCH_REPORT_MODEL,
+    )
     proj = _load(pid)
     if not proj:
         return
@@ -582,7 +590,13 @@ async def _research_loop(pid: str):
     model = proj.get("model", "")
     query = proj["query"]
 
-    # --- Project Management Tracking ---
+    # Use differentiated models per pipeline role (open_deep_research-inspired)
+    # Each falls back to the project model if no specific model is configured.
+    main_model = RESEARCH_MAIN_MODEL if RESEARCH_MAIN_MODEL != model else model
+    compression_model = RESEARCH_COMPRESSION_MODEL if RESEARCH_COMPRESSION_MODEL != model else model
+    report_model = RESEARCH_REPORT_MODEL if RESEARCH_REPORT_MODEL != model else model
+
+
     from app import tools_project as pm
     pm_pid = proj.get("pm_project_id")
     if not pm_pid:
@@ -614,7 +628,37 @@ async def _research_loop(pid: str):
     async def _project_llm_call(messages, prov="", mdl=""):
         return await _llm_call(messages, prov, mdl, pid=pid)
 
-    # Deep research state
+    # ── Research Brief Generation (open_deep_research write_research_brief) ──
+    # Transform raw query into a structured brief BEFORE any searching begins.
+    # This improves the relevance of all downstream steps.
+    research_brief_data: dict = {}
+    try:
+        await _emit(pid, "log", {"msg": "📋 Generating structured research brief..."})
+        research_brief_data = await generate_research_brief(
+            query=query,
+            llm_call=_project_llm_call,
+            provider=provider,
+            model=main_model or model,
+        )
+        if research_brief_data.get("research_brief") and research_brief_data["research_brief"] != query:
+            brief_preview = research_brief_data['research_brief']
+            await _emit(pid, "log", {
+                "msg": (
+                    f"📋 Brief: {brief_preview[:120]}..."
+                    if len(brief_preview) > 120
+                    else f"📋 Brief: {brief_preview}"
+                )
+            })
+            if research_brief_data.get("key_dimensions"):
+                dims = ', '.join(research_brief_data['key_dimensions'][:4])
+                await _emit(pid, "log", {"msg": f"   Dimensions: {dims}"})
+        proj["research_brief"] = research_brief_data
+        _save(proj)
+    except Exception as _be:
+        logger.warning("Research brief generation failed: %s", _be)
+    # ─────────────────────────────────────────────────────────────────────────
+
+
     perspectives = []
     sub_questions = []
     uncovered_questions = []
@@ -798,6 +842,50 @@ async def _research_loop(pid: str):
                     urls = [r.get("url") for r in results if r.get("url")]
                     iter_data["actions"].append({"type": "web_search", "count": len(results), "urls": urls, "params": params, "timestamp": datetime.now(timezone.utc).isoformat()})
                     await _emit_log(f"   Found {len(results)} results", extra={"urls": urls})
+
+                    # ── think_tool: Post-Search Reflection (open_deep_research) ──
+                    # Pause and analyse what was found, identify gaps, decide next step.
+                    try:
+                        existing_summary = branch_summaries[-800:] if branch_summaries else ""
+                        reflection = await reflect_after_search(
+                            query=query,
+                            new_results=results,
+                            existing_findings=existing_summary,
+                            iteration_num=iter_num,
+                            llm_call=_project_llm_call,
+                            provider=provider,
+                            model=main_model or model,
+                        )
+                        # Store reflection in iteration data for transparency
+                        iter_data.setdefault("reflections", []).append(reflection)
+
+                        if reflection.get("found"):
+                            await _emit_log(f"   💡 Found: {reflection['found'][:120]}")
+                        if reflection.get("gaps"):
+                            gaps_str = ', '.join(reflection['gaps'][:3])
+                            await _emit_log(f"   🔍 Gaps: {gaps_str}")
+
+                        # Early stopping: if the LLM is confident enough, skip
+                        # remaining actions in this iteration and proceed to evaluation
+                        if should_stop_early(reflection, min_confidence=0.87):
+                            reason = reflection.get("stop_reason") or (
+                                f"confidence={reflection.get('confidence', 0):.0%}"
+                            )
+                            await _emit_log(
+                                f"   ✅ Early stop: {reason} — skipping further searches"
+                            )
+                            break  # Exit the actions loop for this iteration
+
+                        # Use the reflection's refined query for the next planned action
+                        if reflection.get("next_query") and reflection["next_query"] != query:
+                            # Inject the refined query into any remaining web_search actions
+                            for remaining_act in actions[actions.index(act) + 1:]:
+                                if remaining_act.get("action") == "web_search":
+                                    remaining_act.setdefault("params", {})["query"] = reflection["next_query"]
+                                    break
+                    except Exception as _re:
+                        logger.warning("reflect_after_search step failed: %s", _re)
+                    # ─────────────────────────────────────────────────────────
 
                 elif action_type == "deep_dive":
                     topic = params.get("topic", query)
@@ -1028,6 +1116,7 @@ async def _research_loop(pid: str):
                     f"{len(proj['search_results'])} results)..."
                 )
                 try:
+                    # Use dedicated compression model for condensation (open_deep_research style)
                     condensed_results, core_findings, report_draft = \
                         await condense_research_context(
                             results=proj["search_results"],
@@ -1037,7 +1126,7 @@ async def _research_loop(pid: str):
                             eval_scores=last_eval.get("scores", {}),
                             llm_call=_project_llm_call,
                             provider=provider,
-                            model=model,
+                            model=compression_model or model,
                             emit_fn=_emit_log,
                         )
                     proj["search_results"] = condensed_results

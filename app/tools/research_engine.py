@@ -598,6 +598,117 @@ def _score_proportional_selection(
     return selected
 
 
+# ── Think Tool: Post-Search Reflection (open_deep_research-inspired) ─────────
+
+async def reflect_after_search(
+    query: str,
+    new_results: list[dict],
+    existing_findings: str,
+    iteration_num: int,
+    llm_call: LLMCallFn,
+    provider: str = "",
+    model: str = "",
+) -> dict:
+    """
+    Strategic reflection after each search batch (open_deep_research think_tool).
+
+    After every search, the LLM pauses to analyse:
+      1. What key information was just found?
+      2. What is still missing or unclear?
+      3. Should we continue (or is the evidence already sufficient)?
+      4. What specific query should be made next?
+
+    This prevents "search spirals" (re-finding the same info) and enables
+    confident early stopping — exactly what lifts open_deep_research to #6
+    on Deep Research Bench despite a simpler overall architecture.
+
+    Args:
+        query: The original research query.
+        new_results: Fresh search results from this iteration.
+        existing_findings: Brief summary of what was already known.
+        iteration_num: Current iteration number (for budget awareness).
+
+    Returns:
+        Dict with keys:
+          - found: str — key facts just discovered
+          - gaps: list[str] — what is still missing
+          - continue: bool — whether more searching is warranted
+          - stop_reason: str — reason if stopping early
+          - next_query: str — the most targeted query for the next search
+          - confidence: float — [0-1] confidence the question is answerable now
+    """
+    results_text = "\n".join(
+        f"- [{r.get('source', 'web')}] {r.get('title', '')}: "
+        f"{r.get('snippet', '')[:150]}"
+        for r in new_results[:15]
+    )
+    findings_ctx = existing_findings[:1200] if existing_findings else "No prior findings yet."
+
+    prompt = [
+        {"role": "system", "content": (
+            "You are a research strategist. After each search, reflect briefly:\n"
+            "1. What KEY facts or data points were just found?\n"
+            "2. What is still MISSING or unclear?\n"
+            "3. Should we CONTINUE searching (consider diminishing returns)?\n"
+            "4. If continuing, what is the BEST next query?\n\n"
+            "Stop criteria (set continue=false if ANY holds):\n"
+            "  - The last 2 searches returned very similar information\n"
+            "  - You can already answer the question comprehensively (confidence >= 0.85)\n"
+            "  - All major sub-questions are answered\n\n"
+            "Return JSON:\n"
+            '{"found": "key facts summary (1-3 sentences)", '
+            '"gaps": ["gap 1", "gap 2"], '
+            '"continue": true, '
+            '"stop_reason": "", '
+            '"next_query": "specific targeted query", '
+            '"confidence": 0.0}'
+            "\n\nReturn ONLY valid JSON, no markdown."
+        )},
+        {"role": "user", "content": (
+            f"Original query: {query}\n"
+            f"Iteration: {iteration_num}\n\n"
+            f"Prior knowledge summary:\n{findings_ctx}\n\n"
+            f"New results ({len(new_results)} found):\n{results_text}\n\n"
+            "Reflect: what did we find, what's still missing, should we continue?"
+        )},
+    ]
+    try:
+        text = await llm_call(prompt, provider, model)
+        data = _parse_json_block(text, fallback={})
+        if not isinstance(data, dict):
+            data = {}
+
+        return {
+            "found": data.get("found", ""),
+            "gaps": data.get("gaps", []),
+            "continue": bool(data.get("continue", True)),
+            "stop_reason": data.get("stop_reason", ""),
+            "next_query": data.get("next_query", query),
+            "confidence": max(0.0, min(1.0, float(data.get("confidence", 0.5)))),
+        }
+    except Exception as e:
+        logger.warning("reflect_after_search failed: %s", e)
+        return {
+            "found": "", "gaps": [], "continue": True,
+            "stop_reason": "", "next_query": query, "confidence": 0.5,
+        }
+
+
+def should_stop_early(reflection: dict, min_confidence: float = 0.85) -> bool:
+    """
+    Decide whether to exit the research loop early based on reflection output.
+
+    Stops if:
+      - The think_tool says stop (continue=False)
+      - Confidence in answer completeness exceeds the threshold
+    """
+    if not reflection.get("continue", True):
+        return True
+    if reflection.get("confidence", 0.0) >= min_confidence:
+        return True
+    return False
+
+
 # ── 3. Structured Multi-Criteria Evaluation ──
 
 async def evaluate_structured(

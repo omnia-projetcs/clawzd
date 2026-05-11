@@ -36,6 +36,32 @@ ENHANCE_MODEL = os.getenv("ENHANCE_MODEL", "hf.co/unsloth/GLM-4.7-Flash-REAP-23B
 OLLAMA_NUM_GPU = int(os.getenv("OLLAMA_NUM_GPU", "999"))  # 999 = all layers on GPU (100% VRAM)
 OLLAMA_NUM_CTX = int(os.getenv("OLLAMA_NUM_CTX", "-1"))    # -1 = max context window
 
+# --- Research Models (open_deep_research-inspired role-specialization) ---
+# Assign different models to different research pipeline stages for
+# optimal speed/quality/cost tradeoffs. Each defaults to the main model
+# so existing deployments are unaffected without explicit .env configuration.
+#
+#  RESEARCH_SUMMARIZATION_MODEL — lightweight & fast: summarises raw web pages
+#    before injecting them into context. Runs once per scraped URL.
+#    Recommended: fast model (glm-4.7-flash, gemma3:4b, phi4-mini)
+#
+#  RESEARCH_MAIN_MODEL — high-capability: drives planning, perspective
+#    decomposition, reflection (think_tool), sub-question generation.
+#    Recommended: best available model (qwen3.5:9b, claude-3-5-sonnet)
+#
+#  RESEARCH_COMPRESSION_MODEL — intermediate: compresses accumulated findings
+#    and rewrites the evolving report draft (IterResearch condensation).
+#    Recommended: medium model with good instruction following.
+#
+#  RESEARCH_REPORT_MODEL — best available: generates the final comprehensive
+#    report from all condensed findings. Quality matters most here.
+#    Recommended: largest/best model you can afford.
+RESEARCH_SUMMARIZATION_MODEL = os.getenv("RESEARCH_SUMMARIZATION_MODEL", ENHANCE_MODEL)
+RESEARCH_MAIN_MODEL = os.getenv("RESEARCH_MAIN_MODEL", OLLAMA_MODEL)
+RESEARCH_COMPRESSION_MODEL = os.getenv("RESEARCH_COMPRESSION_MODEL", OLLAMA_MODEL)
+RESEARCH_REPORT_MODEL = os.getenv("RESEARCH_REPORT_MODEL", OLLAMA_MODEL)
+
+
 # Expose Ollama settings so the ollama client library picks them up natively
 os.environ.setdefault("OLLAMA_HOST", OLLAMA_HOST)
 
