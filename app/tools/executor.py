@@ -1016,12 +1016,15 @@ async def _generate_image_direct(prompt: str, negative_prompt: str = "", format:
 
     Uses Flux.2 Klein by default (style='none') with AI prompt enrichment
     enabled for chat-based generation.
+    Default resolution is 704×480 (standard chat resolution).
     """
     try:
         from app.tools_image import generate_image_core
         return await generate_image_core(
             prompt=prompt,
             negative_prompt=negative_prompt or "blurry, low quality, distorted",
+            width=704,
+            height=480,
             format=format,
             style=style,
             enhance_prompt=True,  # Always enhance for chat-based generation
