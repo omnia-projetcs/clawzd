@@ -942,7 +942,16 @@ class MediaStudio {
     this._abortController = new AbortController();
     if (cancelBtn) {
       cancelBtn.style.display = 'flex';
-      cancelBtn.onclick = () => {
+      cancelBtn.onclick = async () => {
+        // Tell the backend to stop the generation task
+        try {
+          await fetch('/image/cancel', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ task_id: '' }),
+          });
+        } catch (_) {}
+        // Then abort the SSE connection client-side
         if (this._abortController) {
           this._abortController.abort();
           this._abortController = null;

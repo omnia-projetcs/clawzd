@@ -2020,6 +2020,18 @@ async def animate_image(request: Request):
 
             while not task.done():
                 now = _time.monotonic()
+
+                # --- Cancellation check ---
+                # If _generation_progress["active"] was set to False by /image/cancel,
+                # cancel the asyncio task and release the GPU pipeline.
+                if not _generation_progress.get("active", True) and not task.done():
+                    logger.info("Video generation cancelled by user — stopping task %s", _task_id)
+                    task.cancel()
+                    _release_video_pipeline()
+                    unregister_task(_task_id)
+                    yield f"data: {json.dumps({'status': 'cancelled'})}\n\n"
+                    return
+
                 # Stream progress events from the shared state
                 gp = _generation_progress
                 if gp.get("active") and gp.get("progress", 0) != last_progress:
