@@ -1132,9 +1132,9 @@ async def _enhance_prompt_with_llm(prompt: str, style: str = "none", model_repo:
     ]
 
     # Always use a fast, non-reasoning model for prompt enrichment.
-    # Using OLLAMA_MODEL (e.g. qwen3.5:9b reasoning model) causes <think> chains
-    # that consume all tokens before the actual prompt is output.
-    _ENHANCE_MODEL = "mistral-nemo:12b-instruct-2407-q4_K_M"
+    # Configured via ENHANCE_MODEL in .env — must be a non-reasoning instruction model
+    # to avoid <think> token budget waste (e.g. avoid qwen3 reasoning variants).
+    from config import ENHANCE_MODEL as _ENHANCE_MODEL
     llm = get_llm_provider("ollama")
     
     try:
@@ -1194,9 +1194,9 @@ async def _enhance_video_prompt_with_llm(prompt: str, video_model: str = "cogvid
     )
 
     # Always use a fast, non-reasoning model for prompt enrichment.
-    # Using a reasoning model (e.g. qwen3.5:9b) causes <think> chains that
-    # exhaust the token budget before producing the actual enriched prompt.
-    _ENHANCE_MODEL = "mistral-nemo:12b-instruct-2407-q4_K_M"
+    # Configured via ENHANCE_MODEL in .env — must be a non-reasoning instruction model
+    # to avoid <think> token budget waste (e.g. avoid qwen3 reasoning variants).
+    from config import ENHANCE_MODEL as _ENHANCE_MODEL
     llm = get_llm_provider("ollama")
     messages = [
         {"role": "system", "content": system_prompt},

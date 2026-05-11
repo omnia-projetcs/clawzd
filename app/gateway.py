@@ -644,22 +644,20 @@ async def _process_chat(session_id: str, data: dict) -> dict:
     if preprompt_key != "jailbreak":
         detected = select_skills(user_msg, top_k=5, min_confidence=0.25)
 
-        # Force-inject generate_image when user message contains image-related keywords
-        # BUT exclude mermaid/diagram requests — those should produce markdown, not images.
-        _image_keywords = {"image", "photo", "picture", "logo", "illustration", "draw",
-                           "icon", "avatar", "banner", "poster", "wallpaper",
-                           "dessin", "dessine", "génère", "crée", "créer", "affiche",
-                           "generate an image", "generate a logo", "make a logo",
-                           "create an image", "create a logo"}
-        _mermaid_exclusions = {"mermaid", "diagramme", "diagram", "schéma", "schema",
-                               "flowchart", "organigramme", "séquence", "sequence",
-                               "erdiagram", "gantt", "classDiagram", "graph td",
-                               "graph lr", "mindmap", "pie chart"}
-        _user_lower = user_msg.lower()
-        _is_mermaid_request = any(kw in _user_lower for kw in _mermaid_exclusions)
-        if not _is_mermaid_request and any(kw in _user_lower for kw in _image_keywords):
-            if not any(d["skill"] == "generate_image" for d in detected):
-                detected.insert(0, {"skill": "generate_image", "confidence": 1.0, "source": "keyword"})
+        # --- Semantic intent classification (language-agnostic) ---
+        # Use a fast LLM call to detect which tools are genuinely needed,
+        # regardless of the user's language. This replaces brittle keyword lists.
+        try:
+            from app.skills.intent_classifier import classify_intent
+            semantic_tools = await classify_intent(user_msg)
+            detected_names = {d["skill"] for d in detected}
+            for tool_name in semantic_tools:
+                if tool_name not in detected_names:
+                    detected.insert(0, {"skill": tool_name, "confidence": 0.95, "source": "semantic"})
+                    detected_names.add(tool_name)
+        except Exception as _ic_err:
+            logger.debug("Intent classifier unavailable: %s", _ic_err)
+
 
         # Merge manually activated skills from the catalog (always injected)
         try:

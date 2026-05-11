@@ -385,6 +385,17 @@ else
     fi
 fi
 
+# --- Pull the enhance/enrichment model (fast, non-reasoning) ---
+ENHANCE_MODEL_ID=$( (grep -oP 'ENHANCE_MODEL=\K.*' .env 2>/dev/null || awk -F '=' '/^ENHANCE_MODEL=/ {print $2}' .env 2>/dev/null || echo "glm-4.7-flash:q4_K_M") | tr -d "\"'" )
+if [ -n "$ENHANCE_MODEL_ID" ] && [ "$ENHANCE_MODEL_ID" != "$DEFAULT_MODEL" ]; then
+    if ollama list 2>/dev/null | grep -q "$(echo $ENHANCE_MODEL_ID | cut -d: -f1)"; then
+        echo "Enhance model $ENHANCE_MODEL_ID is already installed."
+    else
+        echo "Downloading enhance model ($ENHANCE_MODEL_ID) via Ollama..."
+        ollama pull "$ENHANCE_MODEL_ID" || echo "WARNING: Could not download $ENHANCE_MODEL_ID — enrichment will fall back to default model."
+    fi
+fi
+
 # ---------- Creating Working Directories ----------
 mkdir -p data/sessions data/profiles data/skills data/images data/screenshots data/audit_reports data/snapshots data/playbooks data/playbook_state data/checkpoints workspace chroma_db
 

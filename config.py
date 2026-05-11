@@ -30,6 +30,9 @@ TAVILY_API_KEY = os.getenv("TAVILY_API_KEY", "")
 # --- Ollama (local LLM backend) ---
 OLLAMA_HOST = os.getenv("OLLAMA_HOST", "http://localhost:11434")
 OLLAMA_MODEL = os.getenv("OLLAMA_MODEL", "qwen3.5:9b")
+# Fast non-reasoning model used for prompt enrichment (image/video/chat enhance).
+# Must be a non-reasoning instruction model to avoid <think> token budget waste.
+ENHANCE_MODEL = os.getenv("ENHANCE_MODEL", "glm-4.7-flash:q4_K_M")
 OLLAMA_NUM_GPU = int(os.getenv("OLLAMA_NUM_GPU", "999"))  # 999 = all layers on GPU (100% VRAM)
 OLLAMA_NUM_CTX = int(os.getenv("OLLAMA_NUM_CTX", "-1"))    # -1 = max context window
 
