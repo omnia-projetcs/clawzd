@@ -386,7 +386,7 @@ else
 fi
 
 # --- Pull the enhance/enrichment model (fast, non-reasoning) ---
-ENHANCE_MODEL_ID=$( (grep -oP 'ENHANCE_MODEL=\K.*' .env 2>/dev/null || awk -F '=' '/^ENHANCE_MODEL=/ {print $2}' .env 2>/dev/null || echo "glm-4.7-flash:q4_K_M") | tr -d "\"'" )
+ENHANCE_MODEL_ID=$( (grep -oP 'ENHANCE_MODEL=\K.*' .env 2>/dev/null || awk -F '=' '/^ENHANCE_MODEL=/ {print $2}' .env 2>/dev/null || echo "hf.co/unsloth/GLM-4.7-Flash-REAP-23B-A3B-GGUF:Q4_K_S") | tr -d "\"'" )
 if [ -n "$ENHANCE_MODEL_ID" ] && [ "$ENHANCE_MODEL_ID" != "$DEFAULT_MODEL" ]; then
     if ollama list 2>/dev/null | grep -q "$(echo $ENHANCE_MODEL_ID | cut -d: -f1)"; then
         echo "Enhance model $ENHANCE_MODEL_ID is already installed."
