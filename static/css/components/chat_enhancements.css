@@ -142,3 +142,174 @@
   color: var(--text, #e0e0e0);
   background: rgba(255, 255, 255, 0.08);
 }
+
+
+/* ================================================================ */
+/*  Todo Panel — Plan Board (s03 Planning / TodoWriteTool)           */
+/* ================================================================ */
+
+.todo-panel {
+  position: sticky;
+  top: 0;
+  z-index: 60;
+  background: color-mix(in srgb, var(--bg-secondary, #1a1a2e) 92%, transparent);
+  backdrop-filter: blur(12px);
+  border: 1px solid color-mix(in srgb, var(--accent, #7c6aef) 20%, transparent);
+  border-radius: 12px;
+  margin: 8px 12px 4px;
+  padding: 0;
+  overflow: hidden;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.25);
+
+  /* Entrance animation */
+  opacity: 0;
+  transform: translateY(-8px) scale(0.98);
+  transition: opacity 0.35s ease, transform 0.35s ease;
+}
+
+.todo-panel.todo-panel-visible {
+  opacity: 1;
+  transform: translateY(0) scale(1);
+}
+
+.todo-panel.todo-panel-exit {
+  opacity: 0;
+  transform: translateY(-8px) scale(0.97);
+}
+
+/* Header */
+.todo-panel-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 14px;
+  background: color-mix(in srgb, var(--accent, #7c6aef) 8%, transparent);
+  border-bottom: 1px solid color-mix(in srgb, var(--accent, #7c6aef) 15%, transparent);
+}
+
+.todo-panel-title {
+  font-size: 0.82rem;
+  font-weight: 700;
+  color: var(--accent, #7c6aef);
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.todo-panel-count {
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: var(--text-muted, #888);
+  margin-left: auto;
+  background: rgba(255, 255, 255, 0.06);
+  padding: 2px 8px;
+  border-radius: 10px;
+}
+
+.todo-panel-close {
+  background: none;
+  border: none;
+  color: var(--text-muted, #888);
+  cursor: pointer;
+  font-size: 1rem;
+  padding: 2px 6px;
+  border-radius: 4px;
+  line-height: 1;
+  transition: color 0.2s, background 0.2s;
+}
+
+.todo-panel-close:hover {
+  color: var(--text, #e0e0e0);
+  background: rgba(255, 255, 255, 0.08);
+}
+
+/* List */
+.todo-panel-list {
+  list-style: none;
+  margin: 0;
+  padding: 6px 0;
+  max-height: 220px;
+  overflow-y: auto;
+}
+
+.todo-panel-list::-webkit-scrollbar {
+  width: 4px;
+}
+
+.todo-panel-list::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.todo-panel-list::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.12);
+  border-radius: 2px;
+}
+
+/* Items */
+.todo-item {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  padding: 6px 14px;
+  font-size: 0.83rem;
+  color: var(--text, #e0e0e0);
+  transition: background 0.2s;
+
+  /* Entrance animation */
+  opacity: 0;
+  transform: translateX(-6px);
+  transition: opacity 0.3s ease, transform 0.3s ease, background 0.2s;
+}
+
+.todo-item.todo-item-visible {
+  opacity: 1;
+  transform: translateX(0);
+}
+
+.todo-item:hover {
+  background: rgba(255, 255, 255, 0.04);
+}
+
+.todo-icon {
+  font-size: 0.9rem;
+  flex-shrink: 0;
+  margin-top: 1px;
+}
+
+.todo-content {
+  flex: 1;
+  line-height: 1.4;
+}
+
+/* Status colors */
+.todo-status-in_progress .todo-content {
+  color: var(--accent, #7c6aef);
+  font-weight: 500;
+}
+
+.todo-status-completed .todo-content,
+.todo-item.todo-done .todo-content {
+  color: var(--text-muted, #888);
+  text-decoration: line-through;
+}
+
+.todo-status-cancelled .todo-content {
+  color: var(--text-muted, #888);
+  opacity: 0.6;
+  text-decoration: line-through;
+}
+
+/* Priority indicators (left border) */
+.todo-priority-high {
+  border-left: 2px solid #ef5350;
+  padding-left: 12px;
+}
+
+.todo-priority-medium {
+  border-left: 2px solid #ffb300;
+  padding-left: 12px;
+}
+
+.todo-priority-low {
+  border-left: 2px solid #42a5f5;
+  padding-left: 12px;
+}

@@ -390,6 +390,92 @@ BUILTIN_TOOL_DEFINITIONS = [
             "required": [],
         },
     },
+    {
+        "name": "list_files",
+        "description": (
+            "List files in the workspace matching a glob pattern. "
+            "Use this BEFORE read_file or edit_file to discover what files exist. "
+            "Faster and safer than run_command with find/ls. "
+            "Examples: '**/*.py' (all Python files), 'src/**/*.js' (JS in src/), "
+            "'*.md' (markdowns at root), '' or '**/*' (all files)."
+        ),
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "pattern": {
+                    "type": "string",
+                    "description": "Glob pattern relative to workspace root (e.g. '**/*.py', 'src/*.js', '')",
+                    "default": "**/*",
+                },
+                "limit": {
+                    "type": "integer",
+                    "description": "Maximum number of files to return",
+                    "default": 60,
+                },
+                "include_dirs": {
+                    "type": "boolean",
+                    "description": "Include directory entries in results",
+                    "default": False,
+                },
+            },
+            "required": [],
+        },
+    },
+    {
+        "name": "todo_write",
+        "description": (
+            "Create or update a structured todo list for multi-step tasks. "
+            "ALWAYS call this first for complex requests to plan your work. "
+            "The plan is shown to the user in real-time. "
+            "Update todo items as you progress (set status to 'in_progress' when starting, "
+            "'completed' when done, 'cancelled' if skipped). "
+            "Actions: 'write' (replace all todos), 'update' (update specific item by id), "
+            "'clear' (remove all todos)."
+        ),
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "action": {
+                    "type": "string",
+                    "enum": ["write", "update", "clear"],
+                    "description": "Operation: 'write' (set all todos), 'update' (change one item), 'clear' (remove all)",
+                    "default": "write",
+                },
+                "todos": {
+                    "type": "array",
+                    "description": "List of todo items (for 'write' action)",
+                    "items": {
+                        "type": "object",
+                        "properties": {
+                            "id": {"type": "string", "description": "Unique identifier (e.g. 'step-1')"},
+                            "content": {"type": "string", "description": "Description of the task"},
+                            "status": {
+                                "type": "string",
+                                "enum": ["pending", "in_progress", "completed", "cancelled"],
+                                "default": "pending",
+                            },
+                            "priority": {
+                                "type": "string",
+                                "enum": ["high", "medium", "low"],
+                                "default": "medium",
+                            },
+                        },
+                        "required": ["id", "content"],
+                    },
+                },
+                "id": {
+                    "type": "string",
+                    "description": "ID of the todo to update (for 'update' action)",
+                },
+                "status": {
+                    "type": "string",
+                    "enum": ["pending", "in_progress", "completed", "cancelled"],
+                    "description": "New status for the todo item (for 'update' action)",
+                },
+            },
+            "required": ["action"],
+        },
+    },
 ]
 
 

@@ -835,6 +835,15 @@
         this._pendingSuggestions = window.ChatEnhancements.extractSuggestions(tok);
         return; // Don't append suggestions marker to visible text
       }
+      // Intercept todo plan updates from SSE stream (Claude Code TodoWriteTool pattern)
+      if (window.ChatEnhancements && tok.includes('__TODO_UPDATE__')) {
+        const todoData = window.ChatEnhancements.parseTodoUpdate(tok);
+        if (todoData) {
+          window.ChatEnhancements.renderTodoPanel(todoData);
+          return; // Don't append todo marker to visible text
+        }
+      }
+
       this.text += tok;
       if (window.tokenTracker) window.tokenTracker.addOutput(1);
 

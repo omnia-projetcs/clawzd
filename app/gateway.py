@@ -1263,11 +1263,28 @@ async def _process_chat(session_id: str, data: dict) -> dict:
                             import json as _json
                             edit_data = {
                                 "path": result.get("file_path"),
-                                "diff": result.get("diff", "")
+                                "diff": result.get("diff", ""),
+                                "lines_added": result.get("lines_added", 0),
+                                "lines_removed": result.get("lines_removed", 0),
+                                "lines_changed": result.get("lines_changed", 0),
+                                "show_diff": result.get("show_diff", False),
                             }
                             edit_marker = f"\n\n__FILE_EDIT__{_json.dumps(edit_data)}__\n\n"
                             await queue.put(edit_marker)
                             full_conversation += edit_marker
+
+                        # TodoWrite: broadcast plan update to frontend in real-time
+                        if (resolved or tool_name) == "todo_write" and result.get("__todo_update__"):
+                            import json as _json
+                            todo_data = {
+                                "todos": result.get("todos", []),
+                                "session_id": session_id,
+                                "action": result.get("status", "written"),
+                            }
+                            todo_marker = f"\n\n__TODO_UPDATE__{_json.dumps(todo_data)}__TODO_UPDATE__\n\n"
+                            await queue.put(todo_marker)
+                            full_conversation += todo_marker
+
 
                     tool_results.append({
                         "tool": resolved or tool_name,

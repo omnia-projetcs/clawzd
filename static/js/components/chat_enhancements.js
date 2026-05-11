@@ -98,6 +98,145 @@ function renderSuggestionChips(suggestions, chatInstance) {
 
 
 /* ------------------------------------------------------------------ */
+/*  3. Todo Panel — Plan Board (inspired by Claude Code TodoWriteTool) */
+/* ------------------------------------------------------------------ */
+
+const _TODO_MARKER = '__TODO_UPDATE__';
+
+const _STATUS_ICONS = {
+  pending:     '⏳',
+  in_progress: '🔄',
+  completed:   '✅',
+  cancelled:   '❌',
+};
+
+const _PRIORITY_CLASSES = {
+  high:   'todo-priority-high',
+  medium: 'todo-priority-medium',
+  low:    'todo-priority-low',
+};
+
+/**
+ * Parse a __TODO_UPDATE__ SSE token.
+ * Returns the parsed todo data object, or null if not a todo marker.
+ */
+function parseTodoUpdate(token) {
+  if (typeof token !== 'string' || !token.includes(_TODO_MARKER)) return null;
+  try {
+    const start = token.indexOf(_TODO_MARKER) + _TODO_MARKER.length;
+    const end   = token.lastIndexOf(_TODO_MARKER);
+    if (end <= start) return null;
+    return JSON.parse(token.substring(start, end));
+  } catch (e) {
+    console.debug('Failed to parse todo update:', e);
+    return null;
+  }
+}
+
+/**
+ * Render or update the floating Todo Panel.
+ * Creates the panel if it doesn't exist, otherwise updates in place.
+ */
+function renderTodoPanel(data) {
+  if (!data || !Array.isArray(data.todos)) return;
+
+  const todos = data.todos;
+  const action = data.action || 'written';
+
+  // Clear panel if action is 'cleared'
+  if (action === 'cleared' || todos.length === 0) {
+    const existing = document.getElementById('chat-todo-panel');
+    if (existing) {
+      existing.classList.add('todo-panel-exit');
+      setTimeout(() => existing.remove(), 350);
+    }
+    return;
+  }
+
+  let panel = document.getElementById('chat-todo-panel');
+  const isNew = !panel;
+
+  if (isNew) {
+    panel = document.createElement('div');
+    panel.id = 'chat-todo-panel';
+    panel.className = 'todo-panel';
+    panel.innerHTML = `
+      <div class="todo-panel-header">
+        <span class="todo-panel-title">📋 Plan</span>
+        <span class="todo-panel-count" id="todo-panel-count"></span>
+        <button class="todo-panel-close" title="Close plan panel" aria-label="Close">×</button>
+      </div>
+      <ul class="todo-panel-list" id="todo-panel-list"></ul>
+    `;
+    panel.querySelector('.todo-panel-close').addEventListener('click', () => {
+      panel.classList.add('todo-panel-exit');
+      setTimeout(() => panel.remove(), 350);
+    });
+    // Insert at the top of the chat area (or body)
+    const chatArea = document.getElementById('chat-messages') || document.body;
+    const parent = chatArea.parentElement || document.body;
+    parent.insertBefore(panel, chatArea);
+  }
+
+  // Update items
+  const list = panel.querySelector('#todo-panel-list') || panel.querySelector('ul');
+  const countEl = panel.querySelector('#todo-panel-count');
+
+  if (!list) return;
+
+  // Render each item (update existing or add new)
+  const existingIds = new Set();
+  list.querySelectorAll('.todo-item[data-id]').forEach(el => existingIds.add(el.dataset.id));
+
+  todos.forEach(todo => {
+    const id = todo.id || '';
+    const icon = _STATUS_ICONS[todo.status] || '⏳';
+    const prioClass = _PRIORITY_CLASSES[todo.priority] || 'todo-priority-medium';
+    const isDone = todo.status === 'completed' || todo.status === 'cancelled';
+
+    let item = list.querySelector(`.todo-item[data-id="${id}"]`);
+    if (item) {
+      // Update existing
+      item.className = `todo-item todo-status-${todo.status} ${prioClass}`;
+      item.querySelector('.todo-icon').textContent = icon;
+      item.querySelector('.todo-content').textContent = todo.content;
+      if (isDone) item.classList.add('todo-done');
+      else item.classList.remove('todo-done');
+    } else {
+      // Add new
+      item = document.createElement('li');
+      item.className = `todo-item todo-status-${todo.status} ${prioClass}`;
+      item.dataset.id = id;
+      item.innerHTML = `
+        <span class="todo-icon">${icon}</span>
+        <span class="todo-content">${_escHtml(todo.content)}</span>
+      `;
+      list.appendChild(item);
+      // Entrance animation
+      requestAnimationFrame(() => item.classList.add('todo-item-visible'));
+    }
+  });
+
+  // Update count badge
+  const done = todos.filter(t => t.status === 'completed').length;
+  if (countEl) countEl.textContent = `${done}/${todos.length}`;
+
+  // Entrance animation for new panel
+  if (isNew) {
+    requestAnimationFrame(() => panel.classList.add('todo-panel-visible'));
+  }
+}
+
+function _escHtml(str) {
+  return String(str)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;');
+}
+
+
+/* ------------------------------------------------------------------ */
 /*  2. Mode Switch Hint                                                */
 /* ------------------------------------------------------------------ */
 
@@ -172,4 +311,6 @@ window.ChatEnhancements = {
   extractSuggestions,
   renderSuggestionChips,
   renderModeSwitchHint,
+  parseTodoUpdate,
+  renderTodoPanel,
 };

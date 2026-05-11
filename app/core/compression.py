@@ -15,7 +15,12 @@ Inspired by Hermes Agent's ContextCompressor https://github.com/NousResearch/her
 import logging
 import re
 
-from app.tool_pruner import prune_old_tool_results, prune_tool_result_user_messages
+from app.tool_pruner import (
+    prune_old_tool_results,
+    prune_tool_result_user_messages,
+    snip_orphaned_tool_results,
+    inject_compact_boundary_marker,
+)
 
 logger = logging.getLogger("clawzd.compression")
 
@@ -268,9 +273,15 @@ async def compress_messages(
     conversation, user_prune_count = prune_tool_result_user_messages(
         conversation, protect_last_n=_PROTECT_LAST_N
     )
-    prune_count += user_prune_count
+    # Phase 1c: Snip orphaned tool results (HISTORY_SNIP — Claude Code pattern)
+    # Removes tool results whose corresponding tool_call was already compacted.
+    conversation, snip_count = snip_orphaned_tool_results(
+        conversation, protect_last_n=_PROTECT_LAST_N
+    )
+    prune_count += user_prune_count + snip_count
     if prune_count > 0:
-        logger.info("Pruned %d old tool/user result messages", prune_count)
+        logger.info("Pruned %d old tool/user result messages (incl. %d snipped orphans)", prune_count, snip_count)
+
 
     # Re-check after pruning — might be enough
     total_chars_after_prune = sum(len(m.get("content", "")) for m in conversation)

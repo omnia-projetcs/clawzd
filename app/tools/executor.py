@@ -113,6 +113,15 @@ TOOL_KEYWORDS: dict[str, list[str]] = {
         "undo", "revert", "rollback", "restore", "cancel",
         "annuler", "défaire",
     ],
+    "list_files": [
+        "list", "files", "glob", "find", "discover", "explore",
+        "structure", "tree", "directory", "workspace", "pattern",
+        "*.py", "*.js", "*.ts", "lister", "fichiers",
+    ],
+    "todo_write": [
+        "todo", "plan", "task", "step", "checklist", "agenda",
+        "progress", "track", "tâche", "planifier", "étapes",
+    ],
     "graphify_query": [
         "graphify", "graph", "semantic", "codebase", "architecture",
         "concept", "knowledge",
@@ -227,6 +236,20 @@ TOOL_ALIASES: dict[str, str] = {
     "revert": "undo",
     "rollback": "undo",
     "annuler": "undo",
+    # list_files
+    "glob": "list_files",
+    "find-files": "list_files",
+    "find_files": "list_files",
+    "list-files": "list_files",
+    "ls-files": "list_files",
+    "explore-workspace": "list_files",
+    # todo_write
+    "write-todo": "todo_write",
+    "write_todo": "todo_write",
+    "create-plan": "todo_write",
+    "create_plan": "todo_write",
+    "update-plan": "todo_write",
+    "update_plan": "todo_write",
     # App Builder
     "build-app": "create_app",
     "build_app": "create_app",
@@ -936,6 +959,49 @@ async def execute_tool(tool_name: str, params: dict, context: dict = None) -> di
             max_charts = params.get("max_charts", 5)
             return await analyze_file(file_path, focus=focus, max_charts=max_charts)
 
+        elif resolved == "list_files":
+            import glob as _glob
+            import os as _os
+            from config import WORKSPACE_DIR
+            pattern = params.get("pattern", "**/*") or "**/*"
+            limit = min(int(params.get("limit", 60)), 200)
+            include_dirs = bool(params.get("include_dirs", False))
+
+            # Sanitize pattern — no absolute paths or traversal
+            pattern = pattern.lstrip("/").replace("..", "")
+            if not pattern:
+                pattern = "**/*"
+
+            try:
+                base = _os.path.realpath(WORKSPACE_DIR)
+                matches = _glob.glob(pattern, root_dir=base, recursive=True)
+                results = []
+                for m in matches:
+                    full = _os.path.join(base, m)
+                    if _os.path.isdir(full):
+                        if include_dirs:
+                            results.append({"path": m, "type": "dir"})
+                    else:
+                        try:
+                            size = _os.path.getsize(full)
+                        except OSError:
+                            size = 0
+                        results.append({"path": m, "type": "file", "size": size})
+                    if len(results) >= limit:
+                        break
+
+                return {
+                    "pattern": pattern,
+                    "count": len(results),
+                    "truncated": len(matches) > limit,
+                    "files": results,
+                }
+            except Exception as e:
+                return {"error": f"list_files failed: {e}"}
+
+        elif resolved == "todo_write":
+            return _handle_todo_write(params, (context or {}).get("session_id", "default"))
+
         else:
             return {"error": f"Tool '{resolved}' is registered but has no executor"}
 
@@ -950,6 +1016,78 @@ async def execute_tool(tool_name: str, params: dict, context: dict = None) -> di
 # ---------------------------------------------------------------------------
 # Direct tool implementations (bypass FastAPI Request objects)
 # ---------------------------------------------------------------------------
+
+# ---------------------------------------------------------------------------
+# TodoWrite registry — in-memory per-session todo state (s03 Planning)
+# ---------------------------------------------------------------------------
+_todo_registry: dict[str, list[dict]] = {}  # session_id -> list of todos
+
+
+def _handle_todo_write(params: dict, session_id: str) -> dict:
+    """Manage a per-session structured todo list (inspired by Claude Code TodoWriteTool).
+
+    Supports three actions:
+    - 'write': Replace the entire todo list for this session
+    - 'update': Update a specific todo item's status (by id)
+    - 'clear': Remove all todos for this session
+
+    The todo list is streamed to connected SSE clients via a special
+    __TODO_UPDATE__ marker so the frontend can display it in real-time.
+    """
+    import time as _time
+    action = params.get("action", "write")
+    global _todo_registry
+
+    if action == "clear":
+        _todo_registry.pop(session_id, None)
+        return {"status": "cleared", "session_id": session_id, "todos": []}
+
+    if action == "update":
+        item_id = params.get("id", "")
+        new_status = params.get("status", "")
+        todos = _todo_registry.get(session_id, [])
+        updated = False
+        for todo in todos:
+            if todo.get("id") == item_id:
+                if new_status:
+                    todo["status"] = new_status
+                todo["updated_at"] = _time.time()
+                updated = True
+                break
+        _todo_registry[session_id] = todos
+        if not updated:
+            return {"error": f"Todo item '{item_id}' not found"}
+        return {"status": "updated", "id": item_id, "todos": todos, "__todo_update__": True}
+
+    # Default: 'write' action
+    raw_todos = params.get("todos", [])
+    if not isinstance(raw_todos, list):
+        return {"error": "'todos' must be a list of objects"}
+
+    now = _time.time()
+    todos = []
+    for i, item in enumerate(raw_todos):
+        if not isinstance(item, dict):
+            continue
+        todos.append({
+            "id": item.get("id") or f"step-{i + 1}",
+            "content": str(item.get("content", "")).strip(),
+            "status": item.get("status", "pending"),
+            "priority": item.get("priority", "medium"),
+            "created_at": now,
+            "updated_at": now,
+        })
+
+    _todo_registry[session_id] = todos
+    logger.info("todo_write: session=%s action=write items=%d", session_id, len(todos))
+    return {"status": "written", "count": len(todos), "todos": todos, "__todo_update__": True}
+
+
+def get_session_todos(session_id: str) -> list[dict]:
+    """Get the current todo list for a session (for SSE injection)."""
+    return _todo_registry.get(session_id, [])
+
+
 
 async def _screenshot_remote_direct(url: str, full_page: bool = False) -> dict:
     """Take a remote screenshot without going through the HTTP endpoint."""
@@ -1200,6 +1338,38 @@ def format_tool_result(tool_name: str, result: dict) -> str:
             f"Audit: {result['total_findings']} findings. "
             f"Severity: {result.get('severity', {})}"
         )
+
+    if tool_name == "list_files" and "files" in result:
+        # GlobTool results — compact file listing
+        files = result["files"]
+        if not files:
+            return f"No files match pattern '{result.get('pattern', '')}'."
+        lines = [f"Found {result['count']} file(s) (pattern: {result.get('pattern', '**/*')})"]
+        if result.get("truncated"):
+            lines[0] += " [truncated]"
+        for f in files[:50]:
+            size_str = f" ({f['size']:,}B)" if f.get("size") else ""
+            icon = "📂" if f["type"] == "dir" else "📄"
+            lines.append(f"{icon} {f['path']}{size_str}")
+        return "\n".join(lines)
+
+    if tool_name == "todo_write" and "todos" in result:
+        # TodoWrite — show the plan to the LLM as a compact checklist
+        todos = result["todos"]
+        if not todos:
+            return "Todo list cleared."
+        status_icons = {
+            "pending": "⏳",
+            "in_progress": "🔄",
+            "completed": "✅",
+            "cancelled": "❌",
+        }
+        action = result.get("status", "written")
+        lines = [f"Todo list {action}: {len(todos)} item(s)"]
+        for t in todos:
+            icon = status_icons.get(t.get("status", "pending"), "⏳")
+            lines.append(f"{icon} [{t.get('id', '?')}] {t.get('content', '')} ({t.get('priority', 'medium')})") 
+        return "\n".join(lines)
 
     # Generic result — compressed
     text = json.dumps(result, ensure_ascii=False)

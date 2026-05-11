@@ -1244,32 +1244,67 @@ class CodeEditor:
     
     @staticmethod
     def read_file(file_path: str, start_line: int = 1, end_line: Optional[int] = None) -> Dict:
-        """Read a file and return its contents with line numbers."""
+        """Read a file and return its contents with line numbers.
+
+        Enhanced with pagination metadata (has_more, file_type, tokens_approx)
+        inspired by Claude Code's FileReadTool.
+        """
         full_path = os.path.join(WORKSPACE_DIR, file_path)
         if not os.path.exists(full_path):
             return {"error": f"File '{file_path}' not found."}
         if not os.path.isfile(full_path):
             return {"error": f"'{file_path}' is not a regular file."}
-            
+
+        # Detect file type from extension
+        ext = os.path.splitext(file_path)[-1].lstrip(".").lower()
+        _EXT_MAP = {
+            "py": "python", "js": "javascript", "ts": "typescript",
+            "jsx": "jsx", "tsx": "tsx", "html": "html", "css": "css",
+            "json": "json", "yaml": "yaml", "yml": "yaml",
+            "md": "markdown", "sh": "bash", "sql": "sql",
+            "txt": "text", "rs": "rust", "go": "go",
+            "java": "java", "cpp": "cpp", "c": "c", "rb": "ruby",
+        }
+        file_type = _EXT_MAP.get(ext, ext or "text")
+
+        # Page size cap: avoid sending huge files to the LLM
+        MAX_LINES_PER_READ = 500
+
         try:
-            with open(full_path, "r", encoding="utf-8") as f:
+            with open(full_path, "r", encoding="utf-8", errors="replace") as f:
                 lines = f.readlines()
-                
+
+            total_lines = len(lines)
             start_idx = max(0, start_line - 1)
-            end_idx = min(len(lines), end_line) if end_line else len(lines)
-            
+
+            if end_line is None:
+                # Default: read up to MAX_LINES_PER_READ from start
+                end_idx = min(total_lines, start_idx + MAX_LINES_PER_READ)
+            else:
+                end_idx = min(total_lines, end_line)
+
+            has_more = end_idx < total_lines
+
             # Format with line numbers to help the AI
             formatted_lines = []
             for i, line in enumerate(lines[start_idx:end_idx], start=start_line):
                 formatted_lines.append(f"{i:4d} | {line}")
-                
+
+            content = "".join(formatted_lines)
+
             return {
                 "file_path": file_path,
-                "total_lines": len(lines),
-                "content": "".join(formatted_lines)
+                "file_type": file_type,
+                "total_lines": total_lines,
+                "shown_lines": f"{start_line}-{start_idx + len(formatted_lines)}",
+                "has_more": has_more,
+                "next_start_line": start_idx + len(formatted_lines) + 1 if has_more else None,
+                "tokens_approx": len(content) // 4,
+                "content": content,
             }
         except Exception as e:
             return {"error": f"Failed to read file: {e}"}
+
 
     @staticmethod
     def edit_file(file_path: str, old_string: str, new_string: str, replace_all: bool = False) -> Dict:
@@ -1333,12 +1368,20 @@ class CodeEditor:
             
             with open(full_path, "w", encoding="utf-8") as f:
                 f.write(new_content)
-                
+
+            # Count meaningful changes for the frontend diff viewer
+            lines_added = sum(1 for l in diff if l.startswith("+") and not l.startswith("+++"))
+            lines_removed = sum(1 for l in diff if l.startswith("-") and not l.startswith("---"))
+
             return {
                 "status": "success",
                 "file_path": file_path,
                 "message": f"Replaced {count if replace_all else 1} occurrence(s)." if old_string else "Wrote to empty file.",
-                "diff": diff_text
+                "diff": diff_text,
+                "lines_added": lines_added,
+                "lines_removed": lines_removed,
+                "lines_changed": lines_added + lines_removed,
+                "show_diff": bool(diff_text),  # hint to frontend to render diff viewer
             }
         except Exception as e:
             return {"error": f"Failed to edit file: {e}"}
