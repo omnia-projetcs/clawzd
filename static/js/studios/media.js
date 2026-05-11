@@ -336,10 +336,12 @@ class MediaStudio {
     const styleGrp = $('#media-style-group');
     const sizeGrp = $('#media-size-group');
     const countGrp = $('#media-count-group');
+    const stepsGrp = $('#media-steps-group');
     if (imgFmt) imgFmt.style.display = isImage ? '' : 'none';
     if (styleGrp) styleGrp.style.display = isImage ? '' : 'none';
     if (sizeGrp) sizeGrp.style.display = isImage ? '' : 'none';
     if (countGrp) countGrp.style.display = isImage ? '' : 'none';
+    if (stepsGrp) stepsGrp.style.display = isImage ? '' : 'none';
 
     // Video-specific groups
     const vidFmt = $('#media-format-video-group');
