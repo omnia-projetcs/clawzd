@@ -1029,10 +1029,37 @@ def _clean_llm_output(text: str) -> str:
     # Collapse any extra whitespace introduced by the above substitution
     text = re.sub(r"\s{2,}", " ", text).strip()
 
+    # 6. Self-correction extraction: when the LLM revises itself inline it writes
+    #    markers like "Final Polish:", "Revised:", "**Correction:**" etc.
+    #    We keep ONLY the content after the LAST such marker.
+    _revision_markers = [
+        r"\*\*Final\s+Polish\*\*\s*:\s*",
+        r"Final\s+Polish\s*:\s*",
+        r"\*\*Revised\s*(?:Prompt|Version)?\*\*\s*:\s*",
+        r"Revised\s*(?:Prompt|Version)?\s*:\s*",
+        r"\*\*Correction\*\*\s*:\s*",
+        r"Correction\s*:\s*",
+        r"\*\*Final\s+(?:Prompt|Version|Output)\*\*\s*:\s*",
+        r"Final\s+(?:Prompt|Version|Output)\s*:\s*",
+        r"\*\*Condensed\*\*\s*:\s*",
+        r"Condensed\s+(?:Prompt|Version)?\s*:\s*",
+    ]
+    for _marker in _revision_markers:
+        _parts = re.split(_marker, text, flags=re.IGNORECASE)
+        if len(_parts) > 1:
+            # Take content after the LAST marker occurrence
+            text = _parts[-1].strip()
+    # Also strip everything from the FIRST inline self-correction block
+    # (e.g. "…sentence.` **Correction:** …") — keep only what precedes it.
+    text = re.sub(r"`?\s*\*\*Correction\*\*.*$", "", text, flags=re.IGNORECASE | re.DOTALL).strip()
+    # Strip stray backticks (` used as quote delimiters by some models)
+    text = text.strip("`").strip()
+
     # Remove conversational prefixes
     text = re.sub(
         r"^(here is .*?:|here's .*?:|enhanced prompt:|prompt:|\*\*prompt\*\*.*?:"
-        r"|sure.*?:|of course.*?:|certainly.*?:|the enhanced.*?:|translated.*?:|result.*?:)\s*",
+        r"|sure.*?:|of course.*?:|certainly.*?:|the enhanced.*?:|translated.*?:"
+        r"|result.*?:|final polish:|correction:|revised.*?:|condensed.*?:)\s*",
         "", text, flags=re.IGNORECASE
     ).strip()
     # Remove self-commentary (e.g. "43 words. English only. No intro/outro. …")
