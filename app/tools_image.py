@@ -1728,21 +1728,31 @@ async def generate_animation_core(
             gen_kwargs["height"] = height
 
         if init_img:
-            # Resize image to match exactly the target dimensions to avoid tensor mismatch errors
-            target_w = gen_kwargs.get("width", width)
-            target_h = gen_kwargs.get("height", height)
-            
+            # Use the source image's actual resolution as the video resolution.
+            # Round each dimension down to the nearest multiple of 32 (required by all
+            # diffusion video models). This guarantees the output video always matches
+            # the input image's native resolution.
+            src_w, src_h = init_img.size
+            target_w = max(32, (src_w // 32) * 32)
+            target_h = max(32, (src_h // 32) * 32)
+            logger.info("I2V: source image %dx%d → video resolution %dx%d",
+                        src_w, src_h, target_w, target_h)
+
             if pipeline_type == "svd":
-                # SVD native resolution (reduced to prevent OOM freezes)
-                target_w, target_h = 512, 320
+                # SVD does not accept explicit width/height kwargs
                 gen_kwargs.pop("width", None)
                 gen_kwargs.pop("height", None)
             elif "cogvideo" in (model_cfg.get("i2v_repo") or "").lower():
-                target_w, target_h = 720, 480
-                gen_kwargs.pop("width", None)
-                gen_kwargs.pop("height", None)
+                # CogVideoX-I2V accepts width/height — pass the image resolution
+                gen_kwargs["width"] = target_w
+                gen_kwargs["height"] = target_h
+            else:
+                gen_kwargs["width"] = target_w
+                gen_kwargs["height"] = target_h
 
-            init_img = init_img.resize((target_w, target_h), Image.LANCZOS)
+            # Resize the PIL image only if it differs from target (avoids unnecessary work)
+            if init_img.size != (target_w, target_h):
+                init_img = init_img.resize((target_w, target_h), Image.LANCZOS)
             gen_kwargs["image"] = init_img
 
         result = await asyncio.to_thread(pipe, **gen_kwargs)
