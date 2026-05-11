@@ -24,6 +24,7 @@ from app.tools.research_engine import (
     research_by_perspectives_parallel, synthesize_perspective_branches,
     update_dynamic_outline, outline_to_report_structure,
     reflect_after_search, should_stop_early,
+    generate_sectioned_report,
 )
 from app.tools.research_brief import (
     generate_research_brief, brief_to_planning_context,
@@ -35,6 +36,9 @@ from app.tools.research_archive import (
 )
 from app.tools.research_condensation import (
     should_condense, condense_research_context,
+)
+from app.tools.research_progress import (
+    ResearchProgress, ResearchPhase, ResearchCostTracker,
 )
 from app.core.tokens import count_tokens
 
@@ -591,10 +595,28 @@ async def _research_loop(pid: str):
     query = proj["query"]
 
     # Use differentiated models per pipeline role (open_deep_research-inspired)
-    # Each falls back to the project model if no specific model is configured.
     main_model = RESEARCH_MAIN_MODEL if RESEARCH_MAIN_MODEL != model else model
     compression_model = RESEARCH_COMPRESSION_MODEL if RESEARCH_COMPRESSION_MODEL != model else model
     report_model = RESEARCH_REPORT_MODEL if RESEARCH_REPORT_MODEL != model else model
+
+    # ── GPT-Researcher-inspired: structured progress + cost tracking ──────────
+    _progress = ResearchProgress(
+        total_depth=2,
+        total_breadth=5,
+        max_iterations=proj.get("max_iterations", 10),
+        target_score=proj.get("target_score", 0.7),
+    )
+    _cost_tracker = ResearchCostTracker()
+
+    async def _emit_progress(phase: str = "", label: str = "", **extra):
+        """Emit a structured progress event via SSE for precise UI progress bars."""
+        if phase:
+            _progress.set_phase(phase, label)
+        progress_data = _progress.to_dict()
+        progress_data["cost"] = _cost_tracker.get_summary()
+        progress_data.update(extra)
+        await _emit(pid, "progress", progress_data)
+    # ─────────────────────────────────────────────────────────────────────────
 
 
     from app import tools_project as pm
@@ -624,15 +646,27 @@ async def _research_loop(pid: str):
             pass
     # -----------------------------------
 
-    # Wrap _llm_call with project ID bound for token tracking
+    # Wrap _llm_call: binds project ID + feeds cost tracker automatically
     async def _project_llm_call(messages, prov="", mdl=""):
-        return await _llm_call(messages, prov, mdl, pid=pid)
+        result = await _llm_call(messages, prov, mdl, pid=pid)
+        try:
+            from app.core.tokens import count_tokens as _ct
+            in_tok = max(1, _ct("" .join(m.get("content", "") for m in messages), mdl or ""))
+            out_tok = max(1, _ct(result, mdl or ""))
+            _cost_tracker.add_call(in_tok, out_tok, model=mdl or model, provider=prov or provider)
+            _progress.total_input_tokens += in_tok
+            _progress.total_output_tokens += out_tok
+            _progress.total_cost_usd = _cost_tracker.get_total_usd()
+        except Exception:
+            pass
+        return result
 
     # ── Research Brief Generation (open_deep_research write_research_brief) ──
     # Transform raw query into a structured brief BEFORE any searching begins.
     # This improves the relevance of all downstream steps.
     research_brief_data: dict = {}
     try:
+        await _emit_progress(phase=ResearchPhase.BRIEF)
         await _emit(pid, "log", {"msg": "📋 Generating structured research brief..."})
         research_brief_data = await generate_research_brief(
             query=query,
@@ -680,6 +714,7 @@ async def _research_loop(pid: str):
     try:
         # ── Phase 0: Perspective Decomposition (STORM-style) ──
         _update_pm_task(0, "In Progress", 50)
+        await _emit_progress(phase=ResearchPhase.PERSPECTIVES)
         await _emit_log("🔭 Generating research perspectives...")
         perspectives = await generate_perspectives(
             query, _project_llm_call, provider, model,
@@ -762,6 +797,9 @@ async def _research_loop(pid: str):
                 "actions": [], "score": 0, "evaluation": "",
                 "scores_detail": {},
             }
+            _progress.current_iteration = iter_num
+            _progress.search_results_count = len(proj.get("search_results", []))
+            await _emit_progress(phase=ResearchPhase.SEARCH, current_query=query)
             await _emit(pid, "iteration_start", {"iteration": iter_num})
             _update_pm_task(1, "In Progress", int((iter_num - 1) / proj["max_iterations"] * 100))
 
@@ -1177,6 +1215,7 @@ async def _research_loop(pid: str):
         _update_pm_task(1, "Done", 100)
         _update_pm_task(2, "Done", 100)
         _update_pm_task(3, "In Progress", 10)
+        await _emit_progress(phase=ResearchPhase.REPORT)
         await _generate_report(
             pid, provider, model, perspectives, branch_summaries,
             dynamic_outline=dynamic_outline,
@@ -1250,27 +1289,62 @@ async def _generate_report(
     async def _report_llm_call(messages, prov="", mdl=""):
         return await _llm_call(messages, prov, mdl, pid=pid)
 
-    report = await generate_report_with_citations(
-        query=proj["query"],
-        results=proj["search_results"],
-        assets=proj.get("assets", []),
-        perspectives=perspectives or proj.get("perspectives", []),
-        branch_summaries=branch_summaries,
-        score=proj.get("current_score", 0),
-        num_iterations=len(proj.get("iterations", [])),
-        llm_call=_report_llm_call,
-        provider=provider,
-        model=model,
-        dynamic_outline=dynamic_outline or {},
-        report_draft=report_draft,
-        perspective_synthesis=perspective_synthesis,
-    )
+    async def _emit_section_log(msg: str):
+        await _emit(pid, "log", {"msg": msg})
+
+    report = ""
+
+    # ── GPT-Researcher-inspired: sectioned report if outline has ≥3 sections ──
+    outline_sections = (dynamic_outline or {}).get("sections", [])
+    use_sectioned = len(outline_sections) >= 3 and len(proj.get("search_results", [])) >= 10
+
+    if use_sectioned:
+        await _emit(pid, "log", {
+            "msg": f"✍️ Generating sectioned report ({len(outline_sections)} sections, GPT-Researcher style)..."
+        })
+        try:
+            report = await generate_sectioned_report(
+                query=proj["query"],
+                sections=outline_sections,
+                sources=proj["search_results"],
+                branch_summaries=branch_summaries,
+                score=proj.get("current_score", 0),
+                llm_call=_report_llm_call,
+                provider=provider,
+                model=model,
+                perspective_synthesis=perspective_synthesis,
+                emit_fn=_emit_section_log,
+            )
+        except Exception as _se:
+            logger.warning("Sectioned report failed, falling back to monolithic: %s", _se)
+            await _emit(pid, "log", {"msg": f"⚠️ Sectioned report failed ({_se}), using standard generator..."})
+            report = ""
+
+    # Fallback / standard monolithic report generator
+    if not report:
+        report = await generate_report_with_citations(
+            query=proj["query"],
+            results=proj["search_results"],
+            assets=proj.get("assets", []),
+            perspectives=perspectives or proj.get("perspectives", []),
+            branch_summaries=branch_summaries,
+            score=proj.get("current_score", 0),
+            num_iterations=len(proj.get("iterations", [])),
+            llm_call=_report_llm_call,
+            provider=provider,
+            model=model,
+            dynamic_outline=dynamic_outline or {},
+            report_draft=report_draft,
+            perspective_synthesis=perspective_synthesis,
+        )
+
     proj["report_md"] = report
+    proj["report_mode"] = "sectioned" if use_sectioned else "monolithic"
     report_path = os.path.join(_proj_dir(pid), "report.md")
     with open(report_path, "w", encoding="utf-8") as f:
         f.write(report)
     _save(proj)
-    await _emit(pid, "report_ready", {"length": len(report)})
+    await _emit(pid, "report_ready", {"length": len(report), "mode": proj["report_mode"]})
 
 
 # ── API Endpoints ──

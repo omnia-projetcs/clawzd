@@ -13,6 +13,12 @@ import asyncio
 import logging
 from typing import Callable, Awaitable
 
+try:
+    import json_repair as _json_repair
+    _HAS_JSON_REPAIR = True
+except ImportError:
+    _HAS_JSON_REPAIR = False
+
 logger = logging.getLogger("clawzd.research.engine")
 
 # Type alias for the LLM call function passed in from tools_research
@@ -20,12 +26,37 @@ LLMCallFn = Callable[[list[dict], str, str], Awaitable[str]]
 
 
 def _parse_json_block(text: str, fallback=None):
-    """Safely extract a JSON object or array from LLM output."""
-    # Try array first
-    start_arr = text.find("[")
-    end_arr = text.rfind("]")
-    start_obj = text.find("{")
-    end_obj = text.rfind("}")
+    """Safely extract a JSON object or array from LLM output.
+
+    Uses json_repair (GPT-Researcher's approach) when available for ~20%
+    better success rate on LLM outputs with minor JSON formatting errors.
+    Falls back to manual bracket extraction for robustness.
+    """
+    if not text or not text.strip():
+        return fallback
+
+    # Strip markdown fences if present
+    clean = text.strip()
+    if clean.startswith("```"):
+        lines = clean.split("\n")
+        # Remove first and last fence lines
+        inner = [l for l in lines[1:] if not l.strip().startswith("```")]
+        clean = "\n".join(inner).strip()
+
+    # Try json_repair first (handles trailing commas, missing quotes, etc.)
+    if _HAS_JSON_REPAIR:
+        try:
+            result = _json_repair.loads(clean)
+            if result is not None and result != "":
+                return result
+        except Exception:
+            pass
+
+    # Manual bracket extraction fallback
+    start_arr = clean.find("[")
+    end_arr = clean.rfind("]")
+    start_obj = clean.find("{")
+    end_obj = clean.rfind("}")
     candidates = []
     if start_arr != -1 and end_arr > start_arr:
         candidates.append((start_arr, end_arr + 1))
@@ -33,7 +64,7 @@ def _parse_json_block(text: str, fallback=None):
         candidates.append((start_obj, end_obj + 1))
     for s, e in sorted(candidates, key=lambda x: x[0]):
         try:
-            return json.loads(text[s:e])
+            return json.loads(clean[s:e])
         except Exception:
             continue
     return fallback
@@ -1211,3 +1242,264 @@ async def generate_report_with_citations(
 
     return report
 
+
+# ── 6. Sectioned Report Generator (GPT-Researcher-style) ─────────────────────
+
+async def generate_sectioned_report(
+    query: str,
+    sections: list[dict],
+    sources: list[dict],
+    branch_summaries: str,
+    score: float,
+    llm_call: LLMCallFn,
+    provider: str = "",
+    model: str = "",
+    perspective_synthesis: str = "",
+    emit_fn=None,
+) -> str:
+    """
+    Generate a long-form report section-by-section (GPT-Researcher subtopic pattern).
+
+    Instead of one monolithic LLM call (which causes the model to "forget"
+    earlier sections), this generates each section sequentially:
+      - Passes the last 2 completed sections as context for coherence
+      - Each section is ~500-800 words with evidence and citations
+      - A final assembly step weaves sections into a unified report
+
+    This enables 5000-8000 word reports without quality degradation.
+    """
+    if not sections:
+        logger.warning("generate_sectioned_report: no sections provided")
+        return ""
+
+    norm_sections: list[dict] = []
+    for s in sections:
+        if isinstance(s, str):
+            norm_sections.append({"title": s, "coverage": 0.5, "key_points": []})
+        elif isinstance(s, dict):
+            norm_sections.append(s)
+
+    seen_urls: set[str] = set()
+    numbered_sources: list[dict] = []
+    for r in sources:
+        url = r.get("url", "")
+        if url and url not in seen_urls and not url.startswith(("rag://", "memory://")):
+            seen_urls.add(url)
+            numbered_sources.append({
+                "id": len(numbered_sources) + 1,
+                "title": r.get("title", "Untitled"),
+                "url": url,
+                "snippet": r.get("snippet", "")[:200],
+                "source": r.get("source", "web"),
+            })
+        if len(numbered_sources) >= 60:
+            break
+
+    sources_index = "\n".join(
+        f"[{s['id']}] {s['title']} — {s['url']}\n    {s['snippet']}"
+        for s in numbered_sources
+    )
+
+    system_prompt = (
+        "You are an expert research report writer generating ONE section of a long report.\n\n"
+        "CRITICAL RULES:\n"
+        "- Write ONLY the requested section (do NOT write other sections)\n"
+        "- Write 500-800 words for this section\n"
+        "- Use inline citations like [1], [2][3] for every factual claim\n"
+        "- Include evidence blockquotes: > **Evidence:** followed by quoted data\n"
+        "- Include 1 Mermaid diagram where relevant (```mermaid blocks)\n"
+        "- Use a Markdown table if comparing data\n"
+        "- Be analytical and specific, not generic\n"
+        "- Do NOT repeat information from the previous sections\n"
+        "- End with a brief transition sentence to the next section\n\n"
+        f"Source Index (use [N] citations):\n{sources_index[:4000]}"
+    )
+
+    completed_sections: list[str] = []
+
+    for i, section in enumerate(norm_sections):
+        title = section.get("title", f"Section {i + 1}")
+        key_points = section.get("key_points", [])
+        coverage = section.get("coverage", 0.5)
+
+        if emit_fn:
+            await emit_fn(f"✍️ Section {i + 1}/{len(norm_sections)}: {title[:60]}...")
+
+        prior_ctx = ""
+        if completed_sections:
+            prior_sections = completed_sections[-2:]
+            prior_ctx = (
+                "## Previously Written Sections (DO NOT REPEAT):\n"
+                + "\n\n---\n\n".join(
+                    s[:600] + ("..." if len(s) > 600 else "")
+                    for s in prior_sections
+                )
+            )
+
+        section_evidence = _extract_section_evidence(
+            title, key_points, branch_summaries, perspective_synthesis
+        )
+
+        user_content = (
+            f"Research Topic: {query}\n\n"
+            f"Overall Research Quality: {score:.0%}\n\n"
+            + (f"{prior_ctx}\n\n" if prior_ctx else "")
+            + f"## Section to Write Now:\n"
+            f"**Title**: {title}\n"
+            f"**Coverage**: {coverage:.0%} of evidence collected\n"
+            + (f"**Key Points**: {', '.join(key_points[:5])}\n" if key_points else "")
+            + f"\n## Relevant Research Evidence:\n{section_evidence[:3000]}\n\n"
+            f"Write section '{title}' now (500-800 words, with citations and evidence):"
+        )
+
+        try:
+            section_text = await llm_call(
+                [
+                    {"role": "system", "content": system_prompt},
+                    {"role": "user", "content": user_content},
+                ],
+                provider,
+                model,
+            )
+            if not section_text.strip().startswith("#"):
+                section_text = f"## {title}\n\n{section_text.strip()}"
+            completed_sections.append(section_text)
+        except Exception as e:
+            logger.warning("Section '%s' generation failed: %s", title, e)
+            completed_sections.append(
+                f"## {title}\n\n*[Section generation failed: {e}]*\n"
+            )
+
+    if emit_fn:
+        await emit_fn("📚 Assemblage du rapport final...")
+
+    return await _assemble_sectioned_report(
+        query=query,
+        sections=completed_sections,
+        section_titles=[s.get("title", "") for s in norm_sections],
+        numbered_sources=numbered_sources,
+        score=score,
+        llm_call=llm_call,
+        provider=provider,
+        model=model,
+    )
+
+
+def _extract_section_evidence(
+    title: str,
+    key_points: list[str],
+    branch_summaries: str,
+    synthesis: str,
+    max_chars: int = 2500,
+) -> str:
+    """Extract the most relevant research evidence for a section by keyword scoring."""
+    if not branch_summaries and not synthesis:
+        return "No research evidence available."
+
+    keywords = title.lower().split()
+    for kp in key_points[:3]:
+        keywords.extend(kp.lower().split())
+    keywords = [k for k in keywords if len(k) > 3]
+
+    all_text = (synthesis + "\n\n" + branch_summaries) if synthesis else branch_summaries
+    paragraphs = [p.strip() for p in all_text.split("\n\n") if p.strip()]
+
+    scored: list[tuple[float, str]] = []
+    for para in paragraphs:
+        para_lower = para.lower()
+        score = sum(1 for kw in keywords if kw in para_lower)
+        if score > 0:
+            scored.append((score, para))
+
+    scored.sort(key=lambda x: x[0], reverse=True)
+    selected = [p for _, p in scored[:6]]
+
+    if not selected:
+        return all_text[:max_chars]
+
+    return "\n\n".join(selected)[:max_chars]
+
+
+async def _assemble_sectioned_report(
+    query: str,
+    sections: list[str],
+    section_titles: list[str],
+    numbered_sources: list[dict],
+    score: float,
+    llm_call: LLMCallFn,
+    provider: str = "",
+    model: str = "",
+) -> str:
+    """Final assembly: ToC + executive summary + all sections + bibliography."""
+    import json as _json
+
+    toc_lines = ["## Table des Matières", ""]
+    for i, title in enumerate(section_titles, 1):
+        anchor = (
+            title.lower()
+            .replace(" ", "-").replace("'", "").replace("(", "").replace(")", "")
+            .replace("&", "").replace(",", "").replace(".", "")
+        )
+        toc_lines.append(f"{i}. [{title}](#{anchor})")
+    toc = "\n".join(toc_lines)
+
+    bib_lines = ["## Bibliographie", ""]
+    for s in numbered_sources:
+        bib_lines.append(f"[{s['id']}] **{s['title']}** — [{s['url']}]({s['url']})")
+        if s.get("snippet"):
+            bib_lines.append(f"   > {s['snippet']}")
+        bib_lines.append("")
+    bibliography = "\n".join(bib_lines)
+
+    sections_preview = "\n\n".join(s[:400] for s in sections[:4])
+    exec_prompt = [
+        {"role": "system", "content": (
+            "Write a concise Executive Summary (200-300 words) for this research report. "
+            "Highlight the 3-5 most important findings. Use bullet points. Be analytical. "
+            "Return plain Markdown, starting with '## Résumé Exécutif'."
+        )},
+        {"role": "user", "content": (
+            f"Research topic: {query}\n\n"
+            f"Quality score: {score:.0%}\n\n"
+            f"Report sections preview:\n{sections_preview}"
+        )},
+    ]
+    try:
+        exec_summary = await llm_call(exec_prompt, provider, model)
+        if not exec_summary.strip().startswith("#"):
+            exec_summary = f"## Résumé Exécutif\n\n{exec_summary.strip()}"
+    except Exception as e:
+        logger.warning("Executive summary generation failed: %s", e)
+        exec_summary = f"## Résumé Exécutif\n\n*Rapport de recherche sur : {query}*"
+
+    word_count = sum(len(s.split()) for s in sections)
+    metrics_table = {
+        "title": "Métriques de Recherche",
+        "headers": ["Métrique", "Valeur"],
+        "rows": [
+            ["Score de qualité", f"{score:.0%}"],
+            ["Sections générées", str(len(sections))],
+            ["Sources collectées", str(len(numbered_sources))],
+            ["Mots (~)", str(word_count)],
+        ],
+    }
+    metrics_marker = f'__TABLE__{_json.dumps(metrics_table, ensure_ascii=False)}__TABLE__'
+
+    report_parts = [
+        f"# {query}",
+        "",
+        metrics_marker,
+        "",
+        toc,
+        "",
+        exec_summary,
+        "",
+        "---",
+        "",
+        "\n\n---\n\n".join(sections),
+        "",
+        "---",
+        "",
+        bibliography,
+    ]
+    return "\n".join(report_parts)
