@@ -218,7 +218,7 @@ def _get_pipeline(repo_id: str, is_lora: bool = False):
 
     try:
         global _hf_download_state
-        _hf_download_state = {"active": False, "progress": 0.0, "repo": repo_id}
+        _hf_download_state = {"active": True, "progress": 0.0, "repo": repo_id, "stage": "downloading"}
         hf_token = _get_hf_token()
 
         if is_lora:
@@ -370,7 +370,7 @@ def _get_i2i_pipeline(repo_id: str, is_lora: bool = False):
 
     try:
         global _hf_download_state
-        _hf_download_state = {"active": False, "progress": 0.0, "repo": repo_id}
+        _hf_download_state = {"active": True, "progress": 0.0, "repo": repo_id, "stage": "downloading"}
         hf_token = _get_hf_token()
         
         if is_lora:
@@ -591,7 +591,7 @@ def _get_video_pipeline(repo_id: str, model_key: str = ""):
         logger.info("Loading video pipeline [%s] for %s", pipeline_type, repo_id)
 
         global _hf_download_state
-        _hf_download_state = {"active": False, "progress": 0.0, "repo": repo_id}
+        _hf_download_state = {"active": True, "progress": 0.0, "repo": repo_id, "stage": "downloading"}
         hf_token = _get_hf_token()
 
         # INT8 quantization for large models (requires bitsandbytes)
@@ -633,13 +633,24 @@ def _get_video_pipeline(repo_id: str, model_key: str = ""):
 
         elif pipeline_type == "ltx":
             # LTX-Video — LTXConditionPipeline
+            import warnings
             from diffusers import LTXConditionPipeline
             load_kwargs = dict(torch_dtype=dtype, token=hf_token)
             if quant_config:
                 load_kwargs["quantization_config"] = quant_config
-            _video_pipeline = LTXConditionPipeline.from_pretrained(
-                repo_id, **load_kwargs,
-            )
+            # Suppress non-fatal 3rd-party warnings during pipeline load:
+            #   - bitsandbytes CPU kernels 404 (fallback to built-in impl)
+            #   - kernels FutureWarning about version pinning
+            with warnings.catch_warnings():
+                warnings.filterwarnings("ignore", category=FutureWarning, module="kernels")
+                warnings.filterwarnings("ignore", message=".*kernels.*", category=UserWarning)
+                logger.info("Downloading/loading LTX pipeline weights for %s (this may take several minutes)...", repo_id)
+                _hf_download_state["stage"] = "downloading_weights"
+                _video_pipeline = LTXConditionPipeline.from_pretrained(
+                    repo_id, **load_kwargs,
+                )
+            logger.info("LTX pipeline loaded successfully: %s", repo_id)
+            _hf_download_state["stage"] = "loaded"
             if hasattr(_video_pipeline, 'vae') and hasattr(_video_pipeline.vae, 'enable_tiling'):
                 _video_pipeline.vae.enable_tiling()
             if torch.cuda.is_available():
@@ -728,7 +739,7 @@ def _get_i2v_pipeline(repo_id: str, pipeline_type: str = "auto"):
         logger.info("Loading image-to-video pipeline [%s] for %s", pipeline_type, repo_id)
 
         global _hf_download_state
-        _hf_download_state = {"active": False, "progress": 0.0, "repo": repo_id}
+        _hf_download_state = {"active": True, "progress": 0.0, "repo": repo_id, "stage": "downloading"}
         hf_token = _get_hf_token()
 
         if pipeline_type == "svd":
