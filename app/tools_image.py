@@ -1023,6 +1023,11 @@ def _clean_llm_output(text: str) -> str:
         text = text.rsplit("</think>", 1)[-1].strip()
     # 4. Remove any stray think tags that survived
     text = re.sub(r"</?think>", "", text).strip()
+    # 5. Remove any stray XML/HTML tags leaked by the LLM (e.g. </arg_value>, <tool_call>, …)
+    #    We intentionally skip SVG tags (handled separately) — these are prompt strings only.
+    text = re.sub(r"</?[a-zA-Z_][a-zA-Z0-9_\-]*(?:\s[^>]*)?>", " ", text).strip()
+    # Collapse any extra whitespace introduced by the above substitution
+    text = re.sub(r"\s{2,}", " ", text).strip()
 
     # Remove conversational prefixes
     text = re.sub(
