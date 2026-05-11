@@ -180,6 +180,25 @@
       </div>
       <div class="settings-divider"></div>
       <div class="settings-group">
+        <label class="settings-label">
+          <svg class="ic" width="14" height="14" style="margin-right: 6px;">
+            <use href="#icon-cloud"></use>
+          </svg>
+          Cloud AI Models
+        </label>
+        <div class="settings-row" style="justify-content: flex-start; gap: 8px; margin-bottom: 6px;">
+          <input type="checkbox" id="settings-enable-cloud-models" checked>
+          <label for="settings-enable-cloud-models" style="font-size: 13px; cursor: pointer;">
+            Enable cloud providers (OpenAI, Anthropic, Google, Groq, Mistral…)
+          </label>
+        </div>
+        <div style="font-size: 11px; color: var(--text-muted); line-height: 1.5;">
+          When disabled, only <strong>Ollama (local)</strong> is available — fully offline mode.
+          Requires a page reload to update the model list.
+        </div>
+      </div>
+      <div class="settings-divider"></div>
+      <div class="settings-group">
         <label class="settings-label">Environment Variables (.env)</label>
         <button class="btn btn-secondary"
                 id="btn-open-env-modal"

@@ -4123,6 +4123,7 @@
         show_presentation: $('#settings-show-presentation')?.checked ?? true,
         show_project: $('#settings-show-project')?.checked ?? true,
         show_editor: $('#settings-show-editor')?.checked ?? true,
+        enable_cloud_models: $('#settings-enable-cloud-models')?.checked ?? true,
       };
       await fetch('/api/settings', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(s) });
       applyToolVisibility(s);
@@ -4135,7 +4136,16 @@
         await fetch('/api/env', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(envData) });
       }
 
+      // Persist cloud models toggle to .env so it survives deployments (data/ not in git)
+      const cloudEnabled = $('#settings-enable-cloud-models')?.checked ?? true;
+      await fetch('/api/env', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ ENABLE_CLOUD_MODELS: cloudEnabled ? 'true' : 'false' })
+      });
       toast(ICONS.check(14) + ' Settings saved'); $('#settings-overlay').classList.remove('open');
+      // Reload providers immediately to reflect cloud toggle change
+      loadProviders();
     });
 
     // RAG multi-file upload
@@ -4327,6 +4337,7 @@
       if ($('#settings-show-presentation')) $('#settings-show-presentation').checked = d.show_presentation !== false;
       if ($('#settings-show-project')) $('#settings-show-project').checked = d.show_project !== false;
       if ($('#settings-show-editor')) $('#settings-show-editor').checked = d.show_editor !== false;
+      if ($('#settings-enable-cloud-models')) $('#settings-enable-cloud-models').checked = d.enable_cloud_models !== false;
       applyToolVisibility(d);
     } catch (e) { /* ignore */ }
   }
@@ -4341,6 +4352,13 @@
 
       if (container) container.innerHTML = '';
       if (perfProvidersContainer) perfProvidersContainer.innerHTML = '';
+
+      // Sync cloud models toggle from .env (source of truth for persistence)
+      const cloudEnvVal = d['ENABLE_CLOUD_MODELS'];
+      if (cloudEnvVal !== undefined) {
+        const cloudOn = !['0', 'false', 'no', 'off'].includes(String(cloudEnvVal).toLowerCase());
+        if ($('#settings-enable-cloud-models')) $('#settings-enable-cloud-models').checked = cloudOn;
+      }
 
       // Populate general env variables in the main settings drawer
       const keys = Object.keys(d).sort();

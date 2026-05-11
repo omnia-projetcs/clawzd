@@ -27,6 +27,11 @@ OPENAI_API_KEY = os.getenv("OPENAI_API_KEY", "")
 OPENROUTER_API_KEY = os.getenv("OPENROUTER_API_KEY", "")
 TAVILY_API_KEY = os.getenv("TAVILY_API_KEY", "")
 
+# Master toggle for cloud AI providers (OpenAI, Anthropic, Google, Grok, Groq, Mistral, etc.)
+# Set to "false" in .env to run fully offline/local (Ollama only).
+# Can also be toggled at runtime via the Settings panel → "Cloud AI Models".
+ENABLE_CLOUD_MODELS: bool = os.getenv("ENABLE_CLOUD_MODELS", "true").lower() not in ("0", "false", "no", "off")
+
 # --- Ollama (local LLM backend) ---
 OLLAMA_HOST = os.getenv("OLLAMA_HOST", "http://localhost:11434")
 OLLAMA_MODEL = os.getenv("OLLAMA_MODEL", "qwen3.5:9b")

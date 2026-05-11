@@ -26,6 +26,9 @@ DEFAULT_SETTINGS = {
     "show_presentation": True,
     "show_project": True,
     "show_editor": True,
+    # Cloud AI providers toggle (OpenAI, Anthropic, Google, Grok, Groq, Mistral, etc.)
+    # When False: only Ollama (local) is available — fully offline mode.
+    "enable_cloud_models": True,
 }
 
 

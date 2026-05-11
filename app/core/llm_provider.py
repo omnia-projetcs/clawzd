@@ -70,21 +70,40 @@ async def _get_local_models() -> list[dict]:
 
 async def _get_provider_models() -> dict:
     """Return provider models dict with dynamic local model list.
-    
+
+    Cloud providers are filtered out when ENABLE_CLOUD_MODELS=false in .env.
+    The UI toggle writes directly to .env (data/ is not in git), so .env is
+    the single source of truth that persists across deployments.
+    Ollama is always returned regardless of this setting.
+
     Providers and models within each provider are sorted alphabetically.
     """
+    # Re-read from env at call time so changes written to .env take effect
+    # without a full server restart (dotenv reload on each request is cheap).
+    import os as _os
+    from dotenv import dotenv_values as _dv
+    _env = _dv(".env") if _os.path.exists(".env") else {}
+    _raw = _env.get("ENABLE_CLOUD_MODELS", _os.getenv("ENABLE_CLOUD_MODELS", "true"))
+    cloud_enabled = str(_raw).lower() not in ("0", "false", "no", "off")
+
     local_models = await _get_local_models()
-    return {
-        "anthropic": PROVIDER_MODELS_STATIC["anthropic"],
-        "google": PROVIDER_MODELS_STATIC["google"],
-        "grok": PROVIDER_MODELS_STATIC["grok"],
-        "groq": PROVIDER_MODELS_STATIC["groq"],
-        "huggingface": PROVIDER_MODELS_STATIC["huggingface"],
-        "mistral": PROVIDER_MODELS_STATIC["mistral"],
-        "ollama": local_models,
-        "openai": PROVIDER_MODELS_STATIC["openai"],
-        "openrouter": PROVIDER_MODELS_STATIC["openrouter"],
-    }
+
+    # Ollama is always available (local, no API key required)
+    result = {"ollama": local_models}
+
+    if cloud_enabled:
+        result.update({
+            "anthropic":   PROVIDER_MODELS_STATIC["anthropic"],
+            "google":      PROVIDER_MODELS_STATIC["google"],
+            "grok":        PROVIDER_MODELS_STATIC["grok"],
+            "groq":        PROVIDER_MODELS_STATIC["groq"],
+            "huggingface": PROVIDER_MODELS_STATIC["huggingface"],
+            "mistral":     PROVIDER_MODELS_STATIC["mistral"],
+            "openai":      PROVIDER_MODELS_STATIC["openai"],
+            "openrouter":  PROVIDER_MODELS_STATIC["openrouter"],
+        })
+
+    return result
 
 
 PROVIDER_MODELS_STATIC = {
