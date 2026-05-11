@@ -356,13 +356,14 @@ class MediaStudio {
     const videoModelSel = $('#media-model-video');
     if (videoModelSel && isVideo) {
       const hasRefImage = !!this.referenceImage;
-      const i2vModels = ['svd_xt', 'cogvideox', 'wan22']; // Models that support I2V
+      const i2vModels = ['svd_xt', 'cogvideox', 'wan22']; // Models that support I2V only
       let firstAvailable = null;
 
       Array.from(videoModelSel.options).forEach(opt => {
+        const isI2VModel = i2vModels.includes(opt.value);
         if (hasRefImage) {
-          // Hide models that don't support I2V
-          if (!i2vModels.includes(opt.value)) {
+          // With reference image: hide text-to-video models, show I2V models only
+          if (!isI2VModel) {
             opt.style.display = 'none';
             opt.disabled = true;
           } else {
@@ -371,9 +372,15 @@ class MediaStudio {
             if (!firstAvailable) firstAvailable = opt.value;
           }
         } else {
-          // Show all models
-          opt.style.display = '';
-          opt.disabled = false;
+          // Without reference image: hide I2V-only models (they require a source image)
+          if (isI2VModel) {
+            opt.style.display = 'none';
+            opt.disabled = true;
+          } else {
+            opt.style.display = '';
+            opt.disabled = false;
+            if (!firstAvailable) firstAvailable = opt.value;
+          }
         }
       });
 
