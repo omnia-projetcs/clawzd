@@ -316,9 +316,11 @@ async def compress_messages(
     _compression_stats["count"] += 1
     _compression_stats["previous_summary"] = summary
 
-    # Build the compressed message list
-    summary_message = {"role": "system", "content": SUMMARY_PREFIX + summary}
-    compressed = system + [summary_message] + head[-1:] + tail
+    # Build the compressed message list.
+    # inject_compact_boundary_marker inserts a [compact_boundary] system message so that
+    # snip_orphaned_tool_results can later identify orphaned tool results from this compaction.
+    compressed_core = system + head[-1:] + tail
+    compressed = inject_compact_boundary_marker(compressed_core, SUMMARY_PREFIX + summary)
 
     logger.info(
         "Compressed %d middle messages -> summary (%d tokens). "

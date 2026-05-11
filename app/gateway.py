@@ -1273,7 +1273,9 @@ async def _process_chat(session_id: str, data: dict) -> dict:
                             await queue.put(edit_marker)
                             full_conversation += edit_marker
 
-                        # TodoWrite: broadcast plan update to frontend in real-time
+                        # TodoWrite: broadcast plan update to frontend in real-time.
+                        # NOTE: The marker is SSE-only — do NOT add to full_conversation
+                        # to prevent it from being persisted in chat history.
                         if (resolved or tool_name) == "todo_write" and result.get("__todo_update__"):
                             import json as _json
                             todo_data = {
@@ -1283,7 +1285,7 @@ async def _process_chat(session_id: str, data: dict) -> dict:
                             }
                             todo_marker = f"\n\n__TODO_UPDATE__{_json.dumps(todo_data)}__TODO_UPDATE__\n\n"
                             await queue.put(todo_marker)
-                            full_conversation += todo_marker
+                            # Intentionally NOT added to full_conversation (SSE-only transport marker)
 
 
                     tool_results.append({

@@ -210,13 +210,6 @@ def snip_orphaned_tool_results(
             if isinstance(content, str) and _TOOL_CALL_RE.search(content):
                 active_tool_calls.add(i)
 
-    # Also check for compact boundary markers (compacted sections have no tool_calls)
-    compacted_boundary = None
-    for i, m in enumerate(result):
-        if m.get("role") == "system" and "[compact_boundary]" in m.get("content", ""):
-            compacted_boundary = i
-            break
-
     # Snip orphaned user tool-result messages before the boundary
     for i in range(boundary):
         m = result[i]

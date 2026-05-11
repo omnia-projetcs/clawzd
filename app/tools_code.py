@@ -1241,7 +1241,19 @@ snapshot_manager = FileSnapshotManager()
 
 class CodeEditor:
     """Tool for surgical file editing and reading to avoid full-file rewrites."""
-    
+
+    # File type detection map (extension -> language name for syntax highlighting)
+    _EXT_MAP: dict[str, str] = {
+        "py": "python", "js": "javascript", "ts": "typescript",
+        "jsx": "jsx", "tsx": "tsx", "html": "html", "css": "css",
+        "json": "json", "yaml": "yaml", "yml": "yaml",
+        "md": "markdown", "sh": "bash", "sql": "sql",
+        "txt": "text", "rs": "rust", "go": "go",
+        "java": "java", "cpp": "cpp", "c": "c", "rb": "ruby",
+    }
+    # Max lines returned per read_file call (prevents overwhelming the LLM context)
+    _MAX_LINES_PER_READ: int = 500
+
     @staticmethod
     def read_file(file_path: str, start_line: int = 1, end_line: Optional[int] = None) -> Dict:
         """Read a file and return its contents with line numbers.
@@ -1257,18 +1269,7 @@ class CodeEditor:
 
         # Detect file type from extension
         ext = os.path.splitext(file_path)[-1].lstrip(".").lower()
-        _EXT_MAP = {
-            "py": "python", "js": "javascript", "ts": "typescript",
-            "jsx": "jsx", "tsx": "tsx", "html": "html", "css": "css",
-            "json": "json", "yaml": "yaml", "yml": "yaml",
-            "md": "markdown", "sh": "bash", "sql": "sql",
-            "txt": "text", "rs": "rust", "go": "go",
-            "java": "java", "cpp": "cpp", "c": "c", "rb": "ruby",
-        }
-        file_type = _EXT_MAP.get(ext, ext or "text")
-
-        # Page size cap: avoid sending huge files to the LLM
-        MAX_LINES_PER_READ = 500
+        file_type = CodeEditor._EXT_MAP.get(ext, ext or "text")
 
         try:
             with open(full_path, "r", encoding="utf-8", errors="replace") as f:
@@ -1278,8 +1279,8 @@ class CodeEditor:
             start_idx = max(0, start_line - 1)
 
             if end_line is None:
-                # Default: read up to MAX_LINES_PER_READ from start
-                end_idx = min(total_lines, start_idx + MAX_LINES_PER_READ)
+                # Default: read up to _MAX_LINES_PER_READ from start
+                end_idx = min(total_lines, start_idx + CodeEditor._MAX_LINES_PER_READ)
             else:
                 end_idx = min(total_lines, end_line)
 
@@ -1287,18 +1288,20 @@ class CodeEditor:
 
             # Format with line numbers to help the AI
             formatted_lines = []
-            for i, line in enumerate(lines[start_idx:end_idx], start=start_line):
+            for i, line in enumerate(lines[start_idx:end_idx], start=start_idx + 1):
                 formatted_lines.append(f"{i:4d} | {line}")
 
             content = "".join(formatted_lines)
+            actual_start = start_idx + 1
+            actual_end = start_idx + len(formatted_lines)
 
             return {
                 "file_path": file_path,
                 "file_type": file_type,
                 "total_lines": total_lines,
-                "shown_lines": f"{start_line}-{start_idx + len(formatted_lines)}",
+                "shown_lines": f"{actual_start}-{actual_end}",
                 "has_more": has_more,
-                "next_start_line": start_idx + len(formatted_lines) + 1 if has_more else None,
+                "next_start_line": actual_end + 1 if has_more else None,
                 "tokens_approx": len(content) // 4,
                 "content": content,
             }

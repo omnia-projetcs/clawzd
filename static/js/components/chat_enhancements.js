@@ -98,8 +98,9 @@ function renderSuggestionChips(suggestions, chatInstance) {
 
 
 /* ------------------------------------------------------------------ */
-/*  3. Todo Panel — Plan Board (inspired by Claude Code TodoWriteTool) */
+/*  2. Todo Panel — Plan Board (inspired by Claude Code TodoWriteTool) */
 /* ------------------------------------------------------------------ */
+
 
 const _TODO_MARKER = '__TODO_UPDATE__';
 
@@ -196,10 +197,12 @@ function renderTodoPanel(data) {
 
     let item = list.querySelector(`.todo-item[data-id="${id}"]`);
     if (item) {
-      // Update existing
+      // Update existing item in-place
       item.className = `todo-item todo-status-${todo.status} ${prioClass}`;
-      item.querySelector('.todo-icon').textContent = icon;
-      item.querySelector('.todo-content').textContent = todo.content;
+      const iconEl = item.querySelector('.todo-icon');
+      const contentEl = item.querySelector('.todo-content');
+      if (iconEl) iconEl.textContent = icon;
+      if (contentEl) contentEl.textContent = todo.content;
       if (isDone) item.classList.add('todo-done');
       else item.classList.remove('todo-done');
     } else {
@@ -237,7 +240,7 @@ function _escHtml(str) {
 
 
 /* ------------------------------------------------------------------ */
-/*  2. Mode Switch Hint                                                */
+/*  3. Mode Switch Hint                                                */
 /* ------------------------------------------------------------------ */
 
 /**

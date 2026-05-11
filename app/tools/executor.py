@@ -194,12 +194,12 @@ TOOL_ALIASES: dict[str, str] = {
     "webpage-capture": "screenshot_remote",
     "capture-page": "screenshot_remote",
     "page-screenshot": "screenshot_remote",
-    # Other
-    "file-search": "run_command",
-    "search-file": "run_command",
-    "search_file": "run_command",
-    "find-file": "run_command",
-    "find_file": "run_command",
+    # File search — now routed to list_files (GlobTool) instead of run_command
+    "file-search": "list_files",
+    "search-file": "list_files",
+    "search_file": "list_files",
+    "find-file": "list_files",
+    "find_file": "list_files",
     "document-search": "rag_search",
     "code-audit": "audit_code",
     "security-scan": "audit_code",
@@ -967,17 +967,24 @@ async def execute_tool(tool_name: str, params: dict, context: dict = None) -> di
             limit = min(int(params.get("limit", 60)), 200)
             include_dirs = bool(params.get("include_dirs", False))
 
-            # Sanitize pattern — no absolute paths or traversal
-            pattern = pattern.lstrip("/").replace("..", "")
-            if not pattern:
-                pattern = "**/*"
+            # Reject absolute paths and traversal sequences before globbing
+            if pattern.startswith("/") or pattern.startswith("\\"):
+                return {"error": "Absolute paths are not allowed in list_files pattern"}
+
+            # Normalize and verify the pattern doesn't escape the workspace
+            # after any manipulation by stripping dangerous sequences
+            safe_parts = [p for p in pattern.replace("\\", "/").split("/") if p not in ("..", "")]
+            pattern = "/".join(safe_parts) if safe_parts else "**/*"
 
             try:
                 base = _os.path.realpath(WORKSPACE_DIR)
-                matches = _glob.glob(pattern, root_dir=base, recursive=True)
+                all_matches = _glob.glob(pattern, root_dir=base, recursive=True)
                 results = []
-                for m in matches:
-                    full = _os.path.join(base, m)
+                for m in all_matches:
+                    # Double-check resolved path stays within workspace
+                    full = _os.path.realpath(_os.path.join(base, m))
+                    if not full.startswith(base):
+                        continue  # Skip paths that escaped the workspace
                     if _os.path.isdir(full):
                         if include_dirs:
                             results.append({"path": m, "type": "dir"})
@@ -990,10 +997,11 @@ async def execute_tool(tool_name: str, params: dict, context: dict = None) -> di
                     if len(results) >= limit:
                         break
 
+                is_truncated = len(all_matches) > limit or len(results) >= limit
                 return {
                     "pattern": pattern,
                     "count": len(results),
-                    "truncated": len(matches) > limit,
+                    "truncated": is_truncated,
                     "files": results,
                 }
             except Exception as e:
@@ -1022,6 +1030,9 @@ async def execute_tool(tool_name: str, params: dict, context: dict = None) -> di
 # ---------------------------------------------------------------------------
 _todo_registry: dict[str, list[dict]] = {}  # session_id -> list of todos
 
+_VALID_STATUSES = frozenset({"pending", "in_progress", "completed", "cancelled"})
+_VALID_PRIORITIES = frozenset({"high", "medium", "low"})
+
 
 def _handle_todo_write(params: dict, session_id: str) -> dict:
     """Manage a per-session structured todo list (inspired by Claude Code TodoWriteTool).
@@ -1034,49 +1045,68 @@ def _handle_todo_write(params: dict, session_id: str) -> dict:
     The todo list is streamed to connected SSE clients via a special
     __TODO_UPDATE__ marker so the frontend can display it in real-time.
     """
-    import time as _time
+    import time as _todo_time
     action = params.get("action", "write")
-    global _todo_registry
+    # NOTE: no 'global' needed — dict mutations don't require it in Python
 
     if action == "clear":
         _todo_registry.pop(session_id, None)
-        return {"status": "cleared", "session_id": session_id, "todos": []}
+        return {"status": "cleared", "session_id": session_id, "todos": [], "__todo_update__": True}
 
     if action == "update":
         item_id = params.get("id", "")
         new_status = params.get("status", "")
+        if not item_id:
+            return {"error": "'id' is required for the 'update' action"}
+        if new_status and new_status not in _VALID_STATUSES:
+            return {"error": f"Invalid status '{new_status}'. Valid: {sorted(_VALID_STATUSES)}"}
         todos = _todo_registry.get(session_id, [])
+        if not todos:
+            return {"error": f"No todo list found for session '{session_id}'"}
         updated = False
         for todo in todos:
             if todo.get("id") == item_id:
                 if new_status:
                     todo["status"] = new_status
-                todo["updated_at"] = _time.time()
+                todo["updated_at"] = _todo_time.time()
                 updated = True
                 break
-        _todo_registry[session_id] = todos
         if not updated:
             return {"error": f"Todo item '{item_id}' not found"}
+        # Only write back when actually updated
+        _todo_registry[session_id] = todos
         return {"status": "updated", "id": item_id, "todos": todos, "__todo_update__": True}
 
     # Default: 'write' action
     raw_todos = params.get("todos", [])
     if not isinstance(raw_todos, list):
         return {"error": "'todos' must be a list of objects"}
+    if not raw_todos:
+        return {"error": "'todos' list is empty. Provide at least one todo item."}
 
-    now = _time.time()
+    now = _todo_time.time()
     todos = []
     for i, item in enumerate(raw_todos):
         if not isinstance(item, dict):
             continue
+        status = item.get("status", "pending")
+        priority = item.get("priority", "medium")
+        # Sanitize to valid enum values
+        if status not in _VALID_STATUSES:
+            status = "pending"
+        if priority not in _VALID_PRIORITIES:
+            priority = "medium"
         todos.append({
-            "id": item.get("id") or f"step-{i + 1}",
+            "id": str(item.get("id") or f"step-{i + 1}"),
             "content": str(item.get("content", "")).strip(),
-            "status": item.get("status", "pending"),
-            "priority": item.get("priority", "medium"),
+            "status": status,
+            "priority": priority,
             "created_at": now,
             "updated_at": now,
         })
+
+    if not todos:
+        return {"error": "No valid todo items found. Each item must be an object with 'id' and 'content'."}
 
     _todo_registry[session_id] = todos
     logger.info("todo_write: session=%s action=write items=%d", session_id, len(todos))
@@ -1084,9 +1114,8 @@ def _handle_todo_write(params: dict, session_id: str) -> dict:
 
 
 def get_session_todos(session_id: str) -> list[dict]:
-    """Get the current todo list for a session (for SSE injection)."""
-    return _todo_registry.get(session_id, [])
-
+    """Get the current todo list for a session (used by gateway SSE /todos endpoint)."""
+    return list(_todo_registry.get(session_id, []))  # Return a copy to prevent external mutation
 
 
 async def _screenshot_remote_direct(url: str, full_page: bool = False) -> dict:
