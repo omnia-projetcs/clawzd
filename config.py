@@ -3,16 +3,29 @@ Clawzd — Application configuration.
 All values are loaded from .env (with sensible defaults).
 """
 import os
+import subprocess
 from pathlib import Path
 from dotenv import load_dotenv
 
 load_dotenv()
 
-# --- Version (single source of truth) ---
-APP_VERSION = "0.0.1b"
-
 # --- Base directory ---
 BASE_DIR = Path(__file__).parent.resolve()
+
+def _get_git_hash() -> str:
+    try:
+        return subprocess.check_output(
+            ['git', 'rev-parse', '--short', 'HEAD'], 
+            cwd=BASE_DIR, 
+            stderr=subprocess.DEVNULL
+        ).decode('ascii').strip()
+    except Exception:
+        return ""
+
+# --- Version (single source of truth) ---
+_BASE_VERSION = "0.0.1b"
+_git_hash = _get_git_hash()
+APP_VERSION = f"{_BASE_VERSION}-{_git_hash}" if _git_hash else _BASE_VERSION
 
 # --- LLM Providers ---
 LLM_PROVIDER = os.getenv("LLM_PROVIDER", "ollama")
