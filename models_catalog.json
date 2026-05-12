@@ -256,5 +256,167 @@
       "txt",
       "code"
     ]
+  },
+  {
+    "id": "Tongyi-MAI/Z-Image-Turbo",
+    "vendor": "Image",
+    "name": "Z-Image Turbo",
+    "ollama_id": "Tongyi-MAI/Z-Image-Turbo",
+    "size_gb": 4.5,
+    "params": "Turbo",
+    "quant": "BF16",
+    "vram_min_gb": 8,
+    "description": "Fast and high-quality image generation.",
+    "recommended": true,
+    "token_limit": "N/A",
+    "release_date": "2025-01",
+    "capabilities": [
+      "image"
+    ],
+    "backend": "hf"
+  },
+  {
+    "id": "black-forest-labs/FLUX.2-klein-9B",
+    "vendor": "Image",
+    "name": "FLUX.2 Klein 9B",
+    "ollama_id": "black-forest-labs/FLUX.2-klein-9B",
+    "size_gb": 18.0,
+    "params": "9B",
+    "quant": "BF16",
+    "vram_min_gb": 16,
+    "description": "State-of-the-art open image generation.",
+    "recommended": true,
+    "token_limit": "N/A",
+    "release_date": "2025-02",
+    "capabilities": [
+      "image"
+    ],
+    "backend": "hf"
+  },
+  {
+    "id": "RunDiffusion/Juggernaut-XL-v9",
+    "vendor": "Image",
+    "name": "Juggernaut XL v9",
+    "ollama_id": "RunDiffusion/Juggernaut-XL-v9",
+    "size_gb": 6.5,
+    "params": "SDXL",
+    "quant": "FP16",
+    "vram_min_gb": 8,
+    "description": "Photorealistic image generation based on SDXL.",
+    "recommended": false,
+    "token_limit": "N/A",
+    "release_date": "2024-03",
+    "capabilities": [
+      "image"
+    ],
+    "backend": "hf"
+  },
+  {
+    "id": "THUDM/CogVideoX-5b",
+    "vendor": "Video",
+    "name": "CogVideoX 5B",
+    "ollama_id": "THUDM/CogVideoX-5b",
+    "size_gb": 15.0,
+    "params": "5B",
+    "quant": "BF16",
+    "vram_min_gb": 16,
+    "description": "High-quality text-to-video generation.",
+    "recommended": true,
+    "token_limit": "N/A",
+    "release_date": "2024-08",
+    "capabilities": [
+      "video"
+    ],
+    "backend": "hf"
+  },
+  {
+    "id": "Lightricks/LTX-Video-0.9.7-dev",
+    "vendor": "Video",
+    "name": "LTX Video",
+    "ollama_id": "Lightricks/LTX-Video-0.9.7-dev",
+    "size_gb": 10.0,
+    "params": "LTX",
+    "quant": "BF16",
+    "vram_min_gb": 10,
+    "description": "Fast and smooth video generation.",
+    "recommended": true,
+    "token_limit": "N/A",
+    "release_date": "2024-11",
+    "capabilities": [
+      "video"
+    ],
+    "backend": "hf"
+  },
+  {
+    "id": "Wan-AI/Wan2.1-T2V-1.3B-Diffusers",
+    "vendor": "Video",
+    "name": "Wan2.1 T2V 1.3B",
+    "ollama_id": "Wan-AI/Wan2.1-T2V-1.3B-Diffusers",
+    "size_gb": 8.0,
+    "params": "1.3B",
+    "quant": "BF16",
+    "vram_min_gb": 8,
+    "description": "Lightweight text-to-video.",
+    "recommended": false,
+    "token_limit": "N/A",
+    "release_date": "2025-01",
+    "capabilities": [
+      "video"
+    ],
+    "backend": "hf"
+  },
+  {
+    "id": "microsoft/speecht5_tts",
+    "vendor": "Audio",
+    "name": "SpeechT5 TTS",
+    "ollama_id": "microsoft/speecht5_tts",
+    "size_gb": 0.5,
+    "params": "TTS",
+    "quant": "FP32",
+    "vram_min_gb": 2,
+    "description": "Standard fast text-to-speech model.",
+    "recommended": true,
+    "token_limit": "N/A",
+    "release_date": "2023",
+    "capabilities": [
+      "audio"
+    ],
+    "backend": "hf"
+  },
+  {
+    "id": "suno/bark",
+    "vendor": "Audio",
+    "name": "Bark",
+    "ollama_id": "suno/bark",
+    "size_gb": 4.5,
+    "params": "TTS",
+    "quant": "FP32",
+    "vram_min_gb": 6,
+    "description": "High-quality expressive text-to-speech.",
+    "recommended": false,
+    "token_limit": "N/A",
+    "release_date": "2023",
+    "capabilities": [
+      "audio"
+    ],
+    "backend": "hf"
+  },
+  {
+    "id": "facebook/musicgen-small",
+    "vendor": "Audio",
+    "name": "MusicGen Small",
+    "ollama_id": "facebook/musicgen-small",
+    "size_gb": 2.0,
+    "params": "Music",
+    "quant": "FP32",
+    "vram_min_gb": 4,
+    "description": "Generates instrumental music from text prompts.",
+    "recommended": true,
+    "token_limit": "N/A",
+    "release_date": "2023",
+    "capabilities": [
+      "audio"
+    ],
+    "backend": "hf"
   }
 ]

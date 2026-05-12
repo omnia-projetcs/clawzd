@@ -87,6 +87,19 @@ def _is_model_in_ollama(model_name: str) -> bool:
     return any(m.get("name", "").split(":")[0] == base for m in models)
 
 
+def _is_hf_model_downloaded(repo_id: str) -> bool:
+    """Check if a Hugging Face model is locally downloaded."""
+    from pathlib import Path
+    cache_dir = Path.home() / ".cache" / "huggingface" / "hub"
+    safe_name = "models--" + repo_id.replace("/", "--")
+    model_path = cache_dir / safe_name
+    if model_path.exists():
+        snapshots = model_path / "snapshots"
+        if snapshots.exists() and any(snapshots.iterdir()):
+            return True
+    return False
+
+
 # ---------------------------------------------------------------------------
 # Download state (for pull progress tracking)
 # ---------------------------------------------------------------------------
@@ -178,6 +191,74 @@ def _pull_worker(model: dict):
         _download_state["active"] = False
 
 
+def _hf_pull_worker(model: dict):
+    """Background thread to pull a Hugging Face model."""
+    global _download_state
+    repo_id = model.get("ollama_id", model.get("id"))
+
+    with _download_lock:
+        _download_state.update({
+            "active": True,
+            "model_id": model["id"],
+            "ollama_id": repo_id,
+            "progress": 0.0,
+            "downloaded_mb": 0,
+            "total_mb": 0,
+            "speed_mbps": 0.0,
+            "error": None,
+            "completed": False,
+            "status_text": "Starting Hugging Face download...",
+        })
+
+    try:
+        from huggingface_hub import snapshot_download
+        import huggingface_hub.utils.tqdm as hf_tqdm
+        from tqdm.auto import tqdm as orig_tqdm
+
+        class ProgressTracker(orig_tqdm):
+            def update(self, n=1):
+                super().update(n)
+                total = getattr(self, "total", 0)
+                current = getattr(self, "n", 0)
+                if total:
+                    _download_state["progress"] = min(100.0, (current / total) * 100)
+                    _download_state["downloaded_mb"] = int(current / (1024*1024))
+                    _download_state["total_mb"] = int(total / (1024*1024))
+                    _download_state["status_text"] = f"Downloading... {self.desc or ''}"
+                if not _download_state["active"]:
+                    raise KeyboardInterrupt("Download cancelled")
+
+        # Hook into HF Hub's progress bars
+        hf_tqdm.tqdm = ProgressTracker
+
+        # Attempt to get HF_TOKEN if available to download gated models
+        hf_token = os.environ.get("HF_TOKEN", os.environ.get("HUGGINGFACE_API_KEY", None))
+        if not hf_token:
+            try:
+                from config import HUGGINGFACE_API_KEY
+                hf_token = HUGGINGFACE_API_KEY
+            except ImportError:
+                pass
+
+        snapshot_download(repo_id=repo_id, resume_download=True, max_workers=4, token=hf_token)
+
+        _download_state["progress"] = 100.0
+        _download_state["completed"] = True
+        _download_state["status_text"] = "Download complete"
+        logger.info("HF Model pulled successfully: %s", repo_id)
+
+    except KeyboardInterrupt:
+        _download_state["error"] = "Download cancelled"
+        _download_state["status_text"] = "Cancelled"
+        logger.info("HF Pull cancelled: %s", repo_id)
+    except Exception as e:
+        _download_state["error"] = str(e)
+        _download_state["status_text"] = f"Error: {e}"
+        logger.error("HF Pull failed: %s", e)
+    finally:
+        _download_state["active"] = False
+
+
 # ---------------------------------------------------------------------------
 # API endpoints
 # ---------------------------------------------------------------------------
@@ -220,10 +301,20 @@ async def get_catalog():
     for m in MODEL_CATALOG:
         entry = dict(m)
         ollama_id = m.get("ollama_id", "")
+        backend = m.get("backend", "ollama")
+
         if not ollama_id:
             entry["downloaded"] = False
             entry["active"] = False
             entry["running"] = False
+            catalog.append(entry)
+            continue
+
+        if backend == "hf":
+            entry["downloaded"] = _is_hf_model_downloaded(ollama_id)
+            entry["active"] = False
+            entry["running"] = False
+            entry["local_size_gb"] = entry.get("size_gb", 0) if entry["downloaded"] else 0
             catalog.append(entry)
             continue
 
@@ -329,7 +420,7 @@ class DownloadRequest(BaseModel):
 
 @router.post("/download")
 async def download_model(req: DownloadRequest):
-    """Pull a model from the Ollama registry."""
+    """Pull a model from the Ollama registry or Hugging Face Hub."""
     model = next((m for m in MODEL_CATALOG if m["id"] == req.model_id), None)
     if not model:
         raise HTTPException(404, f"Model not found in catalog: {req.model_id}")
@@ -341,13 +432,19 @@ async def download_model(req: DownloadRequest):
     if _download_state["active"]:
         raise HTTPException(409, "A download is already in progress")
 
-    # Check if already installed
-    if _is_model_in_ollama(ollama_id):
-        return {"status": "already_installed", "ollama_id": ollama_id}
+    backend = model.get("backend", "ollama")
 
-    thread = threading.Thread(target=_pull_worker, args=(model,), daemon=True)
+    if backend == "hf":
+        if _is_hf_model_downloaded(ollama_id):
+            return {"status": "already_installed", "ollama_id": ollama_id}
+        thread = threading.Thread(target=_hf_pull_worker, args=(model,), daemon=True)
+    else:
+        # Check if already installed
+        if _is_model_in_ollama(ollama_id):
+            return {"status": "already_installed", "ollama_id": ollama_id}
+        thread = threading.Thread(target=_pull_worker, args=(model,), daemon=True)
+
     thread.start()
-
     return {"status": "pulling", "ollama_id": ollama_id, "model_id": req.model_id}
 
 
@@ -413,7 +510,7 @@ async def delete_model(req: DeleteRequest):
                      c.get("ollama_id", "").split(":")[0] == rname.split(":")[0]),
                     None
                 )
-                if cat:
+                if cat and cat.get("backend", "ollama") != "hf":
                     fallback_model = rname
                     break
             if not fallback_model:

@@ -95,7 +95,7 @@ class ModelManager {
     }
 
     const vramTotal = this.hardware.vram_total_mib || 0;
-    const CAP_ICONS = { txt: '', image: '️', video: '', mcp: '', code: ICONS.monitor(14) };
+    const CAP_ICONS = { txt: '', image: '🖼️', video: '🎬', audio: '🎵', mcp: '', code: ICONS.monitor ? ICONS.monitor(14) : '💻' };
 
     this.grid.innerHTML = filtered.map(m => {
       const canFit = vramTotal > 0 ? (m.vram_min_gb * 1024) <= vramTotal : true;
@@ -113,7 +113,9 @@ class ModelManager {
       let actions = '';
       const modelRef = m.ollama_id || m.id;
       if (m.downloaded) {
-        if (m.active) {
+        if (m.backend === 'hf') {
+           actions = `<button class="btn btn-active-indicator" disabled style="background:var(--bg-elevated);color:var(--text-primary);border-color:var(--border)"> Installed</button>`;
+        } else if (m.active) {
           actions = `
             <button class="btn btn-active-indicator" disabled> Active</button>
             <button class="btn btn-danger" onclick="OC.deleteModel('${escHtml(modelRef)}','${escHtml(m.name)}')"> Delete</button>`;
@@ -130,7 +132,7 @@ class ModelManager {
       const statusHtml = m.active
         ? `<div class="model-card-status active-status"> Active${m.local_size_gb ? ` (${m.local_size_gb} GB)` : ''}</div>`
         : m.downloaded
-          ? `<div class="model-card-status downloaded"> Downloaded${m.local_size_gb ? ` (${m.local_size_gb} GB)` : ''}</div>`
+          ? `<div class="model-card-status downloaded"> Installed${m.local_size_gb ? ` (${m.local_size_gb} GB)` : ''}</div>`
           : `<div class="model-card-status not-downloaded">○ Not downloaded</div>`;
 
       return `
