@@ -4248,48 +4248,124 @@
             responses[s.id] = document.getElementById(`col-${s.id}`)?.innerText || '';
           });
 
-          const r = await fetch('/arena/evaluate', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              prompt: window.arenaLastPrompt || '',
-              responses: responses,
-              provider: $('#provider-select').value,
-              model: $('#model-select').value
-            })
-          });
-          let d = {};
-          try { d = await r.json(); } catch(e) {}
+          const streamKeys = Object.keys(responses);
+          const total = streamKeys.length;
+          let completed = 0;
+          
+          if (total === 0) {
+            toast('No models to evaluate.');
+            btn.textContent = 'Ask AI to Judge';
+            btn.disabled = false;
+            return;
+          }
 
-          if (r.ok && d.ratings && Object.keys(d.ratings).length > 0) {
-            Object.keys(d.ratings).forEach(s_id => {
-              const info = d.ratings[s_id];
+          const evalPanel = document.getElementById('arena-eval-panel');
+          let progressContainer = document.getElementById('arena-eval-progress');
+          if (!progressContainer) {
+            progressContainer = document.createElement('div');
+            progressContainer.id = 'arena-eval-progress';
+            progressContainer.style = 'width: 100%; max-width: 400px; margin: 12px auto 0; background: var(--bg-primary); border: 1px solid var(--border); border-radius: 6px; overflow: hidden; height: 8px; position: relative;';
+            const progressBar = document.createElement('div');
+            progressBar.id = 'arena-eval-progress-bar';
+            progressBar.style = 'width: 0%; height: 100%; background: linear-gradient(90deg, var(--accent), var(--green)); transition: width 0.3s ease;';
+            progressContainer.appendChild(progressBar);
+            evalPanel.appendChild(progressContainer);
+          }
+          document.getElementById('arena-eval-progress-bar').style.width = '0%';
+          progressContainer.style.display = 'block';
+
+          btn.textContent = `Judging (0/${total})...`;
+          let hasError = false;
+
+          for (const s_id of streamKeys) {
+            const singleResponse = {};
+            singleResponse[s_id] = responses[s_id];
+
+            let attempt = 0;
+            let success = false;
+            let lastInfo = null;
+
+            while (attempt < 3 && !success) {
+              attempt++;
+              if (attempt > 1) {
+                btn.textContent = `Judging (${completed}/${total}) - Retry ${attempt}/3...`;
+              }
+              try {
+                const r = await fetch('/arena/evaluate', {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify({
+                    prompt: window.arenaLastPrompt || '',
+                    responses: singleResponse,
+                    provider: $('#provider-select').value,
+                    model: $('#model-select').value
+                  })
+                });
+                
+                let d = {};
+                try { d = await r.json(); } catch(e) {}
+
+                if (r.ok && d.ratings && Object.keys(d.ratings).length > 0) {
+                  const info = d.ratings[s_id];
+                  if (info) {
+                    lastInfo = info;
+                    if (info.error || info.score === '-') {
+                      success = false;
+                    } else {
+                      success = true;
+                    }
+                  }
+                } else {
+                  success = false;
+                }
+              } catch (err) {
+                console.error('Eval error for', s_id, err);
+                success = false;
+              }
+            }
+
+            if (!success) {
+              hasError = true;
+            }
+
+            if (lastInfo) {
               const streamObj = window.arenaStreams.find(s => s.id === s_id);
-              if (streamObj) streamObj.eval = info;
+              if (streamObj) streamObj.eval = lastInfo;
               
               const footerEl = document.getElementById(`footer-${s_id}`);
               if (footerEl) {
                 footerEl.style.display = 'block';
-                footerEl.innerHTML = `<div class="arena-score" style="margin:0; border:none; background:transparent; padding:0;"><strong>Score: ${info.score}/10</strong><div style="font-size:13px; margin-top:6px; color:var(--text-secondary); line-height:1.4;">${escHtml(info.rationale)}</div></div>`;
+                footerEl.innerHTML = `<div class="arena-score" style="margin:0; border:none; background:transparent; padding:0;"><strong>Score: ${lastInfo.score}/10</strong><div style="font-size:13px; margin-top:6px; color:var(--text-secondary); line-height:1.4;">${escHtml(lastInfo.rationale)}</div></div>`;
               } else {
                 const colBody = document.getElementById(`col-${s_id}`);
                 if (colBody) {
                   const scoreDiv = document.createElement('div');
                   scoreDiv.className = 'arena-score';
-                  scoreDiv.innerHTML = `<strong>Score: ${info.score}/10</strong>${escHtml(info.rationale)}`;
+                  scoreDiv.innerHTML = `<strong>Score: ${lastInfo.score}/10</strong>${escHtml(lastInfo.rationale)}`;
                   colBody.appendChild(scoreDiv);
-                  // Scroll to bottom to show the evaluation result
                   colBody.scrollTop = colBody.scrollHeight;
                 }
               }
-            });
-            btn.textContent = 'Evaluation Complete';
-          } else {
-            const msg = d.detail || 'The AI judge failed to return a valid evaluation (timeout or invalid JSON).';
-            toast('Evaluation failed: ' + msg);
-            btn.textContent = 'Evaluation Failed';
-            btn.disabled = false;
+            } else {
+              hasError = true;
+            }
+
+            completed++;
+            document.getElementById('arena-eval-progress-bar').style.width = `${(completed / total) * 100}%`;
+            btn.textContent = `Judging (${completed}/${total})...`;
           }
+
+          if (hasError) {
+            toast('Some evaluations encountered errors. Check individual columns.');
+          }
+          btn.textContent = 'Evaluation Complete';
+          
+          setTimeout(() => {
+            if (progressContainer) progressContainer.style.display = 'none';
+            btn.disabled = false;
+            btn.textContent = 'Ask AI to Judge';
+          }, 3000);
+          
         } catch (err) {
           toast('Evaluation error: ' + err.message);
           btn.textContent = 'Ask AI to Judge';

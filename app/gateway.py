@@ -2368,38 +2368,64 @@ async def arena_evaluate(request: Request):
                     parse_success = True
                 except json.JSONDecodeError:
                     pass
-                    
-                if parse_success:
+                
+                score_val = None
+                rationale_val = None
+                
+                if parse_success and isinstance(parsed, dict):
                     # Look for variations of keys
-                    score_val = parsed.get("score", parsed.get("Score", parsed.get("note", parsed.get("Note"))))
-                    rationale_val = parsed.get("rationale", parsed.get("Rationale", parsed.get("justification", parsed.get("Justification"))))
+                    score_val = parsed.get("score", parsed.get("Score", parsed.get("note", parsed.get("Note", parsed.get("évaluation", parsed.get("evaluation"))))))
+                    rationale_val = parsed.get("rationale", parsed.get("Rationale", parsed.get("justification", parsed.get("Justification", parsed.get("explanation", parsed.get("reasoning"))))))
                     
                     if score_val is None and "ratings" in parsed and isinstance(parsed["ratings"], dict):
                         first_val = list(parsed["ratings"].values())[0] if parsed["ratings"] else {}
-                        score_val = first_val.get("score", first_val.get("Score"))
-                        rationale_val = first_val.get("rationale", first_val.get("Rationale"))
+                        score_val = first_val.get("score", first_val.get("Score", first_val.get("note")))
+                        rationale_val = first_val.get("rationale", first_val.get("Rationale", first_val.get("justification")))
                         
-                    if score_val is not None:
-                        try:
-                            score_val = float(score_val)
-                        except (ValueError, TypeError):
-                            score_val = 0
-                        final_ratings[s_id] = {"score": score_val, "rationale": str(rationale_val or "Sans justification.")}
-                    else:
-                        final_ratings[s_id] = {"score": 0, "rationale": "Format JSON inattendu (clés introuvables)."}
-                else:
-                    # Regex fallback if JSON parsing fails entirely
-                    score_match = re.search(r'(?:score|note)\s*["\']?\s*[:=]\s*(\d+(?:\.\d+)?)', clean_text, re.IGNORECASE)
+                # Aggressive fallback if no valid score/rationale found via JSON
+                if score_val is None or rationale_val is None:
+                    # Look for a score in the raw text
+                    score_match = re.search(r'(?:score|note|évaluation|rating)[\s"\'=:]*(\d+(?:\.\d+)?)(?:/10)?', clean_text, re.IGNORECASE)
                     if score_match:
                         score_val = float(score_match.group(1))
-                        rat_match = re.search(r'(?:rationale|justification)\s*["\']?\s*[:=]\s*["\']([^"\']+)["\']', clean_text, re.IGNORECASE)
-                        rat_val = rat_match.group(1) if rat_match else "Sans justification."
-                        final_ratings[s_id] = {"score": score_val, "rationale": rat_val}
                     else:
-                        final_ratings[s_id] = {"score": 0, "rationale": "Échec de l'évaluation (erreur JSON sévère)."}
+                        # Find any obvious score format like "8/10" or "8 sur 10"
+                        any_num = re.search(r'\b([0-9](?:\.[0-9]+)?|10)\b\s*(?:/|sur)\s*10', clean_text)
+                        score_val = float(any_num.group(1)) if any_num else "-"
+                        
+                    # Look for a rationale in the raw text
+                    rat_match = re.search(r'(?:rationale|justification|explanation|raison)[\s"\'=:]*([^"\'\n\{\}]+)', clean_text, re.IGNORECASE)
+                    if rat_match:
+                        rationale_val = rat_match.group(1).strip()
+                    else:
+                        # Grab the first 250 chars of cleaned text as rationale
+                        clean_no_json = re.sub(r'["\{\}\[\]]', '', clean_text).strip()
+                        if re.search(r'^(?:score|note)', clean_no_json, re.IGNORECASE):
+                            clean_no_json = re.sub(r'^(?:score|note).*?\d+.*?\n', '', clean_no_json, flags=re.IGNORECASE).strip()
+                        rationale_val = clean_no_json[:250] + "..." if len(clean_no_json) > 250 else clean_no_json
+                
+                # Sanitize the final values
+                try:
+                    if score_val != "-":
+                        score_val = float(score_val)
+                        if score_val > 10: score_val = 10.0
+                        if score_val < 0: score_val = 0.0
+                except (ValueError, TypeError):
+                    score_val = "-"
+                    
+                if rationale_val is None or str(rationale_val).strip() == "":
+                    rationale_val = clean_text[:250] + "..." if len(clean_text) > 250 else clean_text
+                    
+                error_flag = False
+                if score_val == "-":
+                    error_flag = True
+                    if not rationale_val or rationale_val == "..." or rationale_val.strip() == "":
+                        rationale_val = "Le modèle n'a pas pu évaluer la réponse (format illisible)."
+                    
+                final_ratings[s_id] = {"score": score_val, "rationale": str(rationale_val).strip(), "error": error_flag}
             except Exception as e:
                 logger.error("Arena evaluation error for %s: %s. Last Response: %s", s_id, e, locals().get('result_text', ''))
-                final_ratings[s_id] = {"score": 0, "rationale": "Échec de l'évaluation (timeout ou erreur JSON)."}
+                final_ratings[s_id] = {"score": "-", "rationale": f"Erreur de génération : {str(e)[:150]}", "error": True}
                 
         return {"ratings": final_ratings}
     except Exception as e:
