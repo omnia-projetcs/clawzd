@@ -106,7 +106,6 @@ def init_db():
         );
 
         CREATE INDEX IF NOT EXISTS idx_messages_session ON messages(session_id);
-        CREATE INDEX IF NOT EXISTS idx_messages_branch ON messages(session_id, branch_id);
         CREATE INDEX IF NOT EXISTS idx_sessions_updated ON sessions(updated_at DESC);
 
         CREATE TABLE IF NOT EXISTS artifacts (
@@ -127,6 +126,35 @@ def init_db():
         CREATE INDEX IF NOT EXISTS idx_artifacts_updated ON artifacts(updated_at DESC);
     """)
     conn.commit()
+
+    # --- Migrate branching columns on existing databases ---
+    # ALTER TABLE is required because CREATE TABLE IF NOT EXISTS
+    # silently skips when the table already exists (without new columns).
+    for col, col_type, default in [
+        ("parent_message_id", "INTEGER", "NULL"),
+        ("branch_id", "TEXT", "'main'"),
+    ]:
+        try:
+            conn.execute(
+                f"ALTER TABLE messages ADD COLUMN {col} {col_type} DEFAULT {default}"
+            )
+            conn.commit()
+            logging.info("Migrated messages.%s column", col)
+        except Exception as e:
+            if "duplicate column" in str(e).lower():
+                pass  # Already exists — expected
+            else:
+                logging.warning("Column migration warning for %s: %s", col, e)
+
+    # Now safe to create the branch index (column guaranteed to exist)
+    try:
+        conn.execute(
+            "CREATE INDEX IF NOT EXISTS idx_messages_branch "
+            "ON messages(session_id, branch_id)"
+        )
+        conn.commit()
+    except Exception as e:
+        logging.warning("Branch index creation warning: %s", e)
 
 
 # --- Session CRUD ---
