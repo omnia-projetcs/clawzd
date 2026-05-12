@@ -90,7 +90,15 @@ def _is_model_in_ollama(model_name: str) -> bool:
 def _is_hf_model_downloaded(repo_id: str) -> bool:
     """Check if a Hugging Face model is locally downloaded."""
     from pathlib import Path
-    cache_dir = Path.home() / ".cache" / "huggingface" / "hub"
+    import os
+    
+    # Check config for custom MODELS_DIR, fallback to ~/.cache
+    try:
+        from config import MODELS_DIR
+        cache_dir = Path(MODELS_DIR) / "hub"
+    except ImportError:
+        cache_dir = Path.home() / ".cache" / "huggingface" / "hub"
+        
     safe_name = "models--" + repo_id.replace("/", "--")
     model_path = cache_dir / safe_name
     if model_path.exists():
@@ -212,8 +220,9 @@ def _hf_pull_worker(model: dict):
 
     try:
         from huggingface_hub import snapshot_download
-        import huggingface_hub.utils.tqdm as hf_tqdm
-        from tqdm.auto import tqdm as orig_tqdm
+        import tqdm
+        import tqdm.auto
+        orig_tqdm = tqdm.auto.tqdm
 
         class ProgressTracker(orig_tqdm):
             def update(self, n=1):
@@ -228,8 +237,19 @@ def _hf_pull_worker(model: dict):
                 if not _download_state["active"]:
                     raise KeyboardInterrupt("Download cancelled")
 
-        # Hook into HF Hub's progress bars
-        hf_tqdm.tqdm = ProgressTracker
+        # Hook into multiple possible tqdm locations for HF Hub
+        tqdm.auto.tqdm = ProgressTracker
+        tqdm.tqdm = ProgressTracker
+        try:
+            import huggingface_hub.utils.tqdm
+            huggingface_hub.utils.tqdm.tqdm = ProgressTracker
+        except ImportError:
+            pass
+        try:
+            import huggingface_hub.utils._progress
+            huggingface_hub.utils._progress.tqdm = ProgressTracker
+        except ImportError:
+            pass
 
         # Attempt to get HF_TOKEN if available to download gated models
         hf_token = os.environ.get("HF_TOKEN", os.environ.get("HUGGINGFACE_API_KEY", None))
@@ -240,7 +260,7 @@ def _hf_pull_worker(model: dict):
             except ImportError:
                 pass
 
-        snapshot_download(repo_id=repo_id, resume_download=True, max_workers=4, token=hf_token)
+        snapshot_download(repo_id=repo_id, max_workers=4, token=hf_token)
 
         _download_state["progress"] = 100.0
         _download_state["completed"] = True
