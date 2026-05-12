@@ -2328,7 +2328,7 @@ async def arena_evaluate(request: Request):
         for s_id, text in responses.items():
             try:
                 user_prompt = f"PROMPT:\n{prompt}\n\nRESPONSE TO EVALUATE:\n{text}\n\n"
-                user_prompt += "Evaluate the response above. Format your output strictly as a JSON object with 'score' (number from 0 to 10) and 'rationale' (string, 1 sentence). Example: {\"score\": 8, \"rationale\": \"...\"}"
+                user_prompt += "Evaluate the response above. Format your output strictly as a JSON object with EXACTLY two keys: 'score' (number from 0 to 10) and 'rationale' (string, 1 short sentence). DO NOT wrap the JSON in markdown blocks or output any extra text. Example: {\"score\": 8, \"rationale\": \"...\"}"
                 
                 t0 = time.perf_counter()
                 result_text = ""
@@ -2352,26 +2352,51 @@ async def arena_evaluate(request: Request):
                 )
                 
                 # Parse JSON
-                clean_text = re.sub(r'```json\s*', '', result_text)
+                clean_text = re.sub(r'```json\s*', '', result_text, flags=re.IGNORECASE)
                 clean_text = re.sub(r'```\s*', '', clean_text)
+                clean_text = clean_text.strip()
                 
-                match = re.search(r'\{[\s\S]*\}', clean_text)
-                if match:
-                    parsed = json.loads(match.group(0))
-                else:
-                    parsed = json.loads(clean_text)
-                    
-                # Allow fallback if the model returned nested "ratings" object
-                if "score" in parsed and "rationale" in parsed:
-                    final_ratings[s_id] = parsed
-                elif "ratings" in parsed and isinstance(parsed["ratings"], dict):
-                    first_val = list(parsed["ratings"].values())[0] if parsed["ratings"] else {}
-                    if "score" in first_val:
-                        final_ratings[s_id] = first_val
+                parsed = {}
+                parse_success = False
+                
+                try:
+                    match = re.search(r'\{[\s\S]*\}', clean_text)
+                    if match:
+                        parsed = json.loads(match.group(0))
                     else:
-                        final_ratings[s_id] = {"score": 0, "rationale": "Format JSON incorrect."}
+                        parsed = json.loads(clean_text)
+                    parse_success = True
+                except json.JSONDecodeError:
+                    pass
+                    
+                if parse_success:
+                    # Look for variations of keys
+                    score_val = parsed.get("score", parsed.get("Score", parsed.get("note", parsed.get("Note"))))
+                    rationale_val = parsed.get("rationale", parsed.get("Rationale", parsed.get("justification", parsed.get("Justification"))))
+                    
+                    if score_val is None and "ratings" in parsed and isinstance(parsed["ratings"], dict):
+                        first_val = list(parsed["ratings"].values())[0] if parsed["ratings"] else {}
+                        score_val = first_val.get("score", first_val.get("Score"))
+                        rationale_val = first_val.get("rationale", first_val.get("Rationale"))
+                        
+                    if score_val is not None:
+                        try:
+                            score_val = float(score_val)
+                        except (ValueError, TypeError):
+                            score_val = 0
+                        final_ratings[s_id] = {"score": score_val, "rationale": str(rationale_val or "Sans justification.")}
+                    else:
+                        final_ratings[s_id] = {"score": 0, "rationale": "Format JSON inattendu (clés introuvables)."}
                 else:
-                    final_ratings[s_id] = {"score": 0, "rationale": "Format JSON inattendu."}
+                    # Regex fallback if JSON parsing fails entirely
+                    score_match = re.search(r'(?:score|note)\s*["\']?\s*[:=]\s*(\d+(?:\.\d+)?)', clean_text, re.IGNORECASE)
+                    if score_match:
+                        score_val = float(score_match.group(1))
+                        rat_match = re.search(r'(?:rationale|justification)\s*["\']?\s*[:=]\s*["\']([^"\']+)["\']', clean_text, re.IGNORECASE)
+                        rat_val = rat_match.group(1) if rat_match else "Sans justification."
+                        final_ratings[s_id] = {"score": score_val, "rationale": rat_val}
+                    else:
+                        final_ratings[s_id] = {"score": 0, "rationale": "Échec de l'évaluation (erreur JSON sévère)."}
             except Exception as e:
                 logger.error("Arena evaluation error for %s: %s. Last Response: %s", s_id, e, locals().get('result_text', ''))
                 final_ratings[s_id] = {"score": 0, "rationale": "Échec de l'évaluation (timeout ou erreur JSON)."}
