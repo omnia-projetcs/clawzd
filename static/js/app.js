@@ -4083,7 +4083,7 @@
           window.ragMode = false;
           $('#preprompt-select').value = 'none';
           pickerLabel.textContent = `Arena (${window.arenaSelectedModels.length})`;
-          $('#chat-messages').innerHTML = '<div class="arena-container" id="arena-container" style="display:none"></div><div class="arena-eval-panel" id="arena-eval-panel" style="display:none; gap: 8px; justify-content: center;"><button class="arena-eval-btn" id="arena-eval-btn">Ask AI to Judge</button><button class="arena-eval-btn" id="arena-export-btn" style="background: linear-gradient(135deg, #10b981, #059669);"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="margin-right:6px; vertical-align:middle"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>Export CSV</button></div>';
+          $('#chat-messages').innerHTML = '<div class="arena-container" id="arena-container" style="display:none"></div><div class="arena-eval-panel" id="arena-eval-panel" style="display:none; gap: 8px; justify-content: center;"><button class="arena-eval-btn" id="arena-eval-btn">Ask AI to Judge</button><button class="arena-eval-btn" id="arena-export-btn" style="background: linear-gradient(135deg, #10b981, #059669);"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="margin-right:6px; vertical-align:middle"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>Export Excel</button></div>';
         } else if (pp === 'rag') {
           window.arenaMode = false;
           window.ragMode = true;
@@ -4162,42 +4162,38 @@
       }
 
       if (e.target && e.target.closest('#arena-export-btn')) {
-        const csvRows = [];
-        csvRows.push(['Modèle', 'Provider', 'Requête', 'Temps (s)', 'Tokens', 'TPS', 'Score / 10', 'Justification']);
-        
-        if (window.arenaStreams) {
-          window.arenaStreams.forEach(s => {
-            const m = window.arenaSelectedModels.find(mod => mod.model === s.model && mod.provider === s.provider) || s;
-            const modelName = m.label || s.model;
-            const provider = s.provider || '';
-            const prompt = window.arenaLastPrompt || '';
-            const time = s.stats ? s.stats.time : '';
-            const tokens = s.stats ? s.stats.tokens : '';
-            const tps = s.stats ? s.stats.tps : '';
-            const score = s.eval ? s.eval.score : '';
-            const rationale = s.eval ? s.eval.rationale : '';
-            
-            const row = [modelName, provider, prompt, time, tokens, tps, score, rationale].map(val => {
-              let str = String(val);
-              if (str.includes(',') || str.includes('"') || str.includes('\n')) {
-                str = '"' + str.replace(/"/g, '""') + '"';
-              }
-              return str;
+        const exportExcel = () => {
+          const wsData = [['Modèle', 'Provider', 'Requête', 'Temps (s)', 'Tokens', 'TPS', 'Score / 10', 'Justification']];
+          
+          if (window.arenaStreams) {
+            window.arenaStreams.forEach(s => {
+              const m = window.arenaSelectedModels.find(mod => mod.model === s.model && mod.provider === s.provider) || s;
+              const modelName = m.label || s.model;
+              const provider = s.provider || '';
+              const prompt = window.arenaLastPrompt || '';
+              const time = s.stats ? s.stats.time : '';
+              const tokens = s.stats ? s.stats.tokens : '';
+              const tps = s.stats ? s.stats.tps : '';
+              const score = s.eval ? s.eval.score : '';
+              const rationale = s.eval ? s.eval.rationale : '';
+              wsData.push([modelName, provider, prompt, time, tokens, tps, score, rationale]);
             });
-            csvRows.push(row.join(','));
-          });
+          }
+          
+          const wb = XLSX.utils.book_new();
+          const ws = XLSX.utils.aoa_to_sheet(wsData);
+          XLSX.utils.book_append_sheet(wb, ws, "Arena Results");
+          XLSX.writeFile(wb, `arena_results_${new Date().toISOString().split('T')[0]}.xlsx`);
+        };
+
+        if (typeof XLSX === 'undefined') {
+          const script = document.createElement('script');
+          script.src = 'https://cdn.sheetjs.com/xlsx-latest/package/dist/xlsx.full.min.js';
+          script.onload = exportExcel;
+          document.head.appendChild(script);
+        } else {
+          exportExcel();
         }
-        
-        const csvString = csvRows.join('\n');
-        const blob = new Blob([new Uint8Array([0xEF, 0xBB, 0xBF]), csvString], { type: 'text/csv;charset=utf-8;' });
-        const url = URL.createObjectURL(blob);
-        const a = document.createElement('a');
-        a.href = url;
-        a.download = `arena_results_${new Date().toISOString().split('T')[0]}.csv`;
-        document.body.appendChild(a);
-        a.click();
-        document.body.removeChild(a);
-        URL.revokeObjectURL(url);
       }
     });
 
