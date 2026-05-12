@@ -23,7 +23,7 @@ def _get_git_hash() -> str:
         return ""
 
 # --- Version (single source of truth) ---
-_BASE_VERSION = "0.0.1b"
+_BASE_VERSION = "0.0.1"
 _git_hash = _get_git_hash()
 APP_VERSION = f"{_BASE_VERSION}-{_git_hash}" if _git_hash else _BASE_VERSION
 
