@@ -249,7 +249,10 @@ class JsonProgressTracker(orig_tqdm):
             prog = min(100.0, (current / total) * 100)
             dl_mb = int(current / (1024*1024))
             tot_mb = int(total / (1024*1024))
-            print(json.dumps({"progress": prog, "downloaded_mb": dl_mb, "total_mb": tot_mb, "status_text": self.desc or ""}))
+            desc = getattr(self, "desc", "")
+            if desc:
+                desc = str(desc).strip(": ")
+            print(json.dumps({"progress": prog, "downloaded_mb": dl_mb, "total_mb": tot_mb, "status_text": desc}))
             sys.stdout.flush()
 
 tqdm.auto.tqdm = JsonProgressTracker
@@ -280,22 +283,28 @@ print(json.dumps({"progress": 100.0, "completed": True}))
             if not _download_state["active"]:
                 process.terminate()
                 raise KeyboardInterrupt("Download cancelled")
+            
+            line_str = line.strip()
+            if not line_str:
+                continue
+                
             try:
-                data = json.loads(line.strip())
+                data = json.loads(line_str)
                 if "progress" in data:
                     _download_state["progress"] = data["progress"]
                 if "downloaded_mb" in data:
                     _download_state["downloaded_mb"] = data["downloaded_mb"]
                 if "total_mb" in data:
                     _download_state["total_mb"] = data["total_mb"]
-                if "status_text" in data:
+                if "status_text" in data and data["status_text"]:
                     _download_state["status_text"] = f"Downloading... {data['status_text']}"
                 if data.get("completed"):
                     _download_state["progress"] = 100.0
                     _download_state["completed"] = True
                     _download_state["status_text"] = "Download complete"
             except json.JSONDecodeError:
-                pass  # Ignore non-JSON logs from huggingface_hub
+                # Log non-JSON output (tracebacks, warnings, etc.) to help debug code 1
+                logger.error("HF Subprocess: %s", line_str)
 
         process.wait()
         if process.returncode != 0 and process.returncode != -15:
