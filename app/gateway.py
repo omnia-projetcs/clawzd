@@ -2312,72 +2312,66 @@ async def arena_evaluate(request: Request):
         await _unload_all_ollama_models()
         kwargs["response_format"] = {"type": "json_object"}
     
-    # Map UUID stream_ids to sequential IDs to make it easier for the LLM
-    id_map = {}
-    user_prompt = f"PROMPT:\n{prompt}\n\nRESPONSES:\n"
-    for idx, (s_id, text) in enumerate(responses.items(), 1):
-        idx_str = str(idx)
-        id_map[idx_str] = s_id
-        user_prompt += f"--- RESPONSE {idx_str} ---\n{text}\n\n"
-        
-    sys_prompt = "You are an impartial AI judge. Your task is to evaluate multiple AI responses to a given prompt. Score each out of 10 and give a 1-sentence explanation."
-    user_prompt += "Evaluate ALL responses provided above. Format your output strictly as a JSON object where each key is the response number (e.g. \"1\", \"2\") and the value is an object with 'score' (number) and 'rationale' (string). Example: {\"ratings\": {\"1\": {\"score\": 8, \"rationale\": \"...\"}, \"2\": {\"score\": 6, \"rationale\": \"...\"}}} . You MUST include an evaluation for every single response listed."
+    sys_prompt = "You are an impartial AI judge. Your task is to evaluate an AI response to a given prompt. Score it out of 10 and give a 1-sentence explanation."
+    
+    import json
+    import re
+    from app.metrics import get_metrics
+    
+    final_ratings = {}
     
     try:
-        t0 = time.perf_counter()
-        result_text = ""
-        async for token in provider.chat_stream([
-            {"role": "system", "content": sys_prompt},
-            {"role": "user", "content": user_prompt}
-        ], **kwargs):
-            result_text += token
+        # Evaluate each response individually
+        for s_id, text in responses.items():
+            user_prompt = f"PROMPT:\n{prompt}\n\nRESPONSE TO EVALUATE:\n{text}\n\n"
+            user_prompt += "Evaluate the response above. Format your output strictly as a JSON object with 'score' (number from 0 to 10) and 'rationale' (string, 1 sentence). Example: {\"score\": 8, \"rationale\": \"...\"}"
             
-        latency_s = time.perf_counter() - t0
-        # Track metrics for Arena evaluation
-        input_tokens = count_message_tokens([{"role": "system", "content": sys_prompt}, {"role": "user", "content": user_prompt}])
-        output_tokens = count_tokens(result_text)
-        from app.metrics import get_metrics
-        get_metrics().record_llm_call(
-            provider=provider_key,
-            model=model_key or getattr(provider, "default_model", "unknown"),
-            input_tokens=input_tokens,
-            output_tokens=output_tokens,
-            latency_s=latency_s,
-            session_id="arena_eval"
-        )
-            
-        # Parse JSON
-        import json
-        import re
-        
-        clean_text = re.sub(r'```json\s*', '', result_text)
-        clean_text = re.sub(r'```\s*', '', clean_text)
-        
-        match = re.search(r'\{[\s\S]*\}', clean_text)
-        if match:
-            data = json.loads(match.group(0))
-        else:
-            data = json.loads(clean_text)
-            
-        if "ratings" not in data:
-            is_ratings = all(isinstance(v, dict) and "score" in v for v in data.values())
-            if is_ratings:
-                data = {"ratings": data}
+            t0 = time.perf_counter()
+            result_text = ""
+            async for token in provider.chat_stream([
+                {"role": "system", "content": sys_prompt},
+                {"role": "user", "content": user_prompt}
+            ], **kwargs):
+                result_text += token
                 
-        # Map sequential IDs back to original stream_ids
-        final_ratings = {}
-        for k, v in data.get("ratings", {}).items():
-            match = re.search(r'\d+', str(k))
+            latency_s = time.perf_counter() - t0
+            input_tokens = count_message_tokens([{"role": "system", "content": sys_prompt}, {"role": "user", "content": user_prompt}])
+            output_tokens = count_tokens(result_text)
+            
+            get_metrics().record_llm_call(
+                provider=provider_key,
+                model=model_key or getattr(provider, "default_model", "unknown"),
+                input_tokens=input_tokens,
+                output_tokens=output_tokens,
+                latency_s=latency_s,
+                session_id="arena_eval"
+            )
+            
+            # Parse JSON
+            clean_text = re.sub(r'```json\s*', '', result_text)
+            clean_text = re.sub(r'```\s*', '', clean_text)
+            
+            match = re.search(r'\{[\s\S]*\}', clean_text)
             if match:
-                idx_str = match.group(0)
-                if idx_str in id_map:
-                    final_ratings[id_map[idx_str]] = v
-            elif str(k) in id_map:
-                final_ratings[id_map[str(k)]] = v
+                parsed = json.loads(match.group(0))
+            else:
+                parsed = json.loads(clean_text)
+                
+            # Allow fallback if the model returned nested "ratings" object
+            if "score" in parsed and "rationale" in parsed:
+                final_ratings[s_id] = parsed
+            elif "ratings" in parsed and isinstance(parsed["ratings"], dict):
+                first_val = list(parsed["ratings"].values())[0] if parsed["ratings"] else {}
+                if "score" in first_val:
+                    final_ratings[s_id] = first_val
+                else:
+                    final_ratings[s_id] = {"score": 0, "rationale": "Format JSON incorrect."}
+            else:
+                final_ratings[s_id] = {"score": 0, "rationale": "Format JSON inattendu."}
                 
         return {"ratings": final_ratings}
     except Exception as e:
-        logger.error("Arena evaluation error: %s. Response: %s", e, locals().get('result_text', ''))
+        logger.error("Arena evaluation error: %s. Last Response: %s", e, locals().get('result_text', ''))
         raise HTTPException(500, detail="The AI judge failed to return a valid evaluation JSON (timeout or format error).")
 
 

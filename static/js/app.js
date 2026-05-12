@@ -1386,7 +1386,7 @@
             activeStreams--;
             if (activeStreams <= 0) {
               this.sendBtn.disabled = false;
-              $('#arena-eval-panel').style.display = 'block';
+              $('#arena-eval-panel').style.display = 'flex';
               window.arenaLastPrompt = msg;
             }
           };
@@ -1396,7 +1396,7 @@
               activeStreams--;
               if (activeStreams <= 0) {
                 this.sendBtn.disabled = false;
-                $('#arena-eval-panel').style.display = 'block';
+                $('#arena-eval-panel').style.display = 'flex';
                 window.arenaLastPrompt = msg;
               }
               // Cancel pending throttled render and do final render
@@ -1405,11 +1405,12 @@
               let finalPreview = col.text;
               
               let statsHtml = '';
-              const statsRe = /__STATS__({.+?})__STATS__/;
               const statsMatch = finalPreview.match(statsRe);
               if (statsMatch) {
                 try {
                   const stats = JSON.parse(statsMatch[1]);
+                  const streamObj = window.arenaStreams.find(s => s.id === stream.stream_id);
+                  if (streamObj) streamObj.stats = stats;
                   statsHtml = `<div class="arena-stats" style="margin-top:16px; padding:12px; border-radius:var(--radius-sm); background:var(--bg-tertiary); font-size:12px; border:1px solid var(--border);">
                     <div style="display:flex; justify-content:space-between; margin-bottom:4px;">
                       <span style="color:var(--text-muted)">⏱️ Temps de réponse</span>
@@ -1451,6 +1452,8 @@
                 if (statsMatch) {
                   try {
                     const stats = JSON.parse(statsMatch[1]);
+                    const streamObj = window.arenaStreams.find(s => s.id === stream.stream_id);
+                    if (streamObj) streamObj.stats = stats;
                     statsHtml = `<div class="arena-stats" style="margin-top:16px; padding:12px; border-radius:var(--radius-sm); background:var(--bg-tertiary); font-size:12px; border:1px solid var(--border);">
                       <div style="display:flex; justify-content:space-between; margin-bottom:4px;">
                         <span style="color:var(--text-muted)">⏱️ Temps de réponse</span>
@@ -1478,7 +1481,7 @@
               }, 150);
             }
           };
-          window.arenaStreams.push({ id: stream.stream_id, es: es });
+          window.arenaStreams.push({ id: stream.stream_id, es: es, model: stream.model, provider: stream.provider });
         });
 
       } catch (e) {
@@ -4079,7 +4082,7 @@
           window.ragMode = false;
           $('#preprompt-select').value = 'none';
           pickerLabel.textContent = `Arena (${window.arenaSelectedModels.length})`;
-          $('#chat-messages').innerHTML = '<div class="arena-container" id="arena-container" style="display:none"></div><div class="arena-eval-panel" id="arena-eval-panel" style="display:none"><button class="arena-eval-btn" id="arena-eval-btn">Ask AI to Judge</button></div>';
+          $('#chat-messages').innerHTML = '<div class="arena-container" id="arena-container" style="display:none"></div><div class="arena-eval-panel" id="arena-eval-panel" style="display:none; gap: 8px; justify-content: center;"><button class="arena-eval-btn" id="arena-eval-btn">Ask AI to Judge</button><button class="arena-eval-btn" id="arena-export-btn" style="background: linear-gradient(135deg, #10b981, #059669);"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="margin-right:6px; vertical-align:middle"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>Export CSV</button></div>';
         } else if (pp === 'rag') {
           window.arenaMode = false;
           window.ragMode = true;
@@ -4131,6 +4134,8 @@
           if (r.ok && d.ratings && Object.keys(d.ratings).length > 0) {
             Object.keys(d.ratings).forEach(s_id => {
               const info = d.ratings[s_id];
+              const streamObj = window.arenaStreams.find(s => s.id === s_id);
+              if (streamObj) streamObj.eval = info;
               const colBody = document.getElementById(`col-${s_id}`);
               if (colBody) {
                 const scoreDiv = document.createElement('div');
@@ -4153,6 +4158,45 @@
           btn.textContent = 'Ask AI to Judge';
           btn.disabled = false;
         }
+      }
+
+      if (e.target && e.target.closest('#arena-export-btn')) {
+        const csvRows = [];
+        csvRows.push(['Modèle', 'Provider', 'Requête', 'Temps (s)', 'Tokens', 'TPS', 'Score / 10', 'Justification']);
+        
+        if (window.arenaStreams) {
+          window.arenaStreams.forEach(s => {
+            const m = window.arenaSelectedModels.find(mod => mod.model === s.model && mod.provider === s.provider) || s;
+            const modelName = m.label || s.model;
+            const provider = s.provider || '';
+            const prompt = window.arenaLastPrompt || '';
+            const time = s.stats ? s.stats.time : '';
+            const tokens = s.stats ? s.stats.tokens : '';
+            const tps = s.stats ? s.stats.tps : '';
+            const score = s.eval ? s.eval.score : '';
+            const rationale = s.eval ? s.eval.rationale : '';
+            
+            const row = [modelName, provider, prompt, time, tokens, tps, score, rationale].map(val => {
+              let str = String(val);
+              if (str.includes(',') || str.includes('"') || str.includes('\n')) {
+                str = '"' + str.replace(/"/g, '""') + '"';
+              }
+              return str;
+            });
+            csvRows.push(row.join(','));
+          });
+        }
+        
+        const csvString = csvRows.join('\n');
+        const blob = new Blob([new Uint8Array([0xEF, 0xBB, 0xBF]), csvString], { type: 'text/csv;charset=utf-8;' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `arena_results_${new Date().toISOString().split('T')[0]}.csv`;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
       }
     });
 
