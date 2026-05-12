@@ -398,9 +398,8 @@
     });
 
     // Deepseek <think> tags — wrap in collapsible (supports streaming / unclosed tags)
-    h = h.replace(/&lt;think&gt;([\s\S]*?)(?:&lt;\/think&gt;|$)/g, (_, content) => {
-      return ph(`<details class="tool-thinking" open><summary> <em>Thinking…</em></summary><div style="padding:12px;color:var(--text-muted);font-style:italic;overflow-x:auto;">${content.trim()}</div></details>`);
-    });
+    h = h.replace(/&lt;think&gt;/g, '<details class="tool-thinking" open><summary> <em>Thinking…</em></summary><div style="padding:12px;color:var(--text-muted);font-style:italic;overflow-x:auto;">');
+    h = h.replace(/&lt;\/think&gt;/g, '</div></details>');
 
     // Tables (| col | col |)
     h = h.replace(/((?:\|[^\n]+\|\s*\n){2,})/g, (table) => {
@@ -515,8 +514,8 @@
     h = h.replace(/\n\n+/g, '<br><div style="margin-top:8px"></div>');
     h = h.replace(/\n/g, '<br>');
     // Clean spurious <br> before/after block elements
-    h = h.replace(/<br>\s*(<\/?(?:ul|ol|li|h[2-4]|img|hr|blockquote|div))/g, '$1');
-    h = h.replace(/(<\/(?:ul|ol|li|h[2-4]|blockquote|div)>)\s*<br>/g, '$1');
+    h = h.replace(/<br>\s*(<\/?(?:ul|ol|li|h[2-4]|img|hr|blockquote|div|details|summary))/g, '$1');
+    h = h.replace(/(<\/(?:ul|ol|li|h[2-4]|blockquote|div|details|summary)>)\s*<br>/g, '$1');
 
     // ---- Phase 4: Restore block placeholders ----
     h = h.replace(/\x00BLK(\d+)\x00/g, (_, i) => blocks[parseInt(i)]);
@@ -1404,9 +1403,34 @@
               const col = cols[stream.stream_id];
               if (col._renderTimer) { clearTimeout(col._renderTimer); col._renderTimer = null; }
               let finalPreview = col.text;
+              
+              let statsHtml = '';
+              const statsRe = /__STATS__({.+?})__STATS__/;
+              const statsMatch = finalPreview.match(statsRe);
+              if (statsMatch) {
+                try {
+                  const stats = JSON.parse(statsMatch[1]);
+                  statsHtml = `<div class="arena-stats" style="margin-top:16px; padding:12px; border-radius:var(--radius-sm); background:var(--bg-tertiary); font-size:12px; border:1px solid var(--border);">
+                    <div style="display:flex; justify-content:space-between; margin-bottom:4px;">
+                      <span style="color:var(--text-muted)">⏱️ Temps de réponse</span>
+                      <strong>${stats.time}s</strong>
+                    </div>
+                    <div style="display:flex; justify-content:space-between; margin-bottom:4px;">
+                      <span style="color:var(--text-muted)"> Tokens E/S</span>
+                      <strong>${stats.tokens}</strong>
+                    </div>
+                    <div style="display:flex; justify-content:space-between;">
+                      <span style="color:var(--text-muted)"> Vitesse</span>
+                      <strong>${stats.tps} tokens/s</strong>
+                    </div>
+                  </div>`;
+                  finalPreview = finalPreview.replace(statsRe, '');
+                } catch (err) { }
+              }
+
               const ffc = (finalPreview.match(/```/g) || []).length;
               if (ffc % 2 !== 0) finalPreview += '\n```';
-              col.el.innerHTML = renderMd(finalPreview);
+              col.el.innerHTML = renderMd(finalPreview) + statsHtml;
               if (typeof highlightAll === 'function') highlightAll(col.el);
               return;
             }
@@ -4101,9 +4125,10 @@
               model: $('#model-select').value
             })
           });
-          const d = await r.json();
+          let d = {};
+          try { d = await r.json(); } catch(e) {}
 
-          if (d.ratings) {
+          if (r.ok && d.ratings && Object.keys(d.ratings).length > 0) {
             Object.keys(d.ratings).forEach(s_id => {
               const info = d.ratings[s_id];
               const colBody = document.getElementById(`col-${s_id}`);
@@ -4111,13 +4136,20 @@
                 const scoreDiv = document.createElement('div');
                 scoreDiv.className = 'arena-score';
                 scoreDiv.innerHTML = `<strong>Score: ${info.score}/10</strong>${escHtml(info.rationale)}`;
-                colBody.parentElement.appendChild(scoreDiv);
+                colBody.appendChild(scoreDiv);
+                // Scroll to bottom to show the evaluation result
+                colBody.scrollTop = colBody.scrollHeight;
               }
             });
             btn.textContent = 'Evaluation Complete';
+          } else {
+            const msg = d.detail || 'The AI judge failed to return a valid evaluation (timeout or invalid JSON).';
+            toast('Evaluation failed: ' + msg);
+            btn.textContent = 'Evaluation Failed';
+            btn.disabled = false;
           }
         } catch (err) {
-          toast('Evaluation failed');
+          toast('Evaluation error: ' + err.message);
           btn.textContent = 'Ask AI to Judge';
           btn.disabled = false;
         }

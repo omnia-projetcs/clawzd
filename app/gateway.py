@@ -94,7 +94,9 @@ def _strip_base64(text: str) -> str:
 
 def _sanitize_input(text: str) -> str:
     """Sanitize user input by removing all HTML tags."""
-    return _HTML_TAG_RE.sub('', text)
+    # Disabled: Frontend correctly escapes HTML to prevent XSS. 
+    # LLMs need the raw tags (<something>) to write code properly.
+    return text
 
 
 # --- App Setup ---
@@ -1165,6 +1167,10 @@ async def _process_chat(session_id: str, data: dict) -> dict:
                                 await queue.put(cont_round_response)
                         else:
                             await queue.put(token)
+                            
+                    if not _found_code_start and cont_round_response:
+                        # Flush the buffer if stream ended before a fence or 500 chars
+                        await queue.put(cont_round_response)
 
                     latency_s = time.perf_counter() - t0_cont
                     input_tokens = count_message_tokens(current_messages, model=model_key or "")
@@ -2261,6 +2267,30 @@ async def arena_stream(stream_id: str):
     return EventSourceResponse(event_generator())
 
 
+async def _unload_all_ollama_models():
+    """Unload all currently running models in Ollama to free up VRAM."""
+    from config import OLLAMA_HOST, OLLAMA_API_KEY
+    import httpx
+    try:
+        headers = {"Authorization": f"Bearer {OLLAMA_API_KEY}"} if OLLAMA_API_KEY else {}
+        async with httpx.AsyncClient() as client:
+            resp = await client.get(f"{OLLAMA_HOST}/api/ps", timeout=2.0, headers=headers)
+            if resp.status_code == 200:
+                models = resp.json().get("models", [])
+                for m in models:
+                    model_name = m.get("name")
+                    if model_name:
+                        await client.post(
+                            f"{OLLAMA_HOST}/api/chat",
+                            json={"model": model_name, "keep_alive": 0},
+                            headers=headers,
+                            timeout=2.0
+                        )
+                        logger.info("Unloaded Ollama model: %s", model_name)
+    except Exception as e:
+        logger.warning("Failed to unload Ollama models: %s", e)
+
+
 @app.post("/arena/evaluate")
 async def arena_evaluate(request: Request):
     """Judge the models' responses."""
@@ -2277,6 +2307,10 @@ async def arena_evaluate(request: Request):
     kwargs = {}
     if model_key:
         kwargs["model"] = model_key
+
+    if provider_key in ("ollama", "local"):
+        await _unload_all_ollama_models()
+        kwargs["response_format"] = {"type": "json_object"}
     
     # Map UUID stream_ids to sequential IDs to make it easier for the LLM
     id_map = {}
@@ -2344,7 +2378,7 @@ async def arena_evaluate(request: Request):
         return {"ratings": final_ratings}
     except Exception as e:
         logger.error("Arena evaluation error: %s. Response: %s", e, locals().get('result_text', ''))
-        return {"ratings": {}}
+        raise HTTPException(500, detail="The AI judge failed to return a valid evaluation JSON (timeout or format error).")
 
 
 # --- Preprompts API ---

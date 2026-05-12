@@ -44,11 +44,8 @@
     });
 
     // <think> tags → collapsible
-    h = h.replace(/&lt;think&gt;([\s\S]*?)(?:&lt;\/think&gt;|$)/g, (_, content) => {
-      return ph('<details class="tool-thinking" open><summary> <em>Thinking…</em></summary>' +
-             '<div style="padding:12px;color:var(--text-muted);font-style:italic;">' +
-             content.trim() + '</div></details>');
-    });
+    h = h.replace(/&lt;think&gt;/g, '<details class="tool-thinking" open><summary> <em>Thinking…</em></summary><div style="padding:12px;color:var(--text-muted);font-style:italic;overflow-x:auto;">');
+    h = h.replace(/&lt;\/think&gt;/g, '</div></details>');
 
     // Terminal output details
     h = h.replace(/__DETAILS__([\s\S]*?)__DETAILS__/g, (_, content) => {
@@ -129,8 +126,8 @@
     h = h.replace(/\n/g, '<br>');
 
     // Clean spurious <br> around block elements
-    h = h.replace(/<br>\s*(<\/?(?:ul|ol|li|h[2-4]|hr|blockquote|div|pre|details))/g, '$1');
-    h = h.replace(/(<\/(?:ul|ol|li|h[2-4]|blockquote|div|pre|details)>)\s*<br>/g, '$1');
+    h = h.replace(/<br>\s*(<\/?(?:ul|ol|li|h[2-4]|hr|blockquote|div|pre|details|summary))/g, '$1');
+    h = h.replace(/(<\/(?:ul|ol|li|h[2-4]|blockquote|div|pre|details|summary)>)\s*<br>/g, '$1');
 
     // Format tool execution markers nicely
     h = h.replace(/⚡ \*Executing <code>([^<]+)<\/code>\.\.\.\*/g, '<div class="tool-call-status" style="margin:8px 0;padding:8px 12px;background:var(--bg-secondary);border-radius:6px;font-size:13px;display:flex;align-items:center;gap:8px;color:var(--text-secondary);border:1px solid var(--border);"><span class="tool-spinner" style="display:inline-block;width:12px;height:12px;border:2px solid var(--accent);border-right-color:transparent;border-radius:50%;animation:spin 1s linear infinite;"></span> Executing <strong>$1</strong>...</div>');
