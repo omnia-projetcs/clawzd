@@ -8,6 +8,17 @@
   padding: 0 8px;
 }
 
+/* Separator between items */
+.sys-health-widget > *:not(:first-child):not(:empty)::before {
+  content: '|';
+  margin-right: 8px;
+  color: var(--text-muted, #555);
+  opacity: 0.4;
+}
+
+/* Hide empty model span */
+#status-model:empty { display: none; }
+
 .shw-item {
   font-size: 10px;
   font-weight: 600;
