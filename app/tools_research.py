@@ -1851,3 +1851,10 @@ async def list_iterations(pid: str):
     if not proj:
         raise HTTPException(404, "Project not found")
     return {"iterations": proj.get("iterations", [])}
+
+
+@router.get("/analytics")
+async def research_analytics():
+    """Return aggregated research analytics for the dashboard."""
+    from app.tools.research_analytics import get_research_analytics
+    return get_research_analytics()

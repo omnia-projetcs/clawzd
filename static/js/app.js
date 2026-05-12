@@ -781,7 +781,9 @@
         if (this.fileTree) this.fileTree.clear();
         if (d.messages && d.messages.length) {
           d.messages.forEach(m => {
-            const bubble = this.addMsg(m.role, m.content);
+            const meta = m.metadata || {};
+            if (m.id) meta._msgId = m.id;  // For branch fork support
+            const bubble = this.addMsg(m.role, m.content, meta);
             if (m.timestamp === 'in-progress') {
               this.streaming = true;
               this.text = m.content;
@@ -795,6 +797,7 @@
         }
         else { this.showWelcome(); }
         this.connectSSE(); this.status('connected'); loadSessions();
+        if (window.branchManager) window.branchManager.setSession(id);
       } catch (e) { console.error(e); toast('Failed to load session'); }
     }
     connectSSE() {
@@ -842,6 +845,12 @@
           window.ChatEnhancements.renderTodoPanel(todoData);
           return; // Don't append todo marker to visible text
         }
+      }
+      // Intercept tool approval requests from SSE stream (HITL — OpenSwarm-inspired)
+      if (window.toolApproval && tok.includes('__TOOL_APPROVAL__')) {
+        const cleaned = window.toolApproval.processToken(tok);
+        if (cleaned === null) return; // Entire token was an approval request
+        tok = cleaned; // Continue with cleaned token
       }
 
       this.text += tok;
@@ -935,6 +944,7 @@
               });
               const d = await r.json();
               this.sessionId = d.id;
+              if (window.tokenTracker) window.tokenTracker.setSession(d.id);
               this.connectSSE();
 
               await fetch(`/send/${this.sessionId}`, {
@@ -1512,6 +1522,7 @@
             })
           });
           const d = await r.json(); this.sessionId = d.id; this.connectSSE();
+          if (window.tokenTracker) window.tokenTracker.setSession(d.id);
         } catch (e) { console.error(e); this.status('offline'); return; }
       } else if (!this.es || this.es.readyState === 2) {
         this.connectSSE();
@@ -1632,7 +1643,7 @@
       }
       } catch (e) { toast(ICONS.x(14) + ' Send error'); this.sendBtn.disabled = false; }
     }
-    addMsg(role, content) {
+    addMsg(role, content, metadata) {
       this.hideWelcome();
       const avatar = role === 'user' ? icon('chat') : icon('bolt');
       const author = role === 'user' ? 'You' : 'Clawzd';
@@ -1714,6 +1725,10 @@
           }
         });
         actionsBar.appendChild(humanizeBtn);
+        // Fork button (branching)
+        if (window.branchManager && metadata && metadata._msgId) {
+          window.branchManager.addForkButton(actionsBar, metadata._msgId);
+        }
       } else {
         // Edit user message
         const editBtn = el('button', { class: 'msg-action-btn', title: 'Edit message', html: `${icon('edit', 13)} Edit` });
@@ -1727,9 +1742,25 @@
         actionsBar.appendChild(editBtn);
       }
 
+      // Resolve model tooltip for the avatar
+      let avatarTitle = '';
+      if (role === 'assistant') {
+        if (metadata && metadata.model) {
+          avatarTitle = metadata.model;
+          if (metadata.provider) avatarTitle = metadata.provider + ' / ' + avatarTitle;
+        } else {
+          // Fallback to current model selector
+          const modelSel = document.getElementById('model-select');
+          if (modelSel && modelSel.value) avatarTitle = modelSel.value;
+        }
+      }
+
+      const avatarEl = el('div', { class: 'message-avatar', html: avatar });
+      if (avatarTitle) avatarEl.title = avatarTitle;
+
       const msgEl2 = el('div', { class: 'message ' + role }, [
         el('div', { class: 'message-header' }, [
-          el('div', { class: 'message-avatar', html: avatar }),
+          avatarEl,
           el('span', { class: 'message-author', text: author })
         ]),
         bubble,
@@ -4094,7 +4125,11 @@
     });
 
     // Settings
-    $('#btn-settings').addEventListener('click', () => $('#settings-overlay').classList.add('open'));
+    $('#btn-settings').addEventListener('click', () => {
+      $('#settings-overlay').classList.add('open');
+      // Load tool permissions into the HITL grid
+      _loadToolPermsGrid();
+    });
     $('#settings-close').addEventListener('click', () => $('#settings-overlay').classList.remove('open'));
     $('#settings-overlay').addEventListener('click', e => { if (e.target === e.currentTarget) e.currentTarget.classList.remove('open'); });
 
@@ -4156,6 +4191,58 @@
       // Reload providers immediately to reflect cloud toggle change
       loadProviders();
     });
+
+    // --- Tool Permissions Grid (HITL) ---
+    async function _loadToolPermsGrid() {
+      const grid = $('#tool-perms-grid');
+      if (!grid) return;
+      try {
+        const res = await fetch('/api/tool-permissions');
+        const data = await res.json();
+        const perms = data.permissions || {};
+        const tools = Object.keys(perms).sort();
+        if (tools.length === 0) {
+          grid.innerHTML = '<div style="color:var(--text-muted);font-size:11px;">No tools configured</div>';
+          return;
+        }
+        const toolIcons = {
+          search_web: '🔍', execute_python: '🐍', run_command: '⚙️',
+          edit_file: '✏️', read_file: '📄', generate_image: '🎨',
+          generate_animation: '🎬', browse_web: '🌐', audit_code: '🛡️',
+          send_email: '📧', post_to_twitter: '🐦', post_to_linkedin: '💼',
+          trigger_n8n: '🔗', create_app: '📱', screenshot_remote: '📸',
+          create_skill: '⚡', memory: '🧠', undo: '↩️',
+        };
+        grid.innerHTML = tools.map(tool => {
+          const level = perms[tool];
+          const icon = toolIcons[tool] || '🔧';
+          return `<div style="display:flex;align-items:center;gap:8px;padding:4px 0;border-bottom:1px solid var(--border);">
+            <span style="font-size:14px;width:20px;text-align:center;">${icon}</span>
+            <span style="flex:1;font-size:12px;font-family:'SF Mono','Fira Code',monospace;color:var(--text-secondary);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="${tool}">${tool}</span>
+            <select data-tool-perm="${tool}" style="padding:2px 6px;font-size:11px;background:var(--bg-elevated);color:var(--text-primary);border:1px solid var(--border);border-radius:4px;cursor:pointer;">
+              <option value="always"${level === 'always' ? ' selected' : ''}>✅ Always</option>
+              <option value="ask"${level === 'ask' ? ' selected' : ''}>⏳ Ask</option>
+              <option value="deny"${level === 'deny' ? ' selected' : ''}>🚫 Deny</option>
+            </select>
+          </div>`;
+        }).join('');
+        // Auto-save on change
+        grid.querySelectorAll('select[data-tool-perm]').forEach(sel => {
+          sel.addEventListener('change', async () => {
+            const toolName = sel.dataset.toolPerm;
+            const newLevel = sel.value;
+            await fetch('/api/tool-permissions', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ [toolName]: newLevel }),
+            });
+          });
+        });
+      } catch (e) {
+        grid.innerHTML = '<div style="color:var(--red);font-size:11px;">Failed to load permissions</div>';
+      }
+    }
+    window._loadToolPermsGrid = _loadToolPermsGrid;
 
     // RAG multi-file upload
     const ragUp = $('#rag-upload');

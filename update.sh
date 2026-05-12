@@ -32,7 +32,7 @@ mkdir -p data/sessions data/profiles data/skills data/images data/screenshots da
 # --- Run database migrations ---
 echo ""
 echo "--- Running database migrations ---"
-python3 -c "from app.core.database import init_db; init_db(); print('✓ Database schema up to date')" 2>&1 || {
+python3 migrate.py 2>&1 || {
     echo "WARNING: Database migration failed. The app will attempt to initialize on startup."
 }
 

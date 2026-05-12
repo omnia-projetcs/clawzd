@@ -1,0 +1,274 @@
+/* ---- Research Analytics Dashboard ---- */
+
+.ra-panel {
+  position: fixed;
+  right: 0;
+  top: 0;
+  bottom: 0;
+  width: 520px;
+  max-width: 95vw;
+  background: var(--bg-primary);
+  border-left: 1px solid var(--border);
+  z-index: 9000;
+  display: none;
+  flex-direction: column;
+  animation: raSlideIn 0.2s ease-out;
+  box-shadow: -8px 0 32px rgba(0, 0, 0, 0.3);
+}
+@keyframes raSlideIn {
+  from { transform: translateX(100%); }
+  to   { transform: translateX(0); }
+}
+
+.ra-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 16px;
+  border-bottom: 1px solid var(--border);
+  background: var(--bg-elevated);
+}
+.ra-title {
+  font-weight: 700;
+  font-size: 14px;
+  color: var(--text-primary);
+}
+.ra-close-btn {
+  background: none;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  color: var(--text-secondary);
+  cursor: pointer;
+  padding: 2px 8px;
+  font-size: 14px;
+  transition: all var(--transition);
+}
+.ra-close-btn:hover {
+  border-color: var(--accent);
+  color: var(--text-primary);
+}
+
+.ra-body {
+  flex: 1;
+  overflow-y: auto;
+  padding: 16px;
+}
+
+.ra-loading, .ra-error, .ra-empty {
+  text-align: center;
+  padding: 24px;
+  color: var(--text-muted);
+  font-size: 13px;
+}
+.ra-error { color: var(--red); }
+
+/* KPI Cards */
+.ra-kpis {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 8px;
+  margin-bottom: 20px;
+}
+.ra-kpi {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  padding: 12px 8px;
+  background: var(--bg-elevated);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  transition: border-color var(--transition);
+}
+.ra-kpi:hover { border-color: var(--accent); }
+.ra-kpi-icon { font-size: 18px; }
+.ra-kpi-value {
+  font-size: 20px;
+  font-weight: 800;
+  color: var(--text-primary);
+}
+.ra-kpi-label {
+  font-size: 10px;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+/* Sections */
+.ra-section {
+  margin-bottom: 20px;
+}
+.ra-section-title {
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--text-secondary);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  margin-bottom: 10px;
+  padding-bottom: 6px;
+  border-bottom: 1px solid var(--border);
+}
+
+/* Bar Chart */
+.ra-bar-chart {
+  display: flex;
+  align-items: flex-end;
+  gap: 2px;
+  height: 80px;
+  padding: 4px 0;
+}
+.ra-bar-col {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  height: 100%;
+  justify-content: flex-end;
+  cursor: default;
+}
+.ra-bar {
+  width: 100%;
+  min-width: 4px;
+  max-width: 16px;
+  border-radius: 2px 2px 0 0;
+  transition: height 0.3s ease;
+}
+.ra-bar-label {
+  font-size: 8px;
+  color: var(--text-muted);
+  margin-top: 2px;
+}
+.ra-chart-legend {
+  display: flex;
+  justify-content: space-between;
+  font-size: 9px;
+  color: var(--text-muted);
+  padding-top: 4px;
+}
+
+/* Horizontal Bars (Sources) */
+.ra-hbar-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 6px;
+}
+.ra-hbar-label {
+  width: 100px;
+  font-size: 11px;
+  color: var(--text-secondary);
+  text-align: right;
+  flex-shrink: 0;
+}
+.ra-hbar-track {
+  flex: 1;
+  height: 16px;
+  background: rgba(255, 255, 255, 0.04);
+  border-radius: 4px;
+  overflow: hidden;
+}
+.ra-hbar-fill {
+  height: 100%;
+  border-radius: 4px;
+  transition: width 0.3s ease;
+}
+.ra-hbar-count {
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--text-primary);
+  width: 32px;
+  text-align: right;
+}
+
+/* Domain Grid */
+.ra-domains {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 6px;
+}
+.ra-domain-card {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 10px;
+  background: var(--bg-elevated);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  font-size: 11px;
+}
+.ra-domain-icon { font-size: 14px; }
+.ra-domain-name {
+  flex: 1;
+  font-weight: 600;
+  color: var(--text-primary);
+  text-transform: capitalize;
+}
+.ra-domain-count { color: var(--text-muted); }
+.ra-domain-score { color: var(--accent); font-weight: 700; }
+
+/* Archive Stats */
+.ra-archive-stats {
+  display: flex;
+  gap: 16px;
+  font-size: 12px;
+  color: var(--text-secondary);
+  margin-bottom: 8px;
+}
+.ra-archive-domains {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.ra-archive-domain {
+  padding: 3px 8px;
+  background: rgba(124, 92, 252, 0.08);
+  border: 1px solid rgba(124, 92, 252, 0.2);
+  border-radius: 4px;
+  font-size: 10px;
+  color: var(--accent);
+}
+
+/* Recent Projects */
+.ra-recent-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 10px;
+  border-bottom: 1px solid var(--border);
+  font-size: 12px;
+}
+.ra-recent-info { flex: 1; }
+.ra-recent-title {
+  font-weight: 600;
+  color: var(--text-primary);
+  display: block;
+  margin-bottom: 2px;
+}
+.ra-recent-meta {
+  font-size: 10px;
+  color: var(--text-muted);
+}
+.ra-recent-score {
+  font-weight: 700;
+  color: var(--accent);
+  font-size: 13px;
+}
+.ra-recent-status {
+  padding: 2px 6px;
+  border-radius: 4px;
+  font-size: 9px;
+  font-weight: 700;
+  text-transform: uppercase;
+}
+.ra-recent-status.done {
+  background: rgba(52, 211, 153, 0.1);
+  color: var(--green);
+}
+.ra-recent-status.running {
+  background: rgba(124, 92, 252, 0.1);
+  color: var(--accent);
+}
+.ra-recent-status.idle {
+  background: rgba(255, 255, 255, 0.05);
+  color: var(--text-muted);
+}

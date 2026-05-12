@@ -313,7 +313,11 @@ html, body {
   font-size: 14px; flex-shrink: 0;
 }
 .message.user .message-avatar { background: linear-gradient(135deg, var(--accent), var(--accent2)); }
-.message.assistant .message-avatar { background: var(--bg-elevated); border: 1px solid var(--border); }
+.message.assistant .message-avatar {
+  background: var(--bg-elevated); border: 1px solid var(--border);
+  cursor: help; transition: border-color var(--transition);
+}
+.message.assistant .message-avatar:hover { border-color: var(--accent); }
 .message-author { font-size: 13px; font-weight: 600; }
 .message.user .message-author { color: var(--accent); }
 .message.assistant .message-author { color: var(--green); }

@@ -18,7 +18,10 @@ from fastapi.templating import Jinja2Templates
 from sse_starlette.sse import EventSourceResponse
 from datetime import datetime, timezone
 
-from app.database import init_db, create_session, get_session, add_message, get_messages, auto_title, update_session
+from app.database import (
+    init_db, create_session, get_session, add_message, get_messages,
+    auto_title, update_session, fork_at_message, list_branches, delete_branch,
+)
 from app.llm_provider import get_llm_provider, _get_provider_models
 from app.preprompts import get_preprompt, list_preprompts, get_jailbreak_wrapper
 from app.chat import router as chat_router
@@ -48,6 +51,10 @@ from app.tools_automation import router as automation_router
 from app.tools_clone import router as clone_router
 from app.tools_document_gen import router as docgen_router
 from app.tool_executor import parse_tool_calls, execute_tool, format_tool_result, resolve_tool_name
+from app.core.tool_permissions import (
+    get_tool_permission, set_tool_permission, load_permissions,
+    request_approval, resolve_approval, list_pending_approvals,
+)
 from app.metrics import get_metrics
 from app.cache import cache_stats
 from app.core.tokens import count_tokens, count_message_tokens
@@ -291,6 +298,167 @@ app.include_router(enhance_router, prefix="/api")
 # OpenAI-Compatible API (inference endpoint for external tools)
 from app.routers.openai_api import router as openai_api_router
 app.include_router(openai_api_router, prefix="/v1")
+
+# --- Tool Permissions API (HITL approval) ---
+
+@app.get("/api/tool-permissions")
+async def get_tool_permissions():
+    """Return all tool permissions."""
+    return {"permissions": load_permissions()}
+
+
+@app.post("/api/tool-permissions")
+async def update_tool_permissions(request: Request):
+    """Update one or more tool permissions."""
+    body = await request.json()
+    for tool_name, level in body.items():
+        if level in ("always", "ask", "deny"):
+            set_tool_permission(tool_name, level)
+    return {"status": "ok", "permissions": load_permissions()}
+
+
+@app.post("/api/tool-approval")
+async def handle_tool_approval(request: Request):
+    """Approve or deny a pending tool execution."""
+    body = await request.json()
+    approval_id = body.get("approval_id", "")
+    approved = body.get("approved", False)
+    always_allow = body.get("always_allow", False)
+    if not approval_id:
+        raise HTTPException(400, "approval_id required")
+    found = resolve_approval(approval_id, approved, always_allow)
+    if not found:
+        raise HTTPException(404, "Approval not found or already resolved")
+    return {"status": "resolved", "approved": approved}
+
+
+@app.get("/api/tool-approvals")
+async def get_pending_approvals(session_id: str = ""):
+    """List pending tool approvals."""
+    return {"approvals": list_pending_approvals(session_id)}
+
+
+# --- Conversation Branching API ---
+
+@app.post("/api/branch/fork")
+async def fork_conversation(request: Request):
+    """Fork a conversation at a specific message."""
+    body = await request.json()
+    session_id = body.get("session_id", "")
+    message_id = body.get("message_id", 0)
+    branch_name = body.get("branch_name", "")
+    if not session_id or not message_id:
+        raise HTTPException(400, "session_id and message_id required")
+    result = fork_at_message(session_id, int(message_id), branch_name)
+    if "error" in result:
+        raise HTTPException(404, result["error"])
+    return result
+
+
+@app.get("/api/branch/{session_id}")
+async def get_branches(session_id: str):
+    """List all branches for a session."""
+    return {"branches": list_branches(session_id)}
+
+
+@app.get("/api/branch/{session_id}/{branch_id}")
+async def get_branch_messages(session_id: str, branch_id: str):
+    """Get messages for a specific branch."""
+    messages = get_messages(session_id, branch_id=branch_id)
+    return {"branch_id": branch_id, "messages": messages}
+
+
+@app.delete("/api/branch/{session_id}/{branch_id}")
+async def remove_branch(session_id: str, branch_id: str):
+    """Delete a branch (cannot delete 'main')."""
+    if branch_id == "main":
+        raise HTTPException(400, "Cannot delete the main branch")
+    ok = delete_branch(session_id, branch_id)
+    if not ok:
+        raise HTTPException(400, "Could not delete branch")
+    return {"status": "deleted", "branch_id": branch_id}
+
+
+# --- Agent Modes API ---
+
+@app.get("/api/modes")
+async def get_agent_modes():
+    """Return all available agent modes with tool restrictions."""
+    from app.core.agent_modes import list_modes
+    return {"modes": list_modes()}
+
+
+@app.get("/api/modes/{mode_key}")
+async def get_mode_detail(mode_key: str):
+    """Return detailed mode definition including allowed/blocked tools."""
+    from app.core.agent_modes import get_mode
+    mode = get_mode(mode_key)
+    return {
+        "key": mode_key,
+        "label": mode.get("label", mode_key),
+        "icon": mode.get("icon", "💬"),
+        "allowed_tools": mode.get("allowed_tools"),
+        "blocked_tools": mode.get("blocked_tools", []),
+        "ui_hints": mode.get("ui_hints", {}),
+    }
+
+
+# --- Diff Viewer API ---
+
+@app.get("/api/diff")
+async def get_diff_endpoint(project: str = ""):
+    """Get git diff for a project or the workspace."""
+    from app.core.diff_viewer import get_diff
+    path = project or os.path.join(os.path.dirname(os.path.dirname(__file__)), "workspace")
+    staged = False  # Can be extended later
+    return get_diff(path, staged=staged)
+
+
+@app.post("/api/diff/stage")
+async def stage_file_endpoint(request: Request):
+    """Stage a file in the git index."""
+    from app.core.diff_viewer import stage_file
+    body = await request.json()
+    project = body.get("project", "")
+    file_path = body.get("file", "")
+    if not file_path:
+        raise HTTPException(400, "file is required")
+    path = project or os.path.join(os.path.dirname(os.path.dirname(__file__)), "workspace")
+    return stage_file(path, file_path)
+
+
+@app.post("/api/diff/revert")
+async def revert_file_endpoint(request: Request):
+    """Revert a file to its last committed state."""
+    from app.core.diff_viewer import revert_file
+    body = await request.json()
+    project = body.get("project", "")
+    file_path = body.get("file", "")
+    if not file_path:
+        raise HTTPException(400, "file is required")
+    path = project or os.path.join(os.path.dirname(os.path.dirname(__file__)), "workspace")
+    return revert_file(path, file_path)
+
+
+# --- System Health API ---
+
+@app.get("/api/system/health")
+async def system_health():
+    """Return system resource usage and service status."""
+    from app.core.metrics import MetricsCollector
+    resources = MetricsCollector.get_system_resources()
+
+    # Check Ollama status
+    ollama_status = "unknown"
+    try:
+        import httpx
+        async with httpx.AsyncClient(timeout=3) as client:
+            resp = await client.get("http://localhost:11434/api/version")
+            ollama_status = "running" if resp.status_code == 200 else "error"
+    except Exception:
+        ollama_status = "offline"
+
+    return {**resources, "ollama_status": ollama_status}
 
 # --- In-memory SSE queues per session ---
 _sse_queues: dict[str, asyncio.Queue] = {}
@@ -1107,6 +1275,25 @@ async def _process_chat(session_id: str, data: dict) -> dict:
                     except Exception:
                         pass  # Tool isolation is non-critical
 
+                    # --- Mode-level tool restriction ---
+                    try:
+                        from app.core.agent_modes import is_tool_allowed as mode_tool_allowed
+                        if not mode_tool_allowed(preprompt_key, effective_tool):
+                            mode_msg = (
+                                f"\n\n🔒 *Tool `{effective_tool}` is not available in "
+                                f"**{preprompt_key}** mode. Switch mode to use this tool.*\n\n"
+                            )
+                            await queue.put(mode_msg)
+                            full_conversation += mode_msg
+                            tool_results.append({
+                                "tool": effective_tool,
+                                "original": tool_name,
+                                "result": f"Tool '{effective_tool}' blocked by mode '{preprompt_key}'.",
+                            })
+                            continue
+                    except Exception:
+                        pass  # Mode restrictions are non-critical
+
                     # Notify the user about tool execution
                     status_prefix = ""
                     if resolved and resolved != tool_name:
@@ -1135,9 +1322,55 @@ async def _process_chat(session_id: str, data: dict) -> dict:
                     except Exception:
                         pass
 
+                    # --- Pipeline Step: Per-tool permission check (HITL) ---
+                    # Only enforced when "require_command_confirmation" is enabled in settings
+                    # Note: _hitl_enabled is checked per-tool but the import is cached by Python
+                    if not hasattr(generate, '_hitl_cache_ts') or (time.time() - generate._hitl_cache_ts > 5):
+                        from app.settings import load_settings as _load_hitl_settings
+                        generate._hitl_enabled = _load_hitl_settings().get("require_command_confirmation", True)
+                        generate._hitl_cache_ts = time.time()
+                    _tool_perm = get_tool_permission(resolved or tool_name) if generate._hitl_enabled else "always"
+                    if _tool_perm == "deny":
+                        _deny_msg = (
+                            f"\n\n🚫 *Tool `{resolved or tool_name}` is **denied** by permission policy. "
+                            "Change in Settings → Tool Permissions.*\n\n"
+                        )
+                        await queue.put(_deny_msg)
+                        full_conversation += _deny_msg
+                        tool_results.append({
+                            "tool": resolved or tool_name,
+                            "original": tool_name,
+                            "result": f"Tool '{resolved or tool_name}' denied by permission policy.",
+                        })
+                        continue
+                    elif _tool_perm == "ask" and not _skip_tool:
+                        _ask_msg = (
+                            f"\n\n⏳ *Waiting for approval to execute `{resolved or tool_name}`...*\n\n"
+                        )
+                        await queue.put(_ask_msg)
+                        full_conversation += _ask_msg
+                        _approved = await request_approval(
+                            session_id, resolved or tool_name, params, queue,
+                        )
+                        if not _approved:
+                            _denied_msg = (
+                                f"\n\n❌ *Tool `{resolved or tool_name}` execution **denied** by user.*\n\n"
+                            )
+                            await queue.put(_denied_msg)
+                            full_conversation += _denied_msg
+                            tool_results.append({
+                                "tool": resolved or tool_name,
+                                "original": tool_name,
+                                "result": f"Tool '{resolved or tool_name}' denied by user.",
+                            })
+                            continue
+                        else:
+                            _ok_msg = f"\n\n✅ *Approved — executing `{resolved or tool_name}`...*\n\n"
+                            await queue.put(_ok_msg)
+                            full_conversation += _ok_msg
+
                     # Execute the tool
-                    import time as _time_mod
-                    _exec_start = _time_mod.time()
+                    _exec_start = time.time()
                     if _skip_tool:
                         result = {"output": "Tool execution skipped by plugin."}
                     else:
@@ -1161,7 +1394,7 @@ async def _process_chat(session_id: str, data: dict) -> dict:
                     # Record tool call for replay (debugging & workflow export)
                     try:
                         from app.core.tool_replay import record_tool_call
-                        _exec_end = _time_mod.time()
+                        _exec_end = time.time()
                         record_tool_call(
                             session_id, resolved or tool_name, params, result,
                             duration_ms=(_exec_end - _exec_start) * 1000,

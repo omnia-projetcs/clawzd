@@ -6,6 +6,7 @@
  *   Ctrl+Shift+R — Toggle Tool Replay Panel
  *   Ctrl+Shift+D — Open System Dashboard
  *   Ctrl+Shift+B — Open App Builder
+ *   Ctrl+Shift+F — Toggle Diff Viewer
  *   Ctrl+Shift+G — Toggle Agent Sidebar
  *   Escape       — Close any open panel/modal
  */
@@ -17,12 +18,13 @@
     const isInput = tag === 'INPUT' || tag === 'TEXTAREA' || e.target.isContentEditable;
 
     // Escape — close open panels
-    if (e.key === 'Escape') {
+     if (e.key === 'Escape') {
       if (window.AgentSidebar) AgentSidebar.toggle(false);
       if (window.ArtifactPanel) ArtifactPanel.toggle(false);
       if (window.ReplayPanel) ReplayPanel.toggle(false);
       if (window.SystemDashboard) SystemDashboard.close();
       if (window.AppBuilderPanel) AppBuilderPanel.close();
+      if (window.diffViewer) diffViewer.close();
       return;
     }
 
@@ -48,6 +50,10 @@
         case 'B':
           e.preventDefault();
           if (window.AppBuilderPanel) AppBuilderPanel.open();
+          break;
+        case 'F':
+          e.preventDefault();
+          if (window.diffViewer) diffViewer.toggle();
           break;
       }
     }

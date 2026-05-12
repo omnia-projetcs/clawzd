@@ -10,7 +10,6 @@ Provides:
 import time
 import logging
 from dataclasses import dataclass, field, asdict
-from typing import Optional
 
 logger = logging.getLogger("clawzd.research.progress")
 

@@ -100,10 +100,13 @@ def init_db():
             role        TEXT NOT NULL,
             content     TEXT NOT NULL,
             timestamp   TEXT NOT NULL,
-            metadata    TEXT DEFAULT '{}'
+            metadata    TEXT DEFAULT '{}',
+            parent_message_id INTEGER DEFAULT NULL,
+            branch_id   TEXT DEFAULT 'main'
         );
 
         CREATE INDEX IF NOT EXISTS idx_messages_session ON messages(session_id);
+        CREATE INDEX IF NOT EXISTS idx_messages_branch ON messages(session_id, branch_id);
         CREATE INDEX IF NOT EXISTS idx_sessions_updated ON sessions(updated_at DESC);
 
         CREATE TABLE IF NOT EXISTS artifacts (
@@ -207,33 +210,50 @@ def clear_all_sessions():
 
 @with_auto_repair
 def add_message(session_id: str, role: str, content: str,
-                metadata: dict | None = None) -> dict:
+                metadata: dict | None = None,
+                parent_message_id: int | None = None,
+                branch_id: str = "main") -> dict:
     """Insert a message and update the session's counters."""
     now = datetime.now(timezone.utc).isoformat()
     meta_json = json.dumps(metadata or {})
     conn = _get_conn()
-    conn.execute(
-        "INSERT INTO messages (session_id, role, content, timestamp, metadata) "
-        "VALUES (?, ?, ?, ?, ?)",
-        (session_id, role, content, now, meta_json),
+    cur = conn.execute(
+        "INSERT INTO messages (session_id, role, content, timestamp, metadata, parent_message_id, branch_id) "
+        "VALUES (?, ?, ?, ?, ?, ?, ?)",
+        (session_id, role, content, now, meta_json, parent_message_id, branch_id),
     )
+    msg_id = cur.lastrowid
     conn.execute(
         "UPDATE sessions SET message_count = message_count + 1, updated_at = ? WHERE id = ?",
         (now, session_id),
     )
     conn.commit()
-    return {"role": role, "content": content, "timestamp": now, "metadata": metadata or {}}
+    return {
+        "id": msg_id, "role": role, "content": content,
+        "timestamp": now, "metadata": metadata or {},
+        "parent_message_id": parent_message_id, "branch_id": branch_id,
+    }
 
 
 @with_auto_repair
-def get_messages(session_id: str) -> list[dict]:
-    """Return all messages for a session in chronological order."""
+def get_messages(session_id: str, branch_id: str = "") -> list[dict]:
+    """Return messages for a session, optionally filtered by branch.
+
+    If branch_id is empty, returns all messages on the 'main' branch.
+    """
     conn = _get_conn()
-    rows = conn.execute(
-        "SELECT role, content, timestamp, metadata FROM messages "
-        "WHERE session_id = ? ORDER BY id ASC",
-        (session_id,),
-    ).fetchall()
+    if branch_id:
+        rows = conn.execute(
+            "SELECT id, role, content, timestamp, metadata, parent_message_id, branch_id "
+            "FROM messages WHERE session_id = ? AND branch_id = ? ORDER BY id ASC",
+            (session_id, branch_id),
+        ).fetchall()
+    else:
+        rows = conn.execute(
+            "SELECT id, role, content, timestamp, metadata, parent_message_id, branch_id "
+            "FROM messages WHERE session_id = ? AND branch_id = 'main' ORDER BY id ASC",
+            (session_id,),
+        ).fetchall()
     result = []
     for r in rows:
         m = r["metadata"]
@@ -242,10 +262,13 @@ def get_messages(session_id: str) -> list[dict]:
         except (json.JSONDecodeError, TypeError):
             meta = {}
         result.append({
+            "id": r["id"],
             "role": r["role"],
             "content": r["content"],
             "timestamp": r["timestamp"],
-            "metadata": meta
+            "metadata": meta,
+            "parent_message_id": r["parent_message_id"],
+            "branch_id": r["branch_id"],
         })
     return result
 
@@ -278,5 +301,84 @@ def auto_title(session_id: str, first_message: str):
     update_session(session_id, title=title)
 
 
+# --- Message Branching ---
+
+@with_auto_repair
+def fork_at_message(session_id: str, message_id: int, branch_name: str = "") -> dict:
+    """Fork the conversation at the given message.
+
+    Creates a new branch by:
+    1. Generating a branch ID
+    2. Copying all messages up to (and including) message_id into the new branch
+    3. Returning the branch info
+
+    The user can then continue the conversation on the new branch.
+    """
+    import uuid
+    if not branch_name:
+        branch_name = f"branch-{uuid.uuid4().hex[:6]}"
+
+    conn = _get_conn()
+
+    # Verify the message exists
+    msg = conn.execute(
+        "SELECT * FROM messages WHERE id = ? AND session_id = ?",
+        (message_id, session_id),
+    ).fetchone()
+    if not msg:
+        return {"error": "Message not found"}
+
+    # Get the source branch
+    source_branch = msg["branch_id"] or "main"
+
+    # Copy all messages from the source branch up to this message
+    rows = conn.execute(
+        "SELECT role, content, timestamp, metadata, parent_message_id FROM messages "
+        "WHERE session_id = ? AND branch_id = ? AND id <= ? ORDER BY id ASC",
+        (session_id, source_branch, message_id),
+    ).fetchall()
+
+    new_ids = []
+    for r in rows:
+        cur = conn.execute(
+            "INSERT INTO messages (session_id, role, content, timestamp, metadata, parent_message_id, branch_id) "
+            "VALUES (?, ?, ?, ?, ?, ?, ?)",
+            (session_id, r["role"], r["content"], r["timestamp"],
+             r["metadata"], r["parent_message_id"], branch_name),
+        )
+        new_ids.append(cur.lastrowid)
+
+    conn.commit()
+
+    return {
+        "branch_id": branch_name,
+        "source_branch": source_branch,
+        "fork_at_message": message_id,
+        "messages_copied": len(new_ids),
+    }
 
 
+@with_auto_repair
+def list_branches(session_id: str) -> list[dict]:
+    """List all branches in a session with message counts."""
+    conn = _get_conn()
+    rows = conn.execute(
+        "SELECT branch_id, COUNT(*) as msg_count, MIN(id) as first_msg_id, MAX(id) as last_msg_id "
+        "FROM messages WHERE session_id = ? GROUP BY branch_id ORDER BY first_msg_id ASC",
+        (session_id,),
+    ).fetchall()
+    return [dict(r) for r in rows]
+
+
+@with_auto_repair
+def delete_branch(session_id: str, branch_id: str) -> bool:
+    """Delete all messages on a branch. Cannot delete 'main'."""
+    if branch_id == "main":
+        return False
+    conn = _get_conn()
+    conn.execute(
+        "DELETE FROM messages WHERE session_id = ? AND branch_id = ?",
+        (session_id, branch_id),
+    )
+    conn.commit()
+    return True

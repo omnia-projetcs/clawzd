@@ -1,0 +1,98 @@
+/* ---- Conversation Branching UI ---- */
+
+.branch-indicator {
+  display: none;
+  align-items: center;
+  margin-left: 8px;
+}
+
+.branch-btn {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  padding: 3px 10px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--bg-elevated);
+  color: var(--text-secondary);
+  font-size: 11px;
+  cursor: pointer;
+  transition: all var(--transition);
+  white-space: nowrap;
+}
+.branch-btn:hover {
+  border-color: var(--accent);
+  color: var(--text-primary);
+  background: rgba(124, 92, 252, 0.08);
+}
+.branch-btn .ic { color: var(--green); }
+.branch-name { font-weight: 600; }
+.branch-count {
+  background: var(--accent);
+  color: #fff;
+  border-radius: 8px;
+  padding: 0 5px;
+  font-size: 10px;
+  font-weight: 700;
+  min-width: 16px;
+  text-align: center;
+  line-height: 16px;
+}
+
+/* Dropdown */
+.branch-dropdown {
+  position: fixed;
+  z-index: 9999;
+  background: var(--bg-elevated);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
+  padding: 4px;
+  min-width: 200px;
+  max-height: 300px;
+  overflow-y: auto;
+  animation: branchDropIn 0.15s ease-out;
+}
+@keyframes branchDropIn {
+  from { opacity: 0; transform: translateY(-4px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+.branch-dropdown-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 10px;
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 12px;
+  color: var(--text-secondary);
+  transition: background var(--transition);
+}
+.branch-dropdown-item:hover { background: rgba(124, 92, 252, 0.08); }
+.branch-dropdown-item.active {
+  background: rgba(124, 92, 252, 0.12);
+  color: var(--accent);
+  font-weight: 600;
+}
+.branch-item-name { flex: 1; }
+.branch-item-count {
+  font-size: 10px;
+  color: var(--text-muted);
+  white-space: nowrap;
+}
+.branch-item-delete {
+  background: none;
+  border: none;
+  color: var(--text-muted);
+  cursor: pointer;
+  font-size: 12px;
+  padding: 2px 4px;
+  border-radius: 4px;
+  transition: all var(--transition);
+  line-height: 1;
+}
+.branch-item-delete:hover {
+  color: var(--red);
+  background: rgba(239, 68, 68, 0.1);
+}

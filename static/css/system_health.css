@@ -1,0 +1,30 @@
+/* ---- System Health Widget ---- */
+
+.sys-health-widget {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-left: auto;
+  padding: 0 8px;
+}
+
+.shw-item {
+  font-size: 10px;
+  font-weight: 600;
+  cursor: default;
+  white-space: nowrap;
+  transition: opacity var(--transition);
+}
+.shw-item:hover { opacity: 0.8; }
+
+.shw-offline {
+  font-size: 10px;
+  cursor: default;
+  opacity: 0.5;
+}
+
+/* ---- Mode Selector Enhancement ---- */
+
+.action-mode-select option[title] {
+  font-size: 12px;
+}

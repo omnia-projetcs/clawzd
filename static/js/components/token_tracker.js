@@ -7,6 +7,12 @@
       this.inputTokens = 0;
       this.outputTokens = 0;
       this._el = document.getElementById('token-counter');
+      this._sessionId = null;
+    }
+
+    /** Set the active session */
+    setSession(sessionId) {
+      this._sessionId = sessionId;
     }
 
     /** Add tokens from any source (chat, research, spec, etc.) */
@@ -32,6 +38,7 @@
     reset() {
       this.inputTokens = 0;
       this.outputTokens = 0;
+      this._sessionId = null;
       this._render();
       if (this._el) this._el.style.display = 'none';
     }
@@ -61,6 +68,7 @@
         `<span class="tc-item tc-sent" title="Input tokens">↑ ${this._fmt(this.inputTokens)}</span>` +
         `<span class="tc-item tc-recv" title="Output tokens">↓ ${this._fmt(this.outputTokens)}</span>` +
         `<span class="tc-item tc-total" title="Total tokens">Σ ${this._fmt(total)}</span>`;
+
       this._el.style.display = 'flex';
     }
 
