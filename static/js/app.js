@@ -1374,6 +1374,7 @@
               <span style="font-size:10px; color:var(--text-muted)">${escHtml(stream.provider)}</span>
             </div>
             <div class="arena-col-body" id="col-${stream.stream_id}"></div>
+            <div class="arena-col-footer" id="footer-${stream.stream_id}" style="display:none; border-top: 1px solid var(--border); padding: 12px; background: rgba(124, 58, 237, 0.05); flex-shrink: 0;"></div>
           `;
           $('#arena-container').appendChild(col);
           cols[stream.stream_id] = { text: '', el: col.querySelector('.arena-col-body') };
@@ -1381,7 +1382,7 @@
           const es = new EventSource(`/arena/stream/${stream.stream_id}`);
           es.onerror = () => {
             es.close();
-            cols[stream.stream_id].text += "\n\n❌ Connection error";
+            cols[stream.stream_id].text += `\n\n❌ Connection error <br><button id="retry-${stream.stream_id}" class="code-action-btn" style="margin-top:8px" onclick="OC.retryArenaStream('${stream.stream_id}', '${stream.model}', '${stream.provider}')">${icon('refresh', 14)} Retry</button>`;
             cols[stream.stream_id].el.innerHTML = renderMd(cols[stream.stream_id].text);
             activeStreams--;
             if (activeStreams <= 0) {
@@ -1936,6 +1937,134 @@
 
   // ---- Global API ----
   window.OC = {
+    async retryArenaStream(oldStreamId, model, provider) {
+      if (!window.chat) return;
+      const colEl = document.getElementById('col-' + oldStreamId);
+      if (colEl) colEl.innerHTML = '<div style="color:var(--text-muted);font-style:italic;margin-top:8px;">⏳ Retrying...</div>';
+      
+      try {
+        const r = await fetch('/arena/send', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            message: window.arenaLastPrompt || '',
+            models: [{ model: model, provider: provider }]
+          })
+        });
+        const d = await r.json();
+        if (!r.ok) throw new Error(d.detail || 'Failed');
+        if (d.streams && d.streams.length > 0) {
+          const newStream = d.streams[0];
+          // Remove old stream from window.arenaStreams
+          window.arenaStreams = window.arenaStreams.filter(s => s.id !== oldStreamId);
+          
+          const es = new EventSource(`/arena/stream/${newStream.stream_id}`);
+          let text = '';
+          const streamObj = { id: newStream.stream_id, es: es, model: newStream.model, provider: newStream.provider };
+          window.arenaStreams.push(streamObj);
+          
+          // Update the column ID so it matches the new stream ID
+          colEl.id = 'col-' + newStream.stream_id;
+          const footerEl = colEl.parentElement.querySelector('.arena-col-footer');
+          if (footerEl) {
+            footerEl.id = 'footer-' + newStream.stream_id;
+            footerEl.style.display = 'none';
+            footerEl.innerHTML = '';
+          }
+          
+          let renderPending = false;
+          let renderTimer = null;
+          
+          es.onerror = () => {
+            es.close();
+            text += `\n\n❌ Connection error <br><button id="retry-${newStream.stream_id}" class="code-action-btn" style="margin-top:8px" onclick="OC.retryArenaStream('${newStream.stream_id}', '${newStream.model}', '${newStream.provider}')">${icon('refresh', 14)} Retry</button>`;
+            colEl.innerHTML = renderMd(text);
+          };
+          
+          es.onmessage = e => {
+            if (e.data === '[DONE]') {
+              es.close();
+              if (renderTimer) clearTimeout(renderTimer);
+              let finalPreview = text;
+              
+              let statsHtml = '';
+              const statsRe = /__STATS__([\\s\\S]+?)__STATS__/;
+              const statsMatch = finalPreview.match(statsRe);
+              if (statsMatch) {
+                try {
+                  const stats = JSON.parse(statsMatch[1]);
+                  streamObj.stats = stats;
+                  statsHtml = `<div class="arena-stats" style="margin-top:16px; padding:12px; border-radius:var(--radius-sm); background:var(--bg-tertiary); font-size:12px; border:1px solid var(--border);">
+                    <div style="display:flex; justify-content:space-between; margin-bottom:4px;">
+                      <span style="color:var(--text-muted)">⏱️ Temps de réponse</span>
+                      <strong>${stats.time}s</strong>
+                    </div>
+                    <div style="display:flex; justify-content:space-between; margin-bottom:4px;">
+                      <span style="color:var(--text-muted)"> Tokens E/S</span>
+                      <strong>${stats.tokens}</strong>
+                    </div>
+                    <div style="display:flex; justify-content:space-between;">
+                      <span style="color:var(--text-muted)"> Vitesse</span>
+                      <strong>${stats.tps} tokens/s</strong>
+                    </div>
+                  </div>`;
+                  finalPreview = finalPreview.replace(statsRe, '');
+                } catch (err) { }
+              }
+
+              const ffc = (finalPreview.match(/```/g) || []).length;
+              if (ffc % 2 !== 0) finalPreview += '\\n```';
+              colEl.innerHTML = renderMd(finalPreview) + statsHtml;
+              if (typeof highlightAll === 'function') highlightAll(colEl);
+              return;
+            }
+            text += e.data;
+            if (!renderPending) {
+              renderPending = true;
+              renderTimer = setTimeout(() => {
+                renderPending = false;
+                renderTimer = null;
+                let preview = text;
+                
+                let statsHtml = '';
+                const statsRe = /__STATS__([\\s\\S]+?)__STATS__/;
+                const statsMatch = preview.match(statsRe);
+                if (statsMatch) {
+                  try {
+                    const stats = JSON.parse(statsMatch[1]);
+                    streamObj.stats = stats;
+                    statsHtml = `<div class="arena-stats" style="margin-top:16px; padding:12px; border-radius:var(--radius-sm); background:var(--bg-tertiary); font-size:12px; border:1px solid var(--border);">
+                      <div style="display:flex; justify-content:space-between; margin-bottom:4px;">
+                        <span style="color:var(--text-muted)">⏱️ Temps de réponse</span>
+                        <strong>${stats.time}s</strong>
+                      </div>
+                      <div style="display:flex; justify-content:space-between; margin-bottom:4px;">
+                        <span style="color:var(--text-muted)"> Tokens E/S</span>
+                        <strong>${stats.tokens}</strong>
+                      </div>
+                      <div style="display:flex; justify-content:space-between;">
+                        <span style="color:var(--text-muted)"> Vitesse</span>
+                        <strong>${stats.tps} tokens/s</strong>
+                      </div>
+                    </div>`;
+                    preview = preview.replace(statsRe, '');
+                  } catch (err) { }
+                }
+
+                const fc = (preview.match(/```/g) || []).length;
+                if (fc % 2 !== 0) preview += '\\n```';
+                colEl.innerHTML = renderMd(preview) + statsHtml;
+                colEl.scrollTop = colEl.scrollHeight;
+                if (typeof highlightAll === 'function') highlightAll(colEl);
+              }, 150);
+            }
+          };
+        }
+      } catch (e) {
+        toast('Retry error: ' + e.message);
+        colEl.innerHTML = '<div style="color:var(--text-muted);font-style:italic;margin-top:8px;">❌ Retry failed</div>';
+      }
+    },
     /** Submit an interactive chat form as a user message */
     submitChatForm(formId) {
       const form = document.getElementById(formId);
@@ -4137,14 +4266,21 @@
               const info = d.ratings[s_id];
               const streamObj = window.arenaStreams.find(s => s.id === s_id);
               if (streamObj) streamObj.eval = info;
-              const colBody = document.getElementById(`col-${s_id}`);
-              if (colBody) {
-                const scoreDiv = document.createElement('div');
-                scoreDiv.className = 'arena-score';
-                scoreDiv.innerHTML = `<strong>Score: ${info.score}/10</strong>${escHtml(info.rationale)}`;
-                colBody.appendChild(scoreDiv);
-                // Scroll to bottom to show the evaluation result
-                colBody.scrollTop = colBody.scrollHeight;
+              
+              const footerEl = document.getElementById(`footer-${s_id}`);
+              if (footerEl) {
+                footerEl.style.display = 'block';
+                footerEl.innerHTML = `<div class="arena-score" style="margin:0; border:none; background:transparent; padding:0;"><strong>Score: ${info.score}/10</strong><div style="font-size:13px; margin-top:6px; color:var(--text-secondary); line-height:1.4;">${escHtml(info.rationale)}</div></div>`;
+              } else {
+                const colBody = document.getElementById(`col-${s_id}`);
+                if (colBody) {
+                  const scoreDiv = document.createElement('div');
+                  scoreDiv.className = 'arena-score';
+                  scoreDiv.innerHTML = `<strong>Score: ${info.score}/10</strong>${escHtml(info.rationale)}`;
+                  colBody.appendChild(scoreDiv);
+                  // Scroll to bottom to show the evaluation result
+                  colBody.scrollTop = colBody.scrollHeight;
+                }
               }
             });
             btn.textContent = 'Evaluation Complete';
