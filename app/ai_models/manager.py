@@ -219,40 +219,12 @@ def _hf_pull_worker(model: dict):
         })
 
     try:
-        from huggingface_hub import snapshot_download
-        import tqdm
-        import tqdm.auto
-        orig_tqdm = tqdm.auto.tqdm
-
-        class ProgressTracker(orig_tqdm):
-            def update(self, n=1):
-                super().update(n)
-                total = getattr(self, "total", 0)
-                current = getattr(self, "n", 0)
-                if total:
-                    _download_state["progress"] = min(100.0, (current / total) * 100)
-                    _download_state["downloaded_mb"] = int(current / (1024*1024))
-                    _download_state["total_mb"] = int(total / (1024*1024))
-                    _download_state["status_text"] = f"Downloading... {self.desc or ''}"
-                if not _download_state["active"]:
-                    raise KeyboardInterrupt("Download cancelled")
-
-        # Hook into multiple possible tqdm locations for HF Hub
-        tqdm.auto.tqdm = ProgressTracker
-        tqdm.tqdm = ProgressTracker
-        try:
-            import huggingface_hub.utils.tqdm
-            huggingface_hub.utils.tqdm.tqdm = ProgressTracker
-        except ImportError:
-            pass
-        try:
-            import huggingface_hub.utils._progress
-            huggingface_hub.utils._progress.tqdm = ProgressTracker
-        except ImportError:
-            pass
+        import sys
+        import subprocess
+        import json
 
         # Attempt to get HF_TOKEN if available to download gated models
-        hf_token = os.environ.get("HF_TOKEN", os.environ.get("HUGGINGFACE_API_KEY", None))
+        hf_token = os.environ.get("HF_TOKEN", os.environ.get("HUGGINGFACE_API_KEY", ""))
         if not hf_token:
             try:
                 from config import HUGGINGFACE_API_KEY
@@ -260,11 +232,75 @@ def _hf_pull_worker(model: dict):
             except ImportError:
                 pass
 
-        snapshot_download(repo_id=repo_id, max_workers=4, token=hf_token)
+        # We run the download in an isolated subprocess to avoid monkey-patching the main process's tqdm
+        script = """
+import sys, json, os
+from huggingface_hub import snapshot_download
+import tqdm
+import tqdm.auto
+orig_tqdm = tqdm.auto.tqdm
 
-        _download_state["progress"] = 100.0
-        _download_state["completed"] = True
-        _download_state["status_text"] = "Download complete"
+class JsonProgressTracker(orig_tqdm):
+    def update(self, n=1):
+        super().update(n)
+        total = getattr(self, "total", 0)
+        current = getattr(self, "n", 0)
+        if total:
+            prog = min(100.0, (current / total) * 100)
+            dl_mb = int(current / (1024*1024))
+            tot_mb = int(total / (1024*1024))
+            print(json.dumps({"progress": prog, "downloaded_mb": dl_mb, "total_mb": tot_mb, "status_text": self.desc or ""}))
+            sys.stdout.flush()
+
+tqdm.auto.tqdm = JsonProgressTracker
+tqdm.tqdm = JsonProgressTracker
+try:
+    import huggingface_hub.utils.tqdm
+    huggingface_hub.utils.tqdm.tqdm = JsonProgressTracker
+except ImportError: pass
+try:
+    import huggingface_hub.utils._progress
+    huggingface_hub.utils._progress.tqdm = JsonProgressTracker
+except ImportError: pass
+
+repo_id = sys.argv[1]
+hf_token = sys.argv[2] if len(sys.argv) > 2 and sys.argv[2] else None
+snapshot_download(repo_id=repo_id, max_workers=4, token=hf_token)
+print(json.dumps({"progress": 100.0, "completed": True}))
+"""
+
+        process = subprocess.Popen(
+            [sys.executable, "-c", script, repo_id, hf_token or ""],
+            stdout=subprocess.PIPE,
+            stderr=subprocess.STDOUT,
+            text=True
+        )
+
+        for line in iter(process.stdout.readline, ""):
+            if not _download_state["active"]:
+                process.terminate()
+                raise KeyboardInterrupt("Download cancelled")
+            try:
+                data = json.loads(line.strip())
+                if "progress" in data:
+                    _download_state["progress"] = data["progress"]
+                if "downloaded_mb" in data:
+                    _download_state["downloaded_mb"] = data["downloaded_mb"]
+                if "total_mb" in data:
+                    _download_state["total_mb"] = data["total_mb"]
+                if "status_text" in data:
+                    _download_state["status_text"] = f"Downloading... {data['status_text']}"
+                if data.get("completed"):
+                    _download_state["progress"] = 100.0
+                    _download_state["completed"] = True
+                    _download_state["status_text"] = "Download complete"
+            except json.JSONDecodeError:
+                pass  # Ignore non-JSON logs from huggingface_hub
+
+        process.wait()
+        if process.returncode != 0 and process.returncode != -15:
+            raise RuntimeError(f"Subprocess failed with code {process.returncode}")
+
         logger.info("HF Model pulled successfully: %s", repo_id)
 
     except KeyboardInterrupt:

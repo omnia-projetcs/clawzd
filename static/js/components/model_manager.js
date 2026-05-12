@@ -76,7 +76,7 @@ class ModelManager {
       this.hardware = await r.json();
       const gpu = this.hardware.gpu_name || 'No GPU';
       const vram = this.hardware.vram_total_mib ? `${(this.hardware.vram_total_mib / 1024).toFixed(0)} Go VRAM` : 'VRAM ?';
-      const vramFree = this.hardware.vram_free_mib ? `(${(this.hardware.vram_free_mib / 1024).toFixed(1)} Go libre)` : '';
+      const vramFree = this.hardware.vram_free_mib ? `(${(this.hardware.vram_free_mib / 1024).toFixed(1)} Go Free)` : '';
       const ram = this.hardware.ram_total_mib ? `${(this.hardware.ram_total_mib / 1024).toFixed(0)} Go RAM` : '';
       this.hwInfo.textContent = `${gpu} — ${vram} ${vramFree} • ${ram}`;
     } catch (e) {
@@ -114,7 +114,7 @@ class ModelManager {
       const modelRef = m.ollama_id || m.id;
       if (m.downloaded) {
         if (m.backend === 'hf') {
-           actions = `<button class="btn btn-active-indicator" disabled style="background:var(--bg-elevated);color:var(--text-primary);border-color:var(--border)"> Installed</button>`;
+          actions = `<button class="btn btn-active-indicator" disabled style="background:var(--bg-elevated);color:var(--text-primary);border-color:var(--border)"> Installed</button>`;
         } else if (m.active) {
           actions = `
             <button class="btn btn-active-indicator" disabled> Active</button>
