@@ -13,4 +13,7 @@ from app.core.memory import (  # noqa: F401 — explicit re-exports
     auto_extract_memory,
     semantic_recall,
     vector_sync,
+    auto_summarize_session,
+    set_review_status,
+    get_pending_reviews,
 )

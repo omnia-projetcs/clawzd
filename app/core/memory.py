@@ -14,6 +14,7 @@ import json
 import logging
 import os
 import re
+import time
 import threading
 from typing import Optional
 
@@ -766,6 +767,13 @@ async def optimize_memory_files():
 
     logger.info("Memory optimization complete — %d/%d files processed.", optimized_count, len(md_files))
 
+    # Re-sync vector index after rewriting .md files
+    if optimized_count > 0:
+        try:
+            vector_sync()
+        except Exception as e:
+            logger.debug("Post-optimization vector sync failed: %s", e)
+
 
 # ---------------------------------------------------------------------------
 # Automatic memory extraction (post-response hook)
@@ -813,7 +821,6 @@ async def auto_extract_memory(messages: list[dict]):
     Uses the configured LLM to extract persistent facts from the conversation.
     """
     global _last_extraction_ts
-    import time
 
     # Cooldown check
     now = time.time()
@@ -862,28 +869,30 @@ async def auto_extract_memory(messages: list[dict]):
         memory_facts = data.get("memory", [])
         extracted_meta = data.get("metadata", {})
 
-        # Build metadata dict from extraction (OB1-inspired structured metadata)
-        entry_metadata = {}
+        # Build base metadata dict from extraction (OB1-inspired structured metadata)
+        base_metadata = {}
         if isinstance(extracted_meta, dict):
             for key in ("people", "topics", "action_items", "type", "dates_mentioned"):
                 val = extracted_meta.get(key)
                 if val:
-                    entry_metadata[key] = val
-            entry_metadata["source"] = "auto_extract"
-            entry_metadata["extracted_at"] = time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())
+                    base_metadata[key] = val
+            base_metadata["source"] = "auto_extract"
+            base_metadata["review_status"] = "pending"
+            base_metadata["extracted_at"] = time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())
 
         added_count = 0
         user_store = _get_user_store()
         for fact in user_facts:
             if isinstance(fact, str) and fact.strip():
-                result = user_store.add(fact.strip(), metadata=entry_metadata)
+                # Deep-clone metadata per entry to avoid shared nested-list mutation
+                result = user_store.add(fact.strip(), metadata=json.loads(json.dumps(base_metadata)))
                 if result.get("success"):
                     added_count += 1
 
         mem_store = _get_memory_store()
         for fact in memory_facts:
             if isinstance(fact, str) and fact.strip():
-                result = mem_store.add(fact.strip(), metadata=entry_metadata)
+                result = mem_store.add(fact.strip(), metadata=json.loads(json.dumps(base_metadata)))
                 if result.get("success"):
                     added_count += 1
 
@@ -891,13 +900,199 @@ async def auto_extract_memory(messages: list[dict]):
             logger.info(
                 "Auto-extracted %d memory entries (meta: %s)",
                 added_count,
-                {k: v for k, v in entry_metadata.items() if k not in ("source", "extracted_at")},
+                {k: v for k, v in base_metadata.items() if k not in ("source", "extracted_at")},
             )
 
     except (json.JSONDecodeError, ValueError) as e:
         logger.debug("Memory extraction returned non-JSON: %s", e)
     except Exception as e:
         logger.warning("Auto memory extraction failed: %s", e)
+
+
+# ---------------------------------------------------------------------------
+# Phase 3: End-of-session summarization
+# ---------------------------------------------------------------------------
+
+_SUMMARIZE_SYSTEM = (
+    "You are a session summarization engine. Given a conversation, produce a "
+    "JSON object with these keys:\n"
+    '  "decisions": list of key decisions or conclusions reached (max 5, short sentences)\n'
+    '  "action_items": list of concrete to-do items the user committed to (max 5)\n'
+    '  "summary": a 2-3 sentence summary of what was accomplished\n'
+    "Rules:\n"
+    "- Only extract genuinely important outcomes, not small-talk.\n"
+    "- action_items must be first-person commitments only.\n"
+    "- Output ONLY valid JSON, no markdown fences.\n"
+)
+
+# Min messages before session summarization kicks in
+_MIN_MESSAGES_FOR_SUMMARY = 10
+
+
+async def auto_summarize_session(session_id: str):
+    """Summarize a long conversation and persist key decisions to memory.
+
+    Should be triggered when a session reaches a significant length
+    (e.g. after each response once > _MIN_MESSAGES_FOR_SUMMARY turns).
+    Decisions are stored as memory entries; action items are routed to
+    the todo_write system for task tracking.
+    """
+
+    try:
+        from app.core.database import get_messages
+        from app.core.llm_provider import get_llm_provider
+        from config import LLM_PROVIDER
+
+        messages = get_messages(session_id)
+        if len(messages) < _MIN_MESSAGES_FOR_SUMMARY:
+            return
+
+        # Deduplicate: check if we already summarized this session recently
+        sidecar = _load_sidecar()
+        session_summary_key = f"__session_summary__{session_id}"
+        existing = sidecar.get(session_summary_key, {})
+        last_summarized_count = existing.get("message_count", 0)
+        # Only re-summarize if at least 6 new messages since last summary
+        if len(messages) - last_summarized_count < 6:
+            return
+
+        # Build conversation digest (sample start + end to stay within token limits)
+        sampled = messages[:4] + messages[-8:] if len(messages) > 12 else messages
+        conversation_text = "\n".join(
+            f"{m['role'].upper()}: {m.get('content', '')[:400]}"
+            for m in sampled if m.get("content")
+        )
+
+        if len(conversation_text.strip()) < 100:
+            return
+
+        provider = get_llm_provider(LLM_PROVIDER)
+        summary_messages = [
+            {"role": "system", "content": _SUMMARIZE_SYSTEM},
+            {"role": "user", "content": f"Summarize this conversation session:\n\n{conversation_text}"},
+        ]
+        response = await provider.chat(summary_messages)
+        response = response.strip()
+
+        # Strip markdown fences
+        if response.startswith("```"):
+            response = re.sub(r"^```(?:json)?\s*", "", response)
+            response = re.sub(r"\s*```$", "", response)
+
+        data = json.loads(response)
+        if not isinstance(data, dict):
+            return
+
+        decisions = data.get("decisions", [])
+        action_items = data.get("action_items", [])
+
+        # Persist decisions as memory entries
+        mem_store = _get_memory_store()
+        added = 0
+        for decision in decisions:
+            if isinstance(decision, str) and decision.strip():
+                meta = {
+                    "source": "session_summary",
+                    "session_id": session_id,
+                    "type": "decision",
+                    "review_status": "pending",
+                    "extracted_at": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
+                }
+                result = mem_store.add(decision.strip(), metadata=meta)
+                if result.get("success"):
+                    added += 1
+
+        # Route action items to todo_write system
+        if action_items:
+            try:
+                from app.tools.executor import _handle_todo_write
+                todos = [
+                    {"id": f"auto-{i+1}", "content": item, "status": "pending", "priority": "medium"}
+                    for i, item in enumerate(action_items)
+                    if isinstance(item, str) and item.strip()
+                ]
+                if todos:
+                    _handle_todo_write({"action": "write", "todos": todos}, session_id)
+                    logger.info("Routed %d action items to todo_write for session %s", len(todos), session_id)
+            except Exception as e:
+                logger.debug("Failed to route action items to todo_write: %s", e)
+
+        # Mark this session as summarized
+        sidecar[session_summary_key] = {
+            "message_count": len(messages),
+            "summarized_at": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
+            "decisions_added": added,
+        }
+        _save_sidecar(sidecar)
+
+        if added:
+            logger.info(
+                "Session %s summarized: %d decisions persisted, %d action items routed",
+                session_id, added, len(action_items),
+            )
+
+    except (json.JSONDecodeError, ValueError) as e:
+        logger.debug("Session summary returned non-JSON: %s", e)
+    except Exception as e:
+        logger.warning("Session summarization failed: %s", e)
+
+
+# ---------------------------------------------------------------------------
+# Phase 4: Governance — review_status management
+# ---------------------------------------------------------------------------
+
+def set_review_status(fingerprint: str, status: str) -> dict:
+    """Set the review_status for a memory entry by fingerprint.
+
+    Valid statuses: pending, approved, rejected.
+    """
+    valid = {"pending", "approved", "rejected"}
+    if status not in valid:
+        return {"success": False, "error": f"Invalid status '{status}'. Valid: {sorted(valid)}"}
+
+    sidecar = _load_sidecar()
+    if fingerprint not in sidecar:
+        # Check truncated fingerprints (API returns fp[:16])
+        full_fp = None
+        for key in sidecar:
+            if key.startswith(fingerprint):
+                full_fp = key
+                break
+        if full_fp:
+            fingerprint = full_fp
+        else:
+            return {"success": False, "error": f"Fingerprint '{fingerprint}' not found in sidecar"}
+
+    sidecar[fingerprint]["review_status"] = status
+    _save_sidecar(sidecar)
+    return {"success": True, "fingerprint": fingerprint, "review_status": status}
+
+
+def get_pending_reviews() -> list[dict]:
+    """Return all memory entries with review_status == 'pending'."""
+    sidecar = _load_sidecar()
+    pending = []
+    for fp, meta in sidecar.items():
+        if fp.startswith("__"):  # Skip internal keys (session summaries, etc.)
+            continue
+        if meta.get("review_status") == "pending":
+            # Find the matching entry text
+            entry_text = ""
+            for target_name in ("memory", "user"):
+                store = _get_store(target_name)
+                for entry in store.get_entries():
+                    if _content_fingerprint(entry) == fp:
+                        entry_text = entry
+                        break
+                if entry_text:
+                    break
+            pending.append({
+                "fingerprint": fp[:16],
+                "full_fingerprint": fp,
+                "content": entry_text[:200],
+                "metadata": meta,
+            })
+    return pending
 
 
 # ---------------------------------------------------------------------------
@@ -934,7 +1129,9 @@ async def get_memory_metadata():
     # Aggregate stats
     all_topics = {}
     all_people = {}
-    for meta in sidecar.values():
+    for fp, meta in sidecar.items():
+        if fp.startswith("__"):
+            continue
         for t in meta.get("topics", []):
             all_topics[t] = all_topics.get(t, 0) + 1
         for p in meta.get("people", []):
@@ -945,6 +1142,7 @@ async def get_memory_metadata():
         "stats": {
             "total_entries": len(entries),
             "total_with_metadata": sum(1 for e in entries if e["metadata"]),
+            "pending_review": sum(1 for e in entries if e["metadata"].get("review_status") == "pending"),
             "top_topics": sorted(all_topics.items(), key=lambda x: x[1], reverse=True)[:10],
             "people_mentioned": sorted(all_people.items(), key=lambda x: x[1], reverse=True)[:10],
         },
@@ -971,4 +1169,58 @@ async def api_semantic_recall(query: str, k: int = 5):
     """
     hits = semantic_recall(query, k=k, threshold=0.4)
     return {"query": query, "results": hits, "count": len(hits)}
+
+
+@router.get("/memory/reviews")
+async def api_get_pending_reviews():
+    """Return all memory entries pending human review."""
+    pending = get_pending_reviews()
+    return {"pending": pending, "count": len(pending)}
+
+
+@router.post("/memory/review")
+async def api_set_review(fingerprint: str, status: str):
+    """Approve or reject a specific memory entry.
+
+    Query params:
+        fingerprint: first 16 chars (or full) of the entry fingerprint
+        status: 'approved' or 'rejected'
+    """
+    result = set_review_status(fingerprint, status)
+    return result
+
+
+@router.post("/memory/review/bulk")
+async def api_bulk_review(action: str = "approve_all"):
+    """Bulk approve or reject all pending memory entries.
+
+    action: 'approve_all' or 'reject_all'
+    """
+    sidecar = _load_sidecar()
+    target_status = "approved" if action == "approve_all" else "rejected"
+    valid_statuses = {"pending", "approved", "rejected"}
+    if target_status not in valid_statuses:
+        return {"success": False, "error": f"Invalid target status"}
+
+    count = 0
+    for fp, meta in sidecar.items():
+        if fp.startswith("__"):
+            continue
+        if meta.get("review_status") == "pending":
+            meta["review_status"] = target_status
+            count += 1
+
+    if count > 0:
+        _save_sidecar(sidecar)
+
+    return {"success": True, "action": action, "reviewed": count}
+
+
+@router.post("/memory/summarize/{session_id}")
+async def api_summarize_session(session_id: str):
+    """Trigger session summarization manually for a specific session."""
+    import asyncio
+    asyncio.create_task(auto_summarize_session(session_id))
+    return {"success": True, "message": f"Summarization started for session {session_id}"}
+
 

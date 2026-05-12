@@ -1634,11 +1634,12 @@ async def _process_chat(session_id: str, data: dict) -> dict:
 
                 # --- Auto-populate memory files (background) ---
                 try:
-                    from app.memory import auto_extract_memory
+                    from app.memory import auto_extract_memory, auto_summarize_session
                     conv_messages = get_messages(session_id)
                     asyncio.create_task(auto_extract_memory(conv_messages))
+                    asyncio.create_task(auto_summarize_session(session_id))
                 except Exception:
-                    pass  # Memory extraction is non-critical
+                    pass  # Memory extraction/summarization is non-critical
 
             _active_generations.pop(session_id, None)
             _sse_queues.pop(session_id, None)
