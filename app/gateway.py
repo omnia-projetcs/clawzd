@@ -2178,15 +2178,7 @@ async def arena_send(request: Request):
         
     streams = []
     
-    def _is_truncated(text: str) -> bool:
-        stripped = text.rstrip()
-        if not stripped: return False
-        if text.count("```") % 2 != 0: return True
-        if len(stripped) < 200: return False
-        stop_markers = ["<|endoftext|>", "<|im_start|>", "<|im_end|>", "<|eot_id|>", "</s>", "<|end|>"]
-        if any(marker in stripped[-200:] for marker in stop_markers): return False
-        if len(stripped) > 3000 and stripped[-1] not in '.!?\n`>)]}': return True
-        return False
+
 
     for m in models:
         provider_key = m.get("provider", "local")
@@ -2211,33 +2203,21 @@ async def arena_send(request: Request):
                 kwargs = {}
                 if m_key:
                     kwargs["model"] = m_key
+                kwargs["max_tokens"] = 8192
                     
                 messages = [
                     {"role": "system", "content": "You are a helpful and detailed AI assistant. Provide complete and comprehensive answers. Do NOT truncate your response."},
                     {"role": "user", "content": user_msg}
                 ]
                 
-                continuation_round = 0
-                MAX_CONTINUATION_ROUNDS = 5
-                
-                while continuation_round < MAX_CONTINUATION_ROUNDS:
-                    round_text = ""
-                    async for token in provider.chat_stream(messages, **kwargs):
-                        if any(marker in token for marker in ["<|endoftext|>", "<|im_start|>", "<|im_end|>", "<|eot_id|>", "</s>", "<|end|>"]):
-                            for marker in ["<|endoftext|>", "<|im_start|>", "<|im_end|>", "<|eot_id|>", "</s>", "<|end|>"]:
-                                token = token.replace(marker, "")
-                            if not token:
-                                continue
-                        tokens_count += 1
-                        round_text += token
-                        await queue.put(token)
-                        
-                    if not _is_truncated(round_text):
-                        break
-                        
-                    continuation_round += 1
-                    messages.append({"role": "assistant", "content": round_text})
-                    messages.append({"role": "user", "content": "The response was truncated. Please continue exactly where you left off. Do not apologize, just continue the text."})
+                async for token in provider.chat_stream(messages, **kwargs):
+                    if any(marker in token for marker in ["<|endoftext|>", "<|im_start|>", "<|im_end|>", "<|eot_id|>", "</s>", "<|end|>"]):
+                        for marker in ["<|endoftext|>", "<|im_start|>", "<|im_end|>", "<|eot_id|>", "</s>", "<|end|>"]:
+                            token = token.replace(marker, "")
+                        if not token:
+                            continue
+                    tokens_count += 1
+                    await queue.put(token)
                     
                 total_time = time.perf_counter() - t0
                 tps = tokens_count / total_time if total_time > 0 else 0

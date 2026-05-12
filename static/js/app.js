@@ -1405,7 +1405,7 @@
               let finalPreview = col.text;
               
               let statsHtml = '';
-              const statsRe = /__STATS__({.+?})__STATS__/;
+              const statsRe = /__STATS__([\s\S]+?)__STATS__/;
               const statsMatch = finalPreview.match(statsRe);
               if (statsMatch) {
                 try {
@@ -1448,7 +1448,7 @@
                 let preview = col.text;
 
                 let statsHtml = '';
-                const statsRe = /__STATS__({.+?})__STATS__/;
+                const statsRe = /__STATS__([\s\S]+?)__STATS__/;
                 const statsMatch = preview.match(statsRe);
                 if (statsMatch) {
                   try {
