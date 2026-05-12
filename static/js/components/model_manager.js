@@ -167,6 +167,9 @@ class ModelManager {
       const d = await r.json();
       if (!r.ok) { toast(' ' + (d.detail || 'Download failed')); return; }
       toast('⬇ Download started: ' + (d.ollama_id || d.model_id || d.filename));
+      $('#dl-filename').textContent = d.ollama_id || d.model_id || 'Starting...';
+      $('#dl-fill').style.width = '0%';
+      $('#dl-stats').textContent = 'Connecting...';
       this.dlBar.style.display = 'flex';
       this.startPollDownload();
     } catch (e) { toast(`${ICONS.x(14)} Error: ` + e.message); }

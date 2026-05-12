@@ -272,11 +272,15 @@ snapshot_download(repo_id=repo_id, max_workers=4, token=hf_token)
 print(json.dumps({"progress": 100.0, "completed": True}))
 """
 
+        env = os.environ.copy()
+        env.pop("HF_HUB_OFFLINE", None)
+
         process = subprocess.Popen(
             [sys.executable, "-c", script, repo_id, hf_token or ""],
             stdout=subprocess.PIPE,
             stderr=subprocess.STDOUT,
-            text=True
+            text=True,
+            env=env
         )
 
         for line in iter(process.stdout.readline, ""):
