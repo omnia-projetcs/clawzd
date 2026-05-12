@@ -36,6 +36,12 @@
 
     const items = [];
 
+    // Helper to format MiB to MB/GB
+    const formatSize = (mib) => {
+      if (mib >= 1024) return (mib / 1024).toFixed(1) + ' GB';
+      return Math.round(mib) + ' MB';
+    };
+
     // Ollama status
     if (data.ollama_status != null) {
       const ollamaOk = data.ollama_status === 'running';
@@ -51,7 +57,7 @@
       const ramPct = Math.round(data.ram_used_mib / data.ram_total_mib * 100);
       const ramColor = ramPct > 90 ? 'var(--red)' : ramPct > 75 ? 'var(--warning, #f59e0b)' : 'var(--text-muted)';
       items.push({
-        title: `RAM: ${data.ram_used_mib}/${data.ram_total_mib} MiB (${ramPct}%)`,
+        title: `RAM: ${formatSize(data.ram_used_mib)} / ${formatSize(data.ram_total_mib)} (${ramPct}%)`,
         color: ramColor,
         html: `<svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="margin-right:4px;vertical-align:-2px"><ellipse cx="12" cy="5" rx="9" ry="3"></ellipse><path d="M21 12c0 1.66-4 3-9 3s-9-1.34-9-3"></path><path d="M3 5v14c0 1.66 4 3 9 3s9-1.34 9-3V5"></path></svg>${ramPct}%`,
       });
@@ -62,7 +68,7 @@
       const pct = Math.round(data.vram_used_mib / data.vram_total_mib * 100);
       const color = pct > 90 ? 'var(--red)' : pct > 70 ? 'var(--warning, #f59e0b)' : 'var(--green)';
       items.push({
-        title: `GPU: ${data.gpu_name || 'GPU'}\nVRAM: ${data.vram_used_mib}/${data.vram_total_mib} MiB (${pct}%)`,
+        title: `GPU: ${data.gpu_name || 'GPU'}\nVRAM: ${formatSize(data.vram_used_mib)} / ${formatSize(data.vram_total_mib)} (${pct}%)`,
         color: color,
         html: `<svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="margin-right:4px;vertical-align:-2px"><rect x="2" y="3" width="20" height="14" rx="2" ry="2"></rect><line x1="8" y1="21" x2="16" y2="21"></line><line x1="12" y1="17" x2="12" y2="21"></line></svg>${pct}%`,
       });
