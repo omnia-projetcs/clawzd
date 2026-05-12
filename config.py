@@ -9,7 +9,7 @@ from dotenv import load_dotenv
 load_dotenv()
 
 # --- Version (single source of truth) ---
-APP_VERSION = "0.0.1a"
+APP_VERSION = "0.0.1b"
 
 # --- Base directory ---
 BASE_DIR = Path(__file__).parent.resolve()
