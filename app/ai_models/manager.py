@@ -538,14 +538,44 @@ class DeleteRequest(BaseModel):
 
 @router.post("/delete")
 async def delete_model(req: DeleteRequest):
-    """Delete a model from Ollama.
+    """Delete a model from Ollama or Hugging Face.
 
     If the deleted model is the currently active one, automatically
     activate another installed model.
     """
     model_name = req.filename  # field name kept for frontend compat
 
-    # Check if this is the active model
+    # 1. Check if it's a Hugging Face model in our catalog
+    model_entry = next((m for m in MODEL_CATALOG if m.get("ollama_id") == model_name), None)
+    if model_entry and model_entry.get("backend") == "hf":
+        import shutil
+        from pathlib import Path
+        
+        try:
+            from config import MODELS_DIR
+            cache_dir = Path(MODELS_DIR) / "hub"
+        except ImportError:
+            cache_dir = Path.home() / ".cache" / "huggingface" / "hub"
+            
+        safe_name = "models--" + model_name.replace("/", "--")
+        model_path = cache_dir / safe_name
+        
+        if model_path.exists():
+            try:
+                shutil.rmtree(model_path)
+                logger.info("Deleted HF model from cache: %s", model_name)
+            except Exception as e:
+                logger.error("Failed to delete HF model %s: %s", model_name, e)
+                raise HTTPException(500, f"Could not delete HF model files: {e}")
+                
+        return {
+            "status": "deleted",
+            "filename": model_name,
+            "was_active": False,
+            "fallback_model": None,
+        }
+
+    # 2. Otherwise, delete from Ollama
     is_active = False
     try:
         from config import OLLAMA_MODEL
