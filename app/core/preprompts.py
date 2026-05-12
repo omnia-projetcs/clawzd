@@ -403,11 +403,15 @@ _JAILBREAK_MODELS: dict[str, str] = {
 }
 
 
-def get_preprompt(key: str, model: str = "") -> Optional[str]:
+def get_preprompt(key: str, model: str = "", user_query: str = "") -> Optional[str]:
     """Return the system prompt text for a given key, with persistent memory injected.
 
     The memory block is appended to every system prompt so the agent always
     has access to its cross-session notes and user profile.
+
+    When ``user_query`` is provided, the memory block also includes
+    **semantic recall** results — contextually relevant memories surfaced
+    via vector similarity (hybrid .md + ChromaDB approach).
     """
     entry = PREPROMPTS.get(key)
     if not entry:
@@ -424,7 +428,7 @@ def get_preprompt(key: str, model: str = "") -> Optional[str]:
                 break
 
     # Inject memory guidance and current memory entries
-    memory_block = build_memory_prompt()
+    memory_block = build_memory_prompt(user_query=user_query)
     parts = [base, MEMORY_GUIDANCE]
     if memory_block:
         parts.append(f"\n\n{memory_block}")

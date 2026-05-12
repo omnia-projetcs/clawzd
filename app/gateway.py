@@ -695,7 +695,7 @@ async def _process_chat(session_id: str, data: dict) -> dict:
 
     # Build messages for the LLM
     llm_messages = []
-    system_prompt = get_preprompt(preprompt_key, model=model_key)
+    system_prompt = get_preprompt(preprompt_key, model=model_key, user_query=user_msg)
     
     # Inject dynamic setting for autonomy
     if system_prompt:

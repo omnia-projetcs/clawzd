@@ -6,8 +6,10 @@ USER.md for user profile) in profiles/user/. Injected into the system prompt at 
 The agent manages its own memory via a ``memory`` tool with add/replace/remove.
 Includes a daily optimization task to keep these files concise.
 
-Inspired by Hermes Agent's persistent memory architecture https://github.com/NousResearch/hermes-agent.
+Inspired by Hermes Agent's persistent memory architecture https://github.com/NousResearch/hermes-agent
+and OB1 (Open Brain) content fingerprinting / metadata extraction.
 """
+import hashlib
 import json
 import logging
 import os
@@ -15,7 +17,7 @@ import re
 import threading
 from typing import Optional
 
-from fastapi import APIRouter, Request
+from fastapi import APIRouter
 from config import PROFILES_DIR
 
 router = APIRouter()
@@ -43,6 +45,237 @@ _INJECTION_PATTERNS = [
 ]
 
 _lock = threading.Lock()
+
+# ---------------------------------------------------------------------------
+# OB1-inspired content fingerprinting for deduplication
+# ---------------------------------------------------------------------------
+
+def _content_fingerprint(text: str) -> str:
+    """Compute a SHA256 fingerprint of normalized content.
+
+    Normalizes the text (lowercase, strip, collapse whitespace) before hashing
+    so that trivially reformulated entries are detected as duplicates.
+    Inspired by OB1's ``upsert_thought()`` dedup pattern.
+    """
+    normalized = re.sub(r"\s+", " ", text.strip().lower())
+    return hashlib.sha256(normalized.encode("utf-8")).hexdigest()
+
+
+# ---------------------------------------------------------------------------
+# Metadata sidecar (structured metadata alongside memory entries)
+# ---------------------------------------------------------------------------
+
+_METADATA_SIDECAR_FILE = "MEMORY_META.json"
+
+
+def _sidecar_path() -> str:
+    return os.path.join(RAG_PROFIL_DIR, _METADATA_SIDECAR_FILE)
+
+
+def _load_sidecar() -> dict:
+    """Load the metadata sidecar JSON. Keys are content fingerprints."""
+    path = _sidecar_path()
+    if not os.path.exists(path):
+        return {}
+    try:
+        with open(path, "r", encoding="utf-8") as f:
+            return json.load(f)
+    except Exception:
+        return {}
+
+
+def _save_sidecar(data: dict):
+    """Persist the metadata sidecar JSON."""
+    path = _sidecar_path()
+    try:
+        with open(path, "w", encoding="utf-8") as f:
+            json.dump(data, f, ensure_ascii=False, indent=2)
+    except Exception as e:
+        logger.error("Failed to write metadata sidecar: %s", e)
+
+
+def _upsert_sidecar_entry(fingerprint: str, metadata: dict):
+    """Add or merge metadata for a fingerprinted memory entry."""
+    sidecar = _load_sidecar()
+    existing = sidecar.get(fingerprint, {})
+    # Merge: lists are unioned, scalars are overwritten
+    for k, v in metadata.items():
+        if isinstance(v, list) and isinstance(existing.get(k), list):
+            merged = list(dict.fromkeys(existing[k] + v))  # union, preserve order
+            existing[k] = merged
+        else:
+            existing[k] = v
+    sidecar[fingerprint] = existing
+    _save_sidecar(sidecar)
+
+
+# ---------------------------------------------------------------------------
+# Vector Memory Mirror (ChromaDB)
+# ---------------------------------------------------------------------------
+# The .md files remain the source of truth.  ChromaDB provides a semantic
+# index *on top* of them so that memory entries can be recalled by meaning
+# rather than by exact keyword.  All write/replace/remove operations sync
+# both stores.  The existing RAG module already initialises ChromaDB with
+# the same PersistentClient path — we just create a separate collection
+# named ``agent_memory`` so the two don't interfere.
+# ---------------------------------------------------------------------------
+
+_vec_collection = None
+_vec_encoder = None
+_vec_init_failed = False  # Prevents retrying on every call after a failure
+
+
+def _get_vector_memory():
+    """Lazy-init the ChromaDB agent_memory collection + encoder.
+
+    Re-uses the same PersistentClient path and SentenceTransformer model as
+    the RAG module to avoid loading a second model into memory.
+
+    After a failed init, returns (None, None) without retrying until the
+    module is reloaded (prevents repeated slow failures).
+    """
+    global _vec_collection, _vec_encoder, _vec_init_failed
+    if _vec_collection is not None:
+        return _vec_collection, _vec_encoder
+    if _vec_init_failed:
+        return None, None
+    try:
+        import chromadb
+        from chromadb.config import Settings as ChromaSettings
+        from sentence_transformers import SentenceTransformer
+        from config import CHROMA_DB_PATH
+
+        client = chromadb.PersistentClient(
+            path=CHROMA_DB_PATH,
+            settings=ChromaSettings(anonymized_telemetry=False),
+        )
+        _vec_collection = client.get_or_create_collection("agent_memory")
+
+        # Re-use the same cached model as RAG
+        _embedding_cache = os.path.join(
+            os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
+            "models", "embeddings",
+        )
+        os.makedirs(_embedding_cache, exist_ok=True)
+        cached_marker = os.path.join(_embedding_cache, "models--sentence-transformers--all-MiniLM-L6-v2")
+        if os.path.isdir(cached_marker):
+            os.environ.setdefault("HF_HUB_OFFLINE", "1")
+        _vec_encoder = SentenceTransformer(
+            "sentence-transformers/all-MiniLM-L6-v2", cache_folder=_embedding_cache,
+        )
+        logger.info("Vector memory mirror initialised (ChromaDB agent_memory)")
+    except Exception as e:
+        logger.warning("Vector memory mirror unavailable: %s", e)
+        _vec_collection = None
+        _vec_encoder = None
+        _vec_init_failed = True
+    return _vec_collection, _vec_encoder
+
+
+def _vector_index(entry_text: str, target: str, fingerprint: str, metadata: dict | None = None):
+    """Add or update a single memory entry in the vector index."""
+    try:
+        col, enc = _get_vector_memory()
+        if col is None or enc is None:
+            return
+        embedding = enc.encode(entry_text).tolist()
+        meta = {"target": target, "fingerprint": fingerprint}
+        if metadata:
+            # Flatten simple fields for ChromaDB (strings/ints only)
+            for k in ("type", "source"):
+                if k in metadata and isinstance(metadata[k], str):
+                    meta[k] = metadata[k]
+            for k in ("topics", "people"):
+                if k in metadata and isinstance(metadata[k], list):
+                    meta[k] = ", ".join(str(v) for v in metadata[k])
+        col.upsert(
+            ids=[fingerprint],
+            documents=[entry_text],
+            embeddings=[embedding],
+            metadatas=[meta],
+        )
+    except Exception as e:
+        logger.debug("Vector index upsert failed: %s", e)
+
+
+def _vector_remove(fingerprint: str):
+    """Remove a memory entry from the vector index by fingerprint."""
+    try:
+        col, _ = _get_vector_memory()
+        if col is None:
+            return
+        col.delete(ids=[fingerprint])
+    except Exception as e:
+        logger.debug("Vector index delete failed: %s", e)
+
+
+def vector_sync():
+    """Full re-sync: read every entry from .md files and upsert into ChromaDB.
+
+    Called manually or on startup.  Safe to run repeatedly — upserts are
+    idempotent thanks to fingerprint-based IDs.
+    """
+    col, enc = _get_vector_memory()
+    if col is None or enc is None:
+        logger.warning("Vector sync skipped — ChromaDB/encoder unavailable")
+        return {"synced": 0}
+
+    sidecar = _load_sidecar()
+    synced = 0
+    for target_name in ("memory", "user"):
+        store = _get_store(target_name)
+        for entry_text in store.get_entries():
+            fp = _content_fingerprint(entry_text)
+            meta = sidecar.get(fp, {})
+            _vector_index(entry_text, target_name, fp, meta)
+            synced += 1
+
+    logger.info("Vector memory sync complete — %d entries indexed", synced)
+    return {"synced": synced}
+
+
+def semantic_recall(query: str, k: int = 5, threshold: float = 0.6) -> list[dict]:
+    """Search memory entries by semantic similarity.
+
+    Returns a list of dicts with ``content``, ``target``, ``similarity``,
+    and any metadata from the sidecar.  Results below ``threshold``
+    similarity are filtered out.
+    """
+    col, enc = _get_vector_memory()
+    if col is None or enc is None:
+        return []
+    if col.count() == 0:
+        return []
+
+    try:
+        query_emb = enc.encode(query).tolist()
+        results = col.query(
+            query_embeddings=[query_emb],
+            n_results=min(k, col.count()),
+            include=["documents", "metadatas", "distances"],
+        )
+        docs = results.get("documents", [[]])[0]
+        dists = results.get("distances", [[]])[0]
+        metas = results.get("metadatas", [[]])[0]
+
+        sidecar = _load_sidecar()
+        hits = []
+        for doc, dist, meta in zip(docs, dists, metas):
+            similarity = 1.0 - dist  # cosine distance → similarity
+            if similarity < threshold:
+                continue
+            fp = (meta or {}).get("fingerprint", "")
+            rich_meta = sidecar.get(fp, {})
+            hits.append({
+                "content": doc,
+                "target": (meta or {}).get("target", "?"),
+                "similarity": round(similarity, 3),
+                "metadata": rich_meta,
+            })
+        return hits
+    except Exception as e:
+        logger.debug("Semantic recall failed: %s", e)
+        return []
 
 
 class MemoryStore:
@@ -96,8 +329,12 @@ class MemoryStore:
             "entry_count": len(self.get_entries()),
         }
 
-    def add(self, content: str) -> dict:
+    def add(self, content: str, metadata: dict | None = None) -> dict:
         """Add a new memory entry.
+
+        Uses SHA256 content fingerprinting for fuzzy deduplication (OB1-inspired).
+        When a near-duplicate is detected, metadata is merged instead of
+        creating a new entry.
 
         Returns a status dict with success/error.
         """
@@ -110,35 +347,54 @@ class MemoryStore:
         if blocked:
             return {"success": False, "error": f"Content blocked: {blocked}"}
 
+        fingerprint = _content_fingerprint(content)
+
+        is_duplicate = False
         with _lock:
             entries = self.get_entries()
 
-            # Duplicate check
+            # Fingerprint-based dedup: check all existing entries
             for existing in entries:
-                if existing == content:
-                    return {"success": True, "message": "Entry already exists (no duplicate added)"}
+                if _content_fingerprint(existing) == fingerprint:
+                    is_duplicate = True
+                    break
 
-            # Capacity check
-            raw = self._read_raw()
-            new_total = len(raw) + len(ENTRY_SEPARATOR) + len(content)
-            if new_total > self.char_limit:
-                usage = self.get_usage()
-                return {
-                    "success": False,
-                    "error": (
-                        f"Memory at {usage['current_chars']:,}/{self.char_limit:,} chars. "
-                        f"Adding this entry ({len(content)} chars) would exceed the limit. "
-                        f"Replace or remove existing entries first."
-                    ),
-                    "current_entries": entries,
-                    "usage": f"{usage['current_chars']:,}/{self.char_limit:,}",
-                }
+            if not is_duplicate:
+                # Capacity check — first entry has no separator prefix
+                raw = self._read_raw()
+                separator_cost = len(ENTRY_SEPARATOR) if raw else 0
+                new_total = len(raw) + separator_cost + len(content)
+                if new_total > self.char_limit:
+                    usage = self.get_usage()
+                    return {
+                        "success": False,
+                        "error": (
+                            f"Memory at {usage['current_chars']:,}/{self.char_limit:,} chars. "
+                            f"Adding this entry ({len(content)} chars) would exceed the limit. "
+                            f"Replace or remove existing entries first."
+                        ),
+                        "current_entries": entries,
+                        "usage": f"{usage['current_chars']:,}/{self.char_limit:,}",
+                    }
 
-            entries.append(content)
-            self._save_entries(entries)
+                entries.append(content)
+                self._save_entries(entries)
 
-        logger.info("Memory entry added to %s (%d chars)", self.target, len(content))
-        return {"success": True, "message": "Entry added", "usage": self.get_usage()}
+        # Merge metadata outside _lock to avoid holding the lock during file I/O
+        if is_duplicate:
+            if metadata:
+                _upsert_sidecar_entry(fingerprint, metadata)
+            return {"success": True, "message": "Duplicate detected (fingerprint match) — metadata merged"}
+
+        # Store metadata in sidecar if provided
+        if metadata:
+            _upsert_sidecar_entry(fingerprint, metadata)
+
+        # Mirror into vector index
+        _vector_index(content, self.target, fingerprint, metadata)
+
+        logger.info("Memory entry added to %s (%d chars, fp=%s)", self.target, len(content), fingerprint[:12])
+        return {"success": True, "message": "Entry added", "fingerprint": fingerprint, "usage": self.get_usage()}
 
     def replace(self, old_text: str, new_content: str) -> dict:
         """Replace an entry identified by a unique substring.
@@ -193,6 +449,19 @@ class MemoryStore:
             entries[idx] = new_content
             self._save_entries(entries)
 
+        # Sync vector index: remove old fingerprint, index new content
+        old_fp = _content_fingerprint(old_entry)
+        new_fp = _content_fingerprint(new_content)
+        _vector_remove(old_fp)
+        _vector_index(new_content, self.target, new_fp)
+
+        # Clean up orphaned sidecar entry if fingerprint changed
+        if old_fp != new_fp:
+            sidecar = _load_sidecar()
+            if old_fp in sidecar:
+                del sidecar[old_fp]
+                _save_sidecar(sidecar)
+
         logger.info("Memory entry replaced in %s (old: %d chars → new: %d chars)", self.target, len(old_entry), len(new_content))
         return {"success": True, "message": "Entry replaced", "usage": self.get_usage()}
 
@@ -221,6 +490,14 @@ class MemoryStore:
 
             removed = entries.pop(matches[0])
             self._save_entries(entries)
+
+        # Remove from vector index and sidecar
+        removed_fp = _content_fingerprint(removed)
+        _vector_remove(removed_fp)
+        sidecar = _load_sidecar()
+        if removed_fp in sidecar:
+            del sidecar[removed_fp]
+            _save_sidecar(sidecar)
 
         logger.info("Memory entry removed from %s (%d chars)", self.target, len(removed))
         return {"success": True, "message": "Entry removed", "usage": self.get_usage()}
@@ -300,11 +577,17 @@ def handle_memory_tool(params: dict) -> dict:
 # System prompt injection
 # ---------------------------------------------------------------------------
 
-def build_memory_prompt() -> str:
+def build_memory_prompt(user_query: str = "") -> str:
     """Build the memory block to inject into the system prompt.
 
     Returns a formatted string with MEMORY and USER PROFILE sections,
     or empty string if both are empty.
+
+    When ``user_query`` is provided, also performs a **semantic recall**
+    against the vector memory index to surface contextually relevant
+    memories that might not be in the current bounded .md files.
+    This is the hybrid .md + vector approach: .md = full dump,
+    vector = contextual recall.
     """
     blocks = []
 
@@ -331,6 +614,30 @@ def build_memory_prompt() -> str:
         )
         body = ENTRY_SEPARATOR.join(user_entries)
         blocks.append(f"{header}\n{body}")
+
+    # --- Semantic recall (vector memory mirror) ---
+    if user_query:
+        try:
+            hits = semantic_recall(user_query, k=3, threshold=0.55)
+            if hits:
+                recall_lines = []
+                for h in hits:
+                    sim_pct = f"{h['similarity']:.0%}"
+                    meta_tags = ""
+                    if h.get("metadata", {}).get("topics"):
+                        topics = h["metadata"]["topics"]
+                        if isinstance(topics, list):
+                            meta_tags = f" [{', '.join(topics)}]"
+                        elif isinstance(topics, str):
+                            meta_tags = f" [{topics}]"
+                    recall_lines.append(f"• ({sim_pct}{meta_tags}) {h['content']}")
+                recall_block = (
+                    f"{'═' * 20} RELEVANT MEMORIES (semantic recall) {'═' * 20}\n"
+                    + "\n".join(recall_lines)
+                )
+                blocks.append(recall_block)
+        except Exception:
+            pass  # Semantic recall is non-critical
 
     return "\n\n".join(blocks)
 
@@ -422,7 +729,6 @@ async def optimize_memory_files():
             if optimized_content:
                 # Clean up markdown fences if LLM ignored instructions
                 if optimized_content.startswith("```"):
-                    import re
                     optimized_content = re.sub(r"^```(?:markdown|md)?\s*", "", optimized_content)
                     optimized_content = re.sub(r"\s*```$", "", optimized_content)
                     optimized_content = optimized_content.strip()
@@ -467,17 +773,30 @@ async def optimize_memory_files():
 
 _EXTRACT_SYSTEM = (
     "You are a memory extraction engine. Given a conversation snippet, "
-    "extract ONLY facts worth remembering long-term. Output a JSON object with two keys:\n"
+    "extract ONLY facts worth remembering long-term. Output a JSON object with these keys:\n"
     '  "user": list of facts about the USER (preferences, name, expertise, language, goals)\n'
     '  "memory": list of facts about the ENVIRONMENT or PROJECT (tools, conventions, corrections, lessons)\n'
+    '  "metadata": object with enriched structured metadata extracted from the conversation:\n'
+    '    - "people": array of people mentioned (empty if none)\n'
+    '    - "topics": array of 1-3 short topic tags (always at least one)\n'
+    '    - "action_items": array of first-person to-dos the user committed to (empty if none — '
+    'do NOT include things others asked for)\n'
+    '    - "type": one of "observation", "task", "idea", "reference", "preference", "correction"\n'
+    '    - "dates_mentioned": array of dates YYYY-MM-DD explicitly mentioned (empty if none)\n'
     "Rules:\n"
     "- Each fact must be a short, standalone sentence (max 120 chars).\n"
     "- Do NOT extract trivial, session-specific, or easily re-discovered info.\n"
     "- Do NOT extract the content of the conversation itself.\n"
-    "- If nothing is worth remembering, return empty lists.\n"
+    "- Only extract action_items when the speaker uses first-person intent "
+    '("I need to", "I should", "remind me to"). '
+    "If someone ELSE wants something, that is NOT an action item.\n"
+    "- If nothing is worth remembering, return empty lists and empty metadata.\n"
     "- Output ONLY valid JSON, no markdown fences, no explanation.\n"
-    "Example: {\"user\": [\"User prefers concise answers\", \"User speaks French\"], "
-    "\"memory\": [\"Project uses FastAPI + Jinja2\"]}\n"
+    'Example: {"user": ["User prefers concise answers", "User speaks French"], '
+    '"memory": ["Project uses FastAPI + Jinja2"], '
+    '"metadata": {"people": ["Sarah"], "topics": ["web development", "deployment"], '
+    '"action_items": ["deploy to staging server"], "type": "task", '
+    '"dates_mentioned": ["2026-05-13"]}}\n'
 )
 
 # Minimum number of user+assistant turns before extraction triggers
@@ -541,24 +860,39 @@ async def auto_extract_memory(messages: list[dict]):
 
         user_facts = data.get("user", [])
         memory_facts = data.get("memory", [])
+        extracted_meta = data.get("metadata", {})
+
+        # Build metadata dict from extraction (OB1-inspired structured metadata)
+        entry_metadata = {}
+        if isinstance(extracted_meta, dict):
+            for key in ("people", "topics", "action_items", "type", "dates_mentioned"):
+                val = extracted_meta.get(key)
+                if val:
+                    entry_metadata[key] = val
+            entry_metadata["source"] = "auto_extract"
+            entry_metadata["extracted_at"] = time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())
 
         added_count = 0
         user_store = _get_user_store()
         for fact in user_facts:
             if isinstance(fact, str) and fact.strip():
-                result = user_store.add(fact.strip())
+                result = user_store.add(fact.strip(), metadata=entry_metadata)
                 if result.get("success"):
                     added_count += 1
 
         mem_store = _get_memory_store()
         for fact in memory_facts:
             if isinstance(fact, str) and fact.strip():
-                result = mem_store.add(fact.strip())
+                result = mem_store.add(fact.strip(), metadata=entry_metadata)
                 if result.get("success"):
                     added_count += 1
 
         if added_count:
-            logger.info("Auto-extracted %d memory entries from conversation", added_count)
+            logger.info(
+                "Auto-extracted %d memory entries (meta: %s)",
+                added_count,
+                {k: v for k, v in entry_metadata.items() if k not in ("source", "extracted_at")},
+            )
 
     except (json.JSONDecodeError, ValueError) as e:
         logger.debug("Memory extraction returned non-JSON: %s", e)
@@ -576,3 +910,65 @@ async def trigger_optimization():
     import asyncio
     asyncio.create_task(optimize_memory_files())
     return {"success": True, "message": "Optimization started in background."}
+
+
+@router.get("/memory/metadata")
+async def get_memory_metadata():
+    """Return enriched metadata for all memory entries (OB1-inspired sidecar)."""
+    sidecar = _load_sidecar()
+
+    # Build per-entry enriched view
+    entries = []
+    for target_name in ("memory", "user"):
+        store = _get_store(target_name)
+        for entry_text in store.get_entries():
+            fp = _content_fingerprint(entry_text)
+            meta = sidecar.get(fp, {})
+            entries.append({
+                "target": target_name,
+                "content": entry_text[:200],
+                "fingerprint": fp[:16],
+                "metadata": meta,
+            })
+
+    # Aggregate stats
+    all_topics = {}
+    all_people = {}
+    for meta in sidecar.values():
+        for t in meta.get("topics", []):
+            all_topics[t] = all_topics.get(t, 0) + 1
+        for p in meta.get("people", []):
+            all_people[p] = all_people.get(p, 0) + 1
+
+    return {
+        "entries": entries,
+        "stats": {
+            "total_entries": len(entries),
+            "total_with_metadata": sum(1 for e in entries if e["metadata"]),
+            "top_topics": sorted(all_topics.items(), key=lambda x: x[1], reverse=True)[:10],
+            "people_mentioned": sorted(all_people.items(), key=lambda x: x[1], reverse=True)[:10],
+        },
+    }
+
+
+@router.post("/memory/vector-sync")
+async def trigger_vector_sync():
+    """Re-sync all .md memory entries into the ChromaDB vector index.
+
+    Safe to call repeatedly — uses upsert with fingerprint-based IDs.
+    """
+    import asyncio
+    result = await asyncio.to_thread(vector_sync)
+    return {"success": True, **result}
+
+
+@router.get("/memory/recall")
+async def api_semantic_recall(query: str, k: int = 5):
+    """Search agent memory by semantic similarity.
+
+    Returns the top-k most relevant memory entries for the given query,
+    ranked by cosine similarity.
+    """
+    hits = semantic_recall(query, k=k, threshold=0.4)
+    return {"query": query, "results": hits, "count": len(hits)}
+
