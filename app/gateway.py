@@ -952,7 +952,7 @@ async def _process_chat(session_id: str, data: dict) -> dict:
         _agent_max_rounds = 15
     MAX_TOOL_ROUNDS = _agent_max_rounds
     # Maximum auto-continuation rounds for truncated responses
-    MAX_CONTINUATION_ROUNDS = 5
+    MAX_CONTINUATION_ROUNDS = 2
     # Maximum total output characters to prevent runaway generation
     MAX_TOTAL_OUTPUT = 250_000
 
@@ -961,11 +961,18 @@ async def _process_chat(session_id: str, data: dict) -> dict:
 
         Checks for unclosed code fences (odd number of ```) which indicates
         the LLM hit its token limit while generating code.
-        Also avoids false positives when the model emitted stop tokens.
+        Also avoids false positives when the model emitted stop tokens
+        or the response ends naturally.
         """
         stripped = text.rstrip()
         if not stripped:
             return False
+
+        # Trailing blank lines indicate a natural end
+        if text.endswith("\n\n") or text.endswith("\n"):
+            # Only trigger on unclosed fences, not mid-sentence heuristic
+            fence_count = text.count("```")
+            return fence_count % 2 != 0
 
         fence_count = text.count("```")
         if fence_count % 2 != 0:
@@ -981,11 +988,16 @@ async def _process_chat(session_id: str, data: dict) -> dict:
         if any(marker in tail for marker in stop_markers):
             return False
 
-        # Also check if it ends mid-sentence (no final punctuation or newline)
-        if len(stripped) > 3000:
+        # Mid-sentence check — very conservative to avoid false positives.
+        # Only trigger for very long responses that clearly end mid-word.
+        if len(stripped) > 8000:
             last_char = stripped[-1]
-            if last_char not in '.!?\n`>)]}':
-                return True
+            # Allow letters, digits, punctuation, markdown, emoji, etc.
+            if last_char not in '.!?\n`>)]}"\':;-—…*#|0123456789':
+                # Double-check: if last line is short, it's likely a natural end
+                last_line = stripped.split("\n")[-1]
+                if len(last_line.strip()) > 40:
+                    return True
         return False
 
     # --- Doom-loop detection (inspired by OpenMonoAgent) ---
@@ -1061,7 +1073,8 @@ async def _process_chat(session_id: str, data: dict) -> dict:
                     in_code_block = fence_count % 2 != 0
 
                     if not in_code_block:
-                        cont_notice = "\n\n⏳ *Response truncated — continuing automatically...*\n\n"
+                        # Use a single-line notice that won't break Markdown context
+                        cont_notice = "\n\n---\n⏳ *Continuation...*\n\n"
                         await queue.put(cont_notice)
                         full_conversation += cont_notice
                         _active_generations[session_id] = full_conversation
@@ -1165,16 +1178,32 @@ async def _process_chat(session_id: str, data: dict) -> dict:
                                 _found_code_start = True
                                 # Stream only the part AFTER the newline
                                 await queue.put(match.group(1))
-                            elif len(cont_round_response) > 500:
-                                # Fallback: LLM forgot the fence, flush buffer and stream
+                            elif len(cont_round_response) > 200:
+                                # Fallback: LLM forgot the fence — strip introductory
+                                # fluff ("Voici la suite", "Here is the continuation", etc.)
                                 _found_code_start = True
-                                await queue.put(cont_round_response)
+                                _clean = cont_round_response.lstrip()
+                                # Remove common intro patterns before streaming
+                                import re as _strip_re
+                                _clean = _strip_re.sub(
+                                    r'^(?:(?:Voici|Here is|Continuing|Suite|I\'ll continue)[^\n]*\n)+',
+                                    '', _clean, flags=_strip_re.IGNORECASE
+                                ).lstrip()
+                                if _clean:
+                                    await queue.put(_clean)
                         else:
                             await queue.put(token)
                             
                     if not _found_code_start and cont_round_response:
-                        # Flush the buffer if stream ended before a fence or 500 chars
-                        await queue.put(cont_round_response)
+                        # Flush remaining buffer — strip intro text
+                        _clean = cont_round_response.lstrip()
+                        import re as _strip_re
+                        _clean = _strip_re.sub(
+                            r'^(?:(?:Voici|Here is|Continuing|Suite|I\'ll continue)[^\n]*\n)+',
+                            '', _clean, flags=_strip_re.IGNORECASE
+                        ).lstrip()
+                        if _clean:
+                            await queue.put(_clean)
 
                     latency_s = time.perf_counter() - t0_cont
                     input_tokens = count_message_tokens(current_messages, model=model_key or "")
