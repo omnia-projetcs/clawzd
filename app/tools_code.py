@@ -864,7 +864,10 @@ options:{{responsive:true}}}});
             scan_path = self._clone_repo(target)
             cleanup = True
         else:
-            scan_path = Path(target).resolve()
+            scan_path = Path(target)
+            if not scan_path.is_absolute():
+                scan_path = Path(WORKSPACE_DIR) / scan_path
+            scan_path = scan_path.resolve()
             if not scan_path.exists():
                 return {"error": f"Path not found: {target}"}
 
