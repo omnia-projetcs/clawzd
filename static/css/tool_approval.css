@@ -2,14 +2,16 @@
    Tool Approval — Compact inline bar
    ============================================ */
 
-/* --- Card container --- */
+/* --- Card container — matches .message width --- */
 .ta-card {
-  margin: 10px 0;
+  max-width: 780px;
+  width: 100%;
+  margin: 10px auto;
+  padding: 10px 20px;
   background: linear-gradient(135deg, rgba(99, 102, 241, 0.10), rgba(139, 92, 246, 0.07));
   border: 1px solid rgba(99, 102, 241, 0.35);
   border-left: 3px solid #6366f1;
   border-radius: 10px;
-  padding: 10px 16px;
   animation: taIn 0.25s ease-out;
 }
 
