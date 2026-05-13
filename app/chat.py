@@ -118,6 +118,31 @@ async def get_session_endpoint(session_id: str):
     return {"session": session, "messages": messages}
 
 
+@router.post("/reset/{session_id}")
+async def reset_session_endpoint(session_id: str):
+    """Reset a session: clear all messages but keep the session record.
+
+    This allows the Editor to reset its conversational context without
+    creating a brand new session.
+    """
+    session = get_session(session_id)
+    if not session:
+        raise HTTPException(status_code=404, detail="Session not found")
+
+    # Clean up ephemeral screenshots
+    _cleanup_session_files(session_id)
+
+    # Clear messages only (keep session metadata)
+    from app.database import clear_session_messages
+    clear_session_messages(session_id)
+
+    # Also clear any active generation state
+    from app.gateway import _active_generations
+    _active_generations.pop(session_id, None)
+
+    return {"status": "reset", "session_id": session_id}
+
+
 @router.delete("/sessions/{session_id}")
 async def delete_session_endpoint(session_id: str):
     """Delete a session and its messages. Generated images are preserved in media."""

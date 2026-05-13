@@ -40,7 +40,7 @@ TOOL_KEYWORDS: dict[str, list[str]] = {
         "image", "generate", "draw", "create", "picture", "illustration",
         "photo", "art", "design", "logo", "icon", "stable", "diffusion",
         "svg", "vector", "badge", "shape", "geometric",
-        "icon", "arrow", "symbol",
+        "arrow", "symbol",
     ],
     "generate_animation": [
         "animate", "animation", "gif", "mp4", "video", "zoom", "motion",
@@ -150,6 +150,23 @@ TOOL_KEYWORDS: dict[str, list[str]] = {
         "crypto", "stock", "forex", "bitcoin", "btc", "eth",
         "binance", "yahoo", "dukascopy", "cours", "bourse",
         "cotation", "historique", "trading", "financial",
+    ],
+    # OpenCode-style tools
+    "apply_patch": [
+        "patch", "diff", "apply", "hunk", "unified", "multi-file",
+        "batch", "modify", "refactor", "patcher",
+    ],
+    "write_file": [
+        "write", "create", "file", "new", "overwrite", "save",
+        "écrire", "créer", "fichier",
+    ],
+    "grep_code": [
+        "grep", "search", "find", "pattern", "regex", "ripgrep",
+        "rg", "chercher", "trouver", "code", "content",
+    ],
+    "webfetch": [
+        "fetch", "url", "web", "page", "content", "download",
+        "documentation", "docs", "reference", "http",
     ],
 }
 
@@ -293,6 +310,32 @@ TOOL_ALIASES: dict[str, str] = {
     "excel-analysis": "analyze_data",
     "data-profiling": "analyze_data",
     "dataset-analysis": "analyze_data",
+    # OpenCode-style tools
+    "apply-patch": "apply_patch",
+    "patch-file": "apply_patch",
+    "patch_file": "apply_patch",
+    "multi-edit": "apply_patch",
+    "multi_edit": "apply_patch",
+    "batch-edit": "apply_patch",
+    "create-file": "write_file",
+    "create_file": "write_file",
+    "new-file": "write_file",
+    "new_file": "write_file",
+    "save-file": "write_file",
+    "save_file": "write_file",
+    "grep-code": "grep_code",
+    "search-code": "grep_code",
+    "search_code": "grep_code",
+    "code-search": "grep_code",
+    "code_search": "grep_code",
+    "ripgrep": "grep_code",
+    "rg": "grep_code",
+    "web-fetch": "webfetch",
+    "web_fetch": "webfetch",
+    "fetch-url": "webfetch",
+    "fetch_url": "webfetch",
+    "read-url": "webfetch",
+    "read_url": "webfetch",
 }
 
 
@@ -457,8 +500,6 @@ def _adapt_params(resolved_tool: str, original_tool: str, params: dict) -> dict:
         query = params.get("query", _extract_query_from_params(params, original_tool))
         return {"query": query, "k": params.get("k", 3)}
 
-
-
     elif resolved_tool == "edit_file":
         return {
             "file_path": params.get("file_path", ""),
@@ -504,7 +545,7 @@ def _adapt_params(resolved_tool: str, original_tool: str, params: dict) -> dict:
 READONLY_TOOLS = {
     "search_web", "read_file", "rag_search", "screenshot_remote",
     "screenshot_local", "search_twitter", "search_linkedin",
-    "fetch_market_data",
+    "fetch_market_data", "grep_code", "webfetch", "list_files",
 }
 
 # Simple in-memory cache for read-only tools (key → (result, timestamp))
@@ -621,7 +662,7 @@ async def execute_tool(tool_name: str, params: dict, context: dict = None) -> di
         pass  # Schema validation is non-critical
 
     # --- Pipeline Step: Path sanity check ---
-    if resolved in ("edit_file", "read_file", "audit_code", "analyze_data"):
+    if resolved in ("edit_file", "read_file", "audit_code", "analyze_data", "write_file", "grep_code"):
         path_err = _path_sanity_check(params, resolved)
         if path_err:
             return {"error": f"Path sanity check failed: {path_err}"}
@@ -673,7 +714,6 @@ async def execute_tool(tool_name: str, params: dict, context: dict = None) -> di
             return executor.execute(code)
 
         elif resolved == "screenshot_remote":
-            from fastapi import Request as _Req
             from app.tools_screenshot import screenshot_remote
             # screenshot_remote expects a Request, but we can call playwright directly
             url = params.get("url", "")
@@ -1129,6 +1169,201 @@ async def execute_tool(tool_name: str, params: dict, context: dict = None) -> di
 
         elif resolved == "todo_write":
             return _handle_todo_write(params, (context or {}).get("session_id", "default"))
+
+        # ----------------------------------------------------------------
+        # OpenCode-style tools
+        # ----------------------------------------------------------------
+        elif resolved == "apply_patch":
+            from app.tools.patch_parser import apply_patch as _apply_patch
+            from config import WORKSPACE_DIR
+            from app.tools_code import snapshot_manager
+            patch_text = params.get("patchText", "") or params.get("patch_text", "") or params.get("patch", "")
+            if not patch_text:
+                return {"error": "patchText is required"}
+
+            def _snapshot_fn(path, old_content, new_content):
+                try:
+                    snapshot_manager.save(path, old_content)
+                except Exception:
+                    pass
+
+            result = _apply_patch(patch_text, WORKSPACE_DIR, snapshot_fn=_snapshot_fn)
+            summary_lines = []
+            for op in result.operations:
+                prefix = {"add": "A", "update": "M", "delete": "D", "move": "R"}.get(op["type"], "?")
+                summary_lines.append(f"{prefix} {op.get('target', op['path'])}")
+
+            output = {
+                "success": result.success,
+                "operations": result.operations,
+                "summary": "\n".join(summary_lines) if summary_lines else "No changes applied",
+            }
+            if result.errors:
+                output["errors"] = result.errors
+            return output
+
+        elif resolved == "write_file":
+            from config import WORKSPACE_DIR
+            from app.tools_code import snapshot_manager
+            import os as _os
+            file_path = params.get("file_path", "") or params.get("path", "")
+            content = params.get("content", "")
+            if not file_path:
+                return {"error": "file_path is required"}
+
+            # Security: reject absolute paths and traversal
+            if file_path.startswith("/") or ".." in file_path:
+                return {"error": "Absolute paths and '..' are not allowed"}
+
+            full_path = _os.path.realpath(_os.path.join(WORKSPACE_DIR, file_path))
+            real_ws = _os.path.realpath(WORKSPACE_DIR)
+            if not full_path.startswith(real_ws):
+                return {"error": "Path escapes workspace"}
+
+            # Save snapshot for undo
+            old_content = ""
+            if _os.path.exists(full_path):
+                try:
+                    with open(full_path, "r", encoding="utf-8", errors="replace") as f:
+                        old_content = f.read()
+                    snapshot_manager.save(file_path, old_content)
+                except Exception:
+                    pass
+
+            # Create parent directories and write
+            _os.makedirs(_os.path.dirname(full_path), exist_ok=True)
+            with open(full_path, "w", encoding="utf-8") as f:
+                f.write(content)
+
+            action = "updated" if old_content else "created"
+            return {
+                "status": action,
+                "file_path": file_path,
+                "size": len(content),
+                "message": f"File '{file_path}' {action} ({len(content)} bytes)",
+            }
+
+        elif resolved == "grep_code":
+            import subprocess
+            import os as _os
+            from config import WORKSPACE_DIR
+            pattern = params.get("pattern", "")
+            if not pattern:
+                return {"error": "pattern is required"}
+
+            include = params.get("include", "")
+            search_path = params.get("path", ".") or "."
+
+            # Security: reject absolute paths
+            if search_path.startswith("/") or ".." in search_path:
+                return {"error": "Absolute paths and '..' are not allowed"}
+
+            full_path = _os.path.realpath(_os.path.join(WORKSPACE_DIR, search_path))
+            real_ws = _os.path.realpath(WORKSPACE_DIR)
+            if not full_path.startswith(real_ws):
+                return {"error": "Path escapes workspace"}
+
+            # Try ripgrep first, fallback to grep
+            try:
+                rg_available = subprocess.run(
+                    ["rg", "--version"], capture_output=True, timeout=2
+                ).returncode == 0
+            except (FileNotFoundError, subprocess.TimeoutExpired):
+                rg_available = False
+
+            if rg_available:
+                cmd = ["rg", "-n", "--no-heading", "--max-count=5", "--max-filesize=1M"]
+                if include:
+                    cmd.extend(["-g", include])
+                cmd.extend([pattern, full_path])
+            else:
+                cmd = ["grep", "-rn", "--include=" + (include or "*")]
+                cmd.extend([pattern, full_path])
+
+            try:
+                proc = subprocess.run(
+                    cmd, capture_output=True, text=True, timeout=15, cwd=WORKSPACE_DIR
+                )
+                output_text = proc.stdout or ""
+                # Parse results
+                results = []
+                for line in output_text.strip().split("\n"):
+                    if not line.strip():
+                        continue
+                    # Format: file:line:content
+                    parts = line.split(":", 2)
+                    if len(parts) >= 3:
+                        file_rel = parts[0].replace(real_ws + "/", "").replace(real_ws, "")
+                        results.append({
+                            "file": file_rel,
+                            "line": int(parts[1]) if parts[1].isdigit() else 0,
+                            "content": parts[2][:200],
+                        })
+                    elif len(parts) == 2:
+                        file_rel = parts[0].replace(real_ws + "/", "").replace(real_ws, "")
+                        results.append({"file": file_rel, "line": 0, "content": parts[1][:200]})
+
+                    if len(results) >= 50:
+                        break
+
+                return {
+                    "pattern": pattern,
+                    "count": len(results),
+                    "truncated": len(results) >= 50,
+                    "results": results,
+                }
+            except subprocess.TimeoutExpired:
+                return {"error": "Search timed out (15s limit)"}
+            except Exception as e:
+                return {"error": f"grep_code failed: {e}"}
+
+        elif resolved == "webfetch":
+            import httpx as _httpx
+            import re as _re
+            url = params.get("url", "")
+            if not url:
+                return {"error": "url is required"}
+            if not url.startswith(("http://", "https://")):
+                url = "https://" + url
+
+            try:
+                async with _httpx.AsyncClient(
+                    timeout=15, follow_redirects=True,
+                    headers={"User-Agent": "Mozilla/5.0 ClawzdBot/1.0"}
+                ) as client:
+                    resp = await client.get(url)
+                    resp.raise_for_status()
+                    html = resp.text
+
+                # Basic HTML to text conversion
+                # Remove script and style tags
+                text = _re.sub(r'<script[^>]*>[\s\S]*?</script>', '', html, flags=_re.IGNORECASE)
+                text = _re.sub(r'<style[^>]*>[\s\S]*?</style>', '', text, flags=_re.IGNORECASE)
+                # Remove HTML tags
+                text = _re.sub(r'<[^>]+>', ' ', text)
+                # Clean whitespace
+                text = _re.sub(r'\s+', ' ', text).strip()
+                # Decode entities
+                import html as _html_mod
+                text = _html_mod.unescape(text)
+
+                # Truncate for LLM context
+                max_len = 15000
+                truncated = len(text) > max_len
+                if truncated:
+                    text = text[:max_len] + "\n... (truncated)"
+
+                return {
+                    "url": str(resp.url),
+                    "status": resp.status_code,
+                    "content_length": len(text),
+                    "truncated": truncated,
+                    "content": text,
+                }
+            except _httpx.HTTPStatusError as e:
+                return {"error": f"HTTP {e.response.status_code}: {e.response.reason_phrase}"}
+            except Exception as e:
+                return {"error": f"webfetch failed: {e}"}
 
         else:
             return {"error": f"Tool '{resolved}' is registered but has no executor"}
@@ -1598,6 +1833,49 @@ def format_tool_result(tool_name: str, result: dict) -> str:
             err = err[:400] + "..." + err[-100:]
         return f"Tool '{tool_name}' error: {err}"
 
+    # --- OpenCode-style tools (check before generic handlers) ---
+    if tool_name == "apply_patch":
+        ops = result.get("operations", [])
+        summary = result.get("summary", "No changes")
+        errors = result.get("errors", [])
+        lines = [f"Patch applied: {len(ops)} operation(s)"]
+        if summary:
+            lines.append(summary)
+        if errors:
+            lines.append("Warnings: " + "; ".join(errors))
+        return "\n".join(lines)
+
+    if tool_name == "write_file":
+        path = result.get("file_path", "?")
+        status = result.get("status", "ok")
+        size = result.get("size", 0)
+        return f"File {status}: {path} ({size:,} bytes)"
+
+    if tool_name == "grep_code":
+        results_list = result.get("results", [])
+        count = result.get("count", 0)
+        pattern = result.get("pattern", "?")
+        if not results_list:
+            return f"No matches for pattern '{pattern}'."
+        lines = [f"Found {count} match(es) for '{pattern}'"]
+        if result.get("truncated"):
+            lines[0] += " [truncated]"
+        for r in results_list[:30]:
+            lines.append(f"  {r['file']}:{r['line']}: {r['content']}")
+        return "\n".join(lines)
+
+    if tool_name == "webfetch":
+        url = result.get("url", "?")
+        content = result.get("content", "")
+        truncated = result.get("truncated", False)
+        status_code = result.get("status", "?")
+        lines = [f"Fetched {url} (HTTP {status_code})"]
+        if truncated:
+            lines[0] += " [truncated]"
+        if content:
+            lines.append(content[:12000])
+        return "\n".join(lines)
+
     if "results" in result:
         # Search results — compressed
         items = result["results"]
@@ -1749,3 +2027,4 @@ def format_tool_result(tool_name: str, result: dict) -> str:
     # Generic result — compressed
     text = json.dumps(result, ensure_ascii=False)
     return compress_generic(text, max_chars=1500)
+

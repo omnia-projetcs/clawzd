@@ -1969,6 +1969,19 @@ pre code .ln::before {
   position: absolute; bottom: 0; height: 2px; background: var(--accent);
   transition: all .3s cubic-bezier(.4,0,.2,1); border-radius: 2px;
 }
+.agent-mode-reset {
+  margin-left: auto; display: flex; align-items: center; justify-content: center;
+  width: 28px; height: 28px; border-radius: 6px;
+  background: none; border: 1px solid var(--border);
+  color: var(--text-muted); cursor: pointer;
+  transition: all .2s ease; flex-shrink: 0;
+}
+.agent-mode-reset:hover {
+  color: var(--red); border-color: var(--red);
+  background: rgba(244,63,94,.08);
+}
+.agent-mode-reset:active { transform: scale(.9); }
+.agent-mode-reset svg { width: 14px; height: 14px; }
 
 /* ---- @ File Reference Popup ---- */
 .file-ref-popup {

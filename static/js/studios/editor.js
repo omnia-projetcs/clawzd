@@ -1380,7 +1380,14 @@ class EditorMode {
   }
 
 
-  _cmdClear() {
+  async _cmdClear() {
+    // Reset backend session if one exists
+    if (this.editorSessionId) {
+      try {
+        await fetch('/chat/reset/' + this.editorSessionId, { method: 'POST' });
+      } catch (_) { /* ignore — we'll create a new session anyway */ }
+    }
+
     this.editorSessionId = null;
     this.activePlan = null;
     if (this.editorES) { this.editorES.close(); this.editorES = null; }
@@ -1391,7 +1398,10 @@ class EditorMode {
     this._updateContextBar();
     this.attachedFiles = [];
     this._renderFileBadges();
-    toast(ICONS.circle(14) + ' ️ Chat cleared');
+    this.changeHistory = [];
+    this.changeHistoryIdx = -1;
+    toast(ICONS.circle(14) + ' Chat context reset');
+    this.addActivity(ICONS.refresh(14), 'Context reset', 'Chat cleared — fresh session');
   }
 
   _cmdUndo() {

@@ -3272,6 +3272,10 @@
       });
     });
 
+    // Reset Chat button
+    const chatResetBtn = $('#editor-chat-reset');
+    if (chatResetBtn) chatResetBtn.addEventListener('click', () => window.editor._cmdClear());
+
     // Todo Panel buttons
     const todoAddBtn = $('#todo-add-btn');
     if (todoAddBtn) todoAddBtn.addEventListener('click', () => {

@@ -77,12 +77,7 @@ if command -v systemctl &> /dev/null; then
     if systemctl --user is-active --quiet clawzd.service 2>/dev/null || systemctl --user is-failed --quiet clawzd.service 2>/dev/null; then
         SERVICE_NAME="clawzd.service"
         USER_MODE=true
-    elif systemctl --user is-active --quiet clawzd.service 2>/dev/null || systemctl --user is-failed --quiet clawzd.service 2>/dev/null; then
-        SERVICE_NAME="clawzd.service"
-        USER_MODE=true
     # Then check for active system services
-    elif systemctl is-active --quiet clawzd.service 2>/dev/null || systemctl is-failed --quiet clawzd.service 2>/dev/null; then
-        SERVICE_NAME="clawzd.service"
     elif systemctl is-active --quiet clawzd.service 2>/dev/null || systemctl is-failed --quiet clawzd.service 2>/dev/null; then
         SERVICE_NAME="clawzd.service"
     fi
@@ -134,5 +129,3 @@ echo ""
 echo "=============================================="
 echo "  Update complete!"
 echo "=============================================="
-
-tail -f /var/log/syslog | grep "run.sh"

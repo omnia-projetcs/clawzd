@@ -141,6 +141,29 @@ class FetchMarketDataParams(BaseModel):
     period: str = Field("1mo", description="History period (stock only): 1d, 5d, 1mo, 3mo, 6mo, 1y, 5y")
 
 
+class ApplyPatchParams(BaseModel):
+    """Parameters for the apply_patch tool (OpenCode-style)."""
+    patchText: str = Field(..., description="Full patch text using OpenCode format (*** Begin Patch / *** End Patch)")
+
+
+class WriteFileParams(BaseModel):
+    """Parameters for the write_file tool."""
+    file_path: str = Field(..., description="Relative path to the file to create or overwrite")
+    content: str = Field(..., description="Full content to write to the file")
+
+
+class GrepCodeParams(BaseModel):
+    """Parameters for the grep_code tool."""
+    pattern: str = Field(..., description="Search pattern (regex supported)")
+    include: str = Field("", description="File pattern filter, e.g. *.py, *.{ts,tsx}")
+    path: str = Field(".", description="Directory to search in (relative to workspace)")
+
+
+class WebFetchParams(BaseModel):
+    """Parameters for the webfetch tool."""
+    url: str = Field(..., description="URL to fetch content from")
+
+
 # ---------------------------------------------------------------------------
 # Schema Registry
 # ---------------------------------------------------------------------------
@@ -157,12 +180,16 @@ _TOOL_SCHEMAS: dict[str, type[BaseModel]] = {
     "read_file": ReadFileParams,
     "audit_code": AuditCodeParams,
     "rag_search": RagSearchParams,
-
     "create_document": CreateDocumentParams,
     "memory": MemoryParams,
     "send_email": SendEmailParams,
     "analyze_data": AnalyzeDataParams,
     "fetch_market_data": FetchMarketDataParams,
+    # OpenCode-style tools
+    "apply_patch": ApplyPatchParams,
+    "write_file": WriteFileParams,
+    "grep_code": GrepCodeParams,
+    "webfetch": WebFetchParams,
 }
 
 

@@ -325,7 +325,6 @@
     </div>
     <!-- Chat -->
     <div class="editor-chat active" id="editor-chat">
-      <!-- Agent Mode Toggle (Build / Plan) -->
       <div class="editor-agent-mode" id="editor-agent-mode">
         <button class="agent-mode-btn active"
                 data-agent="build"
@@ -340,6 +339,13 @@
           <span class="agent-mode-icon">📋</span> Plan
         </button>
         <div class="agent-mode-indicator" id="agent-mode-indicator"></div>
+        <button class="agent-mode-reset"
+                id="editor-chat-reset"
+                title="Reset Chat — Clear context and start fresh">
+          <svg class="ic" width="14" height="14">
+            <use href="#icon-refresh"></use>
+          </svg>
+        </button>
       </div>
       <div class="editor-chat-messages" id="editor-chat-messages"></div>
       <div class="editor-chat-input-area">

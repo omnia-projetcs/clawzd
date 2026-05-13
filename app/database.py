@@ -7,9 +7,18 @@ from app.core.database import *  # noqa: F401,F403
 from app.core.database import (  # noqa: F401 — explicit re-exports
     init_db,
     create_session,
+    list_sessions,
     get_session,
+    update_session,
+    delete_session,
+    clear_all_sessions,
+    clear_session_messages,
     add_message,
     get_messages,
+    export_session_markdown,
     auto_title,
-    update_session,
+    fork_at_message,
+    list_branches,
+    delete_branch,
 )
+

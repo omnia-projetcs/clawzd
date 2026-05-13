@@ -234,6 +234,22 @@ def clear_all_sessions():
     conn.commit()
 
 
+@with_auto_repair
+def clear_session_messages(session_id: str):
+    """Delete all messages for a session but keep the session record.
+
+    Resets the message_count and updated_at timestamp.
+    """
+    conn = _get_conn()
+    conn.execute("DELETE FROM messages WHERE session_id = ?", (session_id,))
+    now = datetime.now(timezone.utc).isoformat()
+    conn.execute(
+        "UPDATE sessions SET message_count = 0, updated_at = ? WHERE id = ?",
+        (now, session_id),
+    )
+    conn.commit()
+
+
 # --- Message CRUD ---
 
 @with_auto_repair
