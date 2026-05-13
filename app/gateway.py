@@ -3769,6 +3769,43 @@ async def workspace_git_diff(path: str = "", staged: bool = False):
 
 
 # --- ZIP export API ---
+@app.get("/workspace/export-zip")
+async def workspace_export_zip(project: str = "."):
+    """Bundle a project or the workspace into a downloadable ZIP archive."""
+    base = _os.path.realpath(_WORKSPACE_DIR)
+    target_dir = base
+    if project and project != ".":
+        # Sanitize project name
+        project = project.replace("..", "").replace("/", "_").replace("\\", "_").strip()
+        target_dir = _os.path.realpath(_os.path.join(base, project))
+        if not target_dir.startswith(base):
+            raise HTTPException(403, "Invalid project path")
+            
+    if not _os.path.isdir(target_dir):
+        raise HTTPException(404, "Project directory not found")
+        
+    buf = io.BytesIO()
+    with zipfile.ZipFile(buf, "w", zipfile.ZIP_DEFLATED) as zf:
+        for root, dirs, files in _os.walk(target_dir):
+            # Skip hidden dirs like .git
+            dirs[:] = [d for d in dirs if not d.startswith('.')]
+            for file in files:
+                if file.startswith('.'):
+                    continue
+                full_path = _os.path.join(root, file)
+                # Compute relative path for zip structure
+                rel_path = _os.path.relpath(full_path, target_dir)
+                zf.write(full_path, rel_path)
+                
+    buf.seek(0)
+    filename = f"{project if project != '.' else 'workspace'}_export.zip"
+    return StreamingResponse(
+        buf,
+        media_type="application/zip",
+        headers={"Content-Disposition": f"attachment; filename={filename}"},
+    )
+
+
 @app.post("/api/export-zip")
 async def api_export_zip(request: Request):
     """Bundle files into a downloadable ZIP archive."""

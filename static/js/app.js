@@ -3584,6 +3584,61 @@
       toast(window.editor._acEnabled ? ' Autocomplete ON' : ' Autocomplete OFF');
     });
 
+    // ---- Preview Button ----
+    const etbPreview = $('#etb-preview');
+    if (etbPreview) {
+      etbPreview.addEventListener('click', () => {
+        if (!window.editor || !window.editor.activeTab) {
+          toast(ICONS.x(14) + ' Open an HTML file to preview');
+          return;
+        }
+        const path = window.editor.activeTab;
+        if (!path.endsWith('.html') && !path.endsWith('.htm')) {
+          toast(ICONS.x(14) + ' Only HTML files can be previewed');
+          return;
+        }
+        let overlay = $('#editor-preview-overlay');
+        if (!overlay) {
+          overlay = document.createElement('div');
+          overlay.id = 'editor-preview-overlay';
+          overlay.className = 'settings-overlay';
+          overlay.innerHTML = `
+            <div class="settings-drawer" style="width: 80vw; max-width: 1200px; height: 90vh; display: flex; flex-direction: column; padding: 0;">
+              <div class="settings-header" style="padding: 15px 20px; border-bottom: 1px solid var(--border);">
+                <h3 style="margin: 0; display: flex; align-items: center; gap: 8px;">
+                  <svg class="ic" width="16" height="16"><use href="#icon-play"></use></svg> 
+                  <span id="preview-title">Preview</span>
+                </h3>
+                <button class="icon-btn" id="preview-close" style="margin-left:auto"><svg class="ic" width="20" height="20"><use href="#icon-x"></use></svg></button>
+              </div>
+              <div class="settings-body" style="flex: 1; padding: 0; overflow: hidden; background: #fff;">
+                <iframe id="preview-iframe" style="width:100%; height:100%; border:none; background:#fff;"></iframe>
+              </div>
+            </div>
+          `;
+          document.body.appendChild(overlay);
+          $('#preview-close').addEventListener('click', () => overlay.classList.remove('open'));
+        }
+        $('#preview-title').textContent = 'Preview: ' + path;
+        
+        // Add timestamp to prevent caching
+        const ts = new Date().getTime();
+        $('#preview-iframe').src = '/workspace/file-raw?path=' + encodeURIComponent(path) + '&_t=' + ts;
+        overlay.classList.add('open');
+      });
+    }
+
+    // ---- Export Button ----
+    const etbExport = $('#etb-export');
+    if (etbExport) {
+      etbExport.addEventListener('click', () => {
+        const projSelect = $('#project-select');
+        const project = projSelect ? projSelect.value || '.' : '.';
+        window.open('/workspace/export-zip?project=' + encodeURIComponent(project), '_blank');
+        toast(ICONS.download(14) + ' Exporting project as ZIP...');
+      });
+    }
+
     // ---- Audit Button ----
     const etbAudit = $('#etb-audit');
     if (etbAudit) etbAudit.addEventListener('click', () => {
@@ -4316,6 +4371,106 @@
         pickerDrop.classList.remove('open');
       }
     });
+
+    // ---- Editor Inline Model Picker ----
+    const edPickerBtn = $('#editor-model-picker-btn');
+    const edPickerDrop = $('#editor-model-picker-dropdown');
+    const edPickerLabel = $('#editor-model-picker-label');
+
+    function renderEditorModelPicker() {
+      const provList = $('#editor-mpd-provider-list');
+      const modelList = $('#editor-mpd-model-list');
+      const currentProv = $('#provider-select').value;
+      const currentModel = $('#model-select').value;
+      if (!provList || !modelList) return;
+
+      // Providers
+      provList.innerHTML = '';
+      ['anthropic', 'google', 'grok', 'groq', 'huggingface', 'mistral', 'ollama', 'openai', 'openrouter'].forEach(p => {
+        const opt = el('div', {
+          class: 'mpd-option' + (currentProv === p ? ' active' : ''),
+          onclick: () => {
+            $('#provider-select').value = p;
+            localStorage.setItem('hoc_last_provider', p);
+            $('#provider-select').dispatchEvent(new Event('change'));
+            edPickerLabel.textContent = PROVIDER_NAMES[p] || p;
+            if (pickerLabel) pickerLabel.textContent = PROVIDER_NAMES[p] || p;
+            renderEditorModelPicker();
+            renderModelPicker();
+          }
+        }, [
+          document.createTextNode(PROVIDER_NAMES[p] || p),
+          el('span', { class: 'mpd-check', html: ICONS.check(14) })
+        ]);
+        provList.appendChild(opt);
+      });
+
+      // Models
+      const models = (window._providers || {})[currentProv] || [];
+      modelList.innerHTML = '';
+
+      const defOpt = el('div', {
+        class: 'mpd-option' + (currentModel === '' ? ' active' : ''),
+        onclick: () => {
+          $('#model-select').value = '';
+          localStorage.removeItem('hoc_last_model');
+          renderEditorModelPicker();
+          renderModelPicker();
+          edPickerDrop.classList.remove('open');
+        }
+      }, [
+        document.createTextNode('Default'),
+        el('span', { class: 'mpd-check', html: ICONS.check(14) })
+      ]);
+      modelList.appendChild(defOpt);
+
+      models.forEach(m => {
+        const opt = el('div', {
+          class: 'mpd-option' + (currentModel === m.id ? ' active' : ''),
+          onclick: () => {
+            $('#model-select').value = m.id;
+            localStorage.setItem('hoc_last_model', m.id);
+            edPickerLabel.textContent = m.label || m.id;
+            if (pickerLabel) pickerLabel.textContent = m.label || m.id;
+            renderEditorModelPicker();
+            renderModelPicker();
+            edPickerDrop.classList.remove('open');
+          }
+        }, [
+          document.createTextNode(m.label || m.id),
+          el('span', { class: 'mpd-check', html: ICONS.check(14) })
+        ]);
+        modelList.appendChild(opt);
+      });
+
+      // Update label
+      const selModel = models.find(m => m.id === currentModel);
+      if (selModel) {
+        edPickerLabel.textContent = selModel.label || selModel.id;
+      } else if (currentProv === 'ollama' && window._activeLocalModel) {
+        edPickerLabel.textContent = window._activeLocalModel;
+      } else {
+        edPickerLabel.textContent = PROVIDER_NAMES[currentProv] || currentProv;
+      }
+    }
+
+    if (edPickerBtn) {
+      edPickerBtn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        renderEditorModelPicker();
+        edPickerDrop.classList.toggle('open');
+      });
+      document.addEventListener('click', (e) => {
+        if (!e.target.closest('#editor-model-picker')) {
+          edPickerDrop.classList.remove('open');
+        }
+      });
+      
+      // Update editor label if provider select changes elsewhere
+      $('#provider-select').addEventListener('change', () => {
+        renderEditorModelPicker();
+      });
+    }
 
     // ---- Action Mode Select (preprompt shortcuts) ----
     window.arenaMode = false;

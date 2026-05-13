@@ -138,11 +138,23 @@
           <use href="#icon-search"></use>
         </svg>
       </button>
+      <button class="etb-btn" id="etb-preview" title="Preview HTML">
+        <svg class="ic" width="14" height="14">
+          <use href="#icon-play"></use>
+        </svg>
+        <span class="etb-label">Preview</span>
+      </button>
       <button class="etb-btn" id="etb-audit" title="Audit project code">
         <svg class="ic" width="14" height="14">
           <use href="#icon-shield"></use>
         </svg>
         <span class="etb-label">Audit</span>
+      </button>
+      <button class="etb-btn" id="etb-export" title="Export project as ZIP">
+        <svg class="ic" width="14" height="14">
+          <use href="#icon-download"></use>
+        </svg>
+        <span class="etb-label">Export</span>
       </button>
       <button class="editor-tabs-close-all"
               id="editor-tabs-close-all"
@@ -355,10 +367,25 @@
             </svg>
           </button>
         </div>
-        <div class="editor-chat-hints">
-          <span class="chat-hint-key">@</span> files
-          <span class="chat-hint-sep">·</span>
-          <span class="chat-hint-key">Tab</span> switch mode
+        <div class="editor-chat-hints" style="display:flex; align-items:center; justify-content:space-between; width:100%;">
+          <div>
+            <span class="chat-hint-key">@</span> files
+            <span class="chat-hint-sep">·</span>
+            <span class="chat-hint-key">Tab</span> switch mode
+          </div>
+          <div class="input-model-picker" id="editor-model-picker" style="position:relative;">
+            <button class="model-picker-btn" id="editor-model-picker-btn" title="Change model" style="padding: 2px 6px; font-size: 10px; background: transparent; border: none; cursor: pointer; color: var(--text-muted); display: flex; align-items: center; gap: 4px;">
+              <span class="model-picker-label" id="editor-model-picker-label">Ollama</span>
+              <svg class="ic" width="10" height="10" style="opacity:0.6"><use href="#icon-chevron-down"></use></svg>
+            </button>
+            <div class="model-picker-dropdown" id="editor-model-picker-dropdown" style="bottom: 100%; top: auto; right: 0; left: auto; margin-bottom: 5px;">
+              <div class="mpd-section-title">Provider</div>
+              <div class="mpd-options" id="editor-mpd-provider-list"></div>
+              <div class="mpd-divider"></div>
+              <div class="mpd-section-title">Model</div>
+              <div class="mpd-options" id="editor-mpd-model-list"></div>
+            </div>
+          </div>
         </div>
       </div>
     </div>
