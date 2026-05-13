@@ -1530,6 +1530,20 @@ async def _process_chat(session_id: str, data: dict) -> dict:
                             await queue.put(todo_marker)
                             # Intentionally NOT added to full_conversation (SSE-only transport marker)
 
+                        # App Builder: stream an inline preview card with iframe link
+                        if (resolved or tool_name) in ("create_app", "update_app") and result.get("id"):
+                            app_id = result["id"]
+                            app_name = result.get("name", "App")
+                            preview_url = result.get("preview_url", f"/apps/{app_id}/index.html")
+                            icon_emoji = result.get("icon", "📱")
+                            action_label = "Created" if (resolved or tool_name) == "create_app" else "Updated"
+                            app_card = (
+                                f"\n\n**{icon_emoji} {action_label}: {app_name}**\n"
+                                f"[🔗 Open Preview]({preview_url})\n\n"
+                            )
+                            await queue.put(app_card)
+                            full_conversation += app_card
+
 
                     tool_results.append({
                         "tool": resolved or tool_name,

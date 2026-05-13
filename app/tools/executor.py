@@ -1223,6 +1223,7 @@ _TOOL_FENCE_NAMES = (
     "|edit_file|read_file|create_document"
     "|send_email|post_to_twitter|post_to_linkedin|post_to_medium|trigger_n8n"
     "|memory|rebuild_skill|search_twitter|search_linkedin"
+    "|create_app|update_app|analyze_data"
     "|bash|sh|python"
 )
 TOOL_CALL_RE = re.compile(
@@ -1233,18 +1234,21 @@ TOOL_CALL_RE = re.compile(
 def parse_tool_calls(text: str) -> list[dict]:
     """Extract all tool_call blocks from LLM response text.
 
-    Supports two formats:
+    Supports multiple formats:
     1. JSON: ```tool_call\n{"tool": "...", "params": {...}}\n```
     2. Bare code with tool-name fence: ```execute_python\nprint('hello')\n```
+    3. Bare JSON (unfenced): {"tool":"create_app","params":{...}}
 
     Returns a list of {"tool": ..., "params": ..., "raw": ...} dicts.
     """
     calls = []
+    matched_spans = []  # Track spans already captured by fenced blocks
     from app.tool_repair import repair_tool_call_arguments
 
     for match in TOOL_CALL_RE.finditer(text):
         fence_label = match.group(1).strip()
         raw = match.group(2).strip()
+        matched_spans.append((match.start(), match.end()))
         # Strip hallucinated 'tool_call' or 'json' from start of block
         if raw.lower().startswith("tool_call\n"):
             raw = raw[10:].strip()
@@ -1286,7 +1290,101 @@ def parse_tool_calls(text: str) -> list[dict]:
                 "raw": match.group(0),
             })
             logger.info("Bare code tool call: fence='%s' → '%s' (%d chars)", fence_label, tool_name, len(raw))
+
+    # --- Fallback: scan for bare/unfenced JSON tool calls ---
+    # Some models (especially for create_app/update_app) emit the tool call
+    # JSON without wrapping it in a code fence. We try to detect these.
+    if not calls:
+        calls.extend(_parse_bare_tool_calls(text, matched_spans))
+
     return calls
+
+
+def _parse_bare_tool_calls(text: str, exclude_spans: list[tuple[int, int]]) -> list[dict]:
+    """Fallback parser for tool calls emitted without code fences.
+
+    Scans for JSON objects that look like {"tool": "...", "params": {...}}
+    outside of already-matched fenced blocks.  Uses balanced-brace counting
+    to handle nested JSON (e.g. HTML content inside `files` values).
+    """
+    results = []
+    # Quick check — must contain a tool key pattern
+    _TOOL_MARKER = re.compile(r'\{\s*"tool"\s*:\s*"(\w+)"')
+    for m in _TOOL_MARKER.finditer(text):
+        start = m.start()
+        # Skip if inside an already-matched fenced block
+        if any(s <= start < e for s, e in exclude_spans):
+            continue
+
+        # Extract balanced JSON starting from the opening brace
+        json_str = _extract_balanced_json(text, start)
+        if not json_str:
+            continue
+
+        try:
+            data = json.loads(json_str)
+            if isinstance(data, dict) and "tool" in data:
+                results.append({
+                    "tool": data["tool"],
+                    "params": data.get("params", {}),
+                    "raw": json_str,
+                })
+                logger.info(
+                    "Bare (unfenced) tool call detected: %s (%d chars)",
+                    data["tool"], len(json_str),
+                )
+        except (json.JSONDecodeError, ValueError):
+            # Try repair
+            try:
+                from app.tool_repair import repair_tool_call_arguments
+                repaired = repair_tool_call_arguments(json_str, m.group(1))
+                data = json.loads(repaired)
+                if isinstance(data, dict) and "tool" in data:
+                    results.append({
+                        "tool": data["tool"],
+                        "params": data.get("params", {}),
+                        "raw": json_str,
+                    })
+                    logger.info(
+                        "Bare tool call (repaired): %s (%d chars)",
+                        data["tool"], len(json_str),
+                    )
+            except (json.JSONDecodeError, ValueError):
+                logger.debug("Failed to parse bare tool call at pos %d", start)
+    return results
+
+
+def _extract_balanced_json(text: str, start: int) -> Optional[str]:
+    """Extract a balanced JSON object from *text* starting at *start*.
+
+    Tracks brace nesting and handles strings (including escaped quotes)
+    to find the matching closing brace.  Returns ``None`` if the braces
+    never balance or the extracted region exceeds a safety limit.
+    """
+    MAX_LEN = 500_000  # Safety cap for huge app files
+    depth = 0
+    in_string = False
+    i = start
+    n = min(len(text), start + MAX_LEN)
+    while i < n:
+        ch = text[i]
+        if in_string:
+            if ch == '\\' and i + 1 < n:
+                i += 2  # skip escaped char
+                continue
+            if ch == '"':
+                in_string = False
+        else:
+            if ch == '"':
+                in_string = True
+            elif ch == '{':
+                depth += 1
+            elif ch == '}':
+                depth -= 1
+                if depth == 0:
+                    return text[start:i + 1]
+        i += 1
+    return None
 
 
 def format_tool_result(tool_name: str, result: dict) -> str:
@@ -1398,6 +1496,23 @@ def format_tool_result(tool_name: str, result: dict) -> str:
         for t in todos:
             icon = status_icons.get(t.get("status", "pending"), "⏳")
             lines.append(f"{icon} [{t.get('id', '?')}] {t.get('content', '')} ({t.get('priority', 'medium')})") 
+        return "\n".join(lines)
+
+    if tool_name in ("create_app", "update_app") and "id" in result:
+        # App builder — compact output (don't send full file content back to LLM)
+        app_id = result["id"]
+        app_name = result.get("name", "App")
+        version = result.get("version", 1)
+        files = result.get("files", [])
+        preview = result.get("preview_url", f"/apps/{app_id}/index.html")
+        hint = result.get("_hint", "")
+        lines = [
+            f"ok {tool_name}: {app_name} (id={app_id}, v{version})",
+            f"Files: {', '.join(files) if isinstance(files, list) else files}",
+            f"Preview: {preview}",
+        ]
+        if hint:
+            lines.append(hint)
         return "\n".join(lines)
 
     # Generic result — compressed

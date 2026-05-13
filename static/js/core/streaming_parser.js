@@ -36,7 +36,7 @@
     function ph(html) { const k = '\x00BLK' + blocks.length + '\x00'; blocks.push(html); return k; }
 
     // Tool/thinking blocks → simple collapsible (no complex JSON parsing)
-    const toolFenceRe = /```(?:tool_call|tool|execute_python|search_web|screenshot_remote|screenshot_local|generate_image|run_command|browse_web|audit_code|rag_search)\s*\n([\s\S]*?)(?:```|$)/g;
+    const toolFenceRe = /```(?:tool_call|tool|execute_python|search_web|screenshot_remote|screenshot_local|generate_image|run_command|browse_web|audit_code|rag_search|create_app|update_app|analyze_data)\s*\n([\s\S]*?)(?:```|$)/g;
     h = h.replace(toolFenceRe, (_, content) => {
       return ph('<details class="tool-thinking"><summary> <em>Thinking…</em></summary>' +
              '<pre style="margin:8px 0;background:var(--bg-primary);border:1px solid var(--border);border-radius:8px;padding:12px;overflow-x:auto;font-size:12px;">' +

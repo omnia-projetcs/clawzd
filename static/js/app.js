@@ -319,7 +319,7 @@
 
     // Tool call blocks — render as collapsible "Thinking..." sections
     // Uses regex literal to avoid new RegExp double-escaping issues. Requires \n before closing ``` to prevent breaking on inner escaped fences
-    const toolFenceRe = /```(?:tool_call|tool|json|execute_python|search_web|screenshot_remote|screenshot_local|generate_image|run_command|browse_web|audit_code|rag_search)\s*\n([\s\S]*?)\n```/g;
+    const toolFenceRe = /```(?:tool_call|tool|json|execute_python|search_web|screenshot_remote|screenshot_local|generate_image|run_command|browse_web|audit_code|rag_search|create_app|update_app|analyze_data)\s*\n([\s\S]*?)\n```/g;
     h = h.replace(toolFenceRe, (match, content) => {
       let raw = content.trim()
         .replace(/&amp;/g, '&').replace(/&lt;/g, '<')
