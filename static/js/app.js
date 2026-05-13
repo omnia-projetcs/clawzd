@@ -490,6 +490,14 @@
       return ph(`<details class="tool-thinking"><summary>Terminal Output</summary><pre style="margin:8px 0;background:var(--bg-primary);border:1px solid var(--border);border-radius:var(--radius-sm);padding:12px;overflow-x:auto;"><code>${content.trim()}</code></pre></details>`);
     });
 
+    // Handle inline tool approval requests (HITL)
+    h = h.replace(/__TOOL_APPROVAL__([\s\S]+?)__TOOL_APPROVAL__/g, (m, content) => {
+      try {
+        if (window.toolApproval) window.toolApproval._show(JSON.parse(content));
+      } catch (e) {}
+      return '';
+    });
+
     // Remove internal file edit markers so they aren't rendered as plain text
     h = h.replace(/__FILE_EDIT__({.+?})__/g, "");
 
@@ -960,13 +968,6 @@
           return; // Don't append todo marker to visible text
         }
       }
-      // Intercept tool approval requests from SSE stream (HITL — OpenSwarm-inspired)
-      if (window.toolApproval && tok.includes('__TOOL_APPROVAL__')) {
-        const cleaned = window.toolApproval.processToken(tok);
-        if (cleaned === null) return; // Entire token was an approval request
-        tok = cleaned; // Continue with cleaned token
-      }
-
       this.text += tok;
       if (window.tokenTracker) window.tokenTracker.addOutput(1);
 

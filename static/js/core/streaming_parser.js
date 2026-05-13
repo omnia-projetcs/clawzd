@@ -64,6 +64,14 @@
              '<code>' + content.trim() + '</code></pre></details>');
     });
 
+    // Handle inline tool approval requests (HITL)
+    h = h.replace(/__TOOL_APPROVAL__([\s\S]+?)__TOOL_APPROVAL__/g, (m, content) => {
+      try {
+        if (window.toolApproval) window.toolApproval._show(JSON.parse(content));
+      } catch (e) {}
+      return '';
+    });
+
     // Remove internal markers
     h = h.replace(/__FILE_EDIT__({.+?})__/g, '');
 
