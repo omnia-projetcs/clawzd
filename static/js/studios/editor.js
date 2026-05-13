@@ -208,6 +208,7 @@ class EditorMode {
       this.renderTabs();
       toast(icon('save') + ' Saved: ' + path.split('/').pop());
       this.addActivity(icon('save'), 'File saved', path);
+      if (window.OC && window.OC.refreshPreviewIfOpen) window.OC.refreshPreviewIfOpen(path);
     } catch (e) { toast(ICONS.x(14) + ' Save error'); }
   }
 
@@ -1438,6 +1439,7 @@ class EditorMode {
         this.renderTabs();
       }
       this.loadTree();
+      if (window.OC && window.OC.refreshPreviewIfOpen) window.OC.refreshPreviewIfOpen(path);
     } catch (e) { toast(ICONS.x(14) + ' Apply error'); }
   }
 

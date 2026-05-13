@@ -1001,12 +1001,19 @@ async def audit_code(request: Request):
                 try:
                     result = auditor.full_audit(target, progress_cb=cb)
                     
-                    # --- Save audit results to audit.md in workspace ---
+                    # --- Save audit results to audit.md in scanned path ---
                     try:
-                        from config import WORKSPACE_DIR
                         from datetime import datetime, timezone
-                        audit_md_path = os.path.join(WORKSPACE_DIR, "audit.md")
-                        os.makedirs(WORKSPACE_DIR, exist_ok=True)
+                        from pathlib import Path
+                        
+                        target_dir = Path(target)
+                        if not target_dir.is_absolute():
+                            from config import WORKSPACE_DIR
+                            target_dir = Path(WORKSPACE_DIR) / target_dir
+                        
+                        audit_md_path = target_dir / "audit.md"
+                        audit_md_path.parent.mkdir(parents=True, exist_ok=True)
+                        
                         timestamp = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M UTC")
                         md_lines = [f"# Code Audit Report\n", f"*Generated: {timestamp}*\n\n"]
                         if isinstance(result, dict) and "findings" in result:
@@ -1045,12 +1052,22 @@ async def audit_code(request: Request):
             return {"error": "No code provided"}
         result = auditor.audit(code)
 
-    # --- Save audit results to audit.md in workspace ---
+    # --- Save audit results to audit.md ---
     try:
-        from config import WORKSPACE_DIR
         from datetime import datetime, timezone
-        audit_md_path = os.path.join(WORKSPACE_DIR, "audit.md")
-        os.makedirs(WORKSPACE_DIR, exist_ok=True)
+        from pathlib import Path
+
+        if mode == "full" and 'target' in locals() and target:
+            target_dir = Path(target)
+            if not target_dir.is_absolute():
+                from config import WORKSPACE_DIR
+                target_dir = Path(WORKSPACE_DIR) / target_dir
+            audit_md_path = target_dir / "audit.md"
+        else:
+            from config import WORKSPACE_DIR
+            audit_md_path = Path(WORKSPACE_DIR) / "audit.md"
+
+        audit_md_path.parent.mkdir(parents=True, exist_ok=True)
 
         timestamp = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M UTC")
         md_lines = [f"# Code Audit Report\n", f"*Generated: {timestamp}*\n\n"]

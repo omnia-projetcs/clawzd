@@ -389,13 +389,17 @@
       const ll = (lang || '').toLowerCase();
       const run = ['python', 'py', 'sh', 'bash'].includes(ll);
       const preview = ['html', 'htm', 'svg'].includes(ll);
+      const isEditor = window.editor && window.editor.activeTab;
+      
       const rb = run ? `<button class="code-run-btn" onclick="OC.runCode('${id}')">${icon('terminal', 14)} Run</button>` : '';
       const pb = preview ? `<button class="code-action-btn code-preview-btn" onclick="OC.previewHtml('${id}')">${icon('eye', 14)} Preview</button>` : '';
       const sb = `<button class="code-action-btn code-save-btn" onclick="OC.saveToFiles('${id}','${escHtml(lang)}','${escHtml(label)}')">${icon('save', 14)} Save</button>`;
+      const ab = isEditor ? `<button class="code-action-btn code-apply-btn" onclick="OC.applyToEditor('${id}')" title="Apply to active editor file">${icon('check', 14)} Apply</button>` : '';
+      
       const lcls = lang ? ` class="language-${lang}"` : '';
       return ph(
         `<div class="code-block-header"><span>${escHtml(label)}</span>` +
-        `<div class="code-block-actions">${pb}${sb}<button class="code-action-btn" onclick="OC.copyCode('${id}')">${icon('copy', 14)} Copy</button>${rb}</div></div>` +
+        `<div class="code-block-actions">${ab}${pb}${sb}<button class="code-action-btn" onclick="OC.copyCode('${id}')">${icon('copy', 14)} Copy</button>${rb}</div></div>` +
         `<pre id="${id}"><code${lcls}>${code}</code></pre>`
       );
     }
@@ -2310,6 +2314,31 @@
       const c = b.querySelector('code');
       navigator.clipboard.writeText(c ? c.textContent : b.textContent);
       toast(icon('copy') + ' Copied!');
+    },
+    applyToEditor(id) {
+      if (!window.editor || !window.editor.activeTab) {
+        toast('No active file in editor');
+        return;
+      }
+      const b = document.getElementById(id);
+      if (!b) return;
+      const c = b.querySelector('code');
+      const code = c ? c.textContent : b.textContent;
+      window.editor._applyFileContent(window.editor.activeTab, code);
+      toast(icon('check') + ' Applied to Editor');
+    },
+    refreshPreviewIfOpen(path) {
+      const overlay = document.getElementById('preview-overlay');
+      if (overlay && overlay.classList.contains('open')) {
+        const iframe = document.getElementById('preview-iframe');
+        if (iframe && iframe.src) {
+           const urlObj = new URL(iframe.src, window.location.origin);
+           const currentPath = urlObj.searchParams.get('path');
+           if (!path || currentPath === path) {
+             iframe.src = '/workspace/file-raw?path=' + encodeURIComponent(currentPath) + '&_t=' + new Date().getTime();
+           }
+        }
+      }
     },
     async runCode(id) {
       const b = document.getElementById(id); if (!b) return;
