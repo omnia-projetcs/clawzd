@@ -921,19 +921,36 @@ async def execute_tool(tool_name: str, params: dict, context: dict = None) -> di
 
         elif resolved == "create_app":
             from app.core.app_builder import create_app
+            from app.core.app_validator import validate_app_files
             name = params.get("name", "My App")
             files = params.get("files", {})
             template = params.get("template", "blank")
             icon = params.get("icon")
             visual = params.get("visual")
             session_id = (context or {}).get("session_id")
+
+            # --- Validate generated code BEFORE publishing ---
+            if files:
+                validation = validate_app_files(files)
+                if not validation["valid"]:
+                    error_list = "\n".join(f"  • {e}" for e in validation["errors"])
+                    return {
+                        "error": (
+                            f"Code validation failed — fix these issues and retry:\n"
+                            f"{error_list}\n\n"
+                            f"Re-emit a corrected create_app tool call with the fixed code."
+                        ),
+                        "validation_errors": validation["errors"],
+                    }
+
             result = create_app(name, files, session_id=session_id, template=template, icon=icon, visual=visual)
             if files:
-                result["_hint"] = "App created successfully. Remember to verify the generated code for correctness."
+                result["_hint"] = "App created and published (code validated ✅)."
             return result
 
         elif resolved == "update_app":
             from app.core.app_builder import update_app
+            from app.core.app_validator import validate_app_files
             app_id = params.get("app_id", "")
             files = params.get("files", {})
             name = params.get("name")
@@ -943,11 +960,26 @@ async def execute_tool(tool_name: str, params: dict, context: dict = None) -> di
                 return {"error": "app_id is required"}
             if not files and name is None and icon is None and visual is None:
                 return {"error": "At least one of files, name, icon, or visual is required to update"}
+
+            # --- Validate generated code BEFORE updating ---
+            if files:
+                validation = validate_app_files(files)
+                if not validation["valid"]:
+                    error_list = "\n".join(f"  • {e}" for e in validation["errors"])
+                    return {
+                        "error": (
+                            f"Code validation failed — fix these issues and retry:\n"
+                            f"{error_list}\n\n"
+                            f"Re-emit a corrected update_app tool call with the fixed code."
+                        ),
+                        "validation_errors": validation["errors"],
+                    }
+
             result = update_app(app_id, files=files, name=name, icon=icon, visual=visual)
             if not result:
                 return {"error": f"App '{app_id}' not found"}
             if files:
-                result["_hint"] = "App updated successfully. Remember to verify the generated code for correctness."
+                result["_hint"] = "App updated and published (code validated ✅)."
             return result
 
         elif resolved == "analyze_data":
