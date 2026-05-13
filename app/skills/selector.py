@@ -61,6 +61,10 @@ BUILTIN_PATTERNS = {
         r"(?:svg|icon|logo|badge|vector)\s+",
         r"(?:simple|flat|minimalist|geometric)\s+.*(?:image|drawing|illustration)",
     ],
+    "git_clone": [
+        r"(?:clone|télécharger?|download)\s+.*(?:git|repo|dépôt|depot|repository)",
+        r"(?:github\.com|gitlab\.com|bitbucket\.org)[\w/\-]+",
+    ],
     "cron_schedule": [
         r"(?:schedule|cron|every)\s+",
         r"(?:daily|hourly|weekly|monthly)",
@@ -192,6 +196,7 @@ def get_skill_description(skill_name: str) -> str:
         "rag_search": "Search knowledge base",
         "screenshot_local": "Capture local desktop screenshot",
         "screenshot_remote": "Capture and view a remote webpage (screenshot + text extract)",
+        "git_clone": "Clone a git repository into the workspace",
         "generate_image": "Generate an image from text",
         "cron_schedule": "Schedule a recurring task",
         "create_skill": "Create a new custom skill",
@@ -225,6 +230,11 @@ _TOOL_FULL_INSTRUCTIONS: dict[str, str] = {
     "screenshot_local": (
         "screenshot_local — capture local desktop.\n"
         '```tool_call\n{"tool":"screenshot_local","params":{}}\n```'
+    ),
+    "git_clone": (
+        "git_clone — Clone a git repository into the workspace.\n"
+        "ALWAYS use this when the user asks to download or audit a Github/Gitlab repository.\n"
+        '```tool_call\n{"tool":"git_clone","params":{"url":"https://github.com/user/repo"}}\n```'
     ),
     "generate_image": (
         "generate_image — generate image from text (format: auto/svg/png/transparent_png, "

@@ -54,6 +54,9 @@ TOOL_KEYWORDS: dict[str, list[str]] = {
         "audit", "security", "vulnerability", "code", "quality", "review",
         "scan", "owasp", "semgrep", "trivy", "bandit",
     ],
+    "git_clone": [
+        "clone", "git clone", "download repo", "github", "gitlab", "repository",
+    ],
     "rag_search": [
         "knowledge", "rag", "document", "base", "memory", "recall",
     ],
@@ -702,6 +705,30 @@ async def execute_tool(tool_name: str, params: dict, context: dict = None) -> di
             parameters = params.get("parameters", None)
             triggers = params.get("triggers", None)
             return await create_skill_core(name, description, category, code, parameters=parameters, triggers=triggers)
+
+        elif resolved == "git_clone":
+            import subprocess
+            import os
+            from config import WORKSPACE_DIR
+            url = params.get("url", "")
+            if not url:
+                return {"error": "URL is required for git_clone"}
+            
+            # Use same robust pattern as workspace_git_clone endpoint
+            cmd = ["git", "clone", "--progress", url]
+            env = os.environ.copy()
+            env["GIT_TERMINAL_PROMPT"] = "0"
+            try:
+                result = subprocess.run(cmd, capture_output=True, text=True, timeout=120, cwd=WORKSPACE_DIR, env=env)
+                if result.returncode != 0:
+                    return {"error": f"Git clone failed: {result.stderr or result.stdout}"}
+                return {
+                    "status": "success", 
+                    "message": f"Successfully cloned repository: {url}",
+                    "stdout": result.stdout[-2000:],
+                }
+            except Exception as e:
+                return {"error": f"Git clone error: {e}"}
 
         elif resolved == "run_command":
             from app.tools_local import ALLOWED_COMMANDS

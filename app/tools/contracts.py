@@ -54,6 +54,11 @@ class ScreenshotRemoteParams(BaseModel):
     full_page: bool = Field(False, description="Capture the full scrollable page")
 
 
+class GitCloneParams(BaseModel):
+    """Parameters for the git_clone tool."""
+    url: str = Field(..., description="Git repository URL to clone")
+
+
 class GenerateImageParams(BaseModel):
     """Parameters for the generate_image tool."""
     prompt: str = Field(..., description="Image description prompt")
@@ -145,6 +150,7 @@ _TOOL_SCHEMAS: dict[str, type[BaseModel]] = {
     "run_command": RunCommandParams,
     "search_web": SearchWebParams,
     "screenshot_remote": ScreenshotRemoteParams,
+    "git_clone": GitCloneParams,
     "generate_image": GenerateImageParams,
     "generate_animation": GenerateAnimationParams,
     "edit_file": EditFileParams,
