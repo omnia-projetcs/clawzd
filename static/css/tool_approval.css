@@ -97,25 +97,72 @@
   background: rgba(0, 0, 0, 0.15);
   border-radius: 8px;
   font-size: 12px;
-  max-height: 120px;
+  max-height: 320px;
   overflow-y: auto;
 }
 
 .ta-param {
-  margin-bottom: 4px;
+  margin-bottom: 6px;
   line-height: 1.5;
   word-break: break-word;
+}
+
+.ta-param.ta-param-code {
+  margin-bottom: 8px;
 }
 
 .ta-param-key {
   color: #8b5cf6;
   font-weight: 600;
   font-family: 'SF Mono', 'Fira Code', monospace;
+  font-size: 11px;
 }
 
 .ta-param-val {
   color: var(--text-secondary, #d1d5db);
   font-family: 'SF Mono', 'Fira Code', monospace;
+  white-space: pre-wrap;
+}
+
+/* Code block inside approval card */
+.ta-code-block {
+  margin: 6px 0 0;
+  padding: 10px 12px;
+  background: rgba(0, 0, 0, 0.35);
+  border: 1px solid rgba(99, 102, 241, 0.15);
+  border-radius: 8px;
+  font-size: 12px;
+  line-height: 1.6;
+  max-height: 220px;
+  overflow-y: auto;
+  overflow-x: auto;
+  white-space: pre;
+  tab-size: 4;
+  color: var(--text-secondary, #d1d5db);
+  font-family: 'SF Mono', 'Fira Code', 'Cascadia Code', monospace;
+}
+
+.ta-code-block code {
+  font-family: inherit;
+  font-size: inherit;
+  background: none;
+  padding: 0;
+  border: none;
+}
+
+/* Scrollbar for code block */
+.ta-code-block::-webkit-scrollbar {
+  width: 5px;
+  height: 5px;
+}
+
+.ta-code-block::-webkit-scrollbar-thumb {
+  background: rgba(99, 102, 241, 0.3);
+  border-radius: 4px;
+}
+
+.ta-code-block::-webkit-scrollbar-track {
+  background: transparent;
 }
 
 .ta-actions {

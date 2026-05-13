@@ -56,7 +56,7 @@ class LocalCodeExecutor:
         "jose": "python-jose",
         "magic": "python-magic",
         "lxml": "lxml",
-        "yfinance": "yfinance",
+        "yahooquery": "yahooquery",
         "ta": "ta",
         "mplfinance": "mplfinance",
         "plotly": "plotly",
@@ -73,7 +73,7 @@ class LocalCodeExecutor:
     DEFAULT_PACKAGES = [
         "pandas", "numpy", "matplotlib", "requests", "urllib3",
         "seaborn", "scipy", "Pillow", "beautifulsoup4", "lxml",
-        "openpyxl", "python-dateutil", "yfinance", "ta",
+        "openpyxl", "python-dateutil", "yahooquery", "ta",
         "mplfinance", "plotly", "ccxt", "scikit-learn",
         "sympy", "statsmodels", "tabulate", "kaleido",
     ]

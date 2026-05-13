@@ -48,11 +48,30 @@
       // Build params display
       let paramsHtml = '';
       if (params && Object.keys(params).length > 0) {
-        const entries = Object.entries(params).slice(0, 5);
+        const entries = Object.entries(params).slice(0, 8);
         paramsHtml = entries.map(([k, v]) => {
-          const val = typeof v === 'string'
-            ? (v.length > 120 ? v.slice(0, 120) + '…' : v)
-            : JSON.stringify(v).slice(0, 120);
+          const isCode = (k === 'code' || k === 'command' || k === 'script');
+          const raw = typeof v === 'string' ? v : JSON.stringify(v, null, 2);
+
+          if (isCode) {
+            // Render as a proper code block
+            const lang = k === 'command' ? 'bash' : 'python';
+            const truncated = raw.length > 2000 ? raw.slice(0, 2000) + '\n# …truncated' : raw;
+            const escaped = this._esc(truncated);
+            let highlighted = escaped;
+            if (typeof hljs !== 'undefined') {
+              try {
+                highlighted = hljs.highlight(truncated, { language: lang }).value;
+              } catch (_) { /* fallback to escaped */ }
+            }
+            return `<div class="ta-param ta-param-code">`
+              + `<div class="ta-param-key">${this._esc(k)}</div>`
+              + `<pre class="ta-code-block"><code class="language-${lang}">${highlighted}</code></pre>`
+              + `</div>`;
+          }
+
+          // Normal param — generous truncation
+          const val = raw.length > 300 ? raw.slice(0, 300) + '…' : raw;
           return `<div class="ta-param"><span class="ta-param-key">${this._esc(k)}:</span> <span class="ta-param-val">${this._esc(val)}</span></div>`;
         }).join('');
       }

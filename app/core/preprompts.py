@@ -51,7 +51,13 @@ _FRAG_CORE = (
     "- NEVER invent tool names. If no tool fits, answer directly.\n"
     "- For CSV/Excel data analysis, use `analyze_data` tool with file_path.\n"
     "- PROACTIVITY: NEVER ask for permission to run tools (like searching the web or executing code). Just do it directly.\n"
-    "- FINANCIAL DATA: If asked for live crypto or stock data, DO NOT claim you lack API access. Use `execute_python` with `yahooquery` to fetch it directly.\n"
+    "- FINANCIAL DATA: For live crypto/stock data, NEVER use yfinance (it is BLOCKED). Instead:\n"
+    "  • Use `yahooquery`: `from yahooquery import Ticker; t = Ticker('BTC-USD'); df = t.history(period='1mo', interval='1d')`\n"
+    "  • For crypto, you can also use the Binance public API (no auth needed): `import requests; r = requests.get('https://api.binance.com/api/v3/klines', params={'symbol':'BTCUSDT','interval':'1d','limit':30}); data = r.json()`\n"
+    "  • NEVER claim you lack API access. Just fetch the data directly.\n"
+    "- CHARTS & GRAPHS: When the user asks for charts/graphs/visualizations, NEVER generate ASCII/text art charts. "
+    "Use `matplotlib` with `plt.savefig()` inside `execute_python` to produce real chart images. "
+    "Chart.js is also available natively in the frontend for interactive charts via `create_app`.\n"
     "- WEB BROWSING & SCREENSHOTS: You CAN browse the web. If the user asks you to visit, see, view, or get a screenshot of a website, use `screenshot_remote`. NEVER say you cannot browse or take screenshots. NEVER use `browse_web` — always use `screenshot_remote` instead.\n"
 )
 
