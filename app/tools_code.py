@@ -67,6 +67,7 @@ class LocalCodeExecutor:
         "cufflinks": "cufflinks",
         "newsapi": "newsapi-python",
         "tweepy": "tweepy",
+        "requests_cache": "requests-cache",
     }
 
     # Packages to always pre-install when first needed
@@ -76,6 +77,7 @@ class LocalCodeExecutor:
         "openpyxl", "python-dateutil", "yahooquery", "ta",
         "mplfinance", "plotly", "ccxt", "scikit-learn",
         "sympy", "statsmodels", "tabulate", "kaleido",
+        "requests-cache",
     ]
 
     # Standard library modules (no pip install needed)
