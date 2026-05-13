@@ -1167,8 +1167,16 @@ async def _enhance_prompt_with_llm(prompt: str, style: str = "none", model_repo:
             "Keep under 60 words."
         )
 
-    system_prompt = "You are an expert prompt engineer. Reply ONLY with the English image generation prompt. No markdown, no explanations."
-    
+    system_prompt = (
+        f"You are an expert prompt engineer for AI image generation.\n"
+        f"{model_guidance}\n\n"
+        "Your task is to take the user's input, TRANSLATE it to English (if not already), "
+        "and ENRICH it for image generation.\n\n"
+        "RULES:\n"
+        "1. Output MUST be entirely in English.\n"
+        "2. PRESERVE the core subject and intent — do NOT add elements the user didn't ask for.\n"
+        "3. Output ONLY the final prompt. No intro, no explanation, no quotes, no markdown."
+    )    
     messages = [
         {"role": "system", "content": system_prompt},
         {"role": "user", "content": prompt}
