@@ -51,6 +51,38 @@ os.makedirs(RESEARCH_DIR, exist_ok=True)
 # In-memory state for running research tasks
 _running: dict[str, asyncio.Task] = {}
 _sse_queues: dict[str, asyncio.Queue] = {}
+_stop_requested: set[str] = set()  # Clean pause signaling (Bug 3)
+
+
+def _fix_orphan_running_statuses():
+    """Fix projects stuck in 'running' status after a server crash (Bug 6).
+
+    Called once at import time. If project.json says 'running' but the
+    process just started, no asyncio task can be alive — mark as 'paused'.
+    """
+    if not os.path.isdir(RESEARCH_DIR):
+        return
+    for name in os.listdir(RESEARCH_DIR):
+        pf = os.path.join(RESEARCH_DIR, name, "project.json")
+        if not os.path.isfile(pf):
+            continue
+        try:
+            with open(pf) as f:
+                d = json.load(f)
+            if d.get("status") == "running":
+                d["status"] = "paused"
+                d["updated_at"] = datetime.now(timezone.utc).isoformat()
+                with open(pf, "w") as f:
+                    json.dump(d, f, indent=2, ensure_ascii=False)
+                logger.info(
+                    "Fixed orphan running status for project %s → paused",
+                    d.get("id", name),
+                )
+        except Exception:
+            pass
+
+
+_fix_orphan_running_statuses()
 
 
 def _get_dev_profile_summary() -> str:
@@ -784,7 +816,8 @@ async def _research_loop(pid: str):
 
         # ── Iteration Loop ──
         for iteration in range(len(proj["iterations"]), proj["max_iterations"]):
-            if pid not in _running:
+            if pid in _stop_requested:
+                _stop_requested.discard(pid)
                 proj["status"] = "paused"
                 _save(proj)
                 await _emit(pid, "status", {"status": "paused"})
@@ -1270,6 +1303,8 @@ async def _research_loop(pid: str):
         unregister_task(pid)
     finally:
         _running.pop(pid, None)
+        _stop_requested.discard(pid)
+        _sse_queues.pop(pid, None)
 
 
 async def _generate_report(
@@ -1463,9 +1498,18 @@ async def create_project(request: Request):
     query = data.get("query", "").strip()
     if not query:
         raise HTTPException(400, "Research query is required")
-    proj = _new_project(query, data.get("provider",""), data.get("model",""))
-    proj["target_score"] = float(data.get("target_score", 0.7))
-    proj["max_iterations"] = int(data.get("max_iterations", 10))
+    proj = _new_project(
+        query,
+        data.get("provider", ""),
+        data.get("model", ""),
+        profile_id=data.get("profile_id", ""),
+        profile_data=data.get("profile_data"),
+    )
+    # Override target_score / max_iterations if explicitly provided in the request
+    if "target_score" in data:
+        proj["target_score"] = float(data["target_score"])
+    if "max_iterations" in data:
+        proj["max_iterations"] = int(data["max_iterations"])
     _save(proj)
     return {"status": "created", "project": proj}
 
@@ -1501,7 +1545,15 @@ async def get_project(pid: str):
 async def delete_project(pid: str):
     if pid in _running:
         _running[pid].cancel()
+        try:
+            await asyncio.wait_for(
+                asyncio.shield(_running[pid]), timeout=3.0,
+            )
+        except Exception:
+            pass
         _running.pop(pid, None)
+    _stop_requested.discard(pid)
+    _sse_queues.pop(pid, None)
     d = os.path.join(RESEARCH_DIR, pid)
     if os.path.isdir(d):
         shutil.rmtree(d)
@@ -1513,7 +1565,26 @@ async def start_research(pid: str):
     if not proj:
         raise HTTPException(404, "Project not found")
     if pid in _running:
-        return {"status": "already_running"}
+        # Check if the task is actually still alive
+        task = _running[pid]
+        if not task.done():
+            return {"status": "already_running"}
+        # Task is finished but wasn't cleaned up — remove stale entry
+        _running.pop(pid, None)
+
+    # If a previous task is still shutting down, wait briefly (Bug 5)
+    if pid in _running:
+        old_task = _running.pop(pid)
+        try:
+            await asyncio.wait_for(asyncio.shield(old_task), timeout=3.0)
+        except Exception:
+            pass
+
+    # Set status to running immediately on disk (Bug 4)
+    proj["status"] = "running"
+    _save(proj)
+
+    _stop_requested.discard(pid)
     _sse_queues[pid] = asyncio.Queue()
     task = asyncio.create_task(_research_loop(pid))
     _running[pid] = task
@@ -1522,9 +1593,12 @@ async def start_research(pid: str):
 @router.post("/projects/{pid}/stop")
 async def stop_research(pid: str):
     from app.tools.task_manager import unregister_task
+    # Signal the loop to stop cleanly at the next iteration check
+    _stop_requested.add(pid)
     if pid in _running:
         _running[pid].cancel()
         _running.pop(pid, None)
+    _sse_queues.pop(pid, None)
     proj = _load(pid)
     if proj:
         proj["status"] = "paused"

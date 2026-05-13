@@ -176,12 +176,34 @@ class ResearchStudioV2 {
     if (!this.currentProject) return;
     try {
       const resp = await fetch(`/api/tasks/${this.currentProject.id}`);
-      if (!resp.ok) return;
+      if (!resp.ok) {
+        // Task endpoint failed — check the project status directly
+        if (this.currentProject.status === 'running') {
+          // Server doesn't know about a running task — fix the stale status
+          const projResp = await fetch(`/research/projects/${this.currentProject.id}`);
+          if (projResp.ok) {
+            const projData = await projResp.json();
+            if (projData.project && projData.project.status !== 'running') {
+              this.currentProject.status = projData.project.status;
+              this._updateStatus(projData.project.status);
+            }
+          }
+        }
+        return;
+      }
       const data = await resp.json();
       if (data.active && !this._sse) {
         // Project is still running on the server — reconnect SSE
         this._connectSSE(this.currentProject.id);
         this._updateStatus('running');
+      } else if (!data.active && this.currentProject.status === 'running') {
+        // Server says not running but UI shows running — fix phantom status
+        const projResp = await fetch(`/research/projects/${this.currentProject.id}`);
+        if (projResp.ok) {
+          const projData = await projResp.json();
+          this.currentProject = projData.project;
+          this._updateStatus(projData.project.status);
+        }
       }
     } catch (e) {
       // Silently ignore — will be caught on next poll
@@ -302,7 +324,13 @@ class ResearchStudioV2 {
       
       this._renderProjectList();
       this._updateDetails();
-      this._renderLog();
+      
+      // Bug 7: Don't wipe live logs if research is running and SSE is connected
+      const isRunningWithSSE = this.currentProject.status === 'running' && this._sse;
+      if (!isRunningWithSSE) {
+        this._renderLog();
+      }
+      
       this._renderReport();
       this._renderAssets();
       this._renderResults();
