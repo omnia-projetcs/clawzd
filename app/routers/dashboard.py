@@ -7,7 +7,6 @@ Inspired by OpenClaw Studio's runtime/summary architecture.
 import logging
 from collections import defaultdict
 from datetime import datetime, timezone, timedelta
-from typing import Optional
 
 from fastapi import APIRouter, Query
 
@@ -140,16 +139,15 @@ async def analytics_timeseries(
         ]
 
     # Create time buckets
-    bucket_delta = timedelta(minutes=bucket_minutes)
     buckets: dict[str, dict] = {}
 
     for c in calls:
         ts = _parse_ts(c.get("timestamp", ""))
-        # Round down to bucket
-        bucket_ts = ts.replace(
-            minute=(ts.minute // bucket_minutes) * bucket_minutes,
-            second=0, microsecond=0,
-        )
+        # Round down to the nearest bucket boundary (handles > 60 min buckets)
+        epoch = int(ts.timestamp())
+        bucket_secs = bucket_minutes * 60
+        rounded_epoch = (epoch // bucket_secs) * bucket_secs
+        bucket_ts = datetime.fromtimestamp(rounded_epoch, tz=timezone.utc)
         key = bucket_ts.isoformat()
         if key not in buckets:
             buckets[key] = {
@@ -160,7 +158,6 @@ async def analytics_timeseries(
                 "calls": 0,
                 "latency_sum": 0,
                 "tokens_per_s_sum": 0,
-                "errors": 0,
             }
         b = buckets[key]
         b["input_tokens"] += c.get("input_tokens", 0)

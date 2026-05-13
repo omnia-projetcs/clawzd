@@ -15,7 +15,6 @@
   'use strict';
 
   const $ = s => document.querySelector(s);
-  const $$ = s => document.querySelectorAll(s);
 
   // Chart.js instances (destroyed on re-render to prevent leaks)
   let tokenChart = null;
@@ -43,39 +42,48 @@
     COLORS.rose, COLORS.cyan, COLORS.lime,
   ];
 
-  // Default chart options matching the dark theme
-  const CHART_DEFAULTS = {
-    responsive: true,
-    maintainAspectRatio: false,
-    animation: { duration: 600, easing: 'easeOutQuart' },
-    plugins: {
-      legend: {
-        labels: {
-          color: 'rgba(255,255,255,0.65)',
-          font: { size: 11, weight: '600' },
-          boxWidth: 12, boxHeight: 12, padding: 12,
+  // Default chart options — dynamically adapts to light/dark theme
+  function chartDefaults() {
+    const isLight = document.documentElement.classList.contains('theme-light');
+    const textColor = isLight ? 'rgba(0,0,0,0.6)' : 'rgba(255,255,255,0.65)';
+    const tickColor = isLight ? 'rgba(0,0,0,0.45)' : 'rgba(255,255,255,0.45)';
+    const gridColor = isLight ? 'rgba(0,0,0,0.07)' : 'rgba(255,255,255,0.05)';
+    const tooltipBg = isLight ? 'rgba(255,255,255,0.95)' : 'rgba(30, 30, 45, 0.95)';
+    const tooltipTitle = isLight ? '#1e1e2e' : '#f8fafc';
+    return {
+      responsive: true,
+      maintainAspectRatio: false,
+      animation: { duration: 600, easing: 'easeOutQuart' },
+      plugins: {
+        legend: {
+          labels: {
+            color: textColor,
+            font: { size: 11, weight: '600' },
+            boxWidth: 12, boxHeight: 12, padding: 12,
+          },
+        },
+        tooltip: {
+          backgroundColor: tooltipBg,
+          titleColor: tooltipTitle,
+          titleFont: { size: 12, weight: '700' },
+          bodyFont: { size: 11 },
+          padding: 10, cornerRadius: 8,
+          borderColor: 'rgba(99, 102, 241, 0.3)',
+          borderWidth: 1,
         },
       },
-      tooltip: {
-        backgroundColor: 'rgba(30, 30, 45, 0.95)',
-        titleFont: { size: 12, weight: '700' },
-        bodyFont: { size: 11 },
-        padding: 10, cornerRadius: 8,
-        borderColor: 'rgba(99, 102, 241, 0.3)',
-        borderWidth: 1,
+      scales: {
+        x: {
+          ticks: { color: tickColor, font: { size: 10 } },
+          grid: { color: gridColor },
+        },
+        y: {
+          ticks: { color: tickColor, font: { size: 10 } },
+          grid: { color: gridColor },
+        },
       },
-    },
-    scales: {
-      x: {
-        ticks: { color: 'rgba(255,255,255,0.45)', font: { size: 10 } },
-        grid: { color: 'rgba(255,255,255,0.05)' },
-      },
-      y: {
-        ticks: { color: 'rgba(255,255,255,0.45)', font: { size: 10 } },
-        grid: { color: 'rgba(255,255,255,0.05)' },
-      },
-    },
-  };
+    };
+  }
 
   // ---- Helpers ----
 
@@ -106,6 +114,7 @@
   async function fetchFleet() {
     try {
       const r = await fetch('/dashboard/fleet');
+      if (!r.ok) return null;
       return await r.json();
     } catch (e) {
       console.warn('[Analytics] Fleet fetch failed:', e);
@@ -119,6 +128,7 @@
       const r = await fetch(
         `/dashboard/analytics/timeseries?hours=${hours}&bucket_minutes=${bucket}`
       );
+      if (!r.ok) return null;
       return await r.json();
     } catch (e) {
       console.warn('[Analytics] Timeseries fetch failed:', e);
@@ -129,6 +139,7 @@
   async function fetchModels(hours) {
     try {
       const r = await fetch(`/dashboard/analytics/models?hours=${hours}`);
+      if (!r.ok) return null;
       return await r.json();
     } catch (e) {
       return null;
@@ -138,6 +149,7 @@
   async function fetchTools(hours) {
     try {
       const r = await fetch(`/dashboard/analytics/tools?hours=${hours}`);
+      if (!r.ok) return null;
       return await r.json();
     } catch (e) {
       return null;
@@ -147,6 +159,7 @@
   async function fetchHeatmap() {
     try {
       const r = await fetch('/dashboard/analytics/heatmap');
+      if (!r.ok) return null;
       return await r.json();
     } catch (e) {
       return null;
@@ -158,7 +171,10 @@
   function renderKPIs(fleet) {
     if (!fleet || !fleet.totals) return;
     const t = fleet.totals;
-    const v = id => $(`#${id}`);
+    const v = id => {
+      const el = $(`#${id}`);
+      return el || { textContent: '' };  // null-safe stub
+    };
     v('an-val-calls').textContent = fmt(t.total_calls_today || 0);
     v('an-val-tokens').textContent = fmt(t.total_tokens_today || 0);
     v('an-val-latency').textContent = (t.avg_latency_s || 0).toFixed(2) + 's';
@@ -205,12 +221,12 @@
         ],
       },
       options: {
-        ...CHART_DEFAULTS,
+        ...chartDefaults(),
         interaction: { mode: 'index', intersect: false },
         plugins: {
-          ...CHART_DEFAULTS.plugins,
+          ...chartDefaults().plugins,
           tooltip: {
-            ...CHART_DEFAULTS.plugins.tooltip,
+            ...chartDefaults().plugins.tooltip,
             callbacks: {
               label: ctx => `${ctx.dataset.label}: ${fmt(ctx.raw)}`,
             },
@@ -256,11 +272,11 @@
         ],
       },
       options: {
-        ...CHART_DEFAULTS,
+        ...chartDefaults(),
         scales: {
-          ...CHART_DEFAULTS.scales,
+          ...chartDefaults().scales,
           y: {
-            ...CHART_DEFAULTS.scales.y,
+            ...chartDefaults().scales.y,
             position: 'left',
             title: {
               display: true, text: 'Latency (s)',
@@ -268,7 +284,7 @@
             },
           },
           y1: {
-            ...CHART_DEFAULTS.scales.y,
+            ...chartDefaults().scales.y,
             position: 'right',
             grid: { drawOnChartArea: false },
             title: {
@@ -309,9 +325,9 @@
         cutout: '55%',
         animation: { duration: 600 },
         plugins: {
-          ...CHART_DEFAULTS.plugins,
+          ...chartDefaults().plugins,
           tooltip: {
-            ...CHART_DEFAULTS.plugins.tooltip,
+            ...chartDefaults().plugins.tooltip,
             callbacks: {
               label: ctx => {
                 const t = tools[ctx.dataIndex];
