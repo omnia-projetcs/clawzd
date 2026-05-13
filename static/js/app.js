@@ -2312,8 +2312,34 @@
     copyCode(id) {
       const b = document.getElementById(id); if (!b) return;
       const c = b.querySelector('code');
-      navigator.clipboard.writeText(c ? c.textContent : b.textContent);
-      toast(icon('copy') + ' Copied!');
+      const text = c ? c.textContent : b.textContent;
+      
+      const fallbackCopy = (text) => {
+        const textArea = document.createElement("textarea");
+        textArea.value = text;
+        textArea.style.top = "0";
+        textArea.style.left = "0";
+        textArea.style.position = "fixed";
+        document.body.appendChild(textArea);
+        textArea.focus();
+        textArea.select();
+        try {
+          const successful = document.execCommand('copy');
+          if (successful) toast(icon('copy') + ' Copied!');
+          else toast('Copy failed');
+        } catch (err) {
+          toast('Copy failed');
+        }
+        document.body.removeChild(textArea);
+      };
+
+      if (navigator.clipboard && window.isSecureContext) {
+        navigator.clipboard.writeText(text).then(() => {
+          toast(icon('copy') + ' Copied!');
+        }).catch(() => fallbackCopy(text));
+      } else {
+        fallbackCopy(text);
+      }
     },
     applyToEditor(id) {
       if (!window.editor || !window.editor.activeTab) {
