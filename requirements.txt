@@ -107,3 +107,4 @@ sentencepiece>=0.2.0
 openai-whisper>=20231117
 datasets==2.19.2
 kernels >= 0.11.1
+scrapling[fetchers]>=0.4.8
