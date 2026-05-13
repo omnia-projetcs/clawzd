@@ -4,8 +4,12 @@
           <span class="status-version" id="status-version" title="Clawzd version">v{{ app_version }}</span>
         </div>
         <div class="status-bar-center" id="status-subsystems"></div>
-        <div class="status-bar-right" id="sys-health-widget">
+        <div class="status-bar-right" style="display: flex; align-items: center; gap: 10px;">
           <span id="status-model" title="Active model"></span>
+          <div class="token-counter" id="token-counter" style="display:none; cursor: pointer; margin-left: 4px;" title="Click to reset tokens"></div>
+          <div class="perf-indicators" id="perf-indicators" style="display: flex; gap: 8px;"></div>
+          <div id="sys-health-widget" style="display: flex; align-items: center; gap: 10px; border-left: 1px solid var(--border); padding-left: 10px; margin-left: 4px;"></div>
+          <div id="status-notifications" style="display: flex; align-items: center; border-left: 1px solid var(--border); padding-left: 10px;"></div>
         </div>
       </footer>
 

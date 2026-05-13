@@ -59,7 +59,14 @@
     get total() { return this.inputTokens + this.outputTokens; }
 
     _render() {
-      if (!this._el) this._el = document.getElementById('token-counter');
+      if (!this._el) {
+        this._el = document.getElementById('token-counter');
+        if (this._el) {
+          this._el.style.cursor = 'pointer';
+          this._el.title = 'Click to reset tokens';
+          this._el.onclick = () => this.reset();
+        }
+      }
       if (!this._el) return;
       const total = this.total;
       if (total === 0) { this._el.style.display = 'none'; return; }

@@ -30,23 +30,24 @@ const NotificationBadge = (() => {
   }
 
   function _createBadge() {
-    const headerRight = document.querySelector('.header-right');
-    if (!headerRight) return;
+    const container = document.getElementById('status-notifications');
+    if (!container) return;
 
     _badgeEl = document.createElement('button');
     _badgeEl.id = 'notification-badge';
-    _badgeEl.className = 'icon-btn notif-badge';
+    // Style as a flat status-bar button rather than a header icon button
+    _badgeEl.className = 'status-btn notif-badge';
     _badgeEl.title = 'Notifications';
-    _badgeEl.innerHTML = '<svg class="ic" width="16" height="16"><use href="#icon-bell"></use></svg> <span class="notif-count" id="notif-count" style="display:none">0</span>';
+    _badgeEl.innerHTML = '<svg class="ic" width="14" height="14" style="vertical-align:-2px; margin-right:4px;"><use href="#icon-bell"></use></svg><span class="notif-count" id="notif-count" style="display:none; font-size:10px;">0</span>';
+    _badgeEl.style.background = 'transparent';
+    _badgeEl.style.border = 'none';
+    _badgeEl.style.color = 'var(--text-muted)';
+    _badgeEl.style.cursor = 'pointer';
+    _badgeEl.style.display = 'inline-flex';
+    _badgeEl.style.alignItems = 'center';
     _badgeEl.onclick = () => toggle();
 
-    // Insert after theme toggle
-    const themeBtn = document.getElementById('btn-theme-toggle');
-    if (themeBtn && themeBtn.nextSibling) {
-      headerRight.insertBefore(_badgeEl, themeBtn.nextSibling);
-    } else {
-      headerRight.insertBefore(_badgeEl, headerRight.firstChild);
-    }
+    container.appendChild(_badgeEl);
   }
 
   function _createDropdown() {

@@ -2,7 +2,8 @@
 
 .analytics-dashboard {
   display: flex; flex-direction: column; gap: 20px;
-  padding: 24px; height: 100%; overflow-y: auto;
+  padding: 24px; height: 100%; width: 100%; box-sizing: border-box;
+  overflow-y: auto;
   scrollbar-width: thin;
   scrollbar-color: var(--border) transparent;
 }
@@ -211,3 +212,22 @@
   .analytics-dashboard { padding: 12px; }
   .an-kpi-row { grid-template-columns: 1fr; }
 }
+
+/* Light Theme Fixes */
+:root.theme-light .an-chart-card,
+:root.theme-light .an-kpi-card,
+:root.theme-light .an-sessions-section {
+  background: #ffffff;
+  border-color: #e5e7eb;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
+}
+:root.theme-light .an-heatmap-cell {
+  border: 1px solid #e5e7eb;
+  background: #f9fafb;
+}
+:root.theme-light .an-heatmap-cell[data-level="1"] { background: rgba(99, 102, 241, 0.15); border-color: rgba(99, 102, 241, 0.2); }
+:root.theme-light .an-heatmap-cell[data-level="2"] { background: rgba(99, 102, 241, 0.35); border-color: rgba(99, 102, 241, 0.4); }
+:root.theme-light .an-heatmap-cell[data-level="3"] { background: rgba(99, 102, 241, 0.6); border-color: rgba(99, 102, 241, 0.7); }
+:root.theme-light .an-heatmap-cell[data-level="4"] { background: rgba(99, 102, 241, 0.85); border-color: rgba(99, 102, 241, 0.9); }
+:root.theme-light .an-heatmap-cell[data-level="5"] { background: #6366f1; border-color: #4f46e5; }
+
