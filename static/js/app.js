@@ -113,6 +113,59 @@
       const unsupportedTypes = ['architecture-beta', 'architecture'];
       const firstLine = decoded.trim().split('\n')[0].trim().toLowerCase();
       const isUnsupported = unsupportedTypes.some(t => firstLine.startsWith(t));
+
+      // --- Mermaid Sanitizer: fix common cycle-causing issues ---
+      function sanitizeMermaid(src) {
+        const lines = src.split('\n');
+        // 1. Collect all subgraph IDs
+        const subgraphIds = new Set();
+        const subgraphLineMap = new Map(); // lineIndex -> subgraphId
+        lines.forEach((line, i) => {
+          const m = line.match(/^\s*subgraph\s+(\w+)/);
+          if (m) { subgraphIds.add(m[1]); subgraphLineMap.set(i, m[1]); }
+        });
+        // 2. Collect all node IDs (simple heuristic: ID followed by [, (, {, etc.)
+        const nodeIds = new Set();
+        lines.forEach((line, i) => {
+          if (subgraphLineMap.has(i)) return; // skip subgraph lines
+          const trimmed = line.trim();
+          if (!trimmed || trimmed === 'end' || trimmed.startsWith('%%') ||
+              trimmed.startsWith('classDef') || trimmed.startsWith('class ') ||
+              trimmed.startsWith('style ') || trimmed.startsWith('linkStyle') ||
+              /^(flowchart|graph|sequenceDiagram|classDiagram|erDiagram|gantt|pie|mindmap|timeline|stateDiagram)/i.test(trimmed)) return;
+          // Extract node IDs from arrows: A --> B, A --- B, etc.
+          const arrowParts = trimmed.split(/\s*(?:-->|==>|-.->|---->|---|===|~~~|-\.-|--\s|--\||<-->)\s*/);
+          arrowParts.forEach(part => {
+            const nodeMatch = part.match(/^(\w+)/);
+            if (nodeMatch) nodeIds.add(nodeMatch[1]);
+          });
+          // Standalone node definitions: A["label"] or A("label") etc.
+          const standaloneMatch = trimmed.match(/^(\w+)\s*[\[({]/);
+          if (standaloneMatch) nodeIds.add(standaloneMatch[1]);
+        });
+        // 3. Fix conflicts: rename subgraph IDs that clash with node IDs
+        let fixed = src;
+        subgraphIds.forEach(sgId => {
+          if (nodeIds.has(sgId)) {
+            const newId = sgId + '_grp';
+            // Replace "subgraph <id>" and "subgraph <id>[" patterns
+            fixed = fixed.replace(
+              new RegExp('(\\bsubgraph\\s+)' + sgId + '(\\s|\\[|$)', 'gm'),
+              '$1' + newId + '$2'
+            );
+            console.info(`[Mermaid sanitizer] Renamed subgraph "${sgId}" → "${newId}" to avoid cycle`);
+          }
+        });
+        // 4. Remove self-referencing arrows (A --> A)
+        fixed = fixed.replace(/^(\s*)(\w+)\s*(?:-->|==>|-.->|---)\s*\2\s*$/gm, (match, indent, id) => {
+          console.info(`[Mermaid sanitizer] Removed self-reference: ${id} --> ${id}`);
+          return '';
+        });
+        return fixed;
+      }
+
+      const sanitized = sanitizeMermaid(decoded);
+
       const renderMermaid = async (attempt) => {
         const el2 = document.getElementById(id);
         if (!el2) {
@@ -122,7 +175,7 @@
         const showError = (title, detail) => {
           el2.innerHTML = '<div class="mermaid-error" style="color:#f87171;padding:12px;border:1px solid #f8717133;border-radius:8px;font-family:monospace;font-size:13px;margin-bottom:8px;">⚠️ ' + title + '</div>' +
             (detail ? '<div style="color:var(--text-muted);font-size:12px;margin-bottom:8px;padding:0 12px;">' + detail + '</div>' : '') +
-            '<pre style="margin:0;background:var(--bg-primary);border:1px solid var(--border);border-radius:8px;padding:12px;overflow-x:auto;font-family:monospace;font-size:12px;color:var(--text-secondary);"><code>' + escHtml(decoded) + '</code></pre>';
+            '<pre style="margin:0;background:var(--bg-primary);border:1px solid var(--border);border-radius:8px;padding:12px;overflow-x:auto;font-family:monospace;font-size:12px;color:var(--text-secondary);"><code>' + escHtml(sanitized) + '</code></pre>';
         };
         // Step 1: Static check — reject known unsupported diagram types
         if (isUnsupported) {
@@ -133,7 +186,7 @@
         if (!window.mermaid) { showError('Mermaid library not loaded'); return; }
         // Step 2: Pre-validate syntax with mermaid.parse() before rendering
         try {
-          await mermaid.parse(decoded);
+          await mermaid.parse(sanitized);
         } catch (parseErr) {
           console.warn('Mermaid parse validation failed:', parseErr);
           showError('Diagram syntax error: ' + escHtml(parseErr.message || String(parseErr)),
@@ -142,7 +195,7 @@
         }
         // Step 3: Syntax valid — proceed to full render
         try {
-          const r = await mermaid.render('mmr-' + id, decoded);
+          const r = await mermaid.render('mmr-' + id, sanitized);
           el2.innerHTML = r.svg;
         } catch (e) {
           console.warn('Mermaid render error:', e);
@@ -158,7 +211,7 @@
         `<button class="code-action-btn" onclick="OC.exportMermaidMd('${id}')">${icon('download', 14)} Export MD</button>` +
         `<button class="code-action-btn" onclick="OC.exportMermaidSvg('${id}')">${icon('download', 14)} Export SVG</button>` +
         `</div>` +
-        `<div class="mermaid-container" id="${id}" data-code="${escHtml(decoded)}" style="background:var(--bg-secondary); border-radius:8px; padding:16px;">Loading diagram...</div>` +
+        `<div class="mermaid-container" id="${id}" data-code="${escHtml(sanitized)}" style="background:var(--bg-secondary); border-radius:8px; padding:16px;">Loading diagram...</div>` +
         `</div>`
       );
     });
