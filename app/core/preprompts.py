@@ -78,14 +78,10 @@ _FRAG_SECURITY = (
 _FRAG_CODE_QUALITY = ""  # Merged into _FRAG_SECURITY via dev_best_practices.md
 
 _FRAG_FILE_RULES = (
-    "FILE CREATION: Output a Markdown code block with the exact filename "
-    "as a comment on the FIRST LINE inside the block. Example:\n"
-    "```python\n"
-    "# app/main.py\n"
-    "print('Hello World')\n"
-    "```\n"
-    "FILE EDITING: Use `edit_file` tool with unique `old_string` → `new_string`. "
-    "NEVER output full file contents.\n"
+    "FILE CREATION AND EDITING: YOU MUST ALWAYS modify files directly using the `edit_file` tool.\n"
+    "- To edit an existing file, use `edit_file` with a unique `old_string` and the updated `new_string`.\n"
+    "- To create a new file, use `edit_file` with an empty `old_string` and provide the full content in `new_string`.\n"
+    "CRITICAL: NEVER output markdown code blocks with file contents in the chat. You must directly apply all code modifications to the files using the tools.\n"
 )
 
 _FRAG_UI_EXCELLENCE = (
