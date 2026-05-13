@@ -50,12 +50,14 @@ Available tools:
 {_CATALOG_STR}
 
 Rules:
-1. Output ONLY a valid JSON array, example: ["generate_image"] or [] or ["search_web","execute_python"]
-2. Only include tools the user EXPLICITLY needs. When in doubt, output [].
-3. "generate_image" means the user wants a VISUAL IMAGE OUTPUT — not code, not HTML, not a diagram.
-4. Writing code (HTML, CSS, JS, Python…) or designing a UI layout = [] (no special tool needed).
-5. The user may write in any language — classify the INTENT, not the language.
-6. Output [] for general questions, explanations, or conversational messages.
+1. Output ONLY a valid JSON array of STRINGS. Example: ["generate_image"] or [] or ["search_web","execute_python"]
+2. NEVER output sets like {{"tool"}} or objects like {{"tool":"name"}}. ONLY ["tool_name"] format.
+3. Only include tools the user EXPLICITLY needs. When in doubt, output [].
+4. "generate_image" means the user wants a VISUAL IMAGE OUTPUT — not code, not HTML, not a diagram.
+5. Writing code (HTML, CSS, JS, Python…) or designing a UI layout = [] (no special tool needed).
+6. The user may write in any language — classify the INTENT, not the language.
+7. Output [] for general questions, explanations, or conversational messages.
+8. If the user asks to visit, view, look at, show, or navigate to a website/URL → ["browse_web"]
 """
 
 # ---------------------------------------------------------------------------
@@ -87,22 +89,44 @@ def _get_classifier_models() -> list[str]:
 
 
 def _parse_tool_array(raw: str) -> list[str]:
-    """Extract the JSON array from the LLM response, tolerating noise."""
+    """Extract the JSON array from the LLM response, tolerating noise.
+
+    Handles malformed outputs like:
+      - [{"browse_web"}]   (Python set literal)
+      - {"browse_web"}     (bare set/object)
+      - ["browse_web"]     (valid JSON)
+      - browse_web         (bare tool name)
+    """
     raw = raw.strip()
     # Remove <think>…</think> blocks if the model leaks reasoning
     raw = re.sub(r"<think>.*?</think>", "", raw, flags=re.DOTALL).strip()
-    # Find the first JSON array
+
+    known = {name for name, _ in _TOOL_CATALOG}
+
+    # 1) Try standard JSON parse first (best case)
     match = re.search(r"\[.*?\]", raw, re.DOTALL)
-    if not match:
-        return []
-    try:
-        result = json.loads(match.group(0))
-        if isinstance(result, list):
-            # Filter to known tool names only
-            known = {name for name, _ in _TOOL_CATALOG}
-            return [t for t in result if isinstance(t, str) and t in known]
-    except (json.JSONDecodeError, ValueError):
-        pass
+    if match:
+        try:
+            result = json.loads(match.group(0))
+            if isinstance(result, list):
+                found = [t for t in result if isinstance(t, str) and t in known]
+                if found:
+                    return found
+        except (json.JSONDecodeError, ValueError):
+            pass
+
+    # 2) Fallback: extract all quoted strings that match known tool names
+    #    Handles [{"browse_web"}], {"browse_web"}, "browse_web", etc.
+    quoted = re.findall(r'["\']([a-z_]+)["\']', raw)
+    found = [t for t in quoted if t in known]
+    if found:
+        return list(dict.fromkeys(found))  # deduplicate, preserve order
+
+    # 3) Last resort: check if the raw text contains a bare tool name
+    for name in known:
+        if name in raw:
+            return [name]
+
     return []
 
 
