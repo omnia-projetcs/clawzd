@@ -1459,10 +1459,21 @@ async def _process_chat(session_id: str, data: dict) -> dict:
 
                     # Stream images inline if the tool returned any
                     if isinstance(result, dict):
-                        # Matplotlib plots (multiple images)
+                        # Matplotlib plots (multiple images) — save to disk
                         if result.get("images"):
+                            import base64 as _b64_dec
+                            import uuid as _uuid_plot
                             for idx, b64 in enumerate(result["images"], 1):
-                                img_md = f"\n\n![Plot {idx}](data:image/png;base64,{b64})\n\n"
+                                plot_fname = f"plot_{_uuid_plot.uuid4().hex[:10]}.png"
+                                plot_path = _os.path.join(_images_dir, plot_fname)
+                                try:
+                                    with open(plot_path, "wb") as _pf:
+                                        _pf.write(_b64_dec.b64decode(b64))
+                                    file_url = f"/data/images/{plot_fname}"
+                                    img_md = f"\n\n__IMG__{file_url}|Plot {idx}|{plot_fname}__IMG__\n\n"
+                                except Exception as _plot_err:
+                                    logger.warning("Failed to save plot %d: %s", idx, _plot_err)
+                                    img_md = f"\n\n⚠️ *Plot {idx} could not be saved.*\n\n"
                                 await queue.put(img_md)
                                 full_conversation += img_md
                         # SVG images (inline SVG content)
