@@ -429,6 +429,25 @@
               .replace(/&/g, '&amp;').replace(/</g, '&lt;')
               .replace(/>/g, '&gt;');
             detailContent = `<pre style="margin:8px 0;background:var(--bg-primary);border:1px solid var(--border);border-radius:var(--radius-sm);padding:12px;overflow-x:auto;"><code class="language-python">${safeCode}</code></pre>`;
+          } else if (toolLabel === 'create_app' || toolLabel === 'update_app') {
+            let filesHtml = '';
+            const files = params.files || {};
+            for (const [fname, content] of Object.entries(files)) {
+                let lang = 'html';
+                if (fname.endsWith('.css')) lang = 'css';
+                if (fname.endsWith('.js')) lang = 'javascript';
+                const safeContent = (typeof content === 'string' ? content : JSON.stringify(content))
+                    .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+                filesHtml += `<div style="font-weight:bold;margin:8px 0 4px 0;color:var(--text-secondary);font-size:12px;">📄 ${escHtml(fname)}</div>`;
+                filesHtml += `<pre style="margin:0 0 12px 0;background:var(--bg-primary);border:1px solid var(--border);border-radius:var(--radius-sm);padding:12px;overflow-x:auto;"><code class="language-${lang}">${safeContent}</code></pre>`;
+            }
+            if (!filesHtml) {
+               const safeJson = JSON.stringify(params, null, 2)
+                 .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+               detailContent = `<pre style="margin:8px 0;background:var(--bg-primary);border:1px solid var(--border);border-radius:var(--radius-sm);padding:12px;overflow-x:auto;font-size:12px;"><code>${safeJson}</code></pre>`;
+            } else {
+               detailContent = filesHtml;
+            }
           } else {
             // Show params as formatted JSON
             const safeJson = JSON.stringify(params, null, 2)
@@ -439,8 +458,21 @@
       } catch (e) {
         // Not valid JSON — show raw content but clean up escaped newlines so it's readable during streaming
         isTool = true; // Still treat as tool if it's truncated/streaming
-        const readableContent = content.replace(/\\n/g, '\n').replace(/\\"/g, '"');
-        detailContent = `<pre style="margin:8px 0;background:var(--bg-primary);border:1px solid var(--border);border-radius:var(--radius-sm);padding:12px;overflow-x:auto;"><code>${readableContent}</code></pre>`;
+        if (match.includes('```create_app') || match.includes('```update_app')) {
+            toolLabel = match.includes('```create_app') ? 'create_app' : 'update_app';
+        } else if (match.includes('```execute_python') || match.includes('```python')) {
+            toolLabel = 'execute_python';
+        }
+        let readableContent = content.replace(/\\n/g, '\n').replace(/\\"/g, '"');
+        let langClass = '';
+        if (toolLabel === 'create_app' || toolLabel === 'update_app') {
+            langClass = ' class="language-html"';
+            if (readableContent.trim().toLowerCase().startsWith('html\n')) readableContent = readableContent.trim().substring(5);
+        } else if (toolLabel === 'execute_python') {
+            langClass = ' class="language-python"';
+        }
+        const safeContent = readableContent.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+        detailContent = `<pre style="margin:8px 0;background:var(--bg-primary);border:1px solid var(--border);border-radius:var(--radius-sm);padding:12px;overflow-x:auto;"><code${langClass}>${safeContent}</code></pre>`;
       }
 
       if (!isTool) return match; // Fallback to normal code block rendering for non-tool JSON

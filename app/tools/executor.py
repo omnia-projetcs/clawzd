@@ -956,8 +956,43 @@ async def execute_tool(tool_name: str, params: dict, context: dict = None) -> di
             visual = params.get("visual")
             session_id = (context or {}).get("session_id")
 
+            if files and not isinstance(files, dict):
+                return {"error": "'files' must be a dictionary mapping filenames to code strings."}
+            
+            if not files and template == "blank":
+                # Fallback: if LLM emitted bare code, it's stored in "query"
+                if "query" in params and params["query"].strip():
+                    q = params["query"].strip()
+                    if q.lower().startswith("html"):
+                        q = q[4:].strip()
+                    files = {"index.html": q}
+                else:
+                    return {
+                        "error": (
+                            "The 'files' dictionary is empty. You MUST include your HTML/CSS/JS code "
+                            "INSIDE the 'files' parameter of the JSON payload. "
+                            "Do NOT write code in markdown blocks outside the JSON."
+                        )
+                    }
+
             # --- Validate generated code BEFORE publishing ---
             if files:
+                # Unnest if LLM put files inside a sub-key like {"app": {"index.html": "..."}}
+                if len(files) == 1 and isinstance(list(files.values())[0], dict):
+                    files = list(files.values())[0]
+
+                # Normalize common LLM mistakes in filenames
+                normalized = {}
+                for k, v in files.items():
+                    if not isinstance(v, str):
+                        v = str(v)
+                    k_lower = k.lower()
+                    if k_lower in ("html", "index", "index.htm"): k = "index.html"
+                    elif k_lower in ("css", "style", "styles", "styles.css"): k = "style.css"
+                    elif k_lower in ("js", "javascript", "script", "app", "main.js"): k = "app.js"
+                    normalized[k] = v
+                files = normalized
+
                 validation = validate_app_files(files)
                 if not validation["valid"]:
                     error_list = "\n".join(f"  • {e}" for e in validation["errors"])
@@ -986,10 +1021,36 @@ async def execute_tool(tool_name: str, params: dict, context: dict = None) -> di
             if not app_id:
                 return {"error": "app_id is required"}
             if not files and name is None and icon is None and visual is None:
-                return {"error": "At least one of files, name, icon, or visual is required to update"}
+                # Fallback: if LLM emitted bare code, it's stored in "query"
+                if "query" in params and params["query"].strip():
+                    q = params["query"].strip()
+                    if q.lower().startswith("html"):
+                        q = q[4:].strip()
+                    files = {"index.html": q}
+                else:
+                    return {"error": "At least one of files, name, icon, or visual is required to update"}
+
+            if files and not isinstance(files, dict):
+                return {"error": "'files' must be a dictionary mapping filenames to code strings."}
 
             # --- Validate generated code BEFORE updating ---
             if files:
+                # Unnest if LLM put files inside a sub-key like {"app": {"index.html": "..."}}
+                if len(files) == 1 and isinstance(list(files.values())[0], dict):
+                    files = list(files.values())[0]
+
+                # Normalize common LLM mistakes in filenames
+                normalized = {}
+                for k, v in files.items():
+                    if not isinstance(v, str):
+                        v = str(v)
+                    k_lower = k.lower()
+                    if k_lower in ("html", "index", "index.htm"): k = "index.html"
+                    elif k_lower in ("css", "style", "styles", "styles.css"): k = "style.css"
+                    elif k_lower in ("js", "javascript", "script", "app", "main.js"): k = "app.js"
+                    normalized[k] = v
+                files = normalized
+
                 validation = validate_app_files(files)
                 if not validation["valid"]:
                     error_list = "\n".join(f"  • {e}" for e in validation["errors"])
