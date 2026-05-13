@@ -119,24 +119,20 @@ html, body {
 /* ---- Token Counter ---- */
 .token-counter {
   display: flex; align-items: center; gap: 6px;
-  padding: 3px 10px; border-radius: 20px;
-  background: rgba(26,26,46,.7); border: 1px solid var(--border);
   font-family: 'JetBrains Mono', 'Fira Code', monospace;
   font-size: 11px; font-weight: 600;
-  backdrop-filter: blur(8px);
+  border-left: 1px solid var(--border);
+  padding-left: 10px;
   animation: fadeIn .3s ease;
 }
 .tc-item {
   display: flex; align-items: center; gap: 3px;
-  padding: 1px 5px; border-radius: 4px;
   white-space: nowrap;
 }
 .tc-sent { color: var(--blue); }
 .tc-recv { color: var(--green); }
 .tc-total {
   color: var(--accent);
-  background: rgba(124,92,252,.1);
-  border-radius: 4px; padding: 1px 6px;
 }
 
 /* ---- Buttons ---- */

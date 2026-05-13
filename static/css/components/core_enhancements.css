@@ -97,10 +97,8 @@ kbd {
   display: flex;
   align-items: center;
   gap: 4px;
-  padding: 2px 8px;
-  background: var(--bg-tertiary, #252532);
-  border-radius: 6px;
-  border: 1px solid rgba(255, 255, 255, 0.04);
+  padding-left: 10px;
+  border-left: 1px solid var(--border, #2d2d3d);
   transition: opacity 0.3s ease;
 }
 
