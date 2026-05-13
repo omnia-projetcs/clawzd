@@ -186,9 +186,22 @@
   // ---- Token Usage Chart ----
 
   function renderTokenChart(data) {
-    if (!data || !data.buckets || !data.buckets.length) return;
     const ctx = $('#an-chart-tokens');
     if (!ctx) return;
+    const container = ctx.parentElement;
+
+    if (!data || !data.buckets || !data.buckets.length) {
+      if (tokenChart) tokenChart.destroy();
+      ctx.style.display = 'none';
+      if (!container.querySelector('.an-empty-chart')) {
+        container.insertAdjacentHTML('beforeend', '<div class="an-empty-chart" style="position:absolute;inset:0;display:flex;align-items:center;justify-content:center;color:var(--text-muted);font-style:italic;font-size:12px;">No token data available</div>');
+      }
+      return;
+    }
+
+    ctx.style.display = '';
+    const emptyMsg = container.querySelector('.an-empty-chart');
+    if (emptyMsg) emptyMsg.remove();
 
     const labels = data.buckets.map(b => {
       const d = new Date(b.timestamp);
@@ -239,9 +252,22 @@
   // ---- Model Performance Chart ----
 
   function renderModelChart(data) {
-    if (!data || !data.models || !data.models.length) return;
     const ctx = $('#an-chart-models');
     if (!ctx) return;
+    const container = ctx.parentElement;
+
+    if (!data || !data.models || !data.models.length) {
+      if (modelChart) modelChart.destroy();
+      ctx.style.display = 'none';
+      if (!container.querySelector('.an-empty-chart')) {
+        container.insertAdjacentHTML('beforeend', '<div class="an-empty-chart" style="position:absolute;inset:0;display:flex;align-items:center;justify-content:center;color:var(--text-muted);font-style:italic;font-size:12px;">No model data available</div>');
+      }
+      return;
+    }
+
+    ctx.style.display = '';
+    const emptyMsg = container.querySelector('.an-empty-chart');
+    if (emptyMsg) emptyMsg.remove();
 
     const models = data.models.slice(0, 8);
 
@@ -300,9 +326,22 @@
   // ---- Tool Savings Doughnut ----
 
   function renderToolChart(data) {
-    if (!data || !data.tools || !data.tools.length) return;
     const ctx = $('#an-chart-tools');
     if (!ctx) return;
+    const container = ctx.parentElement;
+
+    if (!data || !data.tools || !data.tools.length) {
+      if (toolChart) toolChart.destroy();
+      ctx.style.display = 'none';
+      if (!container.querySelector('.an-empty-chart')) {
+        container.insertAdjacentHTML('beforeend', '<div class="an-empty-chart" style="position:absolute;inset:0;display:flex;align-items:center;justify-content:center;color:var(--text-muted);font-style:italic;font-size:12px;">No tool data available</div>');
+      }
+      return;
+    }
+
+    ctx.style.display = '';
+    const emptyMsg = container.querySelector('.an-empty-chart');
+    if (emptyMsg) emptyMsg.remove();
 
     const tools = data.tools.slice(0, 8);
 
@@ -344,7 +383,12 @@
 
   function renderHeatmap(data) {
     const container = $('#an-heatmap-container');
-    if (!container || !data || !data.heatmap) return;
+    if (!container) return;
+
+    if (!data || !data.heatmap || !data.heatmap.length) {
+      container.innerHTML = '<div class="an-empty-chart" style="position:absolute;inset:0;display:flex;align-items:center;justify-content:center;color:var(--text-muted);font-style:italic;font-size:12px;">No heatmap data available</div>';
+      return;
+    }
 
     const maxVal = Math.max(
       1,
