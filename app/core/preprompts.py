@@ -132,7 +132,7 @@ PREPROMPTS: dict[str, dict] = {
         "description": "No system prompt — raw conversation.",
         "system_prompt": (
             _FRAG_CORE
-            + "- For info/data requests, use search_web.\n"
+            + "- For factual info/data questions, use search_web. But if the user asks to SEE/VIEW/SHOW/VISIT a website, use `screenshot_remote` instead.\n"
             "- For calculations/charts, use execute_python.\n"
             "- To edit files, use `edit_file`/`read_file`. NEVER output full files.\n"
             + _FRAG_TOOL_FORMAT

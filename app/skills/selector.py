@@ -205,8 +205,10 @@ def get_skill_catalog_entry(skill_name: str) -> str:
 
 _TOOL_FULL_INSTRUCTIONS: dict[str, str] = {
     "screenshot_remote": (
-        "screenshot_remote — capture webpage.\n"
-        '```tool_call\n{"tool":"screenshot_remote","params":{"url":"URL"}}\n```'
+        "screenshot_remote — take a visual screenshot of any website/URL and extract its text content. "
+        "ALWAYS use this when the user asks to SEE, VIEW, SHOW, VISIT, or LOOK AT a website/page. "
+        "Do NOT use search_web for this — screenshot_remote gives a real visual capture.\n"
+        '```tool_call\n{"tool":"screenshot_remote","params":{"url":"https://example.com"}}\n```'
     ),
     "screenshot_local": (
         "screenshot_local — capture local desktop.\n"
@@ -220,10 +222,6 @@ _TOOL_FULL_INSTRUCTIONS: dict[str, str] = {
     "generate_animation": (
         "generate_animation — generate GIF/MP4 animation.\n"
         '```tool_call\n{"tool":"generate_animation","params":{"prompt":"desc","format":"gif"}}\n```'
-    ),
-    "screenshot_remote": (
-        "screenshot_remote — capture screenshot + extract text from any website/URL.\n"
-        '```tool_call\n{"tool":"screenshot_remote","params":{"url":"URL"}}\n```'
     ),
     "execute_python": (
         'execute_python — run Python code (risky SQL needs "confirmed":true).\n'
