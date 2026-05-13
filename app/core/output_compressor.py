@@ -421,7 +421,7 @@ def _compress_generic_command(stdout: str, stderr: str, returncode: int) -> str:
 # Search results compression
 # ---------------------------------------------------------------------------
 
-def compress_search_results(results: list[dict], max_results: int = 8) -> str:
+def compress_search_results(results: list[dict], max_results: int = 12) -> str:
     """Compress search results — keep a reasonable number of results and lengths."""
     if not results:
         return "No results."
@@ -429,7 +429,7 @@ def compress_search_results(results: list[dict], max_results: int = 8) -> str:
     lines = []
     for i, r in enumerate(results[:max_results], 1):
         title = r.get("title", "N/A")[:150]
-        snippet = r.get("snippet", "")[:400]
+        snippet = r.get("snippet", "")[:500]
         url = r.get("url", "")
         lines.append(f"{i}. {title} ({url})")
         if snippet:

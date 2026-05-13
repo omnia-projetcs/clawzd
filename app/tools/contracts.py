@@ -45,7 +45,7 @@ class RunCommandParams(BaseModel):
 class SearchWebParams(BaseModel):
     """Parameters for the search_web tool."""
     query: str = Field(..., description="Search query")
-    max_results: int = Field(50, description="Maximum number of results", ge=1, le=100)
+    max_results: int = Field(10, description="Maximum number of results", ge=1, le=100)
 
 
 class ScreenshotRemoteParams(BaseModel):

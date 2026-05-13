@@ -643,7 +643,7 @@ async def execute_tool(tool_name: str, params: dict, context: dict = None) -> di
         if resolved == "search_web":
             from app.tools_web import search_web
             query = params.get("query", "")
-            max_results = params.get("max_results", 50)
+            max_results = params.get("max_results", 10)
             result = await search_web(query=query, max_results=max_results)
             return result
 

@@ -1451,6 +1451,22 @@ async def _process_chat(session_id: str, data: dict) -> dict:
                         await queue.put(result_preview)
                         full_conversation += result_preview
                         _active_generations[session_id] = full_conversation
+                    elif (resolved or tool_name) == "search_web" and isinstance(result, dict) and result.get("results"):
+                        # Stream search results as a visible collapsible block
+                        search_items = result["results"]
+                        search_lines = []
+                        for idx, sr in enumerate(search_items[:10], 1):
+                            title = sr.get("title", "N/A")[:120]
+                            url = sr.get("url", "")
+                            snippet = sr.get("snippet", "")[:200]
+                            search_lines.append(f"**{idx}. [{title}]({url})**")
+                            if snippet:
+                                search_lines.append(f"   {snippet}")
+                        search_md = "\n".join(search_lines)
+                        search_preview = f"\n\n✅ **{len(search_items)} résultat(s) trouvé(s) :**\n\n{search_md}\n\n"
+                        await queue.put(search_preview)
+                        full_conversation += search_preview
+                        _active_generations[session_id] = full_conversation
                     else:
                         # For other tools, do not stream raw text to avoid double results
                         status_done = f"✅ *Done.*\n\n"
