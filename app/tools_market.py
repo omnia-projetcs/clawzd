@@ -64,6 +64,7 @@ def _fetch_crypto(symbol: str, interval: str = "1d",
         "count": len(out),
         "columns": ["timestamp", "open", "high", "low", "close", "volume"],
         "data": out.values.tolist(),
+        "hint": "To chart this data, use execute_python with: import pandas as pd; df = pd.DataFrame(data, columns=columns); then plot with matplotlib.",
     }
 
 
@@ -134,6 +135,7 @@ def _fetch_stock(symbol: str, period: str = "1mo",
         "count": len(out),
         "columns": list(out.columns),
         "data": out.values.tolist(),
+        "hint": "To chart this data, use execute_python with: import pandas as pd; df = pd.DataFrame(data, columns=columns); then plot with matplotlib.",
     }
 
 
