@@ -38,6 +38,8 @@
           href="/static/css/studios/_spec.css?v={{ app_version }}">
     <link rel="stylesheet"
           href="/static/css/studios/_clone.css?v={{ app_version }}">
+    <link rel="stylesheet"
+          href="/static/css/studios/_analytics.css?v={{ app_version }}">
     <link id="hljs-theme"
           rel="stylesheet"
           href="/static/css/github-dark.min.css?v={{ app_version }}">
@@ -62,6 +64,7 @@
         {% include 'partials/research_studio.html' %}
         {% include 'partials/media_studio.html' %}
         {% include 'partials/project_studio.html' %}
+        {% include 'partials/analytics_studio.html' %}
       </main>
       {% include 'partials/modals_overlay.html' %}
       {% include 'partials/status_bar.html' %}
@@ -87,6 +90,7 @@
     <script src="/static/js/studios/presentation.js?v={{ app_version }}"></script>
     <script src="/static/js/studios/automation.js?v={{ app_version }}"></script>
     <script src="/static/js/studios/clone.js?v={{ app_version }}"></script>
+    <script src="/static/js/studios/analytics.js?v={{ app_version }}"></script>
     <script src="/static/js/components/twitter_watch.js?v={{ app_version }}"></script>
     <script src="/static/js/components/skill_catalog.js?v={{ app_version }}"></script>
     <script src="/static/js/components/structured_ui.js?v={{ app_version }}"></script>

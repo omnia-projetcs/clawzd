@@ -2733,7 +2733,7 @@
 
 
   function applyToolVisibility(settings) {
-    const tools = ['automation', 'research', 'media', 'presentation', 'project', 'editor'];
+    const tools = ['automation', 'research', 'media', 'presentation', 'project', 'editor', 'analytics'];
     let currentModeHidden = false;
     const currentMode = sessionStorage.getItem('pt-active-mode') || 'chat';
 
@@ -2813,6 +2813,9 @@
     // Project Studio
     if (window.ProjectStudio) window.projectStudio = new ProjectStudio();
 
+    // Analytics Studio
+    if (window.AnalyticsStudio) window.analyticsStudio = new AnalyticsStudio();
+
     // Task Indicator (persistent task badges on mode buttons)
     if (window.TaskIndicator) window.taskIndicator = new TaskIndicator();
 
@@ -2865,6 +2868,7 @@
         }
         window.researchStudio?.toggle(mode === 'research');
         window.projectStudio?.toggle(mode === 'project');
+        window.analyticsStudio?.toggle(mode === 'analytics');
 
         // Handle chat visibility globally
         const chatPanel = $('#chat-panel');

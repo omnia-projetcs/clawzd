@@ -301,6 +301,10 @@ app.include_router(enhance_router, prefix="/api")
 from app.routers.openai_api import router as openai_api_router
 app.include_router(openai_api_router, prefix="/v1")
 
+# Analytics Dashboard (fleet overview + charts)
+from app.routers.dashboard import router as dashboard_analytics_router
+app.include_router(dashboard_analytics_router, prefix="/dashboard")
+
 # --- Tool Permissions API (HITL approval) ---
 
 @app.get("/api/tool-permissions")
