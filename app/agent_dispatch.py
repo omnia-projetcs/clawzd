@@ -179,7 +179,7 @@ AGENT_TOOL_POLICIES: dict[str, dict] = {
     },
     "researcher": {
         "allowed_tools": [
-            "search_web", "browse_web", "rag_search", "read_file",
+            "search_web", "screenshot_remote", "rag_search", "read_file",
             "screenshot_remote", "search_twitter", "search_linkedin",
         ],
         "max_tool_rounds": 6,

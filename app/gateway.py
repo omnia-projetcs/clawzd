@@ -1390,7 +1390,7 @@ async def _process_chat(session_id: str, data: dict) -> dict:
                     try:
                         from app.core.notifications import notify_tool_complete
                         _long_tools = {"generate_image", "generate_animation", "audit_code",
-                                       "screenshot_remote", "browse_web", "search_web"}
+                                       "screenshot_remote", "search_web"}
                         if (resolved or tool_name) in _long_tools:
                             success = "error" not in result
                             notify_tool_complete(

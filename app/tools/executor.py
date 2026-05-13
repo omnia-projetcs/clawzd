@@ -57,10 +57,7 @@ TOOL_KEYWORDS: dict[str, list[str]] = {
     "rag_search": [
         "knowledge", "rag", "document", "base", "memory", "recall",
     ],
-    "browse_web": [
-        "browse", "navigate", "open", "click", "fill", "form", "interact",
-        "scrape", "extract",
-    ],
+
     "edit_file": [
         "edit", "file", "modify", "replace", "change", "write", "update",
         "patch", "refactor",
@@ -165,7 +162,8 @@ TOOL_ALIASES: dict[str, str] = {
     "internet-search": "search_web",
     "google-search": "search_web",
     "web_scraper": "search_web",
-    "web_scraping": "browse_web",
+    "web_scraping": "screenshot_remote",
+    "browse_web": "screenshot_remote",
     # Code variants
     "code-executor": "execute_python",
     "python-executor": "execute_python",
@@ -443,8 +441,7 @@ def _adapt_params(resolved_tool: str, original_tool: str, params: dict) -> dict:
         query = params.get("query", _extract_query_from_params(params, original_tool))
         return {"query": query, "k": params.get("k", 3)}
 
-    elif resolved_tool == "browse_web":
-        return {"url": params.get("url", ""), "actions": params.get("actions", [])}
+
 
     elif resolved_tool == "edit_file":
         return {
@@ -766,21 +763,6 @@ async def execute_tool(tool_name: str, params: dict, context: dict = None) -> di
             k = params.get("k", 3)
             return await search(query=query, k=k)
 
-        elif resolved == "browse_web":
-            url = params.get("url", "")
-            if not url:
-                return {"error": "URL is required"}
-            actions = params.get("actions", [])
-            # Try Playwright-based automation first
-            try:
-                from app.tools_browser import execute_actions
-                return await execute_actions(
-                    url, actions, take_final_screenshot=True,
-                )
-            except (ImportError, HTTPException):
-                # Fallback to simulated browser (requests + BeautifulSoup)
-                from app.web_browser_simul import simul_browse
-                return await simul_browse(url, actions)
 
         elif resolved == "create_document":
             from app.tools_document import create_document_core
@@ -1251,7 +1233,7 @@ async def _generate_animation_direct(prompt: str, format: str = "gif", duration:
 _TOOL_FENCE_NAMES = (
     "tool_call|tool|json"
     "|execute_python|search_web|screenshot_remote|screenshot_local"
-    "|generate_image|generate_animation|run_command|browse_web|audit_code|rag_search"
+    "|generate_image|generate_animation|run_command|audit_code|rag_search"
     "|edit_file|read_file|create_document"
     "|send_email|post_to_twitter|post_to_linkedin|post_to_medium|trigger_n8n"
     "|memory|rebuild_skill|search_twitter|search_linkedin"

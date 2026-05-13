@@ -42,8 +42,6 @@ def summarize_tool_result(tool_name: str, params: dict, result_text: str) -> str
         return f"[audit_code] mode={params.get('mode', 'quick')} ({cl:,} chars)"
     if tool_name == "rag_search":
         return f"[rag_search] query='{params.get('query', '?')}' ({cl:,} chars)"
-    if tool_name == "browse_web":
-        return f"[browse_web] {params.get('url', '?')} ({cl:,} chars)"
     if tool_name == "edit_file":
         return f"[edit_file] {params.get('file_path', '?')} ({cl:,} chars)"
     if tool_name == "read_file":

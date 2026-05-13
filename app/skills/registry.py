@@ -338,7 +338,6 @@ HARDCODED_TOOLS: list[dict] = [
     {"name": "screenshot_local",   "description": "Capture local desktop screenshot",                          "category": "media"},
     {"name": "generate_image",     "description": "Generate an image from text (SVG / Stable Diffusion)",      "category": "media"},
     {"name": "generate_animation", "description": "Generate an animation / video from text",                   "category": "media"},
-    {"name": "browse_web",         "description": "Navigate and interact with a web page",                     "category": "web"},
     {"name": "audit_code",         "description": "Audit code for security & quality",                         "category": "code"},
     {"name": "rag_search",         "description": "Search knowledge base (RAG)",                               "category": "data"},
     {"name": "edit_file",          "description": "Edit a file in the workspace",                              "category": "code"},

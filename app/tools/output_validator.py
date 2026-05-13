@@ -47,7 +47,7 @@ def validate_code_fences(text: str) -> tuple[str, list[str]]:
 
 _KNOWN_TOOLS = {
     "execute_python", "search_web", "screenshot_remote", "screenshot_local",
-    "generate_image", "generate_animation", "run_command", "browse_web",
+    "generate_image", "generate_animation", "run_command",
     "audit_code", "rag_search", "edit_file", "read_file", "create_document",
     "send_email", "post_to_twitter", "post_to_linkedin", "post_to_medium",
     "trigger_n8n", "memory", "rebuild_skill", "search_twitter",

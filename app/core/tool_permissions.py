@@ -69,8 +69,6 @@ DEFAULT_PERMISSIONS: dict[str, str] = {
     # Security/audit — always (read-only analysis)
     "audit_code": "always",
 
-    # Web automation — ask (can interact with external sites)
-    "browse_web": "ask",
 
     # Skills & memory — always
     "create_skill": "always",

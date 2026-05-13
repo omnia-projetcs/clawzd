@@ -97,10 +97,6 @@ class RagSearchParams(BaseModel):
     k: int = Field(3, description="Number of results to return", ge=1, le=10)
 
 
-class BrowseWebParams(BaseModel):
-    """Parameters for the browse_web tool."""
-    url: str = Field(..., description="URL to navigate to")
-    actions: list = Field(default_factory=list, description="Browser actions to perform")
 
 
 class CreateDocumentParams(BaseModel):
@@ -146,7 +142,7 @@ _TOOL_SCHEMAS: dict[str, type[BaseModel]] = {
     "read_file": ReadFileParams,
     "audit_code": AuditCodeParams,
     "rag_search": RagSearchParams,
-    "browse_web": BrowseWebParams,
+
     "create_document": CreateDocumentParams,
     "memory": MemoryParams,
     "send_email": SendEmailParams,

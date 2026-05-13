@@ -28,8 +28,7 @@ _TOOL_CATALOG = [
     ("audit_code",        "User wants a security audit, code review, or vulnerability scan."),
     ("run_command",       "User wants to run a shell/terminal command on their machine."),
     ("screenshot_local",  "User wants to capture a screenshot of their local desktop/screen."),
-    ("screenshot_remote", "User wants a screenshot of a remote webpage or URL."),
-    ("browse_web",        "User wants to navigate, interact with, or automate a website."),
+    ("screenshot_remote", "User wants to see, visit, view, navigate to, or screenshot a remote webpage, URL, or website."),
     ("create_document",   "User wants to create a Word document, PDF, spreadsheet, or markdown report."),
     ("rag_search",        "User wants to search their private knowledge base or uploaded documents."),
     ("memory",            "User wants to save, remember, or recall information about themselves."),
@@ -57,7 +56,7 @@ Rules:
 5. Writing code (HTML, CSS, JS, Python…) or designing a UI layout = [] (no special tool needed).
 6. The user may write in any language — classify the INTENT, not the language.
 7. Output [] for general questions, explanations, or conversational messages.
-8. If the user asks to visit, view, look at, show, or navigate to a website/URL → ["browse_web"]
+8. If the user asks to visit, view, look at, show, or navigate to a website/URL → ["screenshot_remote"]
 """
 
 # ---------------------------------------------------------------------------

@@ -47,7 +47,7 @@ AGENT_MODES: dict[str, dict] = {
         "icon": "🏗️",
         "allowed_tools": [
             "search_web", "read_file", "list_files", "run_command",
-            "browse_web", "rag_search", "graphify_query",
+            "screenshot_remote", "rag_search", "graphify_query",
             "graphify_explain", "graphify_path",
         ],
         "blocked_tools": ["edit_file", "execute_python", "create_app"],
@@ -60,7 +60,7 @@ AGENT_MODES: dict[str, dict] = {
         "label": "Write",
         "icon": "✍️",
         "allowed_tools": [
-            "search_web", "read_file", "rag_search", "browse_web",
+            "search_web", "read_file", "rag_search", "screenshot_remote",
             "create_document", "edit_file",
         ],
         "blocked_tools": ["execute_python", "run_command"],
@@ -84,7 +84,7 @@ AGENT_MODES: dict[str, dict] = {
         "label": "Design",
         "icon": "🎨",
         "allowed_tools": [
-            "search_web", "browse_web", "generate_image",
+            "search_web", "screenshot_remote", "generate_image",
             "generate_animation", "create_app", "update_app",
             "edit_file", "read_file",
         ],

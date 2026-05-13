@@ -50,6 +50,9 @@ BUILTIN_PATTERNS = {
         r"https?://\S+",
         r"\b\w+\.\w{2,}\b.*(?:look|show|page|site)",
         r"(?:take|capture|screenshot).*(?:https?://\S+|\b\w+\.(?:com|org|net|io|dev|fr|de|uk|co|app|ai)\b)",
+        r"(?:navigate|open|go to|browse|surf|visit|montre|voir|regarde|ressemble)\s+.*(?:url|website|page|site|http)",
+        r"(?:montre|voir|regarde).*(?:page|site)\b",
+        r"\b\w+\.(?:com|org|net|io|dev|fr|de|uk|co|app|ai)\b",
     ],
     "generate_image": [
         r"(?:generate|create|make|draw)\s+.*(?:image|picture|illustration|photo)(?!.*(?:mermaid|diagram|schéma|schema|flowchart))",
@@ -57,10 +60,6 @@ BUILTIN_PATTERNS = {
         r"(?:generate|create|make)\s+.*(?:svg|icon|logo|badge|vector)(?!.*(?:mermaid|diagram|schéma|schema))",
         r"(?:svg|icon|logo|badge|vector)\s+",
         r"(?:simple|flat|minimalist|geometric)\s+.*(?:image|drawing|illustration)",
-    ],
-    "browse_web": [
-        r"(?:navigate|open|go to|browse)\s+.*(?:url|website|page|site|http)",
-        r"(?:click|fill|type|extract)\s+.*(?:on|in|from)\s+(?:the|a)\s+(?:page|site)",
     ],
     "cron_schedule": [
         r"(?:schedule|cron|every)\s+",
@@ -181,9 +180,8 @@ def get_skill_description(skill_name: str) -> str:
         "run_command": "Run a local shell command",
         "rag_search": "Search knowledge base",
         "screenshot_local": "Capture local desktop screenshot",
-        "screenshot_remote": "Capture remote webpage screenshot",
+        "screenshot_remote": "Capture and view a remote webpage (screenshot + text extract)",
         "generate_image": "Generate an image from text",
-        "browse_web": "Control a web browser",
         "cron_schedule": "Schedule a recurring task",
         "create_skill": "Create a new custom skill",
         "rebuild_skill": "Rebuild and improve an existing skill using AI",
@@ -223,9 +221,9 @@ _TOOL_FULL_INSTRUCTIONS: dict[str, str] = {
         "generate_animation — generate GIF/MP4 animation.\n"
         '```tool_call\n{"tool":"generate_animation","params":{"prompt":"desc","format":"gif"}}\n```'
     ),
-    "browse_web": (
-        "browse_web — navigate/interact with a web page.\n"
-        '```tool_call\n{"tool":"browse_web","params":{"url":"URL"}}\n```'
+    "screenshot_remote": (
+        "screenshot_remote — capture screenshot + extract text from any website/URL.\n"
+        '```tool_call\n{"tool":"screenshot_remote","params":{"url":"URL"}}\n```'
     ),
     "execute_python": (
         'execute_python — run Python code (risky SQL needs "confirmed":true).\n'
