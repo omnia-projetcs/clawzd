@@ -78,6 +78,17 @@ _FRAG_SECURITY = (
 _FRAG_CODE_QUALITY = ""  # Merged into _FRAG_SECURITY via dev_best_practices.md
 
 _FRAG_FILE_RULES = (
+    "FILE CREATION: Output a Markdown code block with the exact filename "
+    "as a comment on the FIRST LINE inside the block. Example:\n"
+    "```python\n"
+    "# app/main.py\n"
+    "print('Hello World')\n"
+    "```\n"
+    "FILE EDITING: Use `edit_file` tool with unique `old_string` → `new_string`. "
+    "NEVER output full file contents.\n"
+)
+
+_FRAG_IDE_FILE_RULES = (
     "FILE CREATION AND EDITING: YOU MUST ALWAYS modify files directly using the `edit_file` tool.\n"
     "- To edit an existing file, use `edit_file` with a unique `old_string` and the updated `new_string`.\n"
     "- To create a new file, use `edit_file` with an empty `old_string` and provide the full content in `new_string`.\n"
@@ -225,7 +236,7 @@ PREPROMPTS: dict[str, dict] = {
             "CRITICAL: Use `<thought> ... </thought>` tags to document your internal reasoning, "
             "planning, or step-by-step logic before executing any actions or code blocks.\n"
             "If you plan multiple steps, use markdown checklists `- [ ] Task` so the UI tracks them.\n"
-            + _FRAG_FILE_RULES
+            + _FRAG_IDE_FILE_RULES
             + _FRAG_SECURITY
             + _FRAG_CODE_QUALITY
             + _FRAG_UI_EXCELLENCE
