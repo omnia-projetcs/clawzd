@@ -78,11 +78,18 @@
 
       const card = document.getElementById(`ta-${id}`);
       if (card) {
-        card.style.transition = 'opacity 0.15s, transform 0.15s';
-        card.style.opacity = '0';
-        card.style.transform = 'translateY(-4px)';
-        card.style.pointerEvents = 'none';
-        setTimeout(() => card.remove(), 200);
+        // Disable all interactive elements
+        card.querySelectorAll('button, input').forEach(el => { el.disabled = true; });
+        // Grey out the card
+        card.classList.add('ta-done');
+        // Update label to show result
+        const label = card.querySelector('.ta-label');
+        if (label) {
+          label.innerHTML = `${ok ? '✅ Approved' : '❌ Denied'} — <code>${this._esc(d.tool_name)}</code>`;
+        }
+        // Hide countdown
+        const cd = card.querySelector('.ta-countdown');
+        if (cd) cd.style.display = 'none';
       }
 
       this._active.delete(id);

@@ -206,21 +206,29 @@ class LocalCodeExecutor:
         _omni_plot_dir = _os.environ.get("_OMNI_PLOT_DIR", ".")
         _omni_plot_counter = [0]
 
-        # Patch savefig to redirect non-writable paths to our capture dir
+        # Patch savefig to ALWAYS capture a copy in our plot dir
         _orig_savefig = _mfig.Figure.savefig
         def _patched_savefig(self, fname, *a, **kw):
             fname_str = str(fname)
             parent = _os.path.dirname(fname_str)
+            # If the target dir doesn't exist, redirect to our plot dir
             if parent and not _os.path.isdir(parent):
-                # Redirect to our plot dir with the original filename
                 base = _os.path.basename(fname_str)
                 fname = _os.path.join(_omni_plot_dir, base)
             try:
                 _orig_savefig(self, fname, *a, **kw)
             except (OSError, PermissionError):
-                # Fallback: save to plot dir
                 base = _os.path.basename(str(fname))
-                _orig_savefig(self, _os.path.join(_omni_plot_dir, base), *a, **kw)
+                fname = _os.path.join(_omni_plot_dir, base)
+                _orig_savefig(self, fname, *a, **kw)
+            # Always save an extra copy in the capture dir for inline display
+            capture_name = _os.path.basename(str(fname))
+            capture_path = _os.path.join(_omni_plot_dir, capture_name)
+            if _os.path.abspath(str(fname)) != _os.path.abspath(capture_path):
+                try:
+                    _orig_savefig(self, capture_path, *a, **kw)
+                except Exception:
+                    pass
         _mfig.Figure.savefig = _patched_savefig
 
         # Patch show to capture all open figures
@@ -311,12 +319,16 @@ class LocalCodeExecutor:
                 if install_info and install_info["installed"]:
                     response["auto_installed"] = install_info["installed"]
 
-                # Collect any saved plot images as base64
+                # Collect any saved plot/chart images as base64
                 if has_mpl:
                     import base64 as _b64
                     images = []
+                    # Capture ALL image files generated in the tmpdir
+                    # (not just plot_* — LLMs often use custom names like chart_btc.png)
+                    image_exts = ('.png', '.jpg', '.jpeg', '.svg')
                     plot_files = sorted(
-                        f for f in os.listdir(tmpdir) if f.startswith("plot_") and f.endswith(".png")
+                        f for f in os.listdir(tmpdir)
+                        if f.lower().endswith(image_exts) and not f.startswith("script_")
                     )
                     for pf in plot_files:
                         ppath = os.path.join(tmpdir, pf)

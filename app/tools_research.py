@@ -888,7 +888,7 @@ async def _research_loop(pid: str):
                     {"role": "system", "content": (
                         "You are an autonomous research assistant. Plan the next actions.\n"
                         "Available actions: web_search, scrape_url, deep_dive, "
-                        "download_asset, write_script, query_rag, smart_scrape, ask_model, academic_search\n"
+                        "download_asset, write_script, query_rag, smart_scrape, ask_model, academic_search, fetch_market_data\n"
                         "- web_search: searches Tavily, DDG, Scholar, Reddit, X, News in parallel\n"
                         "- deep_dive: recursive deep research on a sub-topic (params: {topic, depth, breadth})\n"
                         "- smart_scrape: scrape + LLM extraction of relevant content (params: {urls: [...]})\n"
@@ -896,6 +896,9 @@ async def _research_loop(pid: str):
                         "- write_script: write and execute python code in a sandbox (params: {code: \"...\", description: \"...\"})\n"
                         "- academic_search: search Semantic Scholar for peer-reviewed papers (params: {query: \"...\", max_results: 10})\n"
                         "  Use academic_search for scientific topics, medical, technical, or when citations matter.\n"
+                        "- fetch_market_data: fetch OHLCV market data from Binance (crypto), Yahoo (stocks), Dukascopy (forex).\n"
+                        "  params: {symbol: \"BTCUSDT\", source: \"crypto\", interval: \"1d\", limit: 30}\n"
+                        "  Use for financial analysis, market trends, price comparisons, trading research.\n"
                         "Return JSON array of actions.\n"
                         "Return ONLY valid JSON array, no markdown fences.\n"
                         + _get_dev_profile_summary()
@@ -1152,6 +1155,57 @@ async def _research_loop(pid: str):
                         await _emit_log(f"   📚 Found {len(sem_results)} academic papers")
                     except Exception as e:
                         await _emit_log(f"   ⚠️ Academic search failed: {e}")
+
+                elif action_type == "fetch_market_data":
+                    # Market data fetcher (crypto, stocks, forex)
+                    symbol = params.get("symbol", "")
+                    if symbol:
+                        await _emit_log(f"   📈 Fetching market data: {symbol}")
+                        try:
+                            from app.tools_market import fetch_market_data
+                            market_result = fetch_market_data(params)
+                            if market_result.get("error"):
+                                await _emit_log(f"   ⚠️ Market data error: {market_result['error']}")
+                            else:
+                                count = market_result.get("count", 0)
+                                source = market_result.get("source", "unknown")
+                                data_rows = market_result.get("data", [])
+                                # Build a readable summary for the research context
+                                cols = market_result.get("columns", [])
+                                summary_lines = [f"OHLCV data for {symbol} ({source}, {count} candles):"]
+                                summary_lines.append(f"Columns: {', '.join(cols)}")
+                                # Show first and last 3 rows
+                                for row in data_rows[:3]:
+                                    summary_lines.append(str(row))
+                                if len(data_rows) > 6:
+                                    summary_lines.append("...")
+                                for row in data_rows[-3:]:
+                                    summary_lines.append(str(row))
+                                summary = "\n".join(summary_lines)
+
+                                proj["search_results"].append({
+                                    "title": f"📈 Market Data: {symbol} ({source})",
+                                    "snippet": summary[:500],
+                                    "url": f"market://{source}/{symbol}",
+                                    "full_text": summary,
+                                    "source": "market_data",
+                                    "market_data": market_result,
+                                })
+                                asset = await _save_text_asset(
+                                    f"Market Data: {symbol}", summary,
+                                    "market_data", f"{source}/{symbol}", pid,
+                                )
+                                proj["assets"].append(asset)
+                                iter_data["actions"].append({
+                                    "type": "fetch_market_data",
+                                    "symbol": symbol,
+                                    "source": source,
+                                    "count": count,
+                                    "timestamp": datetime.now(timezone.utc).isoformat(),
+                                })
+                                await _emit_log(f"   📈 {source}: {count} candles for {symbol}")
+                        except Exception as e:
+                            await _emit_log(f"   ⚠️ Market data fetch failed: {e}")
 
             # ── 3. Structured Evaluation ──
             _update_pm_task(1, "In Progress", int((iter_num - 0.5) / proj["max_iterations"] * 100))
