@@ -1616,6 +1616,48 @@ def format_tool_result(tool_name: str, result: dict) -> str:
             lines.append(hint)
         return "\n".join(lines)
 
+    if tool_name == "fetch_market_data" and "data" in result:
+        # Market data — return compact summary + CSV path + clear plotting template
+        sym = result.get("symbol", "?")
+        source = result.get("source", "?")
+        count = result.get("count", 0)
+        columns = result.get("columns", [])
+        data = result.get("data", [])
+        csv_path = result.get("csv_path", "")
+
+        lines = [
+            f"✅ {sym} ({source}): {count} candles fetched.",
+            f"Columns: {columns}",
+        ]
+        # Show first 3 and last 2 rows for context
+        if data:
+            for row in data[:3]:
+                lines.append(f"  {row}")
+            if len(data) > 5:
+                lines.append(f"  ... ({count - 5} more rows)")
+            for row in data[-2:]:
+                lines.append(f"  {row}")
+
+        if csv_path:
+            lines.append("")
+            lines.append(f"Data saved to: {csv_path}")
+            lines.append(
+                "To plot, use execute_python with a SHORT script:\n"
+                "import pandas as pd\n"
+                "import matplotlib\n"
+                "matplotlib.use('Agg')\n"
+                "import matplotlib.pyplot as plt\n"
+                f"df = pd.read_csv('{csv_path}')\n"
+                f"plt.figure(figsize=(12, 6))\n"
+                f"plt.plot(df['close'], label='{sym}')\n"
+                f"plt.title('{sym} Price')\n"
+                "plt.legend()\n"
+                "plt.tight_layout()\n"
+                "plt.savefig('/tmp/chart.png', dpi=100)\n"
+                "print('Chart saved to /tmp/chart.png')"
+            )
+        return "\n".join(lines)
+
     # Generic result — compressed
     text = json.dumps(result, ensure_ascii=False)
     return compress_generic(text, max_chars=1500)

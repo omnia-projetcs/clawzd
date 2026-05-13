@@ -10,6 +10,7 @@ Returns JSON-serializable OHLCV data ready for analysis or charting.
 """
 import logging
 import datetime
+import os
 from typing import Dict, Optional
 
 import pandas as pd
@@ -57,6 +58,11 @@ def _fetch_crypto(symbol: str, interval: str = "1d",
     out = df[["timestamp", "open", "high", "low", "close", "volume"]].copy()
     out["timestamp"] = out["timestamp"].dt.strftime("%Y-%m-%d %H:%M")
 
+    # Auto-save to CSV for easy plotting in execute_python
+    csv_path = f"/tmp/market_{sym}_{interval}.csv"
+    out.to_csv(csv_path, index=False)
+    logger.info("Market data saved to %s (%d rows)", csv_path, len(out))
+
     return {
         "source": "binance",
         "symbol": sym,
@@ -64,7 +70,7 @@ def _fetch_crypto(symbol: str, interval: str = "1d",
         "count": len(out),
         "columns": ["timestamp", "open", "high", "low", "close", "volume"],
         "data": out.values.tolist(),
-        "hint": "To chart this data, use execute_python with: import pandas as pd; df = pd.DataFrame(data, columns=columns); then plot with matplotlib.",
+        "csv_path": csv_path,
     }
 
 
@@ -127,6 +133,11 @@ def _fetch_stock(symbol: str, period: str = "1mo",
 
     out = df[keep]
 
+    # Auto-save to CSV for easy plotting in execute_python
+    csv_path = f"/tmp/market_{symbol.upper()}_{interval}.csv"
+    out.to_csv(csv_path, index=False)
+    logger.info("Market data saved to %s (%d rows)", csv_path, len(out))
+
     return {
         "source": "yahooquery",
         "symbol": symbol.upper(),
@@ -135,7 +146,7 @@ def _fetch_stock(symbol: str, period: str = "1mo",
         "count": len(out),
         "columns": list(out.columns),
         "data": out.values.tolist(),
-        "hint": "To chart this data, use execute_python with: import pandas as pd; df = pd.DataFrame(data, columns=columns); then plot with matplotlib.",
+        "csv_path": csv_path,
     }
 
 

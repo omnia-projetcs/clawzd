@@ -92,6 +92,10 @@ BUILTIN_PATTERNS = {
         r"(?:fetch|get|récupère|récupérer)\s+.*(?:market|marché|prix|price|cours|data|données)",
         r"(?:binance|yahoo|dukascopy)\s+",
         r"(?:btc|eth|bnb|sol|xrp|aapl|msft|googl|tsla|eurusd|gbpusd)(?:usdt)?\b",
+        r"(?:marché|market)\s+(?:crypto|bourse|financier|stock|forex)",
+        r"(?:tendance|trend|performance|évolution)\s+.*(?:btc|eth|bitcoin|crypto|bourse|marché|action|stock)",
+        r"(?:comment|how)\s+.*(?:marché|market|bourse|crypto|bitcoin|btc)\s+.*(?:porte|going|doing|perform)",
+        r"(?:analyse|analyze|analyser)\s+.*(?:marché|market|bourse|crypto|btc|eth|bitcoin)",
     ],
 }
 
@@ -192,6 +196,7 @@ def get_skill_description(skill_name: str) -> str:
         "cron_schedule": "Schedule a recurring task",
         "create_skill": "Create a new custom skill",
         "rebuild_skill": "Rebuild and improve an existing skill using AI",
+        "fetch_market_data": "Fetch crypto/stock/forex OHLCV data (ALWAYS use this BEFORE execute_python for financial data)",
     }
     return descriptions.get(skill_name, skill_name)
 
@@ -203,7 +208,7 @@ def get_skill_catalog_entry(skill_name: str) -> str:
     are injected into the initial prompt to reduce context size.
     """
     desc = get_skill_description(skill_name)
-    return f"- {skill_name}: {desc[:60]}"
+    return f"- {skill_name}: {desc[:100]}"
 
 
 # ---------------------------------------------------------------------------
@@ -271,8 +276,12 @@ _TOOL_FULL_INSTRUCTIONS: dict[str, str] = {
         '```tool_call\n{"tool":"search_linkedin","params":{"query":"...","type":"profiles"}}\n```'
     ),
     "fetch_market_data": (
-        "fetch_market_data — fetch OHLCV market data. Sources: crypto (Binance), stock (Yahoo), forex (Dukascopy).\n"
-        "Auto-detects source from symbol. Returns {columns, data} arrays.\n"
+        "fetch_market_data — fetch OHLCV market data from Binance (crypto), Yahoo (stock), Dukascopy (forex).\n"
+        "CRITICAL WORKFLOW: For ANY financial/market analysis, you MUST:\n"
+        "  Step 1: Call fetch_market_data to get the raw data FIRST.\n"
+        "  Step 2: THEN use execute_python with SHORT plotting code using the data returned.\n"
+        "NEVER write HTTP requests inside execute_python for market data — ALWAYS use fetch_market_data instead.\n"
+        "Params: symbol (e.g. BTCUSDT, AAPL, EURUSD), source (crypto/stock/forex), interval (1d/1h/15m), limit (number of candles).\n"
         '```tool_call\n{"tool":"fetch_market_data","params":{"symbol":"BTCUSDT","source":"crypto","interval":"1d","limit":30}}\n```'
     ),
 }
