@@ -127,6 +127,15 @@ class AnalyzeDataParams(BaseModel):
     max_charts: int = Field(5, description="Maximum number of charts to generate", ge=1, le=10)
 
 
+class FetchMarketDataParams(BaseModel):
+    """Parameters for the fetch_market_data tool."""
+    symbol: str = Field(..., description="Ticker symbol, e.g. BTCUSDT, AAPL, EURUSD")
+    source: str = Field("", description="Data source: crypto, stock, forex (auto-detected if empty)")
+    interval: str = Field("1d", description="Candle interval: 1m, 5m, 15m, 1h, 4h, 1d, 1w")
+    limit: int = Field(30, description="Number of candles (crypto only)", ge=1, le=1000)
+    period: str = Field("1mo", description="History period (stock only): 1d, 5d, 1mo, 3mo, 6mo, 1y, 5y")
+
+
 # ---------------------------------------------------------------------------
 # Schema Registry
 # ---------------------------------------------------------------------------
@@ -147,6 +156,7 @@ _TOOL_SCHEMAS: dict[str, type[BaseModel]] = {
     "memory": MemoryParams,
     "send_email": SendEmailParams,
     "analyze_data": AnalyzeDataParams,
+    "fetch_market_data": FetchMarketDataParams,
 }
 
 

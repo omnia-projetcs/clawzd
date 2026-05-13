@@ -40,6 +40,7 @@ DEFAULT_PERMISSIONS: dict[str, str] = {
     "search_linkedin": "always",
     "list_files": "always",
     "analyze_data": "always",
+    "fetch_market_data": "always",
     "graphify_query": "always",
     "graphify_explain": "always",
     "graphify_path": "always",

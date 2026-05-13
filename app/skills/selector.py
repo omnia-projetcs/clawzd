@@ -86,6 +86,13 @@ BUILTIN_PATTERNS = {
     "read_file": [
         r"(?:read|show|open|view|display)\s+.*(?:file|code|script|document)",
     ],
+    "fetch_market_data": [
+        r"(?:prix|price|cours|cotation|valeur)\s+.*(?:bitcoin|btc|eth|crypto|action|stock|forex)",
+        r"(?:données|data|historique|history|ohlcv|candle|kline)\s+.*(?:marché|market|bourse|trading|crypto|stock|forex)",
+        r"(?:fetch|get|récupère|récupérer)\s+.*(?:market|marché|prix|price|cours|data|données)",
+        r"(?:binance|yahoo|dukascopy)\s+",
+        r"(?:btc|eth|bnb|sol|xrp|aapl|msft|googl|tsla|eurusd|gbpusd)(?:usdt)?\b",
+    ],
 }
 
 
@@ -262,6 +269,11 @@ _TOOL_FULL_INSTRUCTIONS: dict[str, str] = {
     "search_linkedin": (
         "search_linkedin — search LinkedIn profiles (CV) or articles.\n"
         '```tool_call\n{"tool":"search_linkedin","params":{"query":"...","type":"profiles"}}\n```'
+    ),
+    "fetch_market_data": (
+        "fetch_market_data — fetch OHLCV market data. Sources: crypto (Binance), stock (Yahoo), forex (Dukascopy).\n"
+        "Auto-detects source from symbol. Returns {columns, data} arrays.\n"
+        '```tool_call\n{"tool":"fetch_market_data","params":{"symbol":"BTCUSDT","source":"crypto","interval":"1d","limit":30}}\n```'
     ),
 }
 

@@ -142,19 +142,32 @@ TOOL_KEYWORDS: dict[str, list[str]] = {
         "dataframe", "statistics", "profile", "insights", "xlsx",
         "tsv", "analysis", "visualize", "chart", "dashboard",
     ],
+    "fetch_market_data": [
+        "market", "price", "ohlcv", "candle", "kline", "ticker",
+        "crypto", "stock", "forex", "bitcoin", "btc", "eth",
+        "binance", "yahoo", "dukascopy", "cours", "bourse",
+        "cotation", "historique", "trading", "financial",
+    ],
 }
 
 # Direct alias map for common invented names
 TOOL_ALIASES: dict[str, str] = {
     # Crypto / finance
-    "cryptocurrency-analysis": "search_web",
-    "crypto-analysis": "search_web",
-    "crypto_analysis": "search_web",
-    "market-analysis": "search_web",
-    "stock-analysis": "search_web",
-    "finance-analysis": "search_web",
-    "price-checker": "search_web",
-    "trend-analysis": "search_web",
+    "cryptocurrency-analysis": "fetch_market_data",
+    "crypto-analysis": "fetch_market_data",
+    "crypto_analysis": "fetch_market_data",
+    "market-analysis": "fetch_market_data",
+    "stock-analysis": "fetch_market_data",
+    "finance-analysis": "fetch_market_data",
+    "price-checker": "fetch_market_data",
+    "trend-analysis": "fetch_market_data",
+    "get-price": "fetch_market_data",
+    "get_price": "fetch_market_data",
+    "market-data": "fetch_market_data",
+    "market_data": "fetch_market_data",
+    "fetch-market-data": "fetch_market_data",
+    "get-market-data": "fetch_market_data",
+    "get_market_data": "fetch_market_data",
     # Search variants
     "cybersearch": "search_web",
     "cyber-search": "search_web",
@@ -488,6 +501,7 @@ def _adapt_params(resolved_tool: str, original_tool: str, params: dict) -> dict:
 READONLY_TOOLS = {
     "search_web", "read_file", "rag_search", "screenshot_remote",
     "screenshot_local", "search_twitter", "search_linkedin",
+    "fetch_market_data",
 }
 
 # Simple in-memory cache for read-only tools (key → (result, timestamp))
@@ -900,6 +914,10 @@ async def execute_tool(tool_name: str, params: dict, context: dict = None) -> di
             else:
                 results = await search_linkedin_profiles(query, max_results)
             return {"query": query, "type": search_type, "count": len(results), "results": results}
+
+        elif resolved == "fetch_market_data":
+            from app.tools_market import fetch_market_data
+            return fetch_market_data(params)
 
         elif resolved == "create_app":
             from app.core.app_builder import create_app

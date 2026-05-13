@@ -347,6 +347,7 @@ HARDCODED_TOOLS: list[dict] = [
     {"name": "memory",             "description": "Save/recall persistent memory notes",                       "category": "other"},
     {"name": "rebuild_skill",      "description": "Rebuild and improve an existing skill using AI",             "category": "other"},
     {"name": "create_skill",       "description": "Create a new custom skill",                                 "category": "other"},
+    {"name": "fetch_market_data",  "description": "Fetch OHLCV market data (crypto, stocks, forex)",            "category": "data"},
 ]
 
 
