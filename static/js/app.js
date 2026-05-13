@@ -109,18 +109,48 @@
     h = h.replace(/```mermaid\s*\n([\s\S]*?)```/g, (_, code) => {
       const id = 'mm-' + Math.random().toString(36).slice(2, 8);
       const decoded = code.replace(/&amp;/g, '&').replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&quot;/g, '"');
-      setTimeout(async () => {
+      // Detect unsupported diagram types before rendering
+      const unsupportedTypes = ['architecture-beta', 'architecture'];
+      const firstLine = decoded.trim().split('\n')[0].trim().toLowerCase();
+      const isUnsupported = unsupportedTypes.some(t => firstLine.startsWith(t));
+      const renderMermaid = async (attempt) => {
         const el2 = document.getElementById(id);
-        if (el2 && window.mermaid) {
-          try {
-            const r = await mermaid.render('mmr-' + id, decoded);
-            el2.innerHTML = r.svg;
-          } catch (e) {
-            console.warn('Mermaid render error:', e);
-            el2.innerHTML = '<div class="mermaid-error" style="color:#f87171;padding:12px;border:1px solid #f8717133;border-radius:8px;font-family:monospace;font-size:13px;margin-bottom:8px;">⚠️ Diagram error: ' + (e.message || e) + '</div><pre style="margin:0;background:var(--bg-primary);border:1px solid var(--border);border-radius:8px;padding:12px;overflow-x:auto;font-family:monospace;font-size:12px;color:var(--text-secondary);"><code>' + escHtml(decoded) + '</code></pre>';
-          }
+        if (!el2) {
+          if (attempt < 3) { setTimeout(() => renderMermaid(attempt + 1), 300); return; }
+          return;
         }
-      }, 150);
+        const showError = (title, detail) => {
+          el2.innerHTML = '<div class="mermaid-error" style="color:#f87171;padding:12px;border:1px solid #f8717133;border-radius:8px;font-family:monospace;font-size:13px;margin-bottom:8px;">⚠️ ' + title + '</div>' +
+            (detail ? '<div style="color:var(--text-muted);font-size:12px;margin-bottom:8px;padding:0 12px;">' + detail + '</div>' : '') +
+            '<pre style="margin:0;background:var(--bg-primary);border:1px solid var(--border);border-radius:8px;padding:12px;overflow-x:auto;font-family:monospace;font-size:12px;color:var(--text-secondary);"><code>' + escHtml(decoded) + '</code></pre>';
+        };
+        // Step 1: Static check — reject known unsupported diagram types
+        if (isUnsupported) {
+          showError('Unsupported diagram type: <strong>' + escHtml(firstLine) + '</strong>',
+            'Supported types: flowchart, sequenceDiagram, classDiagram, erDiagram, gantt, pie, mindmap, timeline, etc.');
+          return;
+        }
+        if (!window.mermaid) { showError('Mermaid library not loaded'); return; }
+        // Step 2: Pre-validate syntax with mermaid.parse() before rendering
+        try {
+          await mermaid.parse(decoded);
+        } catch (parseErr) {
+          console.warn('Mermaid parse validation failed:', parseErr);
+          showError('Diagram syntax error: ' + escHtml(parseErr.message || String(parseErr)),
+            'The diagram code contains syntax errors and cannot be rendered.');
+          return;
+        }
+        // Step 3: Syntax valid — proceed to full render
+        try {
+          const r = await mermaid.render('mmr-' + id, decoded);
+          el2.innerHTML = r.svg;
+        } catch (e) {
+          console.warn('Mermaid render error:', e);
+          showError('Diagram render error: ' + escHtml(e.message || String(e)));
+        }
+      };
+      setTimeout(() => renderMermaid(0), 200);
+
       return ph(
         `<div class="mermaid-wrapper" style="position:relative; margin: 16px 0;">` +
         `<div style="text-align:right;margin-bottom:4px; display:flex; gap:8px; justify-content:flex-end;">` +

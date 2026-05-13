@@ -112,10 +112,27 @@ _FRAG_README = (
 )
 
 _FRAG_MERMAID = (
-    "MERMAID RULES: When generating ```mermaid diagrams, ensure strict syntax validity. "
+    "MERMAID RULES: When generating ```mermaid diagrams, ensure strict syntax validity.\n"
+    "SUPPORTED DIAGRAM TYPES (Mermaid v10.9): flowchart, graph, sequenceDiagram, classDiagram, "
+    "stateDiagram-v2, erDiagram, gantt, pie, gitgraph, mindmap, timeline, sankey-beta, "
+    "block-beta, quadrantChart, xychart-beta, C4Context, C4Container, C4Component, C4Deployment.\n"
+    "FORBIDDEN: NEVER use `architecture-beta` — it is NOT supported. "
+    "Use `flowchart` or `graph` with subgraphs instead for architecture diagrams.\n"
     "For `erDiagram`, relationships must use quotes for labels: `A ||--o{ B : \"label\"`. "
     "Entity attributes inside `{}` must strictly follow `type name` format (e.g. `string id`). "
     "DO NOT use 'note', 'constraint', or any unsupported features inside ER diagrams.\n"
+    "For complex system architectures, use `flowchart TD` or `flowchart LR` with subgraphs, "
+    "styled nodes, and directional arrows. Example:\n"
+    "```mermaid\n"
+    "flowchart TD\n"
+    "  subgraph Frontend\n"
+    "    A[Browser] --> B[React App]\n"
+    "  end\n"
+    "  subgraph Backend\n"
+    "    C[API Server] --> D[(Database)]\n"
+    "  end\n"
+    "  B --> C\n"
+    "```\n"
 )
 
 _FRAG_APP_BUILDER = (
