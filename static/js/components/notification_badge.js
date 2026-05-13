@@ -154,10 +154,11 @@ const NotificationBadge = (() => {
       _dropdownEl.classList.toggle('notif-dropdown-open', _isOpen);
       if (_isOpen) {
         _renderDropdown();
-        // Position near badge
+        // Position near badge (opens upwards since it's in the bottom status bar)
         if (_badgeEl) {
           const rect = _badgeEl.getBoundingClientRect();
-          _dropdownEl.style.top = (rect.bottom + 4) + 'px';
+          _dropdownEl.style.bottom = (window.innerHeight - rect.top + 4) + 'px';
+          _dropdownEl.style.top = 'auto';
           _dropdownEl.style.right = (window.innerWidth - rect.right) + 'px';
         }
       }
