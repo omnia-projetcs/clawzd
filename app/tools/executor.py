@@ -1256,10 +1256,15 @@ _TOOL_FENCE_NAMES = (
     "|send_email|post_to_twitter|post_to_linkedin|post_to_medium|trigger_n8n"
     "|memory|rebuild_skill|search_twitter|search_linkedin"
     "|create_app|update_app|analyze_data"
+    "|fetch_market_data|analyze_data"
     "|bash|sh|python"
 )
 TOOL_CALL_RE = re.compile(
     rf"```({_TOOL_FENCE_NAMES})\n([\s\S]*?)\n```", re.MULTILINE
+)
+# Fallback regex for unclosed fences (LLM truncated before closing ```)
+TOOL_CALL_UNCLOSED_RE = re.compile(
+    rf"```({_TOOL_FENCE_NAMES})\n([\s\S]+)$", re.MULTILINE
 )
 
 
@@ -1302,6 +1307,37 @@ def parse_tool_calls(text: str) -> list[dict]:
         except (json.JSONDecodeError, ValueError):
             pass
 
+        # --- Multi-call recovery ---
+        # If json.loads failed, the LLM may have emitted multiple JSON
+        # objects inside a single ```tool_call fence (e.g. two
+        # fetch_market_data calls separated by a newline).  Scan the
+        # raw content for individual {"tool":...} objects.
+        if fence_label in ("tool_call", "tool", "json"):
+            _MULTI_TOOL_RE = re.compile(r'\{\s*"tool"\s*:\s*"(\w+)"')
+            found_any = False
+            for sub_m in _MULTI_TOOL_RE.finditer(raw):
+                sub_json = _extract_balanced_json(raw, sub_m.start())
+                if not sub_json:
+                    continue
+                try:
+                    repaired_sub = repair_tool_call_arguments(sub_json, fence_label)
+                    sub_data = json.loads(repaired_sub)
+                    if isinstance(sub_data, dict) and "tool" in sub_data:
+                        calls.append({
+                            "tool": sub_data.get("tool", ""),
+                            "params": sub_data.get("params", {}),
+                            "raw": sub_json,
+                        })
+                        found_any = True
+                        logger.info(
+                            "Multi-call recovery: found '%s' inside fenced block",
+                            sub_data.get("tool"),
+                        )
+                except (json.JSONDecodeError, ValueError):
+                    pass
+            if found_any:
+                continue
+
         # Bare code with tool-name fence (e.g. ```execute_python\nprint(...)\n```)
         if fence_label not in ("tool_call", "tool", "json") and raw:
             tool_name = fence_label
@@ -1322,6 +1358,39 @@ def parse_tool_calls(text: str) -> list[dict]:
                 "raw": match.group(0),
             })
             logger.info("Bare code tool call: fence='%s' → '%s' (%d chars)", fence_label, tool_name, len(raw))
+
+    # --- Fallback: unclosed fence recovery ---
+    # If the LLM was truncated before emitting the closing ```, try to
+    # extract tool calls from the unclosed fence content.
+    if not calls:
+        for match in TOOL_CALL_UNCLOSED_RE.finditer(text):
+            start_pos = match.start()
+            # Skip spans already matched by the closed-fence regex
+            if any(s <= start_pos < e for s, e in matched_spans):
+                continue
+            fence_label = match.group(1).strip()
+            raw = match.group(2).strip()
+            if fence_label in ("tool_call", "tool", "json"):
+                _MULTI_TOOL_RE = re.compile(r'\{\s*"tool"\s*:\s*"(\w+)"')
+                for sub_m in _MULTI_TOOL_RE.finditer(raw):
+                    sub_json = _extract_balanced_json(raw, sub_m.start())
+                    if not sub_json:
+                        continue
+                    try:
+                        repaired_sub = repair_tool_call_arguments(sub_json, fence_label)
+                        sub_data = json.loads(repaired_sub)
+                        if isinstance(sub_data, dict) and "tool" in sub_data:
+                            calls.append({
+                                "tool": sub_data.get("tool", ""),
+                                "params": sub_data.get("params", {}),
+                                "raw": sub_json,
+                            })
+                            logger.info(
+                                "Unclosed-fence recovery: found '%s'",
+                                sub_data.get("tool"),
+                            )
+                    except (json.JSONDecodeError, ValueError):
+                        pass
 
     # --- Fallback: scan for bare/unfenced JSON tool calls ---
     # Some models (especially for create_app/update_app) emit the tool call

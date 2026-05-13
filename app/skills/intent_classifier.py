@@ -36,6 +36,7 @@ _TOOL_CATALOG = [
     ("read_file",         "User wants to read or view the content of a specific file."),
     ("cron_schedule",     "User wants to schedule a recurring task or automation."),
     ("create_skill",      "User wants to create a new custom AI skill or tool."),
+    ("fetch_market_data", "User wants to get financial data: crypto prices (BTC, ETH), stock quotes, forex rates, market trends, candlestick/OHLCV data."),
 ]
 
 # Cache tool catalog string (built once)
