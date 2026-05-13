@@ -5110,9 +5110,8 @@
 
   // Performance indicators (TTFT + tokens/sec) via EventBus
   if (window.EventBus) {
-    const perfEl = document.getElementById('perf-indicators');
-
     window.EventBus.on('perf:ttft', (data) => {
+      const perfEl = document.getElementById('perf-indicators');
       if (!perfEl) return;
       const ttft = data.ms;
       let existing = perfEl.querySelector('.perf-ttft');
@@ -5125,6 +5124,7 @@
     });
 
     window.EventBus.on('perf:tps', (data) => {
+      const perfEl = document.getElementById('perf-indicators');
       if (!perfEl) return;
       let existing = perfEl.querySelector('.perf-tps');
       if (!existing) {
@@ -5137,6 +5137,7 @@
 
     // Clear perf indicators when a new session starts
     window.EventBus.on('chat:session-new', () => {
+      const perfEl = document.getElementById('perf-indicators');
       if (perfEl) perfEl.innerHTML = '';
     });
   }
