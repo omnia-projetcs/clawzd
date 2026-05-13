@@ -1,0 +1,152 @@
+<!-- ---- Analytics Studio ---- -->
+<section class="studio-panel" id="analytics-studio" style="display:none">
+  <div class="analytics-dashboard">
+    <!-- KPI Cards Row -->
+    <div class="an-kpi-row" id="an-kpi-row">
+      <div class="an-kpi-card" id="an-kpi-calls">
+        <div class="an-kpi-icon">
+          <svg class="ic" width="20" height="20"><use href="#icon-zap"></use></svg>
+        </div>
+        <div class="an-kpi-body">
+          <span class="an-kpi-value" id="an-val-calls">0</span>
+          <span class="an-kpi-label">LLM Calls Today</span>
+        </div>
+      </div>
+      <div class="an-kpi-card" id="an-kpi-tokens">
+        <div class="an-kpi-icon an-kpi-icon--tokens">
+          <svg class="ic" width="20" height="20"><use href="#icon-hash"></use></svg>
+        </div>
+        <div class="an-kpi-body">
+          <span class="an-kpi-value" id="an-val-tokens">0</span>
+          <span class="an-kpi-label">Tokens Used</span>
+        </div>
+      </div>
+      <div class="an-kpi-card" id="an-kpi-latency">
+        <div class="an-kpi-icon an-kpi-icon--latency">
+          <svg class="ic" width="20" height="20"><use href="#icon-clock"></use></svg>
+        </div>
+        <div class="an-kpi-body">
+          <span class="an-kpi-value" id="an-val-latency">0s</span>
+          <span class="an-kpi-label">Avg Latency</span>
+        </div>
+      </div>
+      <div class="an-kpi-card" id="an-kpi-tps">
+        <div class="an-kpi-icon an-kpi-icon--tps">
+          <svg class="ic" width="20" height="20"><use href="#icon-trending-up"></use></svg>
+        </div>
+        <div class="an-kpi-body">
+          <span class="an-kpi-value" id="an-val-tps">0</span>
+          <span class="an-kpi-label">Tokens/sec</span>
+        </div>
+      </div>
+      <div class="an-kpi-card" id="an-kpi-sessions">
+        <div class="an-kpi-icon an-kpi-icon--sessions">
+          <svg class="ic" width="20" height="20"><use href="#icon-users"></use></svg>
+        </div>
+        <div class="an-kpi-body">
+          <span class="an-kpi-value" id="an-val-sessions">0</span>
+          <span class="an-kpi-label">Sessions</span>
+        </div>
+      </div>
+      <div class="an-kpi-card" id="an-kpi-saved">
+        <div class="an-kpi-icon an-kpi-icon--saved">
+          <svg class="ic" width="20" height="20"><use href="#icon-shield"></use></svg>
+        </div>
+        <div class="an-kpi-body">
+          <span class="an-kpi-value" id="an-val-saved">0</span>
+          <span class="an-kpi-label">Chars Saved</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- Controls Bar -->
+    <div class="an-controls">
+      <div class="an-controls-left">
+        <select id="an-range-select" class="an-select">
+          <option value="6">Last 6 hours</option>
+          <option value="12">Last 12 hours</option>
+          <option value="24" selected>Last 24 hours</option>
+          <option value="48">Last 48 hours</option>
+          <option value="168">Last 7 days</option>
+        </select>
+      </div>
+      <div class="an-controls-right">
+        <span class="an-freshness" id="an-freshness">
+          <span class="an-live-dot"></span> Live
+        </span>
+        <button class="btn btn-sm btn-secondary" id="an-refresh-btn" title="Refresh">
+          <svg class="ic" width="14" height="14"><use href="#icon-refresh-cw"></use></svg>
+          Refresh
+        </button>
+      </div>
+    </div>
+
+    <!-- Charts Grid -->
+    <div class="an-charts-grid">
+      <!-- Token Usage Timeline -->
+      <div class="an-chart-card an-chart-wide">
+        <div class="an-chart-header">
+          <h3 class="an-chart-title">Token Usage Timeline</h3>
+        </div>
+        <div class="an-chart-body">
+          <canvas id="an-chart-tokens"></canvas>
+        </div>
+      </div>
+
+      <!-- Model Performance -->
+      <div class="an-chart-card">
+        <div class="an-chart-header">
+          <h3 class="an-chart-title">Model Performance</h3>
+        </div>
+        <div class="an-chart-body">
+          <canvas id="an-chart-models"></canvas>
+        </div>
+      </div>
+
+      <!-- Tool Usage Distribution -->
+      <div class="an-chart-card">
+        <div class="an-chart-header">
+          <h3 class="an-chart-title">Token Savings by Tool</h3>
+        </div>
+        <div class="an-chart-body">
+          <canvas id="an-chart-tools"></canvas>
+        </div>
+      </div>
+
+      <!-- Activity Heatmap -->
+      <div class="an-chart-card an-chart-wide">
+        <div class="an-chart-header">
+          <h3 class="an-chart-title">Activity Heatmap (7 days)</h3>
+        </div>
+        <div class="an-chart-body an-heatmap-body" id="an-heatmap-container">
+          <!-- Rendered by JS -->
+        </div>
+      </div>
+    </div>
+
+    <!-- Session Table -->
+    <div class="an-sessions-section">
+      <div class="an-section-header">
+        <h3 class="an-section-title">Session Activity</h3>
+      </div>
+      <div class="an-sessions-table-wrap">
+        <table class="an-sessions-table" id="an-sessions-table">
+          <thead>
+            <tr>
+              <th>Session</th>
+              <th>Model</th>
+              <th>Calls</th>
+              <th>Tokens</th>
+              <th>Avg Latency</th>
+              <th>Last Active</th>
+            </tr>
+          </thead>
+          <tbody id="an-sessions-tbody">
+            <tr><td colspan="6" class="an-empty">Loading...</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+  </div>
+</section>
