@@ -307,17 +307,23 @@ async def condense_research_context(
         results, query, report_draft, iteration_num,
         llm_call, provider, model,
     )
-    draft_task = update_report_draft(
-        query, "", report_draft, iteration_num, eval_scores,
-        llm_call, provider, model,
-    ) if report_draft else asyncio.coroutine(lambda: report_draft)()
 
-    core_findings, updated_draft = await asyncio.gather(
-        compression_task,
+    # Only call the LLM for draft update if there's an existing draft to build on
+    async def _draft_passthrough():
+        return report_draft
+
+    draft_task = (
         update_report_draft(
             query, "", report_draft, iteration_num, eval_scores,
             llm_call, provider, model,
-        ),
+        )
+        if report_draft
+        else _draft_passthrough()
+    )
+
+    core_findings, updated_draft = await asyncio.gather(
+        compression_task,
+        draft_task,
         return_exceptions=True,
     )
 

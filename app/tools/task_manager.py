@@ -98,15 +98,8 @@ async def api_stop_task(task_id: str):
     task_type = task.get("type", "")
 
     if task_type == "research":
-        from app.tools_research import _running, _load, _save
-        if task_id in _running:
-            _running[task_id].cancel()
-            _running.pop(task_id, None)
-        proj = _load(task_id)
-        if proj:
-            proj["status"] = "paused"
-            _save(proj)
-        unregister_task(task_id)
+        from app.tools_research import stop_research
+        await stop_research(task_id)
         return {"status": "stopped", "type": "research"}
 
     elif task_type in ("image", "video"):

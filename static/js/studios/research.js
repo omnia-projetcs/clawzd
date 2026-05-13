@@ -44,8 +44,6 @@ class ResearchStudioV2 {
       iterLabel: bind('rs-iteration-label'),
       
       processEditor: bind('rs-process-editor'),
-      sandboxEditor: bind('rs-sandbox-editor'),
-      sandboxConsole: bind('rs-sandbox-console')
     };
 
     // Load initial data
@@ -64,8 +62,6 @@ class ResearchStudioV2 {
     if (this.ui.btnDelete) this.ui.btnDelete.addEventListener('click', () => { if (this.currentProject) this.deleteProject(this.currentProject.id); });
     
     if (this.ui.btnSaveProcess) this.ui.btnSaveProcess.addEventListener('click', () => this.saveProcess());
-    if (this.ui.btnRunCode) this.ui.btnRunCode.addEventListener('click', () => this.runSandboxCode());
-    if (this.ui.btnInstallDeps) this.ui.btnInstallDeps.addEventListener('click', () => this.installSandboxDeps());
 
     // Auto-save process on edit (debounced)
     this._processAutoSaveTimer = null;
@@ -239,6 +235,15 @@ class ResearchStudioV2 {
         const running = this.projects.find(p => p.status === 'running');
         if (running) {
           await this.selectProject(running.id);
+        } else {
+          // Restore last selected project from sessionStorage on page reload
+          const lastPid = sessionStorage.getItem('rs_last_project');
+          if (lastPid) {
+            const exists = this.projects.find(p => p.id === lastPid);
+            if (exists) {
+              await this.selectProject(lastPid);
+            }
+          }
         }
       }
     } catch(e) { console.error("Failed to load projects", e); }
@@ -339,6 +344,8 @@ class ResearchStudioV2 {
       else this._disconnectSSE();
       
     } catch(e) { if (window.toast) toast(ICONS.x(14) + ' Failed to load project'); }
+    // Persist selection for page reload
+    try { sessionStorage.setItem('rs_last_project', pid); } catch(_) {}
   }
 
   async saveProcess() {
@@ -373,13 +380,21 @@ class ResearchStudioV2 {
   async deleteProject(pid) {
     if (!confirm('Delete this research project?')) return;
     try {
-      await fetch(`/research/projects/${pid}`, {method:'DELETE'});
+      const res = await fetch(`/research/projects/${pid}`, {method:'DELETE'});
+      if (!res.ok) {
+        const errText = await res.text().catch(() => 'Unknown error');
+        throw new Error(errText);
+      }
       this._disconnectSSE();
       this.currentProject = null;
-      this.loadProjects();
+      try { sessionStorage.removeItem('rs_last_project'); } catch(_) {}
+      await this.loadProjects();
       this._clearUI();
       if (window.toast) toast(ICONS.trash(14) + ' Project deleted');
-    } catch(e) { if (window.toast) toast(ICONS.x(14) + ' Failed to delete'); }
+    } catch(e) {
+      console.error('Delete failed:', e);
+      if (window.toast) toast(ICONS.x(14) + ' Failed to delete: ' + e.message);
+    }
   }
 
   async evaluate(pid) {
@@ -390,62 +405,6 @@ class ResearchStudioV2 {
       this._updateScore(data.score);
       if (window.toast) toast(ICONS.sparkles(14) + ` Score: ${Math.round(data.score*100)}%`);
     } catch(e) { if (window.toast) toast(ICONS.x(14) + ' Evaluation failed'); }
-  }
-
-  async runSandboxCode() {
-    if (!this.currentProject) return;
-    // Fallback to prompt if no CodeMirror instance available
-    const code = prompt("Enter Python code to execute:");
-    if (!code) return;
-    
-    const consoleEl = this.ui.sandboxConsole;
-    if (consoleEl) consoleEl.innerHTML = '<div class="rs-console-info">Executing...</div>';
-    
-    try {
-      const res = await fetch(`/research/projects/${this.currentProject.id}/sandbox`, {
-        method:'POST', headers:{'Content-Type':'application/json'},
-        body:JSON.stringify({code})
-      });
-      const data = await res.json();
-      if (consoleEl) {
-        if (data.status === 'success') {
-          consoleEl.innerHTML = `<div class="rs-console-success">[Success] Exit Code: ${data.exit_code !== undefined ? data.exit_code : 0}</div>\n${this._esc(data.stdout)}`;
-        } else {
-          consoleEl.innerHTML = `<div class="rs-console-error">[Error] Exit Code: ${data.exit_code !== undefined ? data.exit_code : -1}</div>\n<div style="color:var(--danger)">${this._esc(data.stderr)}</div>\n${this._esc(data.stdout)}`;
-        }
-      }
-    } catch(e) {
-      if (consoleEl) consoleEl.innerHTML = `<div class="rs-console-error">Network error: ${e.message}</div>`;
-    }
-  }
-
-  async installSandboxDeps() {
-    if (!this.currentProject) return;
-    const deps = prompt("Enter pip packages to install (comma separated):");
-    if (!deps) return;
-    
-    const packages = deps.split(',').map(p => p.trim()).filter(p => p);
-    if (!packages.length) return;
-    
-    const consoleEl = this.ui.sandboxConsole;
-    if (consoleEl) consoleEl.innerHTML = `<div class="rs-console-info">Installing ${packages.join(', ')}...</div>`;
-    
-    try {
-      const res = await fetch(`/research/projects/${this.currentProject.id}/install-deps`, {
-        method:'POST', headers:{'Content-Type':'application/json'},
-        body:JSON.stringify({packages})
-      });
-      const data = await res.json();
-      if (consoleEl) {
-        if (data.status === 'success') {
-          consoleEl.innerHTML = `<div class="rs-console-success">[Installed successfully]</div>\n${this._esc(data.stdout)}`;
-        } else {
-          consoleEl.innerHTML = `<div class="rs-console-error">[Installation Failed]</div>\n<div style="color:var(--danger)">${this._esc(data.stderr)}</div>\n${this._esc(data.stdout)}`;
-        }
-      }
-    } catch(e) {
-      if (consoleEl) consoleEl.innerHTML = `<div class="rs-console-error">Network error: ${e.message}</div>`;
-    }
   }
 
   async exportReport(fmt) {

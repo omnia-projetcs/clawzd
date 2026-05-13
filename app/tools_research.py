@@ -115,6 +115,12 @@ def _load(pid: str) -> dict | None:
 
 def _save(proj: dict):
     proj["updated_at"] = datetime.now(timezone.utc).isoformat()
+    # Bug 12: Strip full_text from search_results to prevent multi-MB JSON files.
+    # The full content is already saved separately as text assets.
+    results = proj.get("search_results", [])
+    for r in results:
+        r.pop("full_text", None)
+        r.pop("raw_text", None)
     with open(os.path.join(_proj_dir(proj["id"]), "project.json"), "w") as f:
         json.dump(proj, f, indent=2, ensure_ascii=False)
 
@@ -190,9 +196,22 @@ def _list_projects() -> list:
             try:
                 with open(pf) as f:
                     d = json.load(f)
+                pid = d["id"]
+                status = d.get("status", "idle")
+                # Bug 16: Cross-check with _running to fix phantom "running" statuses
+                if status == "running":
+                    task = _running.get(pid)
+                    if task is None or task.done():
+                        # No live task — correct the status on disk
+                        status = "paused"
+                        d["status"] = status
+                        d["updated_at"] = datetime.now(timezone.utc).isoformat()
+                        with open(pf, "w") as fw:
+                            json.dump(d, fw, indent=2, ensure_ascii=False)
+                        _running.pop(pid, None)
                 projects.append({
-                    "id": d["id"], "title": d.get("title", ""),
-                    "status": d.get("status", "idle"),
+                    "id": pid, "title": d.get("title", ""),
+                    "status": status,
                     "current_score": d.get("current_score", 0),
                     "iteration_count": len(d.get("iterations", [])),
                     "updated_at": d.get("updated_at", ""),
@@ -897,12 +916,22 @@ async def _research_loop(pid: str):
                     s = plan_text.find("[")
                     e = plan_text.rfind("]")
                     if s != -1 and e != -1:
-                        actions = json.loads(plan_text[s:e+1])
+                        raw_actions = json.loads(plan_text[s:e+1])
+                        # Filter: LLM sometimes returns strings instead of dicts
+                        actions = [a for a in raw_actions if isinstance(a, dict)]
                 except Exception:
                     actions = [{"action": "web_search", "params": {"query": query}}]
 
             # ── 2. Execute actions ──
             for act in actions[:5]:
+                # Bug 15: Check for stop request between each action
+                if pid in _stop_requested:
+                    _stop_requested.discard(pid)
+                    proj["status"] = "paused"
+                    _save(proj)
+                    await _emit(pid, "status", {"status": "paused"})
+                    return
+
                 action_type = act.get("action", "")
                 params = act.get("params", {})
                 await _emit_log(f"⚡ {action_type} — {json.dumps(params)[:100]}")
@@ -1544,14 +1573,13 @@ async def get_project(pid: str):
 @router.delete("/projects/{pid}")
 async def delete_project(pid: str):
     if pid in _running:
-        _running[pid].cancel()
-        try:
-            await asyncio.wait_for(
-                asyncio.shield(_running[pid]), timeout=3.0,
-            )
-        except Exception:
-            pass
-        _running.pop(pid, None)
+        task = _running.pop(pid, None)
+        if task and not task.done():
+            task.cancel()
+            try:
+                await asyncio.wait_for(task, timeout=2.0)
+            except (asyncio.CancelledError, asyncio.TimeoutError, Exception):
+                pass
     _stop_requested.discard(pid)
     _sse_queues.pop(pid, None)
     d = os.path.join(RESEARCH_DIR, pid)
@@ -1565,20 +1593,17 @@ async def start_research(pid: str):
     if not proj:
         raise HTTPException(404, "Project not found")
     if pid in _running:
-        # Check if the task is actually still alive
         task = _running[pid]
         if not task.done():
             return {"status": "already_running"}
-        # Task is finished but wasn't cleaned up — remove stale entry
-        _running.pop(pid, None)
-
-    # If a previous task is still shutting down, wait briefly (Bug 5)
-    if pid in _running:
-        old_task = _running.pop(pid)
-        try:
-            await asyncio.wait_for(asyncio.shield(old_task), timeout=3.0)
-        except Exception:
-            pass
+        # Bug 14: Task is finished but not cleaned up — wait for it to
+        # fully shut down before removing the entry and starting a new one
+        old_task = _running.pop(pid, None)
+        if old_task:
+            try:
+                await asyncio.wait_for(asyncio.shield(old_task), timeout=3.0)
+            except Exception:
+                pass
 
     # Set status to running immediately on disk (Bug 4)
     proj["status"] = "running"
@@ -1598,7 +1623,9 @@ async def stop_research(pid: str):
     if pid in _running:
         _running[pid].cancel()
         _running.pop(pid, None)
-    _sse_queues.pop(pid, None)
+    # Bug 13: Do NOT pop _sse_queues here — the CancelledError handler in
+    # _research_loop needs the queue to emit the final "paused" status event.
+    # The queue is cleaned up in the finally block of _research_loop.
     proj = _load(pid)
     if proj:
         proj["status"] = "paused"
@@ -1608,15 +1635,42 @@ async def stop_research(pid: str):
 
 @router.get("/projects/{pid}/status")
 async def research_status_sse(pid: str):
+    # Bug 11: Only create a queue if the project is actually running,
+    # otherwise send a one-shot status event and close.
+    proj = _load(pid)
+    if not proj:
+        raise HTTPException(404, "Project not found")
+
     if pid not in _sse_queues:
+        # No active queue — check if actually running
+        if pid not in _running or _running[pid].done():
+            # Send current status as a one-shot and close
+            async def gen_oneshot():
+                yield {"data": json.dumps({"type": "status", "status": proj.get("status", "idle")})}
+            return EventSourceResponse(gen_oneshot())
         _sse_queues[pid] = asyncio.Queue()
+
     async def gen():
-        q = _sse_queues[pid]
         while True:
+            # Re-fetch queue reference each iteration in case it was replaced
+            q = _sse_queues.get(pid)
+            if q is None:
+                # Queue was cleaned up — the research finished
+                yield {"data": json.dumps({"type": "status", "status": "completed"})}
+                break
             try:
                 msg = await asyncio.wait_for(q.get(), timeout=30)
                 yield {"data": msg}
             except asyncio.TimeoutError:
+                # Check if the task is still alive before sending keepalive
+                task = _running.get(pid)
+                if task is None or task.done():
+                    # Task ended but queue wasn't cleaned — send final status and close
+                    final_proj = _load(pid)
+                    final_status = final_proj.get("status", "idle") if final_proj else "idle"
+                    yield {"data": json.dumps({"type": "status", "status": final_status})}
+                    _sse_queues.pop(pid, None)
+                    break
                 yield {"data": json.dumps({"type": "ping"})}
             except Exception:
                 break
