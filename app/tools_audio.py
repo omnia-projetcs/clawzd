@@ -56,13 +56,13 @@ except Exception as e:
 # Voice presets for TTS
 # ---------------------------------------------------------------------------
 VOICE_PRESETS = {
-    "male_deep": {"description": "Man (deep)", "bark_speaker": "v2/fr_speaker_1", "speecht5_speaker": 0},
-    "male_medium": {"description": "Man (medium)", "bark_speaker": "v2/fr_speaker_3", "speecht5_speaker": 1},
-    "female_soft": {"description": "Woman (soft)", "bark_speaker": "v2/fr_speaker_0", "speecht5_speaker": 2},
-    "female_pro": {"description": "Woman (pro)", "bark_speaker": "v2/fr_speaker_2", "speecht5_speaker": 3},
-    "child": {"description": "Child", "bark_speaker": "v2/fr_speaker_4", "speecht5_speaker": 4},
-    "robot": {"description": "Robot", "bark_speaker": "v2/en_speaker_9", "speecht5_speaker": 5},
-    "narrator": {"description": "Narrator", "bark_speaker": "v2/en_speaker_6", "speecht5_speaker": 6},
+    "male_deep": {"description": "Man (deep)", "bark_speaker": "v2/fr_speaker_0", "speecht5_speaker": 1},
+    "male_medium": {"description": "Man (medium)", "bark_speaker": "v2/fr_speaker_3", "speecht5_speaker": 5},
+    "female_soft": {"description": "Woman (soft)", "bark_speaker": "v2/fr_speaker_1", "speecht5_speaker": 2},
+    "female_pro": {"description": "Woman (pro)", "bark_speaker": "v2/fr_speaker_5", "speecht5_speaker": 6},
+    "child": {"description": "Child", "bark_speaker": "v2/fr_speaker_4", "speecht5_speaker": 2},
+    "robot": {"description": "Robot", "bark_speaker": "v2/en_speaker_9", "speecht5_speaker": 4},
+    "narrator": {"description": "Narrator", "bark_speaker": "v2/en_speaker_6", "speecht5_speaker": 0},
 }
 
 MUSIC_GENRES = [

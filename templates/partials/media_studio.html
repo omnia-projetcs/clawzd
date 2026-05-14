@@ -16,7 +16,7 @@
           <span class="media-icon" data-icon="video"></span> Video
         </button>
         <button class="media-type-btn" data-type="audio">
-          <span class="media-icon" data-icon="music"></span> Audio
+          <span class="media-icon" data-icon="music"></span> Music
         </button>
       </div>
       <!-- Image Upload (for Img2Img) -->
@@ -283,12 +283,12 @@
       <div class="media-form-group"
            id="media-audio-submode-group"
            style="display:none">
-        <label class="media-form-label">Mode Audio</label>
+        <label class="media-form-label">Audio Mode</label>
         <div class="media-type-toggle" id="media-audio-submode-toggle">
           <button class="media-type-btn active" data-submode="tts">🗣️ TTS</button>
           <button class="media-type-btn" data-submode="voice_clone">🎭 Clone</button>
-          <button class="media-type-btn" data-submode="music">🎵 Musique</button>
-          <button class="media-type-btn" data-submode="song">🎤 Chanson</button>
+          <button class="media-type-btn" data-submode="music">🎵 Music</button>
+          <button class="media-type-btn" data-submode="song">🎤 Song</button>
         </div>
       </div>
       <!-- Audio Text (TTS / Clone / Song) -->
@@ -320,17 +320,17 @@
       <div class="media-form-group"
            id="media-tts-engine-group"
            style="display:none">
-        <label class="media-form-label">Moteur TTS</label>
+        <label class="media-form-label">TTS Engine</label>
         <select class="media-form-select" id="media-tts-engine">
-          <option value="speecht5" selected>⚡ SpeechT5 (rapide, léger)</option>
-          <option value="bark">🌳 Bark (naturel, multi-langue)</option>
+          <option value="speecht5" selected>⚡ SpeechT5 (fast, lightweight)</option>
+          <option value="bark">🌳 Bark (natural, multi-language)</option>
         </select>
       </div>
       <!-- Reference Audio Upload (Voice Clone) -->
       <div class="media-form-group"
            id="media-audio-ref-group"
            style="display:none">
-        <label class="media-form-label">Échantillon vocal (6s min)</label>
+        <label class="media-form-label">Sample Voice (6s min)</label>
         <button class="media-generate-btn"
                 id="media-audio-ref-btn"
                 style="padding:8px;
@@ -357,13 +357,13 @@
       </div>
       <!-- Genre (Music / Song) -->
       <div class="media-form-group" id="media-genre-group" style="display:none">
-        <label class="media-form-label">Genre Musical</label>
+        <label class="media-form-label">Music Genre</label>
         <select class="media-form-select" id="media-genre">
           <option value="" selected>🎶 Auto</option>
           <option value="pop">🎵 Pop</option>
           <option value="rock">🎸 Rock</option>
           <option value="jazz">🎷 Jazz</option>
-          <option value="classical">🎻 Classique</option>
+          <option value="classical">🎻 Classical</option>
           <option value="edm">💿 EDM / Electro</option>
           <option value="hiphop">🎤 Hip-Hop / Rap</option>
           <option value="lofi">☕ Lo-Fi / Chill</option>
@@ -395,7 +395,7 @@
       <div class="media-form-group"
            id="media-language-group"
            style="display:none">
-        <label class="media-form-label">Langue</label>
+        <label class="media-form-label">Language</label>
         <select class="media-form-select" id="media-language">
           <option value="auto" selected>🌐 Auto</option>
           <option value="fr">🇫🇷 Français</option>
@@ -412,7 +412,7 @@
       <div class="media-form-group"
            id="media-audio-duration-group"
            style="display:none">
-        <label class="media-form-label">Durée max (secondes)</label>
+        <label class="media-form-label">Max duration (seconds)</label>
         <div class="media-form-range-row">
           <input type="range"
                  class="media-form-range"
@@ -431,7 +431,7 @@
            style="display:none">
         <label class="media-form-label">Format</label>
         <select class="media-form-select" id="media-format-audio">
-          <option value="wav" selected>WAV (haute qualité)</option>
+          <option value="wav" selected>WAV (high quality)</option>
           <option value="mp3">MP3 (compact)</option>
           <option value="ogg">OGG Vorbis (open)</option>
         </select>
