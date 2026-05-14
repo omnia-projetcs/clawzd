@@ -18,18 +18,19 @@ from datetime import datetime, timezone
 logger = logging.getLogger("clawzd.research.export")
 
 
-# ── Mermaid → PNG Conversion ─────────────────────────────────────────────────
+# ── Mermaid → SVG Conversion ─────────────────────────────────────────────────
 
-async def mermaid_to_png(mermaid_code: str, output_path: str, width: int = 800) -> bool:
-    """Convert a Mermaid diagram to a PNG image using Playwright.
+async def mermaid_to_svg(mermaid_code: str, output_path: str | None = None) -> str:
+    """Convert a Mermaid diagram to SVG using Playwright.
     
-    Returns True on success, False on failure.
+    Returns the SVG markup string. Optionally saves to output_path.
+    Returns empty string on failure.
     """
     try:
         from playwright.async_api import async_playwright
     except ImportError:
-        logger.warning("Playwright not installed — skipping mermaid-to-png")
-        return False
+        logger.warning("Playwright not installed — skipping mermaid-to-svg")
+        return ""
 
     # Build a minimal HTML page that renders the mermaid diagram
     html_content = f"""<!DOCTYPE html>
@@ -44,25 +45,50 @@ async def mermaid_to_png(mermaid_code: str, output_path: str, width: int = 800) 
     try:
         async with async_playwright() as p:
             browser = await p.chromium.launch(headless=True)
-            page = await browser.new_page(viewport={"width": width, "height": 600})
+            page = await browser.new_page(viewport={"width": 800, "height": 600})
             await page.set_content(html_content)
-            # Wait for mermaid to render
             await page.wait_for_timeout(2000)
-            # Find the rendered SVG
-            svg_el = await page.query_selector("svg.mermaid")
-            if not svg_el:
-                svg_el = await page.query_selector("pre.mermaid svg")
-            if not svg_el:
-                # Fallback: screenshot the whole body
-                svg_el = await page.query_selector("body")
+            # Extract the rendered SVG markup
+            svg_markup = await page.evaluate("""() => {
+                const svg = document.querySelector('svg.mermaid') 
+                          || document.querySelector('pre.mermaid svg')
+                          || document.querySelector('svg');
+                return svg ? svg.outerHTML : '';
+            }""")
+            await browser.close()
+            if svg_markup:
+                if output_path:
+                    with open(output_path, "w", encoding="utf-8") as f:
+                        f.write(svg_markup)
+                    logger.info("Mermaid → SVG: %s", output_path)
+                return svg_markup
+    except Exception as e:
+        logger.warning("mermaid_to_svg failed: %s", e)
+    return ""
+
+
+async def svg_to_png(svg_path: str, png_path: str) -> bool:
+    """Convert an SVG file to PNG using Playwright. Only used for DOCX export."""
+    try:
+        from playwright.async_api import async_playwright
+    except ImportError:
+        return False
+    try:
+        with open(svg_path, "r", encoding="utf-8") as f:
+            svg_content = f.read()
+        html = f'<!DOCTYPE html><html><body style="margin:0;background:white">{svg_content}</body></html>'
+        async with async_playwright() as p:
+            browser = await p.chromium.launch(headless=True)
+            page = await browser.new_page()
+            await page.set_content(html)
+            svg_el = await page.query_selector("svg")
             if svg_el:
-                await svg_el.screenshot(path=output_path, type="png")
+                await svg_el.screenshot(path=png_path, type="png")
                 await browser.close()
-                logger.info("Mermaid → PNG: %s", output_path)
                 return True
             await browser.close()
     except Exception as e:
-        logger.warning("mermaid_to_png failed: %s", e)
+        logger.warning("svg_to_png failed: %s", e)
     return False
 
 
@@ -100,10 +126,34 @@ def sanitize_mermaid_code(code: str) -> str:
     return code
 
 
-async def replace_mermaid_with_images(md: str, assets_dir: str) -> str:
-    """Replace all mermaid blocks in markdown with PNG image references.
+async def replace_mermaid_with_svg_inline(md: str) -> str:
+    """Replace mermaid blocks with inline SVG markup.
     
-    Used for PDF/DOCX exports where mermaid JS rendering isn't available.
+    Used for PDF export via WeasyPrint (which supports inline SVG natively).
+    No files written — SVG is embedded directly in the HTML.
+    """
+    blocks = _extract_mermaid_blocks(md)
+    if not blocks:
+        return md
+
+    for full_match, code in blocks:
+        clean_code = sanitize_mermaid_code(code)
+        svg = await mermaid_to_svg(clean_code)
+        if svg:
+            # Embed the SVG directly — WeasyPrint renders it natively
+            md = md.replace(full_match, f'\n<div class="mermaid-svg">{svg}</div>\n')
+        else:
+            # Fallback: keep as cleaned code block
+            md = md.replace(full_match, f"```\n{clean_code}\n```")
+
+    return md
+
+
+async def replace_mermaid_with_images(md: str, assets_dir: str) -> str:
+    """Replace mermaid blocks with PNG image references.
+    
+    Used for DOCX and fpdf2 exports where SVG isn't supported.
+    Renders SVG first, then converts to PNG.
     """
     blocks = _extract_mermaid_blocks(md)
     if not blocks:
@@ -112,18 +162,25 @@ async def replace_mermaid_with_images(md: str, assets_dir: str) -> str:
     for full_match, code in blocks:
         clean_code = sanitize_mermaid_code(code)
         code_hash = hashlib.md5(clean_code.encode()).hexdigest()[:8]
-        img_name = f"mermaid_{code_hash}.png"
-        img_path = os.path.join(assets_dir, img_name)
+        svg_name = f"mermaid_{code_hash}.svg"
+        png_name = f"mermaid_{code_hash}.png"
+        svg_path = os.path.join(assets_dir, svg_name)
+        png_path = os.path.join(assets_dir, png_name)
 
-        if not os.path.exists(img_path):
-            success = await mermaid_to_png(clean_code, img_path)
-            if not success:
-                # Leave the code block as-is but clean it
+        if not os.path.exists(png_path):
+            # Step 1: Mermaid → SVG
+            svg = await mermaid_to_svg(clean_code, svg_path)
+            if not svg:
                 md = md.replace(full_match, f"```\n{clean_code}\n```")
                 continue
+            # Step 2: SVG → PNG (for DOCX/fpdf2 compatibility)
+            success = await svg_to_png(svg_path, png_path)
+            if not success:
+                # Use SVG reference as fallback (won't render in DOCX but at least exists)
+                md = md.replace(full_match, f"![Diagram]({svg_path})")
+                continue
 
-        # Replace with image reference
-        md = md.replace(full_match, f"![Diagram]({img_path})")
+        md = md.replace(full_match, f"![Diagram]({png_path})")
 
     return md
 
