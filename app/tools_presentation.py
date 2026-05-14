@@ -186,10 +186,21 @@ def _generate_powerpoint(pages: list, filepath: str, canvas_width: int, canvas_h
                     shp = slide.shapes.add_shape(st, x, y, w, h)
                     
                     bg = el.get("backgroundColor", "#000000")
+                    op = el.get("opacity", 100)
                     if bg and bg != "transparent":
                         c = _hex_to_rgb(bg)
                         shp.fill.solid()
                         shp.fill.fore_color.rgb = RGBColor(c[0], c[1], c[2])
+                        if op < 100:
+                            try:
+                                from pptx.oxml.xmlchemy import OxmlElement
+                                solidFill = shp.fill._fill._solidFill
+                                if hasattr(solidFill, "srgbClr"):
+                                    alpha = OxmlElement('a:alpha')
+                                    alpha.set('val', str(int(op * 1000)))
+                                    solidFill.srgbClr.append(alpha)
+                            except Exception as e:
+                                logger.warning(f"Failed to apply opacity to PPTX shape fill: {e}")
                     else:
                         shp.fill.background()
                         
@@ -199,6 +210,16 @@ def _generate_powerpoint(pages: list, filepath: str, canvas_width: int, canvas_h
                         c = _hex_to_rgb(border)
                         shp.line.color.rgb = RGBColor(c[0], c[1], c[2])
                         shp.line.width = Pt(bw)
+                        if op < 100:
+                            try:
+                                from pptx.oxml.xmlchemy import OxmlElement
+                                solidFill = shp.line.fill._fill._solidFill
+                                if hasattr(solidFill, "srgbClr"):
+                                    alpha = OxmlElement('a:alpha')
+                                    alpha.set('val', str(int(op * 1000)))
+                                    solidFill.srgbClr.append(alpha)
+                            except Exception as e:
+                                logger.warning(f"Failed to apply opacity to PPTX shape border: {e}")
                     else:
                         shp.line.fill.background()
                                 
@@ -345,20 +366,33 @@ def _generate_pdf(pages: list, filepath: str, canvas_width: int, canvas_height: 
                         continue
                         
                     shape_type = el.get("shapeType", "rect")
-                    if shape_type == "rect":
-                        pdf.rect(x, y, w, h, style=style)
-                    elif shape_type == "circle":
-                        pdf.ellipse(x, y, w, h, style=style)
-                    elif shape_type == "triangle":
-                        pdf.polygon([(x+w/2, y), (x+w, y+h), (x, y+h)], style=style)
-                    elif shape_type == "hexagon":
-                        pdf.polygon([(x+w/4, y), (x+w*3/4, y), (x+w, y+h/2), (x+w*3/4, y+h), (x+w/4, y+h), (x, y+h/2)], style=style)
-                    elif shape_type == "arrow":
-                        headStart = w * 0.6
-                        bodyH = h * 0.4
-                        bodyY1 = y + (h - bodyH) / 2
-                        bodyY2 = bodyY1 + bodyH
-                        pdf.polygon([(x, bodyY1), (x+headStart, bodyY1), (x+headStart, y), (x+w, y+h/2), (x+headStart, y+h), (x+headStart, bodyY2), (x, bodyY2)], style=style)
+                    op = el.get("opacity", 100)
+                    
+                    def draw_shape():
+                        if shape_type == "rect":
+                            pdf.rect(x, y, w, h, style=style)
+                        elif shape_type == "circle":
+                            pdf.ellipse(x, y, w, h, style=style)
+                        elif shape_type == "triangle":
+                            pdf.polygon([(x+w/2, y), (x+w, y+h), (x, y+h)], style=style)
+                        elif shape_type == "hexagon":
+                            pdf.polygon([(x+w/4, y), (x+w*3/4, y), (x+w, y+h/2), (x+w*3/4, y+h), (x+w/4, y+h), (x, y+h/2)], style=style)
+                        elif shape_type == "arrow":
+                            headStart = w * 0.6
+                            bodyH = h * 0.4
+                            bodyY1 = y + (h - bodyH) / 2
+                            bodyY2 = bodyY1 + bodyH
+                            pdf.polygon([(x, bodyY1), (x+headStart, bodyY1), (x+headStart, y), (x+w, y+h/2), (x+headStart, y+h), (x+headStart, bodyY2), (x, bodyY2)], style=style)
+                            
+                    if op < 100:
+                        try:
+                            with pdf.local_context(fill_opacity=op/100.0, stroke_opacity=op/100.0):
+                                draw_shape()
+                        except AttributeError:
+                            # FPDF2 version might not support local_context properly, fallback to normal
+                            draw_shape()
+                    else:
+                        draw_shape()
 
         pdf.output(filepath)
         return filepath
@@ -589,20 +623,31 @@ def _generate_pngs(pages: list, base_filepath: str, canvas_width: int, canvas_he
                     outline_color = (c[0], c[1], c[2], alpha)
                     
                 shape_type = el.get("shapeType", "rect")
-                if shape_type == "rect":
-                    draw.rectangle([x, y, x+w, y+h], fill=fill_color, outline=outline_color, width=bw)
-                elif shape_type == "circle":
-                    draw.ellipse([x, y, x+w, y+h], fill=fill_color, outline=outline_color, width=bw)
-                elif shape_type == "triangle":
-                    draw.polygon([(x+w/2, y), (x+w, y+h), (x, y+h)], fill=fill_color, outline=outline_color)
-                elif shape_type == "hexagon":
-                    draw.polygon([(x+w/4, y), (x+w*3/4, y), (x+w, y+h/2), (x+w*3/4, y+h), (x+w/4, y+h), (x, y+h/2)], fill=fill_color, outline=outline_color)
-                elif shape_type == "arrow":
-                    headStart = w * 0.6
-                    bodyH = h * 0.4
-                    bodyY1 = y + (h - bodyH) / 2
-                    bodyY2 = bodyY1 + bodyH
-                    draw.polygon([(x, bodyY1), (x+headStart, bodyY1), (x+headStart, y), (x+w, y+h/2), (x+headStart, y+h), (x+headStart, bodyY2), (x, bodyY2)], fill=fill_color, outline=outline_color)
+                
+                def draw_shape_on(target_draw):
+                    if shape_type == "rect":
+                        target_draw.rectangle([x, y, x+w, y+h], fill=fill_color, outline=outline_color, width=bw)
+                    elif shape_type == "circle":
+                        target_draw.ellipse([x, y, x+w, y+h], fill=fill_color, outline=outline_color, width=bw)
+                    elif shape_type == "triangle":
+                        target_draw.polygon([(x+w/2, y), (x+w, y+h), (x, y+h)], fill=fill_color, outline=outline_color)
+                    elif shape_type == "hexagon":
+                        target_draw.polygon([(x+w/4, y), (x+w*3/4, y), (x+w, y+h/2), (x+w*3/4, y+h), (x+w/4, y+h), (x, y+h/2)], fill=fill_color, outline=outline_color)
+                    elif shape_type == "arrow":
+                        headStart = w * 0.6
+                        bodyH = h * 0.4
+                        bodyY1 = y + (h - bodyH) / 2
+                        bodyY2 = bodyY1 + bodyH
+                        target_draw.polygon([(x, bodyY1), (x+headStart, bodyY1), (x+headStart, y), (x+w, y+h/2), (x+headStart, y+h), (x+headStart, bodyY2), (x, bodyY2)], fill=fill_color, outline=outline_color)
+                
+                if op < 100:
+                    overlay = Image.new('RGBA', img.size, (0,0,0,0))
+                    overlay_draw = ImageDraw.Draw(overlay, 'RGBA')
+                    draw_shape_on(overlay_draw)
+                    img = Image.alpha_composite(img, overlay)
+                    draw = ImageDraw.Draw(img, 'RGBA') # Rebind draw to the new composited image
+                else:
+                    draw_shape_on(draw)
                             
         # Convert RGBA back to RGB for PNG saving without alpha channel issues if needed, 
         # or keep RGBA. PNG supports RGBA.

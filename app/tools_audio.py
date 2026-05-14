@@ -629,23 +629,39 @@ async def generate_audio(request: Request):
             except ImportError:
                 raise HTTPException(500, "TTS library (Coqui) not installed. Run: pip install TTS")
 
-        elif mode in ("music", "song"):
+        elif mode == "song":
+            _audio_generation_progress = {
+                "active": True, "progress": 15.0, "stage": "generating",
+            }
+            if not text:
+                raise HTTPException(400, "Lyrics (text) are required for song generation")
+                
+            if enhance_prompt:
+                text = await _enhance_lyrics_with_llm(text)
+                generated_prompt = text
+                
+            # Format text for Bark singing
+            song_text = "♪ " + text.replace("\n", " ♪\n♪ ") + " ♪"
+            song_text = song_text.replace("♪ ♪", "♪")
+            
+            audio, sr = await _generate_tts_bark(song_text, voice_style=voice_style, language=language)
+            
+            _audio_generation_progress = {
+                "active": True, "progress": 90.0, "stage": "saving",
+            }
+            meta_prompt = f"[Song/{voice_style}] {text[:200]}"
+            filename = _save_audio(audio, sr, format_type, meta_prompt, mode=mode)
+
+        elif mode == "music":
             _audio_generation_progress = {
                 "active": True, "progress": 15.0, "stage": "generating",
             }
             desc = prompt or text or "upbeat electronic music"
-            
-            if mode == "song" and text:
-                if enhance_prompt:
-                    text = await _enhance_lyrics_with_llm(text)
-                    generated_prompt = text
-                desc = f"song with lyrics theme: {text[:100]}, {desc}"
-
             audio, sr = await _generate_music(desc, genre, tempo_bpm, duration)
             _audio_generation_progress = {
                 "active": True, "progress": 90.0, "stage": "saving",
             }
-            meta_prompt = f"[{'Song' if mode == 'song' else 'Music'}/{genre or 'auto'}] {desc[:200]}"
+            meta_prompt = f"[Music/{genre or 'auto'}] {desc[:200]}"
             filename = _save_audio(audio, sr, format_type, meta_prompt, mode=mode)
 
         else:
