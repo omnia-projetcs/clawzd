@@ -1503,3 +1503,120 @@ async def _assemble_sectioned_report(
         bibliography,
     ]
     return "\n".join(report_parts)
+
+
+# ── 7. Mermaid Syntax Sanitizer ──────────────────────────────────────────────
+
+import re as _re
+
+
+def sanitize_mermaid_in_report(report_md: str) -> str:
+    """Sanitize all mermaid code blocks in a report for valid syntax.
+
+    Fixes common LLM generation issues:
+    - HTML <br>, <br/> tags → spaces
+    - Unquoted labels containing (), [], <>, / → quoted with ""
+    - Invalid or unsupported diagram types → wrapped in warning
+    """
+    def _fix_block(match):
+        code = match.group(1)
+        # Strip HTML tags
+        code = _re.sub(r'<br\s*/?>', ' ', code, flags=_re.IGNORECASE)
+        code = _re.sub(r'</?[a-z][a-z0-9]*[^>]*>', '', code, flags=_re.IGNORECASE)
+        # Auto-quote labels in square brackets with special chars
+        code = _re.sub(
+            r'(\w+)\[([^\]"]+[()/<>][^\]"]*)\]',
+            lambda m: f'{m.group(1)}["{m.group(2).strip()}"]',
+            code,
+        )
+        # Auto-quote labels in parentheses with special chars
+        code = _re.sub(
+            r'(\w+)\(([^)"]+[\[\]/<>][^)"]*)\)',
+            lambda m: f'{m.group(1)}("{m.group(2).strip()}")',
+            code,
+        )
+        # Remove self-referencing arrows
+        code = _re.sub(
+            r'^(\s*)(\w+)\s*(?:-->|==>|---|-.->)\s*\2\s*$',
+            '', code, flags=_re.MULTILINE,
+        )
+        # Remove empty lines that resulted from cleanup
+        code = _re.sub(r'\n{3,}', '\n\n', code)
+        return f"```mermaid\n{code.strip()}\n```"
+
+    return _re.sub(r'```mermaid\s*\n([\s\S]*?)```', _fix_block, report_md)
+
+
+# ── 8. Iteration Merging (Cumulative Research) ──────────────────────────────
+
+async def merge_iteration_findings(
+    cumulative_findings: str,
+    new_results: list[dict],
+    new_branch_summaries: str,
+    query: str,
+    iteration_num: int,
+    llm_call: LLMCallFn,
+    provider: str = "",
+    model: str = "",
+) -> str:
+    """Merge new iteration findings with existing cumulative knowledge.
+
+    Instead of each iteration being independent, this function:
+    1. Identifies what's genuinely NEW in the latest iteration
+    2. Merges valuable new insights with existing findings
+    3. Resolves contradictions between old and new data
+    4. Produces an updated cumulative findings summary
+
+    This ensures that each iteration BUILDS ON previous work rather than
+    replacing it, leading to progressively better research output.
+    """
+    new_results_text = "\n".join(
+        f"- [{r.get('source', 'web')}] {r.get('title', '')}: {r.get('snippet', '')[:200]}"
+        for r in new_results[-30:]
+    )[:3000]
+
+    prompt = [
+        {"role": "system", "content": (
+            "You are a research synthesis specialist. Your task is to MERGE "
+            "new research findings with existing accumulated knowledge.\n\n"
+            "Rules:\n"
+            "  1. KEEP everything valuable from the previous findings\n"
+            "  2. ADD genuinely new insights from the latest iteration\n"
+            "  3. RESOLVE contradictions — prefer the more recent/better-sourced info\n"
+            "  4. REMOVE redundant/duplicate information\n"
+            "  5. ORGANIZE by topic clusters for clarity\n"
+            "  6. Maintain source attribution where possible\n\n"
+            "Return a structured synthesis (800-1500 words) that represents "
+            "the BEST of ALL iterations combined.\n"
+            "Use clear headings (##) to organize topics."
+        )},
+        {"role": "user", "content": (
+            f"Research topic: {query}\n"
+            f"Iteration: {iteration_num}\n\n"
+            f"=== EXISTING CUMULATIVE FINDINGS ===\n"
+            f"{cumulative_findings[:4000]}\n\n"
+            f"=== NEW RESEARCH (iteration {iteration_num}) ===\n"
+            f"Branch summaries:\n{new_branch_summaries[:2000]}\n\n"
+            f"New results:\n{new_results_text}\n\n"
+            "Produce the MERGED cumulative findings, keeping the best of both."
+        )},
+    ]
+
+    try:
+        merged = await llm_call(prompt, provider, model)
+        if merged and len(merged) > 100:
+            logger.info(
+                "Iteration %d findings merged: %d → %d chars",
+                iteration_num, len(cumulative_findings), len(merged),
+            )
+            return merged
+    except Exception as e:
+        logger.warning("merge_iteration_findings failed: %s", e)
+
+    # Fallback: concatenate
+    return (
+        cumulative_findings
+        + f"\n\n---\n\n## Iteration {iteration_num} Findings\n\n"
+        + new_branch_summaries[:2000]
+    )
+

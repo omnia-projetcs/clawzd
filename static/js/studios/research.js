@@ -691,11 +691,85 @@ class ResearchStudioV2 {
       el.innerHTML = '<div class="rs-log-empty"><svg class="ic" width="40" height="40" style="opacity:0.3"><use href="#icon-file-text"></use></svg><p>Report will appear here once generated.</p></div>';
       return;
     }
+    // Build quality dashboard header from project metadata
+    const dashboardHtml = this._buildReportDashboard();
+    
+    let reportHtml = '';
     if (window.renderMd) {
-        el.innerHTML = renderMd(md);
+        reportHtml = renderMd(md);
     } else {
-        el.innerHTML = `<pre style="white-space:pre-wrap;font-family:inherit;">${this._esc(md)}</pre>`;
+        reportHtml = `<pre style="white-space:pre-wrap;font-family:inherit;">${this._esc(md)}</pre>`;
     }
+    // Post-process: catch any surviving __TABLE__/__CHART__ markers
+    if (window.StructuredUI) {
+        reportHtml = StructuredUI.renderComponents(reportHtml);
+    }
+    el.innerHTML = dashboardHtml + reportHtml;
+    // Highlight code blocks
+    if (window.highlightAll) highlightAll(el);
+  }
+
+  _buildReportDashboard() {
+    const p = this.currentProject;
+    if (!p) return '';
+    const score = Math.round((p.current_score || 0) * 100);
+    const iters = (p.iterations || []).length;
+    const sources = (p.search_results || []).length;
+    const assets = (p.assets || []).length;
+    const lastIter = (p.iterations || []).slice(-1)[0] || {};
+    const scoresDetail = lastIter.scores_detail || {};
+    
+    // SVG circular gauge
+    const radius = 40;
+    const circumference = 2 * Math.PI * radius;
+    const offset = circumference - (score / 100) * circumference;
+    const scoreColor = score >= 70 ? '#10b981' : score >= 40 ? '#f59e0b' : '#ef4444';
+    
+    const gaugeHtml = `
+      <svg viewBox="0 0 100 100" class="rs-dash-gauge">
+        <circle cx="50" cy="50" r="${radius}" fill="none" stroke="rgba(255,255,255,0.08)" stroke-width="8"/>
+        <circle cx="50" cy="50" r="${radius}" fill="none" stroke="${scoreColor}" stroke-width="8"
+          stroke-dasharray="${circumference}" stroke-dashoffset="${offset}"
+          stroke-linecap="round" transform="rotate(-90 50 50)" style="transition: stroke-dashoffset 1s ease;"/>
+        <text x="50" y="46" text-anchor="middle" fill="${scoreColor}" font-size="22" font-weight="700">${score}%</text>
+        <text x="50" y="60" text-anchor="middle" fill="var(--text-muted)" font-size="8">Quality</text>
+      </svg>`;
+    
+    // Metric cards
+    const cards = [
+      { icon: '🔍', label: 'Sources', value: sources },
+      { icon: '🔄', label: 'Iterations', value: iters },
+      { icon: '📁', label: 'Assets', value: assets },
+    ].map(c => `
+      <div class="rs-dash-card">
+        <span class="rs-dash-card-icon">${c.icon}</span>
+        <span class="rs-dash-card-value">${c.value}</span>
+        <span class="rs-dash-card-label">${c.label}</span>
+      </div>`).join('');
+    
+    // Per-axis mini progress bars
+    const axes = ['coverage', 'depth', 'reliability', 'coherence', 'recency'];
+    const axisLabels = { coverage: 'Coverage', depth: 'Depth', reliability: 'Reliability', coherence: 'Coherence', recency: 'Recency' };
+    let axesBarsHtml = '';
+    if (Object.keys(scoresDetail).length > 0) {
+      axesBarsHtml = '<div class="rs-dash-axes">' + axes.map(ax => {
+        const val = Math.round((scoresDetail[ax] || 0) * 100);
+        const color = val >= 70 ? '#10b981' : val >= 40 ? '#f59e0b' : '#ef4444';
+        return `<div class="rs-dash-axis">
+          <span class="rs-dash-axis-label">${axisLabels[ax] || ax}</span>
+          <div class="rs-dash-axis-bar"><div class="rs-dash-axis-fill" style="width:${val}%;background:${color}"></div></div>
+          <span class="rs-dash-axis-val">${val}%</span>
+        </div>`;
+      }).join('') + '</div>';
+    }
+    
+    return `<div class="rs-report-dashboard">
+      <div class="rs-dash-main">
+        <div class="rs-dash-gauge-wrap">${gaugeHtml}</div>
+        <div class="rs-dash-cards">${cards}</div>
+      </div>
+      ${axesBarsHtml}
+    </div>`;
   }
 
   _renderResults() {

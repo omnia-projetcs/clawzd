@@ -97,7 +97,7 @@
         <textarea class="media-form-input"
                   id="media-prompt"
                   placeholder="A majestic dragon soaring through neon clouds..."
-                  rows="4"></textarea>
+                  rows="4">A majestic dragon soaring through neon clouds...</textarea>
       </div>
       <!-- Negative Prompt -->
       <div class="media-form-group">
@@ -583,8 +583,11 @@
     /* Remove BG Modal */
     .media-rembg-modal {
         position: fixed;
-        top: 0; left: 0; width: 100%; height: 100%;
-        background: rgba(0,0,0,0.85);
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        background: rgba(0, 0, 0, 0.85);
         z-index: 10000;
         display: flex;
         align-items: center;
@@ -595,10 +598,12 @@
         backdrop-filter: blur(8px);
         -webkit-backdrop-filter: blur(8px);
     }
+
     .media-rembg-modal.open {
         opacity: 1;
         pointer-events: auto;
     }
+
     .media-rembg-content {
         background: var(--bg-primary);
         border: 1px solid var(--border);
@@ -609,11 +614,12 @@
         max-height: 90vh;
         display: flex;
         overflow: hidden;
-        box-shadow: 0 25px 50px -12px rgba(0,0,0,0.5);
+        box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5);
     }
+
     .media-rembg-preview-area {
         flex: 1;
-        background: url('data:image/svg+xml;utf8,<svg width="20" height="20" xmlns="http://www.w3.org/2000/svg"><rect width="10" height="10" fill="%23222"/><rect x="10" width="10" height="10" fill="%23333"/><rect y="10" width="10" height="10" fill="%23333"/><rect x="10" y="10" width="10" height="10" fill="%23222"/></svg>');
+        background: url('data:image/svg+xml;utf8,<svg width="20" height="20" xmlns="http://www.w3.org/2000/svg"><rect width="10" height="10" fill="%23222" /><rect x="10" width="10" height="10" fill="%23333" /><rect y="10" width="10" height="10" fill="%23333" /><rect x="10" y="10" width="10" height="10" fill="%23222" /></svg>');
         display: flex;
         align-items: center;
         justify-content: center;
@@ -621,18 +627,21 @@
         padding: 20px;
         border-right: 1px solid var(--border);
     }
+
     .media-rembg-preview-area img {
         max-width: 100%;
         max-height: 100%;
         object-fit: contain;
         transition: opacity 0.3s;
     }
+
     .media-rembg-controls {
         width: 320px;
         display: flex;
         flex-direction: column;
         background: var(--bg-secondary);
     }
+
     .media-rembg-header {
         padding: 16px 20px;
         border-bottom: 1px solid var(--border);
@@ -640,11 +649,13 @@
         align-items: center;
         justify-content: space-between;
     }
+
     .media-rembg-header h3 {
         margin: 0;
         font-size: 16px;
         color: var(--text-primary);
     }
+
     .media-rembg-body {
         padding: 20px;
         flex: 1;
@@ -653,12 +664,14 @@
         flex-direction: column;
         gap: 16px;
     }
+
     .media-rembg-footer {
         padding: 16px 20px;
         border-top: 1px solid var(--border);
         display: flex;
         gap: 12px;
     }
+
     .media-rembg-btn {
         flex: 1;
         padding: 10px;
@@ -668,96 +681,136 @@
         font-weight: 500;
         transition: background 0.2s;
     }
+
     .media-rembg-btn.cancel {
         background: var(--bg-tertiary);
         color: var(--text-primary);
     }
+
     .media-rembg-btn.cancel:hover {
         background: var(--border);
     }
+
     .media-rembg-btn.apply {
         background: var(--accent);
         color: white;
     }
+
     .media-rembg-btn.apply:hover {
         background: var(--accent-hover);
     }
 </style>
-
 <!-- Remove BG Modal -->
 <div class="media-rembg-modal" id="media-rembg-modal">
-    <div class="media-rembg-content">
-        <div class="media-rembg-preview-area">
-            <img id="media-rembg-preview-img" src="" alt="Preview">
-            <div id="media-rembg-loading" style="display:none;position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);background:rgba(0,0,0,0.7);color:white;padding:12px 24px;border-radius:8px;font-weight:bold;backdrop-filter:blur(4px);">
-                Processing...
-            </div>
-        </div>
-        <div class="media-rembg-controls">
-            <div class="media-rembg-header">
-                <h3>🎨 Remove Background</h3>
-                <button class="media-lightbox-close" id="media-rembg-close" style="position:static;width:32px;height:32px;">
-                    <span class="media-icon" data-icon="x" style="margin:0;"></span>
-                </button>
-            </div>
-            <div class="media-rembg-body">
-                <div class="media-form-group">
-                    <label class="media-form-label">AI Model</label>
-                    <select class="media-form-select" id="rembg-model">
-                        <option value="isnet-general-use" selected>ISNet (General Use - Best Quality)</option>
-                        <option value="u2net">U2Net (Standard)</option>
-                        <option value="u2net_human_seg">U2Net (Human Segmentation)</option>
-                        <option value="u2net_cloth_seg">U2Net (Clothing Segmentation)</option>
-                        <option value="silueta">Silueta (Very small & fast)</option>
-                    </select>
-                </div>
-                
-                <div class="media-form-group">
-                    <div style="display:flex;align-items:center;gap:8px;">
-                        <input type="checkbox" id="rembg-post-process" checked>
-                        <label for="rembg-post-process" style="font-size:13px;color:var(--text-primary);cursor:pointer">
-                            Post-process Mask (Clean edges)
-                        </label>
-                    </div>
-                </div>
-
-                <div class="media-form-group">
-                    <div style="display:flex;align-items:center;gap:8px;">
-                        <input type="checkbox" id="rembg-alpha-matting">
-                        <label for="rembg-alpha-matting" style="font-size:13px;color:var(--text-primary);cursor:pointer">
-                            Alpha Matting (Better for hair/fur)
-                        </label>
-                    </div>
-                </div>
-
-                <div id="rembg-alpha-controls" style="display:none; flex-direction:column; gap:12px; padding:12px; background:var(--bg-tertiary); border-radius:var(--radius-sm); border:1px solid var(--border);">
-                    <div>
-                        <div style="display:flex;justify-content:space-between;margin-bottom:4px;">
-                            <label class="media-form-label" style="margin:0">Foreground Thresh</label>
-                            <span id="rembg-fg-val" style="font-size:12px;color:var(--accent)">240</span>
-                        </div>
-                        <input type="range" class="media-form-range" id="rembg-fg-thresh" min="0" max="255" value="240" oninput="document.getElementById('rembg-fg-val').textContent = this.value">
-                    </div>
-                    <div>
-                        <div style="display:flex;justify-content:space-between;margin-bottom:4px;">
-                            <label class="media-form-label" style="margin:0">Background Thresh</label>
-                            <span id="rembg-bg-val" style="font-size:12px;color:var(--accent)">10</span>
-                        </div>
-                        <input type="range" class="media-form-range" id="rembg-bg-thresh" min="0" max="255" value="10" oninput="document.getElementById('rembg-bg-val').textContent = this.value">
-                    </div>
-                    <div>
-                        <div style="display:flex;justify-content:space-between;margin-bottom:4px;">
-                            <label class="media-form-label" style="margin:0">Erode Size</label>
-                            <span id="rembg-erode-val" style="font-size:12px;color:var(--accent)">10</span>
-                        </div>
-                        <input type="range" class="media-form-range" id="rembg-erode-size" min="0" max="50" value="10" oninput="document.getElementById('rembg-erode-val').textContent = this.value">
-                    </div>
-                </div>
-            </div>
-            <div class="media-rembg-footer">
-                <button class="media-rembg-btn cancel" id="media-rembg-cancel-btn">Cancel</button>
-                <button class="media-rembg-btn apply" id="media-rembg-apply-btn">Apply & Save</button>
-            </div>
-        </div>
+  <div class="media-rembg-content">
+    <div class="media-rembg-preview-area">
+      <img id="media-rembg-preview-img" src="" alt="Preview">
+      <div id="media-rembg-loading"
+           style="display:none;
+                  position:absolute;
+                  top:50%;
+                  left:50%;
+                  transform:translate(-50%,-50%);
+                  background:rgba(0,0,0,0.7);
+                  color:white;
+                  padding:12px 24px;
+                  border-radius:8px;
+                  font-weight:bold;
+                  backdrop-filter:blur(4px)">Processing...</div>
     </div>
+    <div class="media-rembg-controls">
+      <div class="media-rembg-header">
+        <h3>🎨 Remove Background</h3>
+        <button class="media-lightbox-close"
+                id="media-rembg-close"
+                style="position:static;
+                       width:32px;
+                       height:32px">
+          <span class="media-icon" data-icon="x" style="margin:0;"></span>
+        </button>
+      </div>
+      <div class="media-rembg-body">
+        <div class="media-form-group">
+          <label class="media-form-label">AI Model</label>
+          <select class="media-form-select" id="rembg-model">
+            <option value="isnet-general-use" selected>ISNet (General Use - Best Quality)</option>
+            <option value="u2net">U2Net (Standard)</option>
+            <option value="u2net_human_seg">U2Net (Human Segmentation)</option>
+            <option value="u2net_cloth_seg">U2Net (Clothing Segmentation)</option>
+            <option value="silueta">Silueta (Very small & fast)</option>
+          </select>
+        </div>
+        <div class="media-form-group">
+          <div style="display:flex;align-items:center;gap:8px;">
+            <input type="checkbox" id="rembg-post-process" checked>
+            <label for="rembg-post-process"
+                   style="font-size:13px;
+                          color:var(--text-primary);
+                          cursor:pointer">Post-process Mask (Clean edges)</label>
+          </div>
+        </div>
+        <div class="media-form-group">
+          <div style="display:flex;align-items:center;gap:8px;">
+            <input type="checkbox" id="rembg-alpha-matting">
+            <label for="rembg-alpha-matting"
+                   style="font-size:13px;
+                          color:var(--text-primary);
+                          cursor:pointer">Alpha Matting (Better for hair/fur)</label>
+          </div>
+        </div>
+        <div id="rembg-alpha-controls"
+             style="display:none;
+                    flex-direction:column;
+                    gap:12px;
+                    padding:12px;
+                    background:var(--bg-tertiary);
+                    border-radius:var(--radius-sm);
+                    border:1px solid var(--border)">
+          <div>
+            <div style="display:flex;justify-content:space-between;margin-bottom:4px;">
+              <label class="media-form-label" style="margin:0">Foreground Thresh</label>
+              <span id="rembg-fg-val" style="font-size:12px;color:var(--accent)">240</span>
+            </div>
+            <input type="range"
+                   class="media-form-range"
+                   id="rembg-fg-thresh"
+                   min="0"
+                   max="255"
+                   value="240"
+                   oninput="document.getElementById('rembg-fg-val').textContent = this.value">
+          </div>
+          <div>
+            <div style="display:flex;justify-content:space-between;margin-bottom:4px;">
+              <label class="media-form-label" style="margin:0">Background Thresh</label>
+              <span id="rembg-bg-val" style="font-size:12px;color:var(--accent)">10</span>
+            </div>
+            <input type="range"
+                   class="media-form-range"
+                   id="rembg-bg-thresh"
+                   min="0"
+                   max="255"
+                   value="10"
+                   oninput="document.getElementById('rembg-bg-val').textContent = this.value">
+          </div>
+          <div>
+            <div style="display:flex;justify-content:space-between;margin-bottom:4px;">
+              <label class="media-form-label" style="margin:0">Erode Size</label>
+              <span id="rembg-erode-val" style="font-size:12px;color:var(--accent)">10</span>
+            </div>
+            <input type="range"
+                   class="media-form-range"
+                   id="rembg-erode-size"
+                   min="0"
+                   max="50"
+                   value="10"
+                   oninput="document.getElementById('rembg-erode-val').textContent = this.value">
+          </div>
+        </div>
+      </div>
+      <div class="media-rembg-footer">
+        <button class="media-rembg-btn cancel" id="media-rembg-cancel-btn">Cancel</button>
+        <button class="media-rembg-btn apply" id="media-rembg-apply-btn">Apply & Save</button>
+      </div>
+    </div>
+  </div>
 </div>

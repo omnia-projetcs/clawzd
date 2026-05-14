@@ -81,3 +81,99 @@
 #rs-profile-select {
   font-weight: 600; min-width: 160px;
 }
+
+/* ---- Report Dashboard ---- */
+.rs-report-dashboard {
+  background: linear-gradient(135deg, rgba(99,102,241,0.08), rgba(16,185,129,0.06));
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  padding: 20px 24px;
+  margin-bottom: 24px;
+}
+.rs-dash-main {
+  display: flex;
+  align-items: center;
+  gap: 24px;
+}
+.rs-dash-gauge-wrap {
+  flex-shrink: 0;
+}
+.rs-dash-gauge {
+  width: 100px;
+  height: 100px;
+}
+.rs-dash-cards {
+  display: flex;
+  gap: 16px;
+  flex: 1;
+  flex-wrap: wrap;
+}
+.rs-dash-card {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  background: rgba(255,255,255,0.04);
+  border: 1px solid rgba(255,255,255,0.06);
+  border-radius: var(--radius-sm);
+  padding: 12px 20px;
+  min-width: 80px;
+  transition: border-color var(--transition), transform 0.2s;
+}
+.rs-dash-card:hover {
+  border-color: var(--accent);
+  transform: translateY(-2px);
+}
+.rs-dash-card-icon { font-size: 18px; }
+.rs-dash-card-value {
+  font-size: 20px;
+  font-weight: 700;
+  color: var(--text-primary);
+}
+.rs-dash-card-label {
+  font-size: 10px;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+/* Per-axis bars */
+.rs-dash-axes {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 16px;
+  margin-top: 16px;
+  padding-top: 14px;
+  border-top: 1px solid rgba(255,255,255,0.06);
+}
+.rs-dash-axis {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex: 1 1 calc(50% - 16px);
+  min-width: 180px;
+}
+.rs-dash-axis-label {
+  font-size: 11px;
+  color: var(--text-secondary);
+  width: 70px;
+  flex-shrink: 0;
+}
+.rs-dash-axis-bar {
+  flex: 1;
+  height: 6px;
+  background: rgba(255,255,255,0.06);
+  border-radius: 3px;
+  overflow: hidden;
+}
+.rs-dash-axis-fill {
+  height: 100%;
+  border-radius: 3px;
+  transition: width 0.8s ease;
+}
+.rs-dash-axis-val {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--text-secondary);
+  width: 32px;
+  text-align: right;
+}

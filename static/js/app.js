@@ -97,6 +97,40 @@
   }
 
   function renderMd(text) {
+    // ---- Phase 0: Extract structured UI markers from RAW text (before escHtml) ----
+    // __TABLE__, __CHART__, __PROGRESS__, __CARD__, __ALERT__, __ARTIFACT__
+    // These contain JSON that would be corrupted by escHtml.
+    const _suiBlocks = [];
+    function _suiPh(html) { const k = '\x00SUI' + _suiBlocks.length + '\x00'; _suiBlocks.push(html); return k; }
+    text = text.replace(/__(TABLE|CHART|PROGRESS|CARD|ALERT|ARTIFACT)__(\{[\s\S]*?\})__\1__/g, (_, type, jsonStr) => {
+      try {
+        if (window.StructuredUI) {
+          const marker = `__${type}__${jsonStr}__${type}__`;
+          return _suiPh(window.StructuredUI.renderComponents(marker));
+        }
+        // Fallback: try to render inline
+        const config = JSON.parse(jsonStr);
+        if (type === 'TABLE') {
+          const title = config.title ? `<div class="sui-table-title">${config.title}</div>` : '';
+          const headers = (config.headers || []).map(h => `<th>${h}</th>`).join('');
+          const rows = (config.rows || []).map(row =>
+            '<tr>' + row.map(cell => `<td>${cell}</td>`).join('') + '</tr>'
+          ).join('');
+          return _suiPh(`<div class="sui-table-wrapper">${title}<div class="sui-table-scroll"><table class="sui-table"><thead><tr>${headers}</tr></thead><tbody>${rows}</tbody></table></div></div>`);
+        }
+        if (type === 'CHART') {
+          const id = 'sui-chart-' + Math.random().toString(36).slice(2, 8);
+          setTimeout(() => {
+            if (window.StructuredUI) window.StructuredUI.renderComponents(`__CHART__${jsonStr}__CHART__`);
+          }, 200);
+          return _suiPh(`<div class="sui-chart-wrapper"><canvas id="${id}"></canvas></div>`);
+        }
+        return _suiPh(`<div class="sui-error">⚠️ Unsupported marker: ${type}</div>`);
+      } catch (e) {
+        return _suiPh(`<div class="sui-error">⚠️ Invalid ${type} data: ${e.message}</div>`);
+      }
+    });
+
     let h = escHtml(text);
 
     // ---- Phase 1: Extract block elements into placeholders ----
@@ -116,7 +150,20 @@
 
       // --- Mermaid Sanitizer: fix common cycle-causing issues ---
       function sanitizeMermaid(src) {
-        const lines = src.split('\n');
+        // 0. Strip HTML tags from node labels (<br>, <br/>, etc.)
+        let fixed = src.replace(/<br\s*\/?>/gi, ' ');
+        // Auto-quote node labels with special chars: A[text (with parens)] → A["text (with parens)"]
+        fixed = fixed.replace(/(\w+)(\[)([^\]"]+[()\/<>][^\]"]*)(\])/g, (m, id, open, label, close) => {
+          return `${id}["${label.trim()}"]`;
+        });
+        fixed = fixed.replace(/(\w+)(\()([^)"]+[\[\]\/<>][^)"]*)(\))/g, (m, id, open, label, close) => {
+          return `${id}("${label.trim()}")`;
+        });
+        fixed = fixed.replace(/(\w+)(\{)([^}"]+[()\[\]\/<>][^}"]*)(\})/g, (m, id, open, label, close) => {
+          return `${id}{"${label.trim()}"}` ;
+        });
+
+        const lines = fixed.split('\n');
         // 1. Collect all subgraph IDs
         const subgraphIds = new Set();
         const subgraphLineMap = new Map(); // lineIndex -> subgraphId
@@ -134,7 +181,7 @@
               trimmed.startsWith('style ') || trimmed.startsWith('linkStyle') ||
               /^(flowchart|graph|sequenceDiagram|classDiagram|erDiagram|gantt|pie|mindmap|timeline|stateDiagram)/i.test(trimmed)) return;
           // Extract node IDs from arrows: A --> B, A --- B, etc.
-          const arrowParts = trimmed.split(/\s*(?:-->|==>|-.->|---->|---|===|~~~|-\.-|--\s|--\||<-->)\s*/);
+          const arrowParts = trimmed.split(/\s*(?:-->|==>|-\.->|---->|---|===|~~~|-\.-|--\s|--\||<-->)\s*/);
           arrowParts.forEach(part => {
             const nodeMatch = part.match(/^(\w+)/);
             if (nodeMatch) nodeIds.add(nodeMatch[1]);
@@ -144,7 +191,6 @@
           if (standaloneMatch) nodeIds.add(standaloneMatch[1]);
         });
         // 3. Fix conflicts: rename subgraph IDs that clash with node IDs
-        let fixed = src;
         subgraphIds.forEach(sgId => {
           if (nodeIds.has(sgId)) {
             const newId = sgId + '_grp';
@@ -157,7 +203,7 @@
           }
         });
         // 4. Remove self-referencing arrows (A --> A)
-        fixed = fixed.replace(/^(\s*)(\w+)\s*(?:-->|==>|-.->|---)\s*\2\s*$/gm, (match, indent, id) => {
+        fixed = fixed.replace(/^(\s*)(\w+)\s*(?:-->|==>|-\.->|---)\s*\2\s*$/gm, (match, indent, id) => {
           console.info(`[Mermaid sanitizer] Removed self-reference: ${id} --> ${id}`);
           return '';
         });
@@ -618,9 +664,19 @@
     h = h.replace(/\*(.+?)\*/g, '<em>$1</em>');
     // Horizontal rules
     h = h.replace(/^---+$/gm, '<hr>');
-    h = h.replace(/^### (.+)$/gm, '<h4>$1</h4>');
-    h = h.replace(/^## (.+)$/gm, '<h3>$1</h3>');
-    h = h.replace(/^# (.+)$/gm, '<h2>$1</h2>');
+    // Headings with id attributes for ToC anchor navigation
+    h = h.replace(/^### (.+)$/gm, (_, title) => {
+      const anchor = title.toLowerCase().replace(/[^\w]+/g, '-').replace(/^-|-$/g, '');
+      return `<h4 id="${anchor}">${title}</h4>`;
+    });
+    h = h.replace(/^## (.+)$/gm, (_, title) => {
+      const anchor = title.toLowerCase().replace(/[^\w]+/g, '-').replace(/^-|-$/g, '');
+      return `<h3 id="${anchor}">${title}</h3>`;
+    });
+    h = h.replace(/^# (.+)$/gm, (_, title) => {
+      const anchor = title.toLowerCase().replace(/[^\w]+/g, '-').replace(/^-|-$/g, '');
+      return `<h2 id="${anchor}">${title}</h2>`;
+    });
     // Blockquotes (> lines — group consecutive > lines into a single blockquote)
     h = h.replace(/^&gt; (.+)$/gm, '<bq-line>$1</bq-line>');
     h = h.replace(/((?:<bq-line>[\s\S]*?<\/bq-line>\s*)+)/g, m => {
@@ -646,6 +702,9 @@
 
     // ---- Phase 4: Restore block placeholders ----
     h = h.replace(/\x00BLK(\d+)\x00/g, (_, i) => blocks[parseInt(i)]);
+
+    // ---- Phase 5: Restore structured UI placeholders (from Phase 0) ----
+    h = h.replace(/\x00SUI(\d+)\x00/g, (_, i) => _suiBlocks[parseInt(i)]);
 
     return h;
   }

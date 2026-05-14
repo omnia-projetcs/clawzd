@@ -25,6 +25,7 @@ from app.tools.research_engine import (
     update_dynamic_outline, outline_to_report_structure,
     reflect_after_search, should_stop_early,
     generate_sectioned_report,
+    sanitize_mermaid_in_report, merge_iteration_findings,
 )
 from app.tools.research_brief import (
     generate_research_brief, brief_to_planning_context,
@@ -754,6 +755,7 @@ async def _research_loop(pid: str):
     dynamic_outline: dict = {}          # WebWeaver-style evolving outline
     report_draft: str = ""              # IterResearch evolving report draft
     perspective_synthesis: str = ""     # Multi-agent synthesis result
+    cumulative_findings: str = proj.get("cumulative_findings", "")  # Iteration merging
     # ───────────────────────────────────────────────────────────────────────
 
     async def _emit_log(msg: str, extra: dict | None = None):
@@ -980,6 +982,25 @@ async def _research_loop(pid: str):
                     await _emit_new_results(results)
                     urls = [r.get("url") for r in results if r.get("url")]
                     iter_data["actions"].append({"type": "web_search", "count": len(results), "urls": urls, "params": params, "timestamp": datetime.now(timezone.utc).isoformat()})
+                    # ── Auto-save top web pages as assets ──
+                    _saved_pages = 0
+                    for r in results[:3]:
+                        if _saved_pages >= 3:
+                            break
+                        page_url = r.get("url", "")
+                        if page_url and not page_url.startswith(("rag://", "memory://", "sandbox://", "market://", "model://")):
+                            try:
+                                page_text = await _scrape_url(page_url)
+                                if page_text and len(page_text) > 100:
+                                    asset = await _save_text_asset(
+                                        f"Web: {r.get('title', page_url[:40])[:60]}",
+                                        page_text, "web_page", page_url, pid,
+                                    )
+                                    proj["assets"].append(asset)
+                                    await _emit_new_asset(asset)
+                                    _saved_pages += 1
+                            except Exception:
+                                pass
                     await _emit_log(f"   Found {len(results)} results", extra={"urls": urls})
 
                     # ── think_tool: Post-Search Reflection (open_deep_research) ──
@@ -1294,6 +1315,25 @@ async def _research_loop(pid: str):
             proj["iterations"].append(iter_data)
             _save(proj)
             _update_pm_task(2, "In Progress", int(iter_num / proj["max_iterations"] * 100))
+
+            # ── Iteration Merging: cumulative findings ─────────────────────
+            try:
+                cumulative_findings = await merge_iteration_findings(
+                    cumulative_findings=cumulative_findings,
+                    new_results=proj["search_results"][-30:],
+                    new_branch_summaries=branch_summaries[-2000:],
+                    query=query,
+                    iteration_num=iter_num,
+                    llm_call=_project_llm_call,
+                    provider=provider,
+                    model=model,
+                )
+                proj["cumulative_findings"] = cumulative_findings
+                _save(proj)
+                await _emit_log(f"🔗 Findings merged ({len(cumulative_findings)} chars cumulative)")
+            except Exception as _mfe:
+                logger.warning("Iteration merging failed: %s", _mfe)
+            # ───────────────────────────────────────────────────────────────
             await _emit(pid, "iteration_end", {
                 "iteration": iter_num, "score": proj["current_score"],
                 "evaluation": iter_data.get("evaluation", ""),
@@ -1392,7 +1432,10 @@ async def _research_loop(pid: str):
         await _generate_report(
             pid, provider, model, perspectives, branch_summaries,
             dynamic_outline=dynamic_outline,
-            report_draft=report_draft,
+            report_draft=(
+                (f"## Cumulative Research Findings (merged from {len(proj.get('iterations', []))} iterations)\n\n{cumulative_findings}\n\n" if cumulative_findings else "")
+                + report_draft
+            ),
             perspective_synthesis=perspective_synthesis,
         )
         _update_pm_task(3, "Done", 100)
@@ -1512,6 +1555,12 @@ async def _generate_report(
             report_draft=report_draft,
             perspective_synthesis=perspective_synthesis,
         )
+
+    # ── Sanitize mermaid diagrams before saving ──
+    try:
+        report = sanitize_mermaid_in_report(report)
+    except Exception as _sme:
+        logger.warning("Mermaid sanitization failed: %s", _sme)
 
     proj["report_md"] = report
     proj["report_mode"] = "sectioned" if use_sectioned else "monolithic"
@@ -1838,43 +1887,24 @@ async def export_report(pid: str, request: Request):
         return FileResponse(path, filename=f"research_{proj['title'][:30]}.md")
     elif fmt == "docx":
         try:
-            from docx import Document
-            path = os.path.join(pdir, "report.docx")
-            def _gen_docx():
-                doc = Document()
-                doc.add_heading(proj.get("title", "Research Report"), 0)
-                for line in report.split("\n"):
-                    if line.startswith("# "):
-                        doc.add_heading(line[2:], level=1)
-                    elif line.startswith("## "):
-                        doc.add_heading(line[3:], level=2)
-                    elif line.startswith("### "):
-                        doc.add_heading(line[4:], level=3)
-                    elif line.strip():
-                        doc.add_paragraph(line)
-                doc.save(path)
-            await asyncio.to_thread(_gen_docx)
+            from app.tools.research_export import export_docx
+            path = await export_docx(proj, report, pdir)
             return FileResponse(path, filename=f"research_{proj['title'][:30]}.docx")
-        except ImportError:
-            raise HTTPException(500, "python-docx not installed")
+        except ImportError as e:
+            raise HTTPException(500, f"DOCX export dependency missing: {e}")
+        except Exception as e:
+            logger.error("DOCX export failed: %s", e)
+            raise HTTPException(500, f"DOCX export failed: {e}")
     elif fmt == "pdf":
         try:
-            from fpdf import FPDF
-            path = os.path.join(pdir, "report.pdf")
-            def _gen_pdf():
-                pdf = FPDF()
-                pdf.add_page()
-                pdf.set_font("Arial", "B", 16)
-                pdf.cell(0, 10, proj.get("title", "Research")[:80].encode("latin-1","replace").decode("latin-1"), ln=1)
-                pdf.set_font("Arial", size=10)
-                for line in report.split("\n"):
-                    safe = line.encode("latin-1","replace").decode("latin-1")
-                    pdf.multi_cell(0, 5, safe)
-                pdf.output(path)
-            await asyncio.to_thread(_gen_pdf)
+            from app.tools.research_export import export_pdf
+            path = await export_pdf(proj, report, pdir)
             return FileResponse(path, filename=f"research_{proj['title'][:30]}.pdf")
-        except ImportError:
-            raise HTTPException(500, "fpdf2 not installed")
+        except ImportError as e:
+            raise HTTPException(500, f"PDF export dependency missing: {e}")
+        except Exception as e:
+            logger.error("PDF export failed: %s", e)
+            raise HTTPException(500, f"PDF export failed: {e}")
     elif fmt == "pptx":
         return await _export_research_pptx(proj, pdir)
     raise HTTPException(400, f"Unsupported format: {fmt}")
