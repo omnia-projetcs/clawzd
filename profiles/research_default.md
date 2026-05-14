@@ -29,7 +29,7 @@
 - [ ] Validation of programmatic results
 
 ## 6. Final Synthesis
-- [ ] Drafting of the structured report
+- [ ] Drafting of the structured report (If the topic requests an article/blog, output a `.md` formatted article with illustrations via `![alt](url)`, mermaid graphs, and tables)
 - [ ] Complete bibliography with URLs
 - [ ] Recommendations and next steps
 

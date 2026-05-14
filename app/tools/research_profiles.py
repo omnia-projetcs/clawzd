@@ -137,6 +137,20 @@ BUILTIN_PROFILES: list[dict] = [
         "builtin": True,
         "process_template_file": "research_deep_research.md",
     },
+    {
+        "id": "blog_article",
+        "name": "✍️ Article & Blog Writer",
+        "description": "Rich content creation — generates .md articles with Mermaid, tables, and illustrations.",
+        "icon": "pen-tool",
+        "target_score": 0.8,
+        "max_iterations": 6,
+        "allowed_actions": ["web_search", "scrape_url", "query_rag"],
+        "sources": "Web, RAG",
+        "recommended_provider": "",
+        "phase_models": {},
+        "builtin": True,
+        "process_template_file": "research_blog_article.md",
+    },
 ]
 
 # Resolve process_template from file at load time
