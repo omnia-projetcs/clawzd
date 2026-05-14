@@ -1786,14 +1786,24 @@ async def generate_animation_core(
 
         if init_img:
             # Use the source image's actual resolution as the video resolution.
+            # Preserve aspect ratio: if image is too large, scale down proportionally.
+            # This prevents VRAM overflow while keeping the image's original proportions.
+            src_w, src_h = init_img.size
+            max_dim = 1280  # Max dimension to avoid VRAM issues
+
+            # Scale down proportionally if needed
+            if max(src_w, src_h) > max_dim:
+                scale = max_dim / max(src_w, src_h)
+                src_w = int(src_w * scale)
+                src_h = int(src_h * scale)
+
             # Round each dimension down to the nearest multiple of 32 (required by all
             # diffusion video models). This guarantees the output video always matches
-            # the input image's native resolution.
-            src_w, src_h = init_img.size
+            # the input image's aspect ratio.
             target_w = max(32, (src_w // 32) * 32)
             target_h = max(32, (src_h // 32) * 32)
-            logger.info("I2V: source image %dx%d → video resolution %dx%d",
-                        src_w, src_h, target_w, target_h)
+            logger.info("I2V: source image %dx%d → video resolution %dx%d (aspect preserved)",
+                        init_img.size[0], init_img.size[1], target_w, target_h)
 
             if pipeline_type == "svd":
                 # SVD does not accept explicit width/height kwargs
@@ -1807,7 +1817,7 @@ async def generate_animation_core(
                 gen_kwargs["width"] = target_w
                 gen_kwargs["height"] = target_h
 
-            # Resize the PIL image only if it differs from target (avoids unnecessary work)
+            # Resize the PIL image to the target dimensions (preserves aspect ratio)
             if init_img.size != (target_w, target_h):
                 init_img = init_img.resize((target_w, target_h), Image.LANCZOS)
             gen_kwargs["image"] = init_img
@@ -1993,8 +2003,8 @@ async def animate_image(request: Request):
         video_model = "cogvideox"
 
     # Video resolution
-    width = min(data.get("width", 704), 1920)
-    height = min(data.get("height", 480), 1920)
+    width = min(data.get("width", 1216), 1920)
+    height = min(data.get("height", 832), 1920)
 
     from fastapi.responses import StreamingResponse
     import asyncio

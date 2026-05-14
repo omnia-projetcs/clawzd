@@ -57,6 +57,10 @@ class MetricsCollector:
         session_id: str = "",
     ):
         """Record an LLM call with timing and token counts."""
+        # Resolve empty / placeholder model names to the actual configured model
+        if not model or model in ("default", "unknown"):
+            model = self._resolve_default_model(provider) or model or "unknown"
+
         entry = {
             "type": "llm_call",
             "timestamp": datetime.now(timezone.utc).isoformat(),
@@ -72,6 +76,31 @@ class MetricsCollector:
         with self._lock:
             self._llm_calls.append(entry)
         self._persist(entry)
+
+    def _resolve_default_model(self, provider: str = "") -> str:
+        """Resolve the actual default model name from settings or provider."""
+        # 1. Try settings
+        try:
+            from app.core.settings import load_settings
+            settings = load_settings()
+            dm = settings.get("default_model", "")
+            if dm:
+                return dm
+        except Exception:
+            pass
+
+        # 2. Try the provider's default_model attribute
+        if provider:
+            try:
+                from app.llm_provider import get_llm_provider
+                prov = get_llm_provider(provider)
+                dm = getattr(prov, "default_model", "") or getattr(prov, "model", "")
+                if dm:
+                    return dm
+            except Exception:
+                pass
+
+        return ""
 
     # ------------------------------------------------------------------
     # Request tracking
@@ -198,7 +227,9 @@ class MetricsCollector:
         by_model: dict[str, dict] = {}
         for c in llm_calls:
             p = c.get("provider", "unknown")
-            m = c.get("model", "unknown") or "default"
+            m = c.get("model", "unknown") or "unknown"
+            if m in ("default", "unknown"):
+                m = self._resolve_default_model(p) or m
             
             if p not in by_provider:
                 by_provider[p] = {"calls": 0, "tokens": 0, "latency_sum": 0}

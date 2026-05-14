@@ -351,8 +351,15 @@ class MediaStudio {
 
     if (vidFmt) vidFmt.style.display = isVideo ? '' : 'none';
     if (vidMod) vidMod.style.display = isVideo ? '' : 'none';
-    if (vidSizeGrp) vidSizeGrp.style.display = isVideo ? '' : 'none';
     if (durationGrp) durationGrp.style.display = isVideo ? '' : 'none';
+
+    // Video resolution: hide selector when reference image is set (I2V uses source image resolution)
+    const hasRefForVideo = isVideo && !!this.referenceImage;
+    if (vidSizeGrp) vidSizeGrp.style.display = isVideo ? '' : 'none';
+    const vidSizeSelect = $('#media-size-video');
+    const i2vNotice = $('#media-size-video-i2v-notice');
+    if (vidSizeSelect) vidSizeSelect.style.display = hasRefForVideo ? 'none' : '';
+    if (i2vNotice) i2vNotice.style.display = hasRefForVideo ? 'block' : 'none';
 
     // Filter video models based on Image-to-Video mode
     const videoModelSel = $('#media-model-video');
@@ -1122,7 +1129,7 @@ class MediaStudio {
           const format = ($('#media-format-video') || {}).value || 'gif';
           const videoModel = ($('#media-model-video') || {}).value || 'cogvideox';
           const duration = parseFloat(($('#media-duration') || {}).value) || 2.0;
-          const videoSize = ($('#media-size-video') || {}).value || '704x480';
+          const videoSize = ($('#media-size-video') || {}).value || '1216x832';
           const [vidW, vidH] = videoSize.split('x').map(Number);
 
           // Warn if reference image is set but model doesn't support I2V

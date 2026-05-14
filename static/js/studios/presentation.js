@@ -317,6 +317,16 @@ class PresentationStudio {
       this.export(format, pagesMode, customPages);
     });
 
+    // Player mode
+    $('#pt-btn-player')?.addEventListener('click', () => this.startPlayer());
+
+    // Handle fullscreen exit to also stop player
+    document.addEventListener('fullscreenchange', () => {
+      if (!document.fullscreenElement && this._playerActive) {
+        this.stopPlayer();
+      }
+    });
+
     $('#pt-btn-new')?.addEventListener('click', () => this.newPresentation());
     $('#pt-sidebar-new')?.addEventListener('click', () => this.newPresentation());
     $('#pt-btn-save')?.addEventListener('click', () => this.save());
@@ -2517,39 +2527,47 @@ class PresentationStudio {
       pagesToExport = JSON.parse(JSON.stringify(this.pages));
     }
 
-    // Convert mermaid elements to base64 PNGs for export
-    if (window.mermaid) {
-      for (const page of pagesToExport) {
-        for (const el of page.elements) {
-          if (el.type === 'mermaid') {
+    // ── Convert all images (blob:, relative, etc.) to base64 data URIs ──
+    for (const page of pagesToExport) {
+      for (const el of page.elements) {
+        // Convert image elements with blob: or relative URLs to base64
+        if (el.type === 'image' && el.src) {
+          if (el.src.startsWith('blob:') || (!el.src.startsWith('data:') && !el.src.startsWith('http') && !el.src.startsWith('/data/'))) {
             try {
-              const id = 'mmr-export-' + Math.random().toString(36).substr(2, 9);
-              // Temporarily create a div to hold the SVG if mermaid requires it
-              const r = await mermaid.render(id, el.content || 'graph TD; A-->B;');
-              const svgStr = r.svg;
-
-              // Convert SVG to PNG
-              const pngDataUrl = await new Promise((resolve) => {
-                const img = new Image();
-                img.onload = () => {
-                  const canvas = document.createElement('canvas');
-                  canvas.width = el.width || 800;
-                  canvas.height = el.height || 600;
-                  const ctx = canvas.getContext('2d');
-                  ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
-                  resolve(canvas.toDataURL('image/png'));
-                };
-                img.onerror = () => resolve(null);
-                img.src = 'data:image/svg+xml;base64,' + btoa(unescape(encodeURIComponent(svgStr)));
-              });
-
-              if (pngDataUrl) {
-                el.type = 'image';
-                el.src = pngDataUrl;
-              }
+              el.src = await this._imageToBase64(el.src, el.width || 400, el.height || 300);
             } catch (e) {
-              console.warn('Failed to render mermaid for export', e);
+              console.warn('Failed to convert image to base64 for export:', e);
             }
+          }
+        }
+
+        // Convert icon SVG elements to base64 PNG images for export
+        if (el.type === 'icon' && el.svgContent) {
+          try {
+            const svgStr = el.svgContent;
+            const b64 = await this._svgToBase64Png(svgStr, el.width || 100, el.height || 100,
+              el.borderColor || '#000000', el.backgroundColor || 'transparent');
+            if (b64) {
+              el.type = 'image';
+              el.src = b64;
+            }
+          } catch (e) {
+            console.warn('Failed to convert icon to image for export:', e);
+          }
+        }
+
+        // Convert mermaid elements to base64 PNGs for export
+        if (el.type === 'mermaid' && window.mermaid) {
+          try {
+            const id = 'mmr-export-' + Math.random().toString(36).substr(2, 9);
+            const r = await mermaid.render(id, el.content || 'graph TD; A-->B;');
+            const pngDataUrl = await this._svgToBase64Png(r.svg, el.width || 800, el.height || 600);
+            if (pngDataUrl) {
+              el.type = 'image';
+              el.src = pngDataUrl;
+            }
+          } catch (e) {
+            console.warn('Failed to render mermaid for export', e);
           }
         }
       }
@@ -2582,6 +2600,54 @@ class PresentationStudio {
     } catch (e) {
       toast(` Failed to export ${format.toUpperCase()}: ${e.message}`, 5000);
     }
+  }
+
+  /** Convert an image URL (blob:, relative, etc.) to a base64 data URI */
+  _imageToBase64(src, w, h) {
+    return new Promise((resolve, reject) => {
+      const img = new Image();
+      img.crossOrigin = 'anonymous';
+      img.onload = () => {
+        const canvas = document.createElement('canvas');
+        canvas.width = img.naturalWidth || w;
+        canvas.height = img.naturalHeight || h;
+        const ctx = canvas.getContext('2d');
+        ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+        resolve(canvas.toDataURL('image/png'));
+      };
+      img.onerror = () => reject(new Error('Image load failed: ' + src.substring(0, 50)));
+      img.src = src;
+    });
+  }
+
+  /** Convert an SVG string to a base64 PNG data URI */
+  _svgToBase64Png(svgStr, w, h, stroke, fill) {
+    return new Promise((resolve) => {
+      // Ensure SVG has proper xmlns
+      let svg = svgStr;
+      if (!svg.includes('xmlns')) {
+        svg = svg.replace('<svg', '<svg xmlns="http://www.w3.org/2000/svg"');
+      }
+      // Apply colors if needed
+      if (stroke && stroke !== 'transparent') {
+        svg = svg.replace(/<svg([^>]*)>/, `<svg$1 stroke="${stroke}">`);
+      }
+      if (fill && fill !== 'transparent') {
+        svg = svg.replace(/<svg([^>]*)>/, `<svg$1 fill="${fill}">`);
+      }
+
+      const img = new Image();
+      img.onload = () => {
+        const canvas = document.createElement('canvas');
+        canvas.width = w;
+        canvas.height = h;
+        const ctx = canvas.getContext('2d');
+        ctx.drawImage(img, 0, 0, w, h);
+        resolve(canvas.toDataURL('image/png'));
+      };
+      img.onerror = () => resolve(null);
+      img.src = 'data:image/svg+xml;base64,' + btoa(unescape(encodeURIComponent(svg)));
+    });
   }
 
   _updateDocgenVisibility() {
@@ -2741,6 +2807,334 @@ class PresentationStudio {
       this.generating = false;
       if (genBtn) { genBtn.classList.remove('loading'); genBtn.disabled = false; }
     }
+  }
+
+  // ═══════════════════════════════════════════════════
+  // ──────────── FULLSCREEN PLAYER MODE ──────────────
+  // ═══════════════════════════════════════════════════
+
+  startPlayer() {
+    if (this.pages.length === 0) {
+      toast('No slides to present.');
+      return;
+    }
+
+    this._playerSlide = 0;
+    this._playerActive = true;
+
+    // Create overlay
+    let overlay = document.getElementById('pt-player-overlay');
+    if (!overlay) {
+      overlay = document.createElement('div');
+      overlay.id = 'pt-player-overlay';
+      overlay.className = 'pt-player-overlay';
+      document.body.appendChild(overlay);
+    }
+    overlay.innerHTML = `
+      <div class="pt-player-canvas-wrap" id="pt-player-canvas-wrap">
+        <div class="pt-player-canvas" id="pt-player-canvas"></div>
+      </div>
+      <div class="pt-player-controls" id="pt-player-controls">
+        <button class="pt-player-nav-btn" id="pt-player-prev" title="Previous (←)">
+          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"/></svg>
+        </button>
+        <span class="pt-player-counter" id="pt-player-counter">1 / ${this.pages.length}</span>
+        <button class="pt-player-nav-btn" id="pt-player-next" title="Next (→)">
+          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg>
+        </button>
+        <button class="pt-player-nav-btn pt-player-exit-btn" id="pt-player-exit" title="Exit (Esc)">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+        </button>
+      </div>
+      <div class="pt-player-progress" id="pt-player-progress">
+        <div class="pt-player-progress-bar" id="pt-player-progress-bar"></div>
+      </div>
+    `;
+    overlay.style.display = 'flex';
+
+    // Request fullscreen
+    const docEl = document.documentElement;
+    if (docEl.requestFullscreen) docEl.requestFullscreen().catch(() => {});
+    else if (docEl.webkitRequestFullscreen) docEl.webkitRequestFullscreen();
+
+    // Bind events
+    this._playerKeyHandler = (e) => this._playerOnKey(e);
+    this._playerClickHandler = (e) => this._playerOnClick(e);
+    this._playerMoveHandler = () => this._playerShowControls();
+    document.addEventListener('keydown', this._playerKeyHandler);
+    overlay.addEventListener('click', this._playerClickHandler);
+    overlay.addEventListener('mousemove', this._playerMoveHandler);
+
+    // Button events
+    document.getElementById('pt-player-prev')?.addEventListener('click', (e) => {
+      e.stopPropagation();
+      this.playerNavigate(-1);
+    });
+    document.getElementById('pt-player-next')?.addEventListener('click', (e) => {
+      e.stopPropagation();
+      this.playerNavigate(1);
+    });
+    document.getElementById('pt-player-exit')?.addEventListener('click', (e) => {
+      e.stopPropagation();
+      this.stopPlayer();
+    });
+
+    // Render first slide
+    this.renderPlayerSlide(0);
+    this._playerShowControls();
+  }
+
+  stopPlayer() {
+    this._playerActive = false;
+    const overlay = document.getElementById('pt-player-overlay');
+    if (overlay) overlay.style.display = 'none';
+
+    // Remove event listeners
+    if (this._playerKeyHandler) document.removeEventListener('keydown', this._playerKeyHandler);
+    if (this._playerClickHandler) {
+      const ov = document.getElementById('pt-player-overlay');
+      if (ov) ov.removeEventListener('click', this._playerClickHandler);
+    }
+
+    // Exit fullscreen
+    if (document.fullscreenElement) {
+      document.exitFullscreen().catch(() => {});
+    } else if (document.webkitFullscreenElement) {
+      document.webkitExitFullscreen();
+    }
+
+    // Clear timer
+    if (this._playerControlsTimer) clearTimeout(this._playerControlsTimer);
+  }
+
+  playerNavigate(direction) {
+    if (!this._playerActive) return;
+    const next = this._playerSlide + direction;
+    if (next < 0 || next >= this.pages.length) return;
+    this.renderPlayerSlide(next);
+  }
+
+  renderPlayerSlide(index) {
+    this._playerSlide = index;
+    const canvas = document.getElementById('pt-player-canvas');
+    const counter = document.getElementById('pt-player-counter');
+    const progressBar = document.getElementById('pt-player-progress-bar');
+    if (!canvas) return;
+
+    // Set canvas size
+    canvas.style.width = this.canvasW + 'px';
+    canvas.style.height = this.canvasH + 'px';
+
+    // Scale to fit viewport
+    const wrap = document.getElementById('pt-player-canvas-wrap');
+    if (wrap) {
+      const vw = window.innerWidth;
+      const vh = window.innerHeight;
+      const scaleX = vw / this.canvasW;
+      const scaleY = vh / this.canvasH;
+      const scale = Math.min(scaleX, scaleY, 1);
+      canvas.style.transform = `scale(${scale})`;
+    }
+
+    // Render elements
+    canvas.innerHTML = '';
+    const page = this.pages[index];
+    if (!page) return;
+
+    page.elements.forEach((el) => {
+      const node = document.createElement('div');
+      node.style.position = 'absolute';
+      node.style.left = el.x + 'px';
+      node.style.top = el.y + 'px';
+      node.style.width = el.width + 'px';
+      node.style.height = el.height + 'px';
+      node.style.opacity = (el.opacity !== undefined ? el.opacity : 100) / 100;
+      node.style.pointerEvents = 'none';
+      node.style.boxSizing = 'border-box';
+
+      if (el.shadowLevel > 0) {
+        node.style.filter = `drop-shadow(0px ${Math.round(el.shadowLevel / 2)}px ${el.shadowLevel}px rgba(0,0,0,0.5))`;
+      }
+
+      if (el.type !== 'shape') {
+        node.style.backgroundColor = el.backgroundColor || 'transparent';
+        if (el.borderWidth && el.type !== 'table') {
+          node.style.border = `${el.borderWidth}px solid ${el.borderColor || 'transparent'}`;
+        }
+        if (el.borderRadius) node.style.borderRadius = `${el.borderRadius}px`;
+      }
+
+      if (el.type === 'text') {
+        const inner = document.createElement('div');
+        inner.style.fontSize = (el.fontSize || 24) + 'px';
+        inner.style.fontFamily = el.fontFamily || 'Inter, sans-serif';
+        inner.style.color = el.color || '#000000';
+        inner.style.textAlign = el.textAlign || 'left';
+        inner.style.width = '100%';
+        inner.style.height = '100%';
+        inner.style.wordWrap = 'break-word';
+        inner.style.overflow = 'hidden';
+        inner.style.lineHeight = '1.2';
+        if (el.isBold) inner.style.fontWeight = 'bold';
+        if (el.isItalic) inner.style.fontStyle = 'italic';
+        let decoration = '';
+        if (el.isUnderline) decoration += ' underline';
+        if (el.isStrikethrough) decoration += ' line-through';
+        if (decoration) inner.style.textDecoration = decoration.trim();
+
+        if (el.isList) {
+          const ul = document.createElement('ul');
+          ul.style.margin = '0';
+          ul.style.paddingLeft = '1.2em';
+          (el.content || '').split('\n').forEach(line => {
+            const li = document.createElement('li');
+            li.innerText = line;
+            ul.appendChild(li);
+          });
+          inner.appendChild(ul);
+        } else {
+          inner.innerText = el.content || '';
+        }
+        node.appendChild(inner);
+      } else if (el.type === 'image') {
+        const img = document.createElement('img');
+        img.src = el.src;
+        img.style.width = '100%';
+        img.style.height = '100%';
+        img.style.objectFit = 'fill';
+        img.style.pointerEvents = 'none';
+        node.appendChild(img);
+      } else if (el.type === 'icon') {
+        node.style.backgroundColor = 'transparent';
+        node.style.border = 'none';
+        node.innerHTML = el.svgContent || '';
+        const svg = node.querySelector('svg');
+        if (svg) {
+          svg.setAttribute('width', '100%');
+          svg.setAttribute('height', '100%');
+          svg.style.display = 'block';
+          svg.setAttribute('stroke', el.borderColor || '#000000');
+          svg.setAttribute('stroke-width', el.borderWidth !== undefined ? el.borderWidth : 2);
+          svg.setAttribute('fill', el.backgroundColor === 'transparent' ? 'none' : el.backgroundColor);
+        }
+      } else if (el.type === 'table') {
+        const inner = document.createElement('div');
+        inner.style.width = '100%';
+        inner.style.height = '100%';
+        inner.style.color = el.color || '#000000';
+        inner.style.fontSize = (el.fontSize || 16) + 'px';
+        inner.style.fontFamily = el.fontFamily || 'Inter, sans-serif';
+        const tableMd = el.content || '| Header |\n|---|';
+        const rows = tableMd.trim().split('\n').filter(r => r.trim());
+        let thtml = '<table style="width:100%;height:100%;border-collapse:collapse;">';
+        rows.forEach((row, i) => {
+          if (row.match(/^\|[\s-:|]+\|$/)) return;
+          const cells = row.split('|').filter(c => c.trim() !== '');
+          const tag = i === 0 ? 'th' : 'td';
+          thtml += '<tr>' + cells.map(c => `<${tag} style="border:1px solid currentColor;padding:8px;">${c.trim()}</${tag}>`).join('') + '</tr>';
+        });
+        thtml += '</table>';
+        inner.innerHTML = thtml;
+        node.appendChild(inner);
+      } else if (el.type === 'mermaid') {
+        const inner = document.createElement('div');
+        inner.className = 'mermaid';
+        inner.textContent = el.content || '';
+        node.appendChild(inner);
+        if (window.mermaid) {
+          try { window.mermaid.run({ nodes: [inner] }); } catch (e) { /* ignore */ }
+        }
+      } else if (el.type === 'shape') {
+        node.style.backgroundColor = 'transparent';
+        node.style.border = 'none';
+        const svgNS = 'http://www.w3.org/2000/svg';
+        const svg = document.createElementNS(svgNS, 'svg');
+        svg.setAttribute('width', '100%');
+        svg.setAttribute('height', '100%');
+        svg.setAttribute('viewBox', `0 0 ${el.width} ${el.height}`);
+        const fillC = el.backgroundColor || 'transparent';
+        const strokeC = el.borderColor || 'transparent';
+        const sw = el.borderWidth || 0;
+
+        let shape;
+        const st = el.shapeType || 'rect';
+        if (st === 'circle') {
+          shape = document.createElementNS(svgNS, 'ellipse');
+          shape.setAttribute('cx', el.width / 2);
+          shape.setAttribute('cy', el.height / 2);
+          shape.setAttribute('rx', el.width / 2 - sw);
+          shape.setAttribute('ry', el.height / 2 - sw);
+        } else if (st === 'triangle') {
+          shape = document.createElementNS(svgNS, 'polygon');
+          shape.setAttribute('points', `${el.width/2},${sw} ${el.width-sw},${el.height-sw} ${sw},${el.height-sw}`);
+        } else {
+          shape = document.createElementNS(svgNS, 'rect');
+          shape.setAttribute('x', sw/2);
+          shape.setAttribute('y', sw/2);
+          shape.setAttribute('width', el.width - sw);
+          shape.setAttribute('height', el.height - sw);
+          shape.setAttribute('rx', el.borderRadius || 0);
+        }
+        shape.setAttribute('fill', fillC);
+        shape.setAttribute('stroke', strokeC);
+        shape.setAttribute('stroke-width', sw);
+        svg.appendChild(shape);
+        node.appendChild(svg);
+      }
+
+      canvas.appendChild(node);
+    });
+
+    // Update counter and progress
+    if (counter) counter.textContent = `${index + 1} / ${this.pages.length}`;
+    if (progressBar) progressBar.style.width = `${((index + 1) / this.pages.length) * 100}%`;
+  }
+
+  _playerOnKey(e) {
+    if (!this._playerActive) return;
+    if (e.key === 'ArrowRight' || e.key === ' ' || e.key === 'Enter') {
+      e.preventDefault();
+      this.playerNavigate(1);
+    } else if (e.key === 'ArrowLeft' || e.key === 'Backspace') {
+      e.preventDefault();
+      this.playerNavigate(-1);
+    } else if (e.key === 'Escape') {
+      e.preventDefault();
+      this.stopPlayer();
+    } else if (e.key === 'Home') {
+      e.preventDefault();
+      this.renderPlayerSlide(0);
+    } else if (e.key === 'End') {
+      e.preventDefault();
+      this.renderPlayerSlide(this.pages.length - 1);
+    }
+  }
+
+  _playerOnClick(e) {
+    if (!this._playerActive) return;
+    // Don't navigate if clicking on controls
+    const controls = document.getElementById('pt-player-controls');
+    if (controls && controls.contains(e.target)) return;
+
+    // Click left half = prev, right half = next
+    const rect = e.currentTarget.getBoundingClientRect();
+    const clickX = e.clientX - rect.left;
+    if (clickX < rect.width * 0.3) {
+      this.playerNavigate(-1);
+    } else {
+      this.playerNavigate(1);
+    }
+  }
+
+  _playerShowControls() {
+    const controls = document.getElementById('pt-player-controls');
+    if (!controls) return;
+    controls.classList.add('visible');
+
+    if (this._playerControlsTimer) clearTimeout(this._playerControlsTimer);
+    this._playerControlsTimer = setTimeout(() => {
+      if (controls) controls.classList.remove('visible');
+    }, 3000);
   }
 }
 

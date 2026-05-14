@@ -719,32 +719,11 @@ async def _research_loop(pid: str):
         await _emit(pid, "progress", progress_data)
     # ─────────────────────────────────────────────────────────────────────────
 
-
-    from app import tools_project as pm
-    pm_pid = proj.get("pm_project_id")
-    if not pm_pid:
-        pm_proj = pm._new_project(name=f"Research: {query[:40]}", description=f"Automated tracking for research on: {query}")
-        now = datetime.now(timezone.utc).isoformat()
-        pm_proj["tasks"] = [
-            {"id": "t1", "title": "Perspective Decomposition", "status": "To Do", "progress": 0, "order": 0, "created_at": now},
-            {"id": "t2", "title": "Data Gathering & Search", "status": "To Do", "progress": 0, "order": 1, "created_at": now},
-            {"id": "t3", "title": "Multi-criteria Evaluation", "status": "To Do", "progress": 0, "order": 2, "created_at": now},
-            {"id": "t4", "title": "Final Report Generation", "status": "To Do", "progress": 0, "order": 3, "created_at": now},
-        ]
-        pm._save_proj(pm_proj)
-        proj["pm_project_id"] = pm_proj["id"]
-        _save(proj)
-        pm_pid = pm_proj["id"]
-
+    # ── PM project tracking disabled ──────────────────────────────────────
+    # Research has its own progress tracking via SSE; creating projects
+    # in the Project Studio was polluting the user's project list.
     def _update_pm_task(idx, status, progress):
-        try:
-            p = pm._load_proj(pm_pid)
-            if p and len(p.get("tasks", [])) > idx:
-                p["tasks"][idx]["status"] = status
-                p["tasks"][idx]["progress"] = progress
-                pm._save_proj(p)
-        except Exception:
-            pass
+        pass  # No-op: research does not create PM projects
     # -----------------------------------
 
     # Wrap _llm_call: binds project ID + feeds cost tracker automatically

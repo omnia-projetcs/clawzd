@@ -37,7 +37,8 @@
 
 ## 5. Topic Research & Structuring
 - [ ] Understand the target audience and article scope.
-- [ ] Perform web search for up-to-date information and trends.
+- [ ] **Ask the AI model for expert knowledge** on the topic (use `ask_model` action). The AI's training data contains deep expertise that complements web research — use it as a primary knowledge source.
+- [ ] Perform web search for up-to-date information, recent stats, and trends.
 - [ ] Gather data for tables and visual representations.
 - [ ] Create an engaging outline (Direct opening, Body, FAQ - no summary conclusion).
 - [ ] **Final Promise Check**: Identify in one sentence the concrete promise of the article: what the reader will know how to do or decide after reading it. Keep this promise in mind for every paragraph. If a paragraph does not contribute to it, delete it.

@@ -185,14 +185,24 @@
            style="display:none">
         <label class="media-form-label">Resolution</label>
         <select class="media-form-select" id="media-size-video">
-          <option value="512x320" selected>Fast (512×320)</option>
-          <option value="704x480">Standard (704×480)</option>
-          <option value="832x480">Wide (832×480)</option>
-          <option value="480x832">Portrait (480×832)</option>
-          <option value="1024x576">HD Landscape (1024×576)</option>
-          <option value="576x1024">HD Portrait (576×1024)</option>
-          <option value="1280x720">720p (1280×720)</option>
+          <option value="1024x1024">Square (1024×1024)</option>
+          <option value="1216x832" selected>Landscape (1216×832)</option>
+          <option value="1344x768">Cinematic (1344×768)</option>
+          <option value="832x1216">Portrait (832×1216)</option>
+          <option value="768x1344">Vertical (768×1344)</option>
+          <option value="512x512">Standard Fast (512×512)</option>
         </select>
+        <div id="media-size-video-i2v-notice"
+             style="display:none;
+                    font-size: 11px;
+                    color: var(--accent);
+                    margin-top: 6px;
+                    padding: 6px 10px;
+                    background: rgba(139,92,246,0.1);
+                    border-radius: 6px;
+                    border: 1px solid rgba(139,92,246,0.2)">
+          📐 Resolution will match the source image to preserve aspect ratio
+        </div>
       </div>
       <!-- Video Tools — now in toolbar select -->
       <!-- Duration (Video only) -->

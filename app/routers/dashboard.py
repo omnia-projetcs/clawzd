@@ -204,7 +204,14 @@ async def analytics_models(hours: int = Query(24, ge=1, le=168)):
 
     by_model: dict[str, dict] = {}
     for c in calls:
-        model = c.get("model", "unknown") or "default"
+        model = c.get("model", "unknown") or "unknown"
+        # Resolve placeholder model names to actual configured model
+        if model in ("default", "unknown"):
+            try:
+                _provider = c.get("provider", "")
+                model = mc._resolve_default_model(_provider) or model
+            except Exception:
+                pass
         if model not in by_model:
             by_model[model] = {
                 "model": model,
