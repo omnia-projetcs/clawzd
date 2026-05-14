@@ -62,7 +62,7 @@ VOICE_PRESETS = {
     "female_pro": {"description": "Woman (pro)", "bark_speaker": "v2/fr_speaker_2", "speecht5_speaker": 3},
     "child": {"description": "Child", "bark_speaker": "v2/fr_speaker_4", "speecht5_speaker": 4},
     "robot": {"description": "Robot", "bark_speaker": "v2/en_speaker_9", "speecht5_speaker": 5},
-    "narrator": {"description": "Narrateur", "bark_speaker": "v2/en_speaker_6", "speecht5_speaker": 6},
+    "narrator": {"description": "Narrator", "bark_speaker": "v2/en_speaker_6", "speecht5_speaker": 6},
 }
 
 MUSIC_GENRES = [
