@@ -264,8 +264,11 @@ async def _emit(pid: str, event_type: str, data: dict):
 
 # ── Research Loop Engine ──
 
+_tavily_quota_exceeded = False
+
 async def _do_web_search(query: str, max_results: int = 50) -> list[dict]:
     """Search using Tavily, DuckDuckGo, Google Scholar, Reddit, Twitter/X, and News in parallel."""
+    global _tavily_quota_exceeded
     from config import TAVILY_API_KEY
     from app.tools_web import _scrape_scholar
 
@@ -282,7 +285,13 @@ async def _do_web_search(query: str, max_results: int = 50) -> list[dict]:
                 for r in response.get("results", [])
             ]
         except Exception as e:
-            logger.warning("Tavily search failed: %s", e)
+            err_msg = str(e).lower()
+            if any(k in err_msg for k in ["429", "quota", "insufficient", "credit", "too many requests"]):
+                global _tavily_quota_exceeded
+                _tavily_quota_exceeded = True
+                logger.error("Tavily quota exceeded (%s)! Switching to DDG exclusively.", e)
+            else:
+                logger.warning("Tavily search failed: %s", e)
             return []
 
     async def _ddg_search() -> list[dict]:
@@ -351,6 +360,9 @@ async def _do_web_search(query: str, max_results: int = 50) -> list[dict]:
         except Exception as e:
             logger.warning("News search failed: %s", e)
             return []
+    if _tavily_quota_exceeded:
+        # User requested to ONLY use DDGS if Tavily hits quota errors
+        return await _ddg_search()
 
     # Run ALL sources in parallel
     (tavily_results, ddg_results, scholar_results,
