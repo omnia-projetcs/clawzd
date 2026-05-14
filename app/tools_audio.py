@@ -56,11 +56,11 @@ except Exception as e:
 # Voice presets for TTS
 # ---------------------------------------------------------------------------
 VOICE_PRESETS = {
-    "male_deep": {"description": "Homme (grave)", "bark_speaker": "v2/fr_speaker_1", "speecht5_speaker": 0},
-    "male_medium": {"description": "Homme (medium)", "bark_speaker": "v2/fr_speaker_3", "speecht5_speaker": 1},
-    "female_soft": {"description": "Femme (douce)", "bark_speaker": "v2/fr_speaker_0", "speecht5_speaker": 2},
-    "female_pro": {"description": "Femme (professionnelle)", "bark_speaker": "v2/fr_speaker_2", "speecht5_speaker": 3},
-    "child": {"description": "Enfant", "bark_speaker": "v2/fr_speaker_4", "speecht5_speaker": 4},
+    "male_deep": {"description": "Man (deep)", "bark_speaker": "v2/fr_speaker_1", "speecht5_speaker": 0},
+    "male_medium": {"description": "Man (medium)", "bark_speaker": "v2/fr_speaker_3", "speecht5_speaker": 1},
+    "female_soft": {"description": "Woman (soft)", "bark_speaker": "v2/fr_speaker_0", "speecht5_speaker": 2},
+    "female_pro": {"description": "Woman (pro)", "bark_speaker": "v2/fr_speaker_2", "speecht5_speaker": 3},
+    "child": {"description": "Child", "bark_speaker": "v2/fr_speaker_4", "speecht5_speaker": 4},
     "robot": {"description": "Robot", "bark_speaker": "v2/en_speaker_9", "speecht5_speaker": 5},
     "narrator": {"description": "Narrateur", "bark_speaker": "v2/en_speaker_6", "speecht5_speaker": 6},
 }
@@ -158,7 +158,7 @@ def _get_tts_pipeline(model_name="speecht5"):
             processor = AutoProcessor.from_pretrained("suno/bark", local_files_only=_should_use_local_files("suno/bark"))
             model = BarkModel.from_pretrained("suno/bark", local_files_only=_should_use_local_files("suno/bark"),
                 torch_dtype=torch.float16 if _gpu_ok else torch.float32,
-                use_safetensors=True,
+                use_safetensors=False,
             )
             if _gpu_ok:
                 model = model.to("cuda")
@@ -236,6 +236,7 @@ def _get_music_pipeline(model_name="musicgen-small"):
         processor = AutoProcessor.from_pretrained(repo, local_files_only=_should_use_local_files(repo))
         model = MusicgenForConditionalGeneration.from_pretrained(repo, local_files_only=_should_use_local_files(repo),
             torch_dtype=torch.float16 if _gpu_ok else torch.float32,
+            use_safetensors=False,
         )
         if _gpu_ok:
             model = model.to("cuda")
@@ -269,9 +270,9 @@ def _save_audio(audio_array, sample_rate, format_type="wav", prompt="", mode="tt
         audio_array = np.array(audio_array)
     if audio_array.dtype == np.float32 or audio_array.dtype == np.float16:
         max_val = np.max(np.abs(audio_array))
-        if max_val > 0:
-            # Normalize to avoid hard clipping distortion
-            audio_array = audio_array / max_val * 0.9
+        if max_val > 0.95:
+            # Only normalize if it's clipping or too loud
+            audio_array = audio_array / max_val * 0.95
         audio_array = np.clip(audio_array, -1.0, 1.0)
         
     duration_sec = len(audio_array) / sample_rate if sample_rate > 0 else 0.0
