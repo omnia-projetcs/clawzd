@@ -938,12 +938,28 @@ async def project_research(proj_id: str, request: Request):
                 logger.warning("DDG search failed for '%s': %s", topic, e)
                 return []
 
-        # Run both in parallel
-        tavily_r, ddg_r = await asyncio.gather(_tavily(), _ddg())
+        async def _lightpanda():
+            """Fallback: scrape DDG HTML via Lightpanda headless browser."""
+            try:
+                from app.web_lightpanda import lightpanda_search
+                results = await lightpanda_search(full_query, max_results=5)
+                return [
+                    {"title": r.get("title", ""), "snippet": r.get("snippet", ""),
+                     "url": r.get("url", ""), "source": "lightpanda"}
+                    for r in results
+                ]
+            except Exception as e:
+                logger.warning("Lightpanda search failed for '%s': %s", topic, e)
+                return []
+
+        # Run all three in parallel
+        tavily_r, ddg_r, lp_r = await asyncio.gather(
+            _tavily(), _ddg(), _lightpanda(),
+        )
 
         # Merge & deduplicate
         seen = set()
-        for r in tavily_r + ddg_r:
+        for r in tavily_r + ddg_r + lp_r:
             url = r.get("url", "")
             if url and url not in seen:
                 seen.add(url)

@@ -360,23 +360,42 @@ async def _do_web_search(query: str, max_results: int = 50) -> list[dict]:
         except Exception as e:
             logger.warning("News search failed: %s", e)
             return []
-    if _tavily_quota_exceeded:
-        # User requested to ONLY use DDGS if Tavily hits quota errors
-        return await _ddg_search()
 
-    # Run ALL sources in parallel
+    async def _lightpanda_search() -> list[dict]:
+        """Fallback: scrape DuckDuckGo HTML via Lightpanda headless browser."""
+        try:
+            from app.web_lightpanda import lightpanda_search
+            results = await lightpanda_search(query, max_results=min(max_results, 20))
+            return [{"title": r.get("title",""), "snippet": r.get("snippet",""),
+                     "url": r.get("url",""), "source": "lightpanda"} for r in results]
+        except Exception as e:
+            logger.warning("Lightpanda search failed: %s", e)
+            return []
+
+    if _tavily_quota_exceeded:
+        # Use DDGS first, then Lightpanda if DDG also fails
+        ddg_res = await _ddg_search()
+        if ddg_res:
+            return ddg_res
+        logger.info("DDG also empty after Tavily quota — trying Lightpanda")
+        return await _lightpanda_search()
+
+    # Run ALL sources in parallel (including Lightpanda as safety net)
     (tavily_results, ddg_results, scholar_results,
-     reddit_results, twitter_results, news_results) = await asyncio.gather(
+     reddit_results, twitter_results, news_results,
+     lightpanda_results) = await asyncio.gather(
         _tavily_search(), _ddg_search(), _scholar_search(),
         _reddit_search(), _twitter_search(), _news_search(),
+        _lightpanda_search(),
     )
 
     # Merge & deduplicate by URL
-    # Priority order: Tavily > News > Twitter > Reddit > Scholar > DDG
+    # Priority order: Tavily > News > Twitter > Reddit > Scholar > DDG > Lightpanda
     seen_urls = set()
     merged = []
     for r in (tavily_results + news_results + twitter_results
-              + reddit_results + scholar_results + ddg_results):
+              + reddit_results + scholar_results + ddg_results
+              + lightpanda_results):
         url = r.get("url", "")
         if url and url not in seen_urls:
             seen_urls.add(url)
@@ -420,7 +439,8 @@ async def _scrape_url(url: str) -> str:
                 "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) Chrome/120.0.0.0"
             })
             if resp.status_code != 200:
-                return ""
+                # Fallback to Lightpanda if HTTP request failed
+                return await _scrape_url_lightpanda_fallback(url)
             ct = resp.headers.get("content-type", "")
             if "html" in ct:
                 from html.parser import HTMLParser
@@ -441,10 +461,27 @@ async def _scrape_url(url: str) -> str:
                             self.text.append(data.strip() + " ")
                 parser = TextExtractor()
                 parser.feed(resp.text)
-                return "".join(parser.text).replace("  ", " ")[:8000]
+                text = "".join(parser.text).replace("  ", " ")[:8000]
+                if len(text.strip()) < 100:
+                    # Page might be JS-rendered — try Lightpanda
+                    return await _scrape_url_lightpanda_fallback(url) or text
+                return text
             return resp.text[:8000]
     except Exception as e:
-        logger.warning("Scrape failed for %s: %s", url, e)
+        logger.warning("Scrape failed for %s: %s — trying Lightpanda fallback", url, e)
+        return await _scrape_url_lightpanda_fallback(url)
+
+
+async def _scrape_url_lightpanda_fallback(url: str) -> str:
+    """Fallback scraper using Lightpanda headless browser (JS-capable)."""
+    try:
+        from app.web_lightpanda import lightpanda_scrape
+        text = await lightpanda_scrape(url)
+        if text:
+            logger.info("Lightpanda scrape fallback succeeded for %s (%d chars)", url, len(text))
+        return text
+    except Exception as e:
+        logger.warning("Lightpanda scrape fallback failed for %s: %s", url, e)
         return ""
 
 

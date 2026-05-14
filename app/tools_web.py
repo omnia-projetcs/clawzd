@@ -119,7 +119,18 @@ def _do_search(query: str, max_results: int) -> list:
     _add_unique(ddg_results)
     logger.info("DDG returned %d results for '%s'", len(ddg_results), query[:60])
 
-    # 2. Google Scholar — complement (academic)
+    # 2. Lightpanda headless browser — fallback if DDG returned nothing
+    if not ddg_results:
+        try:
+            from app.web_lightpanda import lightpanda_search
+            logger.info("DDG empty → trying Lightpanda headless fallback for '%s'", query[:60])
+            lp_results = asyncio.run(lightpanda_search(query, max_results))
+            _add_unique(lp_results)
+            logger.info("Lightpanda returned %d results", len(lp_results))
+        except Exception as e:
+            logger.warning("Lightpanda fallback failed: %s", e)
+
+    # 3. Google Scholar — complement (academic)
     #    Only fetch a small number to avoid overwhelming general results
     scholar_limit = min(max_results // 3, 5)
     if scholar_limit > 0:
