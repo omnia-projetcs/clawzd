@@ -762,6 +762,30 @@ async def _research_loop(pid: str):
             payload.update(extra)
         await _emit(pid, "log", payload)
 
+    async def _emit_new_results(results: list[dict]):
+        """Emit newly found search results so the frontend can update in real-time."""
+        # Send lightweight versions (no full_text) to keep SSE messages small
+        lite = []
+        for r in results:
+            lite.append({
+                "title": r.get("title", "")[:120],
+                "snippet": r.get("snippet", "")[:300],
+                "url": r.get("url", ""),
+                "source": r.get("source", "web"),
+                "score": r.get("score", 0),
+            })
+        if lite:
+            await _emit(pid, "new_results", {"results": lite})
+
+    async def _emit_new_asset(asset: dict):
+        """Emit a newly downloaded/saved asset so the frontend can update in real-time."""
+        await _emit(pid, "new_asset", {
+            "name": asset.get("name", ""),
+            "type": asset.get("type", ""),
+            "size": asset.get("size", 0),
+            "url": asset.get("url", ""),
+        })
+
     try:
         # ── Phase 0: Perspective Decomposition (STORM-style) ──
         _update_pm_task(0, "In Progress", 50)
@@ -810,7 +834,9 @@ async def _research_loop(pid: str):
                     )
                     # Collect all results from perspective branches
                     for b in persp_branches:
-                        proj["search_results"].extend(flatten_branch_results(b))
+                        branch_res = flatten_branch_results(b)
+                        proj["search_results"].extend(branch_res)
+                        await _emit_new_results(branch_res)
                         branch_summaries += "\n\n" + flatten_branch_summaries(b)
 
                     # Synthesis Agent step
@@ -937,11 +963,21 @@ async def _research_loop(pid: str):
 
                 action_type = act.get("action", "")
                 params = act.get("params", {})
-                await _emit_log(f"⚡ {action_type} — {json.dumps(params)[:100]}")
+                # Human-readable action label (not raw JSON)
+                action_label = (
+                    params.get("query")
+                    or params.get("url")
+                    or params.get("question")
+                    or params.get("symbol")
+                    or params.get("description")
+                    or ""
+                )[:120]
+                await _emit_log(f"{action_type}: {action_label}")
 
                 if action_type == "web_search":
                     results = await _do_web_search_with_retry(params.get("query", query))
                     proj["search_results"].extend(results)
+                    await _emit_new_results(results)
                     urls = [r.get("url") for r in results if r.get("url")]
                     iter_data["actions"].append({"type": "web_search", "count": len(results), "urls": urls, "params": params, "timestamp": datetime.now(timezone.utc).isoformat()})
                     await _emit_log(f"   Found {len(results)} results", extra={"urls": urls})
@@ -1001,6 +1037,7 @@ async def _research_loop(pid: str):
                     )
                     branch_results = flatten_branch_results(branch)
                     proj["search_results"].extend(branch_results)
+                    await _emit_new_results(branch_results)
                     branch_summaries += "\n\n" + flatten_branch_summaries(branch)
                     iter_data["actions"].append({
                         "type": "deep_dive", "topic": topic,
@@ -1023,16 +1060,19 @@ async def _research_loop(pid: str):
                             provider, model,
                         )
                         for s in scraped:
-                            proj["search_results"].append({
+                            sr_entry = {
                                 "title": f"Smart-scraped: {s['url'][:60]}",
                                 "snippet": s["relevant_extract"][:500],
                                 "url": s["url"],
                                 "full_text": s["relevant_extract"],
                                 "key_facts": s.get("key_facts", []),
                                 "source": "smart_scrape",
-                            })
+                            }
+                            proj["search_results"].append(sr_entry)
+                            await _emit_new_results([sr_entry])
                             asset = await _save_text_asset(f"Smart Scrape: {s['url'][:60]}", s["relevant_extract"], "smart_scrape", s["url"], pid)
                             proj["assets"].append(asset)
+                            await _emit_new_asset(asset)
                         
                         scraped_urls = [s["url"] for s in scraped if s.get("url")]
                         iter_data["actions"].append({"type": "smart_scrape", "count": len(scraped), "urls": scraped_urls, "timestamp": datetime.now(timezone.utc).isoformat()})
@@ -1043,13 +1083,16 @@ async def _research_loop(pid: str):
                     if url:
                         text = await _scrape_url(url)
                         if text:
-                            proj["search_results"].append({
+                            sr_entry = {
                                 "title": f"Scraped: {url[:60]}",
                                 "snippet": text[:500], "url": url,
                                 "full_text": text,
-                            })
+                            }
+                            proj["search_results"].append(sr_entry)
+                            await _emit_new_results([sr_entry])
                             asset = await _save_text_asset(f"Scraped: {url[:60]}", text, "scrape", url, pid)
                             proj["assets"].append(asset)
+                            await _emit_new_asset(asset)
                             iter_data["actions"].append({"type": "scrape", "url": url, "timestamp": datetime.now(timezone.utc).isoformat()})
                             await _emit_log(f"   Scraped {len(text)} chars")
 
@@ -1059,6 +1102,7 @@ async def _research_loop(pid: str):
                         asset = await _download_asset(url, pid)
                         if asset:
                             proj["assets"].append(asset)
+                            await _emit_new_asset(asset)
                             iter_data["actions"].append({"type": "download", "name": asset["name"], "timestamp": datetime.now(timezone.utc).isoformat()})
                             await _emit_log(f"   Downloaded: {asset['name']}")
 
@@ -1068,12 +1112,15 @@ async def _research_loop(pid: str):
                         rag_q = params.get("query", query)
                         rag_ctx = explicit_rag_search(rag_q, k=3)
                         if rag_ctx:
-                            proj["search_results"].append({
+                            sr_entry = {
                                 "title": f"RAG: {rag_q[:50]}",
                                 "snippet": rag_ctx[:500], "url": "rag://local",
-                            })
+                            }
+                            proj["search_results"].append(sr_entry)
+                            await _emit_new_results([sr_entry])
                             asset = await _save_text_asset(f"RAG Context: {rag_q[:50]}", rag_ctx, "rag_context", "local", pid)
                             proj["assets"].append(asset)
+                            await _emit_new_asset(asset)
                             iter_data["actions"].append({"type": "rag", "query": rag_q, "timestamp": datetime.now(timezone.utc).isoformat()})
                             await _emit_log(f"   RAG returned context")
                     except Exception:
@@ -1093,16 +1140,19 @@ async def _research_loop(pid: str):
                                 cwd=_proj_dir(pid),
                             )
                             output = (result.stdout + "\n" + result.stderr)[:2000].strip()
-                            proj["search_results"].append({
+                            sr_entry = {
                                 "title": f"🧪 Experiment: {params.get('description', 'script')[:50]}",
                                 "snippet": output[:500],
                                 "url": "sandbox://experiment",
                                 "full_text": output,
                                 "source": "experiment",
                                 "code": script_code[:500],
-                            })
+                            }
+                            proj["search_results"].append(sr_entry)
+                            await _emit_new_results([sr_entry])
                             asset = await _save_text_asset(f"Script Experiment", f"Code:\n```python\n{script_code}\n```\n\nOutput:\n```\n{output}\n```", "script_experiment", "sandbox", pid)
                             proj["assets"].append(asset)
+                            await _emit_new_asset(asset)
                             iter_data["actions"].append({"type": "script", "output": output, "code": script_code, "timestamp": datetime.now(timezone.utc).isoformat()})
                             await _emit_log(f"   🧪 Script output: {output[:200]}...", extra={"code": script_code, "output": output})
                         except Exception as e:
@@ -1125,15 +1175,18 @@ async def _research_loop(pid: str):
                     ]
                     knowledge = await _project_llm_call(knowledge_prompt, provider, model)
                     if knowledge:
-                        proj["search_results"].append({
+                        sr_entry = {
                             "title": f"🤖 Model Knowledge: {question[:60]}",
                             "snippet": knowledge[:500],
                             "url": "model://internal-knowledge",
                             "full_text": knowledge,
                             "source": "model_knowledge",
-                        })
+                        }
+                        proj["search_results"].append(sr_entry)
+                        await _emit_new_results([sr_entry])
                         asset = await _save_text_asset(f"Model Knowledge: {question[:60]}", knowledge, "model_knowledge", "internal", pid)
                         proj["assets"].append(asset)
+                        await _emit_new_asset(asset)
                         iter_data["actions"].append({"type": "ask_model", "question": question[:100], "timestamp": datetime.now(timezone.utc).isoformat()})
                         await _emit_log(f"   🤖 Model knowledge: {len(knowledge)} chars")
 
@@ -1147,6 +1200,7 @@ async def _research_loop(pid: str):
                             max_results=params.get("max_results", 10),
                         )
                         proj["search_results"].extend(sem_results)
+                        await _emit_new_results(sem_results)
                         iter_data["actions"].append({
                             "type": "academic_search", "query": academic_query,
                             "count": len(sem_results),
@@ -1183,19 +1237,22 @@ async def _research_loop(pid: str):
                                     summary_lines.append(str(row))
                                 summary = "\n".join(summary_lines)
 
-                                proj["search_results"].append({
+                                sr_entry = {
                                     "title": f"📈 Market Data: {symbol} ({source})",
                                     "snippet": summary[:500],
                                     "url": f"market://{source}/{symbol}",
                                     "full_text": summary,
                                     "source": "market_data",
                                     "market_data": market_result,
-                                })
+                                }
+                                proj["search_results"].append(sr_entry)
+                                await _emit_new_results([sr_entry])
                                 asset = await _save_text_asset(
                                     f"Market Data: {symbol}", summary,
                                     "market_data", f"{source}/{symbol}", pid,
                                 )
                                 proj["assets"].append(asset)
+                                await _emit_new_asset(asset)
                                 iter_data["actions"].append({
                                     "type": "fetch_market_data",
                                     "symbol": symbol,

@@ -361,10 +361,14 @@ class ResearchStudioV2 {
 
   async startResearch(pid) {
     try {
-      await fetch(`/research/projects/${pid}/start`, {method:'POST'});
-      this._connectSSE(pid);
-      this._updateStatus('running');
-      if (window.toast) toast(ICONS.sparkles(14) + ' Research started');
+      const res = await fetch(`/research/projects/${pid}/start`, {method:'POST'});
+      if (!res.ok) { if (window.toast) toast(ICONS.x(14) + ' Failed to start: ' + res.status); return; }
+      const data = await res.json();
+      if (data.status === 'started' || data.status === 'already_running') {
+        this._connectSSE(pid);
+        this._updateStatus('running');
+        if (window.toast) toast(ICONS.sparkles(14) + ' Research started');
+      }
     } catch(e) { if (window.toast) toast(ICONS.x(14) + ' Failed to start'); }
   }
 
@@ -446,8 +450,30 @@ class ResearchStudioV2 {
             }
         }
         else if (data.type === 'iteration_start') this._addLogEntry(`── Iteration ${data.iteration} ──`, 'search');
-        else if (data.type === 'iteration_end') { this._updateScore(data.score); this._updateIteration(data.iteration); this._addLogEntry(`Score: ${Math.round(data.score*100)}% — ${data.evaluation||''}`, 'eval'); }
-        else if (data.type === 'report_ready') { this._addLogEntry('📝 Report ready!', 'done'); }
+        else if (data.type === 'iteration_end') {
+            this._updateScore(data.score);
+            this._updateIteration(data.iteration);
+            this._addLogEntry(`Score: ${Math.round(data.score*100)}% — ${data.evaluation||''}`, 'eval');
+            // Refresh results & assets from server after each iteration
+            this._refreshProjectData(pid);
+        }
+        else if (data.type === 'report_ready') { this._addLogEntry('📝 Report ready!', 'done'); this._refreshProjectData(pid); }
+        else if (data.type === 'new_results' && data.results) {
+            // Real-time incremental result updates
+            if (this.currentProject) {
+                if (!this.currentProject.search_results) this.currentProject.search_results = [];
+                this.currentProject.search_results.push(...data.results);
+                this._renderResults();
+            }
+        }
+        else if (data.type === 'new_asset' && data.name) {
+            // Real-time incremental asset updates
+            if (this.currentProject) {
+                if (!this.currentProject.assets) this.currentProject.assets = [];
+                this.currentProject.assets.push(data);
+                this._renderAssets();
+            }
+        }
         else if (data.type === 'token_usage' && window.tokenTracker) {
           window.tokenTracker.addUsage(data);
         }
@@ -458,6 +484,28 @@ class ResearchStudioV2 {
 
   _disconnectSSE() {
     if (this._sse) { this._sse.close(); this._sse = null; }
+  }
+
+  async _refreshProjectData(pid) {
+    // Fetch fresh project data to update results, assets, and report
+    // without disrupting the live log stream
+    try {
+      const res = await fetch(`/research/projects/${pid}`);
+      if (!res.ok) return;
+      const data = await res.json();
+      if (!data.project || !this.currentProject || this.currentProject.id !== pid) return;
+      // Update in-memory project data (preserve status from SSE)
+      const liveStatus = this.currentProject.status;
+      this.currentProject.search_results = data.project.search_results || [];
+      this.currentProject.assets = data.project.assets || [];
+      this.currentProject.report_md = data.project.report_md || '';
+      this.currentProject.current_score = data.project.current_score || 0;
+      this.currentProject.iterations = data.project.iterations || [];
+      this.currentProject.status = liveStatus; // Keep SSE status, not stale disk status
+      this._renderResults();
+      this._renderAssets();
+      if (data.project.report_md) this._renderReport();
+    } catch (_) { /* Silently ignore — next iteration will retry */ }
   }
 
   _addLogEntry(msg, cls='', details=null) {
@@ -539,6 +587,13 @@ class ResearchStudioV2 {
     if (this.ui.btnResume) this.ui.btnResume.style.display = (status === 'paused' || status === 'idle' || status === 'error') ? '' : 'none';
     if (this.ui.btnPause) this.ui.btnPause.style.display = status === 'running' ? '' : 'none';
     if (this.ui.btnEval) this.ui.btnEval.style.display = (status !== 'running') ? '' : 'none';
+
+    // Update sidebar project list to reflect the new status
+    if (this.currentProject) {
+      const proj = this.projects.find(p => p.id === this.currentProject.id);
+      if (proj) proj.status = status;
+      this._renderProjectList();
+    }
   }
 
   _updateScore(score) {
@@ -593,7 +648,8 @@ class ResearchStudioV2 {
       (it.actions||[]).forEach(a => {
           const ts = a.timestamp || it.started_at;
           if (a.type === 'web_search') {
-              this._addLogEntry(`web_search: ${JSON.stringify(a.params || {}).substring(0,100)}`, '', {timestamp: ts});
+              const q = (a.params || {}).query || '';
+              this._addLogEntry(`web_search: ${q.substring(0,120)}`, '', {timestamp: ts});
               if (a.urls && a.urls.length > 0) {
                   this._addLogEntry(`   Found ${a.count} results`, '', {urls: a.urls, timestamp: ts});
               } else {
@@ -613,7 +669,8 @@ class ResearchStudioV2 {
               this._addLogEntry(`write_script: executed`, '', {timestamp: ts});
               this._addLogEntry(`   Script output`, '', {code: a.code, output: a.output, timestamp: ts});
           } else {
-              this._addLogEntry(`${a.type}: ${JSON.stringify(a).substring(0,100)}`, '', {timestamp: ts});
+              const label = a.query || a.url || a.question || a.symbol || a.description || '';
+              this._addLogEntry(`${a.type}: ${label.substring(0,120)}`, '', {timestamp: ts});
           }
       });
       if (it.evaluation) {
