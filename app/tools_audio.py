@@ -157,7 +157,7 @@ def _get_tts_pipeline(model_name="speecht5"):
             logger.info("Loading Bark TTS model...")
             processor = AutoProcessor.from_pretrained("suno/bark", local_files_only=_should_use_local_files("suno/bark"))
             model = BarkModel.from_pretrained("suno/bark", local_files_only=_should_use_local_files("suno/bark"),
-                torch_dtype=torch.float16 if _gpu_ok else torch.float32,
+                torch_dtype=torch.float32,
                 use_safetensors=False,
             )
             if _gpu_ok:
@@ -235,7 +235,7 @@ def _get_music_pipeline(model_name="musicgen-small"):
 
         processor = AutoProcessor.from_pretrained(repo, local_files_only=_should_use_local_files(repo))
         model = MusicgenForConditionalGeneration.from_pretrained(repo, local_files_only=_should_use_local_files(repo),
-            torch_dtype=torch.float16 if _gpu_ok else torch.float32,
+            torch_dtype=torch.float32,
             use_safetensors=False,
         )
         if _gpu_ok:
@@ -402,6 +402,10 @@ async def _generate_tts(text, voice_style="female_soft", language="auto", durati
                 vocoder=vocoder,
             )
         all_audio.append(speech.cpu().numpy())
+        all_audio.append(np.zeros(int(16000 * 0.25), dtype=np.float32))
+
+    if all_audio:
+        all_audio.pop() # remove trailing silence
 
     audio = np.concatenate(all_audio) if len(all_audio) > 1 else all_audio[0]
 
@@ -440,6 +444,9 @@ async def _generate_tts_bark(text, voice_style="female_soft", language="auto"):
     chunks = _split_text(text, max_len=200)  # Bark works best with shorter chunks
     all_audio = []
 
+    sample_rate = model.generation_config.sample_rate
+    silence = np.zeros(int(sample_rate * 0.25), dtype=np.float32)
+
     for chunk in chunks:
         inputs = processor(chunk, voice_preset=voice_preset, return_tensors="pt")
         if _gpu_ok:
@@ -452,9 +459,12 @@ async def _generate_tts_bark(text, voice_style="female_soft", language="auto"):
                 max_length=None,
             )
         all_audio.append(output.cpu().numpy().squeeze())
+        all_audio.append(silence)
+
+    if all_audio:
+        all_audio.pop() # remove trailing silence
 
     audio = np.concatenate(all_audio) if len(all_audio) > 1 else all_audio[0]
-    sample_rate = model.generation_config.sample_rate
     return audio, sample_rate
 
 
