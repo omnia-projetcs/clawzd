@@ -142,6 +142,18 @@ def _generate_powerpoint(pages: list, filepath: str, canvas_width: int, canvas_h
                         img_stream = _resolve_image(src)
                         if img_stream:
                             try:
+                                op = el.get("opacity", 100)
+                                if op < 100:
+                                    from PIL import Image
+                                    img_pil = Image.open(img_stream).convert("RGBA")
+                                    alpha = img_pil.split()[3]
+                                    alpha = alpha.point(lambda p: int(p * (op / 100.0)))
+                                    img_pil.putalpha(alpha)
+                                    out_stream = BytesIO()
+                                    img_pil.save(out_stream, format="PNG")
+                                    out_stream.seek(0)
+                                    img_stream = out_stream
+                                    
                                 slide.shapes.add_picture(img_stream, x, y, w, h)
                             except Exception as e:
                                 logger.warning(f"Failed to add image to slide: {e}")
@@ -281,6 +293,21 @@ def _generate_pdf(pages: list, filepath: str, canvas_width: int, canvas_height: 
                         import tempfile
                         img_stream = _resolve_image(src)
                         if img_stream:
+                            op = el.get("opacity", 100)
+                            if op < 100:
+                                try:
+                                    from PIL import Image
+                                    img_pil = Image.open(img_stream).convert("RGBA")
+                                    alpha = img_pil.split()[3]
+                                    alpha = alpha.point(lambda p: int(p * (op / 100.0)))
+                                    img_pil.putalpha(alpha)
+                                    out_stream = BytesIO()
+                                    img_pil.save(out_stream, format="PNG")
+                                    out_stream.seek(0)
+                                    img_stream = out_stream
+                                except Exception as e:
+                                    logger.warning(f"Failed to apply opacity to PDF image: {e}")
+                                    
                             with tempfile.NamedTemporaryFile(delete=False, suffix=".png") as tmp:
                                 tmp.write(img_stream.read())
                                 tmp_path = tmp.name

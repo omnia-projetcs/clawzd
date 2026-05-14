@@ -251,6 +251,11 @@ class LLMProvider(ABC):
 
 class OllamaLLM(LLMProvider):
     """Local LLM via Ollama's OpenAI-compatible API."""
+    
+    @property
+    def default_model(self):
+        from config import OLLAMA_MODEL
+        return OLLAMA_MODEL
 
     def __init__(self):
         self.client = openai.AsyncOpenAI(
@@ -408,6 +413,7 @@ class OllamaLLM(LLMProvider):
 
 class AnthropicLLM(LLMProvider):
     """Anthropic Claude API via the official anthropic SDK."""
+    default_model = "claude-sonnet-4-20250514"
 
     def __init__(self):
         import anthropic
@@ -478,6 +484,7 @@ class AnthropicLLM(LLMProvider):
 
 class GoogleLLM(LLMProvider):
     """Google Gemini via the google-genai SDK."""
+    default_model = "gemini-2.0-flash"
 
     def __init__(self):
         import google.genai as genai
@@ -568,6 +575,7 @@ class GoogleLLM(LLMProvider):
 
 class GrokLLM(LLMProvider):
     """Grok (xAI) API — OpenAI-compatible."""
+    default_model = "grok-3-mini"
 
     def __init__(self):
         self.client = openai.AsyncOpenAI(
@@ -598,6 +606,7 @@ class GrokLLM(LLMProvider):
 
 class GroqLLM(LLMProvider):
     """Groq inference API."""
+    default_model = "llama3-70b-8192"
 
     def __init__(self):
         self.client = openai.AsyncOpenAI(
@@ -628,6 +637,7 @@ class GroqLLM(LLMProvider):
 
 class HuggingFaceLLM(LLMProvider):
     """HuggingFace Inference API (serverless)."""
+    default_model = "meta-llama/Llama-3.1-8B-Instruct"
 
     def __init__(self):
         self.client = openai.AsyncOpenAI(
@@ -658,6 +668,7 @@ class HuggingFaceLLM(LLMProvider):
 
 class MistralLLM(LLMProvider):
     """Mistral AI API."""
+    default_model = "mistral-small-latest"
 
     def __init__(self):
         self.client = openai.AsyncOpenAI(
@@ -688,6 +699,7 @@ class MistralLLM(LLMProvider):
 
 class OpenAILLM(LLMProvider):
     """OpenAI API (GPT-4o, GPT-4.1, o3, etc.)."""
+    default_model = "gpt-4o-mini"
 
     def __init__(self):
         self.client = openai.AsyncOpenAI(
@@ -717,6 +729,7 @@ class OpenAILLM(LLMProvider):
 
 class OpenRouterLLM(LLMProvider):
     """OpenRouter multi-model gateway."""
+    default_model = "openai/gpt-4o-mini"
 
     def __init__(self):
         self.client = openai.AsyncOpenAI(

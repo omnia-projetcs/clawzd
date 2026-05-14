@@ -86,8 +86,9 @@ class MetricsCollector:
             dm = settings.get("default_model", "")
             if dm:
                 return dm
-        except Exception:
-            pass
+        except Exception as e:
+            import logging
+            logging.getLogger(__name__).warning(f"Error loading settings in _resolve_default_model: {e}")
 
         # 2. Try the provider's default_model attribute
         if provider:
@@ -97,8 +98,9 @@ class MetricsCollector:
                 dm = getattr(prov, "default_model", "") or getattr(prov, "model", "")
                 if dm:
                     return dm
-            except Exception:
-                pass
+            except Exception as e:
+                import logging
+                logging.getLogger(__name__).warning(f"Error getting provider in _resolve_default_model: {e}")
 
         return ""
 

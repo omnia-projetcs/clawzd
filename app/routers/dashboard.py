@@ -210,8 +210,9 @@ async def analytics_models(hours: int = Query(24, ge=1, le=168)):
             try:
                 _provider = c.get("provider", "")
                 model = mc._resolve_default_model(_provider) or model
-            except Exception:
-                pass
+            except Exception as e:
+                import logging
+                logging.getLogger(__name__).warning(f"Error resolving model for dashboard: {e}")
         if model not in by_model:
             by_model[model] = {
                 "model": model,

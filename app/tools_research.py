@@ -380,14 +380,18 @@ async def _do_web_search(query: str, max_results: int = 50) -> list[dict]:
         logger.info("DDG also empty after Tavily quota — trying Lightpanda")
         return await _lightpanda_search()
 
-    # Run ALL sources in parallel (including Lightpanda as safety net)
+    # Run primary sources in parallel
     (tavily_results, ddg_results, scholar_results,
-     reddit_results, twitter_results, news_results,
-     lightpanda_results) = await asyncio.gather(
+     reddit_results, twitter_results, news_results) = await asyncio.gather(
         _tavily_search(), _ddg_search(), _scholar_search(),
         _reddit_search(), _twitter_search(), _news_search(),
-        _lightpanda_search(),
     )
+
+    # 3rd test fallback: if Tavily and DDGS both fail/return nothing
+    lightpanda_results = []
+    if not tavily_results and not ddg_results:
+        logger.info("Tavily and DDG empty — triggering 3rd test with Lightpanda browser")
+        lightpanda_results = await _lightpanda_search()
 
     # Merge & deduplicate by URL
     # Priority order: Tavily > News > Twitter > Reddit > Scholar > DDG > Lightpanda
@@ -719,13 +723,6 @@ async def _research_loop(pid: str):
         await _emit(pid, "progress", progress_data)
     # ─────────────────────────────────────────────────────────────────────────
 
-    # ── PM project tracking disabled ──────────────────────────────────────
-    # Research has its own progress tracking via SSE; creating projects
-    # in the Project Studio was polluting the user's project list.
-    def _update_pm_task(idx, status, progress):
-        pass  # No-op: research does not create PM projects
-    # -----------------------------------
-
     # Wrap _llm_call: binds project ID + feeds cost tracker automatically
     async def _project_llm_call(messages, prov="", mdl=""):
         result = await _llm_call(messages, prov, mdl, pid=pid)
@@ -818,7 +815,7 @@ async def _research_loop(pid: str):
 
     try:
         # ── Phase 0: Perspective Decomposition (STORM-style) ──
-        _update_pm_task(0, "In Progress", 50)
+        pass
         await _emit_progress(phase=ResearchPhase.PERSPECTIVES)
         await _emit_log("🔭 Generating research perspectives...")
         perspectives = await generate_perspectives(
@@ -838,7 +835,7 @@ async def _research_loop(pid: str):
             )
             uncovered_questions = list(sub_questions)
             await _emit_log(f"❓ {len(sub_questions)} sub-questions generated")
-            _update_pm_task(0, "Done", 100)
+
 
             # ── Parallel Perspective Research (DeepResearch #2) ──────────────
             # For deep_research profile: launch all perspective branches in parallel
@@ -909,7 +906,7 @@ async def _research_loop(pid: str):
             _progress.search_results_count = len(proj.get("search_results", []))
             await _emit_progress(phase=ResearchPhase.SEARCH, current_query=query)
             await _emit(pid, "iteration_start", {"iteration": iter_num})
-            _update_pm_task(1, "In Progress", int((iter_num - 1) / proj["max_iterations"] * 100))
+
 
             # ── 1. Planning (reflection-guided after first iteration) ──
             actions = []
@@ -1314,8 +1311,7 @@ async def _research_loop(pid: str):
                             await _emit_log(f"   ⚠️ Market data fetch failed: {e}")
 
             # ── 3. Structured Evaluation ──
-            _update_pm_task(1, "In Progress", int((iter_num - 0.5) / proj["max_iterations"] * 100))
-            _update_pm_task(2, "In Progress", int((iter_num - 1) / proj["max_iterations"] * 100))
+
             await _emit_log("📊 Multi-criteria evaluation...")
             last_eval = await evaluate_structured(
                 query, perspectives, proj["search_results"],
@@ -1342,7 +1338,7 @@ async def _research_loop(pid: str):
             iter_data["completed_at"] = datetime.now(timezone.utc).isoformat()
             proj["iterations"].append(iter_data)
             _save(proj)
-            _update_pm_task(2, "In Progress", int(iter_num / proj["max_iterations"] * 100))
+
 
             # ── Iteration Merging: cumulative findings ─────────────────────
             try:
@@ -1446,16 +1442,13 @@ async def _research_loop(pid: str):
                     f"✅ Target score reached ({proj['current_score']:.0%}). "
                     "Generating report..."
                 )
-                _update_pm_task(1, "Done", 100)
-                _update_pm_task(2, "Done", 100)
+
                 break
 
             await asyncio.sleep(1)
 
         # ── Generate final report with citations ──
-        _update_pm_task(1, "Done", 100)
-        _update_pm_task(2, "Done", 100)
-        _update_pm_task(3, "In Progress", 10)
+
         await _emit_progress(phase=ResearchPhase.REPORT)
         await _generate_report(
             pid, provider, model, perspectives, branch_summaries,
@@ -1466,7 +1459,7 @@ async def _research_loop(pid: str):
             ),
             perspective_synthesis=perspective_synthesis,
         )
-        _update_pm_task(3, "Done", 100)
+
         proj = _load(pid)
         proj["status"] = "completed"
         _save(proj)

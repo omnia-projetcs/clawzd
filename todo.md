@@ -270,6 +270,7 @@ Can be used to rebuild from scratch the project with AI assistance.
 - [x] Thread-local SQLite connections (WAL mode)
 - [x] Semantic cache to avoid redundant LLM queries (app/cache.py)
 - [x] LLM latency and throughput tracking (app/metrics.py — tokens/s per provider)
+    - [x] Accurate resolution of `default` identifiers to specific human-readable model names in Analytics Dashboard.
 - [x] Health check endpoint with dependency status (/health)
 - [x] Request timing middleware (all HTTP requests logged)
 - [x] Memory usage monitoring (GPU VRAM + system RAM via /api/metrics)
@@ -360,10 +361,15 @@ Can be used to rebuild from scratch the project with AI assistance.
 - [x] **Modular Studio Architecture**: The application is structured into specialized modules to handle distinct workflows:
     - [x] **Chat Studio**: General-purpose AI interaction with vision, artifacts, and code execution capabilities.
     - [x] **Research Studio**: Deep, long-running web research, automated reporting, and structured log viewing.
+        - [x] Multi-engine search pipeline (Tavily, DuckDuckGo) with conditional headless Lightpanda fallback.
+        - [x] Research-to-Blog drafting workflow with tone enforcement and internal model knowledge base querying.
     - [x] **Media Studio**: Generation of images, videos (SVD, Wan2.1), and audio/lyrics with live streaming progress.
+        - [x] Strict power-of-32 resolution constraints and aspect ratio preservation for seamless image-to-video processing.
     - [x] **Automation Studio**: Multi-channel connector management (Email, Discord, Telegram, Signal, WhatsApp) and scheduled tasks.
     - [x] **My Clone Studio**: Autonomous AI twin configuration, utilizing automation connectors for profile-driven, cross-channel responses and knowledge base management.
     - [x] **Presentation Studio**: AI-enriched slideshow generation, code autocompletion, and document translation.
+        - [x] Full-screen native slide player with mouse, keyboard navigation, and auto-hiding controls.
+        - [x] Advanced PPTX/PDF export supporting transparent SVG shapes and base64 images via Pillow preprocessing.
     - [x] **EASM / Security Dashboard**: External Attack Surface Management, vulnerability tracking, and granular email notifications.
     - [x] **Blog Workflow**: Automated and manual blog article management and rendering.
 - [x] **Centralized Task Management**: Long-running background processes are tracked server-side (`task_manager.py`), allowing users to switch tabs or refresh the page without losing progress, supported by cross-tab UI status badges.
