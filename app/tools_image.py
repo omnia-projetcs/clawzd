@@ -2026,6 +2026,13 @@ async def animate_image(request: Request):
             last_keepalive = _time.monotonic()
             last_progress = 0.0
 
+            # Pre-arm the shared progress flag so the cancellation check below
+            # does not immediately fire because of the default "active: False"
+            # state.  generate_animation_core() will overwrite this with full
+            # details once it starts, but we need "active" to be True *before*
+            # we enter the polling loop.
+            _generation_progress["active"] = True
+
             while not task.done():
                 now = _time.monotonic()
 
