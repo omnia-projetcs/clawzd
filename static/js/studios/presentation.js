@@ -2861,9 +2861,13 @@ class PresentationStudio {
     this._playerKeyHandler = (e) => this._playerOnKey(e);
     this._playerClickHandler = (e) => this._playerOnClick(e);
     this._playerMoveHandler = () => this._playerShowControls();
+    this._playerResizeHandler = () => {
+      if (this._playerActive) this.renderPlayerSlide(this._playerSlide);
+    };
     document.addEventListener('keydown', this._playerKeyHandler);
     overlay.addEventListener('click', this._playerClickHandler);
     overlay.addEventListener('mousemove', this._playerMoveHandler);
+    window.addEventListener('resize', this._playerResizeHandler);
 
     // Button events
     document.getElementById('pt-player-prev')?.addEventListener('click', (e) => {
@@ -2891,6 +2895,7 @@ class PresentationStudio {
 
     // Remove event listeners
     if (this._playerKeyHandler) document.removeEventListener('keydown', this._playerKeyHandler);
+    if (this._playerResizeHandler) window.removeEventListener('resize', this._playerResizeHandler);
     if (this._playerClickHandler) {
       const ov = document.getElementById('pt-player-overlay');
       if (ov) ov.removeEventListener('click', this._playerClickHandler);
@@ -2932,7 +2937,7 @@ class PresentationStudio {
       const vh = window.innerHeight;
       const scaleX = vw / this.canvasW;
       const scaleY = vh / this.canvasH;
-      const scale = Math.min(scaleX, scaleY, 1);
+      const scale = Math.min(scaleX, scaleY);
       canvas.style.transform = `scale(${scale})`;
     }
 
