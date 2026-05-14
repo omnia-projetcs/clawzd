@@ -1872,7 +1872,7 @@ class PresentationStudio {
     const grid = $('#pt-gallery-grid');
     if (!browser || !grid) return;
 
-    browser.style.display = 'block';
+    browser.style.display = 'flex';
     grid.innerHTML = '<div style="padding:10px;color:var(--text-muted)">Loading...</div>';
 
     try {
