@@ -158,6 +158,7 @@ def _get_tts_pipeline(model_name="speecht5"):
             processor = AutoProcessor.from_pretrained("suno/bark", local_files_only=_should_use_local_files("suno/bark"))
             model = BarkModel.from_pretrained("suno/bark", local_files_only=_should_use_local_files("suno/bark"),
                 torch_dtype=torch.float16 if _gpu_ok else torch.float32,
+                use_safetensors=True,
             )
             if _gpu_ok:
                 model = model.to("cuda")
@@ -267,6 +268,10 @@ def _save_audio(audio_array, sample_rate, format_type="wav", prompt="", mode="tt
     if isinstance(audio_array, list):
         audio_array = np.array(audio_array)
     if audio_array.dtype == np.float32 or audio_array.dtype == np.float16:
+        max_val = np.max(np.abs(audio_array))
+        if max_val > 0:
+            # Normalize to avoid hard clipping distortion
+            audio_array = audio_array / max_val * 0.9
         audio_array = np.clip(audio_array, -1.0, 1.0)
         
     duration_sec = len(audio_array) / sample_rate if sample_rate > 0 else 0.0
@@ -440,7 +445,11 @@ async def _generate_tts_bark(text, voice_style="female_soft", language="auto"):
             inputs = {k: v.to("cuda") for k, v in inputs.items()}
 
         with torch.no_grad():
-            output = model.generate(**inputs)
+            output = model.generate(
+                **inputs,
+                pad_token_id=model.generation_config.eos_token_id,
+                max_length=None,
+            )
         all_audio.append(output.cpu().numpy().squeeze())
 
     audio = np.concatenate(all_audio) if len(all_audio) > 1 else all_audio[0]
@@ -641,7 +650,10 @@ async def generate_audio(request: Request):
                 generated_prompt = text
                 
             # Format text for Bark singing
-            song_text = "♪ " + text.replace("\n", " ♪\n♪ ") + " ♪"
+            # Using music notes helps Bark realize it should sing, but can bias it towards English.
+            # We wrap the text in notes and add a language hint if not auto.
+            lang_hint = f"[{language.upper()}] " if language and language != "auto" else ""
+            song_text = "♪ " + lang_hint + text.replace("\n", " ♪\n♪ ") + " ♪"
             song_text = song_text.replace("♪ ♪", "♪")
             
             audio, sr = await _generate_tts_bark(song_text, voice_style=voice_style, language=language)
