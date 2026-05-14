@@ -1511,6 +1511,7 @@ async def _generate_report(
         await _emit(pid, "log", {"msg": msg})
 
     report = ""
+    process_md = _read_process(pid)
 
     # ── GPT-Researcher-inspired: sectioned report if outline has ≥3 sections ──
     outline_sections = (dynamic_outline or {}).get("sections", [])
@@ -1532,6 +1533,7 @@ async def _generate_report(
                 model=model,
                 perspective_synthesis=perspective_synthesis,
                 emit_fn=_emit_section_log,
+                process_md=process_md,
             )
         except Exception as _se:
             logger.warning("Sectioned report failed, falling back to monolithic: %s", _se)
@@ -1554,6 +1556,7 @@ async def _generate_report(
             dynamic_outline=dynamic_outline or {},
             report_draft=report_draft,
             perspective_synthesis=perspective_synthesis,
+            process_md=process_md,
         )
 
     # ── Sanitize mermaid diagrams before saving ──

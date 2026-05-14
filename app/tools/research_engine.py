@@ -1046,6 +1046,7 @@ async def generate_report_with_citations(
     dynamic_outline: dict | None = None,
     report_draft: str = "",
     perspective_synthesis: str = "",
+    process_md: str = "",
 ) -> str:
     """Generate a report with inline citations [1][2] and numbered bibliography.
 
@@ -1177,6 +1178,7 @@ async def generate_report_with_citations(
             "- Use pie/bar charts in Mermaid where data supports it\n"
             "- Create timeline diagrams for chronological data\n\n"
             + structure_prompt
+            + (f"\n\nCUSTOM WRITING INSTRUCTIONS (MUST FOLLOW):\n{process_md}" if process_md else "")
         )},
         {"role": "user", "content": "".join(user_parts)},
     ]
@@ -1256,6 +1258,7 @@ async def generate_sectioned_report(
     model: str = "",
     perspective_synthesis: str = "",
     emit_fn=None,
+    process_md: str = "",
 ) -> str:
     """
     Generate a long-form report section-by-section (GPT-Researcher subtopic pattern).
@@ -1312,7 +1315,8 @@ async def generate_sectioned_report(
         "- Be analytical and specific, not generic\n"
         "- Do NOT repeat information from the previous sections\n"
         "- End with a brief transition sentence to the next section\n\n"
-        f"Source Index (use [N] citations):\n{sources_index[:4000]}"
+        + (f"CUSTOM WRITING INSTRUCTIONS (MUST FOLLOW):\n{process_md}\n\n" if process_md else "")
+        + f"Source Index (use [N] citations):\n{sources_index[:4000]}"
     )
 
     completed_sections: list[str] = []

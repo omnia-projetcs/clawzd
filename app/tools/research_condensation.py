@@ -302,40 +302,27 @@ async def condense_research_context(
     # Step 1: Prune results
     pruned = prune_results(results, max_keep=20)
 
-    # Steps 2 & 3: Run compression and draft update concurrently
-    compression_task = compress_findings(
-        results, query, report_draft, iteration_num,
-        llm_call, provider, model,
-    )
-
-    # Only call the LLM for draft update if there's an existing draft to build on
-    async def _draft_passthrough():
-        return report_draft
-
-    draft_task = (
-        update_report_draft(
-            query, "", report_draft, iteration_num, eval_scores,
+    # Step 2: Compress findings
+    try:
+        core_findings = await compress_findings(
+            results, query, report_draft, iteration_num,
             llm_call, provider, model,
         )
-        if report_draft
-        else _draft_passthrough()
-    )
-
-    core_findings, updated_draft = await asyncio.gather(
-        compression_task,
-        draft_task,
-        return_exceptions=True,
-    )
-
-    if isinstance(core_findings, Exception):
-        logger.warning("Compression task failed: %s", core_findings)
+    except Exception as e:
+        logger.warning("Compression task failed: %s", e)
         core_findings = "\n".join(
             f"- {r.get('title', '')}: {r.get('snippet', '')[:150]}"
             for r in pruned
         )
 
-    if isinstance(updated_draft, Exception):
-        logger.warning("Draft update task failed: %s", updated_draft)
+    # Step 3: Update draft sequentially using new core findings
+    try:
+        updated_draft = await update_report_draft(
+            query, core_findings, report_draft, iteration_num, eval_scores,
+            llm_call, provider, model,
+        )
+    except Exception as e:
+        logger.warning("Draft update task failed: %s", e)
         updated_draft = report_draft
 
     # Inject core findings as a synthetic "memory" result at the front
