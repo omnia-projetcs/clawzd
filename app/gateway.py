@@ -5,6 +5,7 @@ Main router that wires all modules together and handles chat streaming.
 import asyncio
 import io
 import logging
+import os
 import time
 import zipfile
 import uuid
@@ -20,7 +21,7 @@ from datetime import datetime, timezone
 
 from app.database import (
     init_db, create_session, get_session, add_message, get_messages,
-    auto_title, update_session, fork_at_message, list_branches, delete_branch,
+    auto_title, fork_at_message, list_branches, delete_branch,
 )
 from app.llm_provider import get_llm_provider, _get_provider_models
 from app.preprompts import get_preprompt, list_preprompts, get_jailbreak_wrapper
@@ -454,12 +455,16 @@ async def system_health():
     from app.core.metrics import MetricsCollector
     resources = MetricsCollector.get_system_resources()
 
-    # Check Ollama status
+    # Check Ollama status (resolve host dynamically so remote servers are checked)
     ollama_status = "unknown"
     try:
         import httpx
+        from app.core.llm_provider import _resolve_ollama_host, _resolve_ollama_api_key
+        _ollama_host = _resolve_ollama_host()
+        _ollama_key = _resolve_ollama_api_key()
+        _headers = {"Authorization": f"Bearer {_ollama_key}"} if _ollama_key else {}
         async with httpx.AsyncClient(timeout=3) as client:
-            resp = await client.get("http://localhost:11434/api/version")
+            resp = await client.get(f"{_ollama_host}/api/version", headers=_headers)
             ollama_status = "running" if resp.status_code == 200 else "error"
     except Exception:
         ollama_status = "offline"
@@ -836,7 +841,6 @@ async def _process_chat(session_id: str, data: dict) -> dict:
         # Merge manually activated skills from the catalog (always injected)
         try:
             from app.skill_registry import load_active_skills
-            from app.skill_selector import get_skill_description
             pinned_names = load_active_skills()
             detected_names = {d["skill"] for d in detected}
             for pname in pinned_names:
@@ -858,7 +862,7 @@ async def _process_chat(session_id: str, data: dict) -> dict:
             pass  # Plugin hooks are non-critical
             
     if detected:
-        from app.skill_selector import get_skill_description, get_skill_catalog_entry, get_skill_full_instructions
+        from app.skill_selector import get_skill_catalog_entry, get_skill_full_instructions
 
         # For local provider with small ctx, use fewer tools
         is_local = (provider_key in ("local", "ollama"))
@@ -1067,7 +1071,6 @@ async def _process_chat(session_id: str, data: dict) -> dict:
 
                     # Notify the user (only if not inside a code block, to keep code seamless)
                     # Build continuation context — detect if we were inside a code block
-                    tail = round_response[-1500:] if len(round_response) > 1500 else round_response
                     # Count code fences to detect if truncated mid-code
                     fence_count = round_response.count("```")
                     in_code_block = fence_count % 2 != 0
@@ -1498,7 +1501,7 @@ async def _process_chat(session_id: str, data: dict) -> dict:
                         _active_generations[session_id] = full_conversation
                     else:
                         # For other tools, do not stream raw text to avoid double results
-                        status_done = f"✅ *Done.*\n\n"
+                        status_done = "✅ *Done.*\n\n"
                         await queue.put(status_done)
                         full_conversation += status_done
 
@@ -1833,13 +1836,13 @@ async def ws_chat(websocket: WebSocket, session_id: str):
 
     # Subscribe to push notifications
     try:
-        from app.core.notifications import subscribe, unsubscribe, get_recent
-        notif_queue = subscribe(session_id)
+        from app.core.notifications import subscribe, get_recent
+        subscribe(session_id)
         # Send any recent unread notifications
         for n in get_recent(limit=5, session_id=session_id):
             await websocket.send_json(n)
     except Exception:
-        notif_queue = None
+        pass
 
     try:
         while True:
@@ -2347,19 +2350,21 @@ async def arena_stream(stream_id: str):
 
 async def _unload_all_ollama_models():
     """Unload all currently running models in Ollama to free up VRAM."""
-    from config import OLLAMA_HOST, OLLAMA_API_KEY
+    from app.core.llm_provider import _resolve_ollama_host, _resolve_ollama_api_key
     import httpx
     try:
-        headers = {"Authorization": f"Bearer {OLLAMA_API_KEY}"} if OLLAMA_API_KEY else {}
+        ollama_host = _resolve_ollama_host()
+        ollama_key = _resolve_ollama_api_key()
+        headers = {"Authorization": f"Bearer {ollama_key}"} if ollama_key else {}
         async with httpx.AsyncClient() as client:
-            resp = await client.get(f"{OLLAMA_HOST}/api/ps", timeout=2.0, headers=headers)
+            resp = await client.get(f"{ollama_host}/api/ps", timeout=2.0, headers=headers)
             if resp.status_code == 200:
                 models = resp.json().get("models", [])
                 for m in models:
                     model_name = m.get("name")
                     if model_name:
                         await client.post(
-                            f"{OLLAMA_HOST}/api/chat",
+                            f"{ollama_host}/api/chat",
                             json={"model": model_name, "keep_alive": 0},
                             headers=headers,
                             timeout=2.0
@@ -2527,13 +2532,17 @@ async def get_providers():
 async def get_llm_status():
     """Return current local LLM status from Ollama."""
     try:
-        from config import OLLAMA_HOST, OLLAMA_MODEL
+        from config import OLLAMA_MODEL
+        from app.core.llm_provider import _resolve_ollama_host, _resolve_ollama_api_key
         import httpx
+        ollama_host = _resolve_ollama_host()
+        ollama_key = _resolve_ollama_api_key()
+        headers = {"Authorization": f"Bearer {ollama_key}"} if ollama_key else {}
         async with httpx.AsyncClient(timeout=3.0) as client:
-            resp = await client.get(f"{OLLAMA_HOST}/api/tags")
+            resp = await client.get(f"{ollama_host}/api/tags", headers=headers)
             if resp.status_code == 200:
-                return {"status": "running", "active_model": OLLAMA_MODEL}
-        return {"status": "stopped", "active_model": OLLAMA_MODEL}
+                return {"status": "running", "active_model": OLLAMA_MODEL, "host": ollama_host}
+        return {"status": "stopped", "active_model": OLLAMA_MODEL, "host": ollama_host}
     except Exception:
         return {"status": "stopped", "detail": "Cannot reach Ollama"}
 
@@ -3252,7 +3261,7 @@ async def workspace_git_clone(request: Request):
             output = output.replace(token, "***")
         return {
             "status": "ok",
-            "message": f"Repository cloned successfully",
+            "message": "Repository cloned successfully",
             "output": output
         }
     except _sp.TimeoutExpired:

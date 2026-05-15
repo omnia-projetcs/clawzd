@@ -28,12 +28,35 @@ from config import (
 logger = logging.getLogger("clawzd.llm")
 
 # --- Available models per provider ---
+
+def _resolve_ollama_host() -> str:
+    """Resolve OLLAMA_HOST at call time from .env, falling back to env/config.
+
+    This ensures that when the user changes OLLAMA_HOST in .env (e.g. to a
+    remote server), the new value is picked up immediately without a restart.
+    """
+    import os as _os
+    from dotenv import dotenv_values as _dv
+    _env = _dv(".env") if _os.path.exists(".env") else {}
+    return _env.get("OLLAMA_HOST", _os.getenv("OLLAMA_HOST", "http://localhost:11434"))
+
+
+def _resolve_ollama_api_key() -> str:
+    """Resolve OLLAMA_API_KEY at call time from .env."""
+    import os as _os
+    from dotenv import dotenv_values as _dv
+    _env = _dv(".env") if _os.path.exists(".env") else {}
+    return _env.get("OLLAMA_API_KEY", _os.getenv("OLLAMA_API_KEY", ""))
+
+
 async def _get_local_models() -> list[dict]:
     """Build local model list dynamically from Ollama."""
+    ollama_host = _resolve_ollama_host()
+    ollama_api_key = _resolve_ollama_api_key()
     try:
-        headers = {"Authorization": f"Bearer {OLLAMA_API_KEY}"} if OLLAMA_API_KEY else {}
+        headers = {"Authorization": f"Bearer {ollama_api_key}"} if ollama_api_key else {}
         async with httpx.AsyncClient() as client:
-            resp = await client.get(f"{OLLAMA_HOST}/api/tags", timeout=3, headers=headers)
+            resp = await client.get(f"{ollama_host}/api/tags", timeout=5, headers=headers)
         if resp.status_code == 200:
             data = resp.json()
             models = []
@@ -62,7 +85,7 @@ async def _get_local_models() -> list[dict]:
                 models.sort(key=lambda x: x["label"].lower())
                 return models
     except Exception as e:
-        logger.warning("Failed to fetch local models from Ollama: %s", e)
+        logger.warning("Failed to fetch local models from Ollama at %s: %s", ollama_host, e)
     # Fallback: show configured model
     from config import OLLAMA_MODEL
     return [{"id": OLLAMA_MODEL, "label": f"{OLLAMA_MODEL} (Ollama)"}]
@@ -258,10 +281,29 @@ class OllamaLLM(LLMProvider):
         return OLLAMA_MODEL
 
     def __init__(self):
+        # Track which host the client was built for so we can recreate
+        # it when the user changes OLLAMA_HOST in .env.
+        self._current_host = _resolve_ollama_host()
+        self._current_api_key = _resolve_ollama_api_key()
         self.client = openai.AsyncOpenAI(
-            base_url=f"{OLLAMA_HOST}/v1",
-            api_key=OLLAMA_API_KEY or "ollama",  # use configured key, or dummy for local Ollama
+            base_url=f"{self._current_host}/v1",
+            api_key=self._current_api_key or "ollama",
         )
+
+    def _ensure_client(self):
+        """Recreate the OpenAI client if OLLAMA_HOST has changed in .env."""
+        host = _resolve_ollama_host()
+        api_key = _resolve_ollama_api_key()
+        if host != self._current_host or api_key != self._current_api_key:
+            logger.info("OLLAMA_HOST changed: %s → %s, recreating client", self._current_host, host)
+            self._current_host = host
+            self._current_api_key = api_key
+            self.client = openai.AsyncOpenAI(
+                base_url=f"{host}/v1",
+                api_key=api_key or "ollama",
+            )
+            # Invalidate health cache since host changed
+            self._health_cache = {"ok": False, "ts": 0.0}
 
     # Cached health-check state (avoid HTTP call on every inference)
     _health_cache: dict[str, float | bool] = {"ok": False, "ts": 0.0}
@@ -273,10 +315,12 @@ class OllamaLLM(LLMProvider):
         now = _time.monotonic()
         if self._health_cache["ok"] and now - self._health_cache["ts"] < self._HEALTH_TTL:
             return True
+        host = _resolve_ollama_host()
+        api_key = _resolve_ollama_api_key()
         try:
-            headers = {"Authorization": f"Bearer {OLLAMA_API_KEY}"} if OLLAMA_API_KEY else {}
+            headers = {"Authorization": f"Bearer {api_key}"} if api_key else {}
             async with httpx.AsyncClient() as client:
-                resp = await client.get(f"{OLLAMA_HOST}/api/tags", timeout=2.0, headers=headers)
+                resp = await client.get(f"{host}/api/tags", timeout=2.0, headers=headers)
             alive = resp.status_code == 200
         except Exception:
             alive = False
@@ -285,12 +329,16 @@ class OllamaLLM(LLMProvider):
         return alive
 
     async def chat_stream(self, messages, model=None, **kwargs):
+        # Re-check host on every request so .env changes are picked up
+        self._ensure_client()
+        ollama_host = self._current_host
+
         if not await self._is_ollama_running():
             yield (
                 "⚠️ **Ollama is not running.**\n\n"
                 "Start it with:\n```bash\nollama serve\n```\n\n"
                 "Or check that it's listening on "
-                f"`{OLLAMA_HOST}`."
+                f"`{ollama_host}`."
             )
             return
 
@@ -336,7 +384,7 @@ class OllamaLLM(LLMProvider):
             except openai.APIConnectionError:
                 yield (
                     "⚠️ **Cannot connect to Ollama** "
-                    f"(`{OLLAMA_HOST}`).\n\n"
+                    f"(`{ollama_host}`).\n\n"
                     "Make sure Ollama is running: `ollama serve`"
                 )
                 return
@@ -376,7 +424,9 @@ class OllamaLLM(LLMProvider):
             ollama_messages.append(msg)
 
         # Use Ollama's native /api/chat endpoint for vision
-        headers = {"Authorization": f"Bearer {OLLAMA_API_KEY}"} if OLLAMA_API_KEY else {}
+        ollama_host = _resolve_ollama_host()
+        api_key = _resolve_ollama_api_key()
+        headers = {"Authorization": f"Bearer {api_key}"} if api_key else {}
         payload = {
             "model": model,
             "messages": ollama_messages,
@@ -386,7 +436,7 @@ class OllamaLLM(LLMProvider):
         try:
             async with httpx.AsyncClient(timeout=httpx.Timeout(120.0)) as client:
                 async with client.stream(
-                    "POST", f"{OLLAMA_HOST}/api/chat",
+                    "POST", f"{ollama_host}/api/chat",
                     json=payload, headers=headers,
                 ) as resp:
                     async for line in resp.aiter_lines():

@@ -1200,7 +1200,7 @@ async def api_bulk_review(action: str = "approve_all"):
     target_status = "approved" if action == "approve_all" else "rejected"
     valid_statuses = {"pending", "approved", "rejected"}
     if target_status not in valid_statuses:
-        return {"success": False, "error": f"Invalid target status"}
+        return {"success": False, "error": "Invalid target status"}
 
     count = 0
     for fp, meta in sidecar.items():

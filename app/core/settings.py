@@ -110,4 +110,7 @@ async def update_env_settings(request: dict):
         open(env_path, 'a').close()  # create empty if not exists
     for k, v in request.items():
         set_key(env_path, k, v)
+        # Also propagate to os.environ so code using os.getenv() picks
+        # up the change immediately (especially OLLAMA_HOST for remote servers).
+        os.environ[k] = v
     return {"status": "ok"}
