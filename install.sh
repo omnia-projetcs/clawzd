@@ -12,6 +12,94 @@ echo "=============================================="
 OS="$(uname -s)"
 echo "Detected Operating System: $OS"
 
+# ---------- Docker Installation Option ----------
+echo ""
+if [ -t 0 ]; then
+    read -p "Would you like to install Clawzd using Docker (with NVIDIA GPU support)? (y/n) " -n 1 -r
+    echo
+    if [[ $REPLY =~ ^[Yy]$ ]]; then
+        echo "--- Docker Installation ---"
+        if ! command -v docker &> /dev/null; then
+            echo "Docker is not installed. Automatically installing Docker and NVIDIA Container Toolkit..."
+            if [ "$OS" = "Darwin" ]; then
+                echo "Please install Docker Desktop for Mac manually from: https://docs.docker.com/desktop/install/mac-install/"
+                exit 1
+            fi
+            if ! command -v curl &> /dev/null || ! command -v sudo &> /dev/null; then
+                echo "ERROR: curl and sudo are required to automatically install Docker."
+                exit 1
+            fi
+            
+            # Installation de Docker
+            echo "Downloading and installing Docker..."
+            curl -fsSL https://get.docker.com -o get-docker.sh
+            sudo sh get-docker.sh
+            rm -f get-docker.sh
+            
+            # Installation du NVIDIA Container Toolkit (pour Debian/Ubuntu)
+            echo "Installing NVIDIA Container Toolkit..."
+            if command -v apt-get &> /dev/null; then
+                curl -fsSL https://nvidia.github.io/libnvidia-container/gpgkey | sudo gpg --dearmor -o /usr/share/keyrings/nvidia-container-toolkit-keyring.gpg
+                curl -s -L https://nvidia.github.io/libnvidia-container/stable/deb/nvidia-container-toolkit.list | \
+                    sed 's#deb https://#deb [signed-by=/usr/share/keyrings/nvidia-container-toolkit-keyring.gpg] https://#g' | \
+                    sudo tee /etc/apt/sources.list.d/nvidia-container-toolkit.list
+                sudo apt-get update
+                sudo apt-get install -y nvidia-container-toolkit
+                sudo nvidia-ctk runtime configure --runtime=docker
+                sudo systemctl restart docker
+                echo "NVIDIA Container Toolkit installed and Docker restarted."
+            else
+                echo "WARNING: Package manager not supported for automatic NVIDIA Toolkit installation."
+                echo "Please install it manually if needed."
+            fi
+            
+            # Ajout de l'utilisateur au groupe docker
+            sudo usermod -aG docker $USER || true
+            echo "WARNING: You might need to log out and log back in for Docker permissions to take effect."
+            echo "If the next step fails, please relaunch this script."
+        fi
+        if ! docker compose version &> /dev/null && ! command -v docker-compose &> /dev/null; then
+            echo "ERROR: Docker Compose is not installed. Please install it and try again."
+            exit 1
+        fi
+        
+        # Create default .env if it doesn't exist
+        if [ ! -f ".env" ]; then
+            if [ -f ".env.example" ]; then
+                cp .env.example .env
+            else
+                cat > .env << 'EOF'
+# === Clawzd Configuration ===
+LLM_PROVIDER=local
+OLLAMA_HOST=http://localhost:11434
+OLLAMA_MODEL=qwen3.5:9b
+APP_HOST=0.0.0.0
+APP_PORT=8888
+EOF
+            fi
+            echo "Default .env file created."
+        fi
+
+        # Make sure target directories exist
+        mkdir -p data/sessions data/profiles data/skills data/images data/screenshots data/audit_reports data/snapshots data/playbooks data/playbook_state data/checkpoints workspace chroma_db models
+
+        echo "Starting Docker Compose (building... this may take a while)..."
+        if docker compose version &> /dev/null; then
+            docker compose up -d --build
+        else
+            docker-compose up -d --build
+        fi
+        
+        echo ""
+        echo "=============================================="
+        echo "  Docker Installation completed!"
+        echo "  The application should be accessible at: http://localhost:8888"
+        echo "  Local shared folders: ./data, ./models, ./workspace"
+        echo "=============================================="
+        exit 0
+    fi
+fi
+
 # ---------- System Checks ----------
 if ! command -v python3 &> /dev/null; then
     echo "ERROR: Python3 is not installed."

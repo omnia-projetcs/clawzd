@@ -1,0 +1,47 @@
+services:
+  clawzd:
+    build: .
+    container_name: clawzd
+    restart: unless-stopped
+    ports:
+      - "8888:8888"
+    volumes:
+      - ./data:/app/data
+      - ./workspace:/app/workspace
+      - ./chroma_db:/app/chroma_db
+      - ./.env:/app/.env
+    env_file:
+      - .env
+    depends_on:
+      - ollama
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu]
+    networks:
+      - clawzd-net
+
+  ollama:
+    image: ollama/ollama:latest
+    container_name: ollama
+    restart: unless-stopped
+    ports:
+      - "11434:11434"
+    volumes:
+      - ./models:/root/.ollama
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu]
+    networks:
+      - clawzd-net
+
+networks:
+  clawzd-net:
+    driver: bridge
