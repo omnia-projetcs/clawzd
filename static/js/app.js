@@ -4807,7 +4807,8 @@
       $('#settings-overlay').classList.add('open');
       // Load tool permissions into the HITL grid
       _loadToolPermsGrid();
-
+      // Load model selectors
+      _loadSettingsModelSelects();
     });
     $('#settings-close').addEventListener('click', () => $('#settings-overlay').classList.remove('open'));
     $('#settings-overlay').addEventListener('click', e => { if (e.target === e.currentTarget) e.currentTarget.classList.remove('open'); });
@@ -4859,12 +4860,21 @@
         await fetch('/api/env', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(envData) });
       }
 
-      // Persist cloud models toggle to .env so it survives deployments (data/ not in git)
+      // Persist cloud models toggle and model selections to .env
       const cloudEnabled = $('#settings-enable-cloud-models')?.checked ?? true;
+      const defaultModel = $('#settings-default-model')?.value || '';
+      const enhanceModel = $('#settings-enhance-model')?.value || '';
+      const codeModel = $('#settings-code-model')?.value || '';
+      
+      const newEnvData = { ENABLE_CLOUD_MODELS: cloudEnabled ? 'true' : 'false' };
+      if (defaultModel) newEnvData['OLLAMA_MODEL'] = defaultModel;
+      if (enhanceModel) newEnvData['ENHANCE_MODEL'] = enhanceModel;
+      if (codeModel) newEnvData['CODE_MODEL'] = codeModel;
+      
       await fetch('/api/env', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ ENABLE_CLOUD_MODELS: cloudEnabled ? 'true' : 'false' })
+        body: JSON.stringify(newEnvData)
       });
       toast(ICONS.check(14) + ' Settings saved'); $('#settings-overlay').classList.remove('open');
       // Reload providers immediately to reflect cloud toggle change
@@ -5115,6 +5125,45 @@
       if ($('#settings-enable-cloud-models')) $('#settings-enable-cloud-models').checked = d.enable_cloud_models !== false;
       applyToolVisibility(d);
     } catch (e) { /* ignore */ }
+  }
+
+  async function _loadSettingsModelSelects() {
+    try {
+      const defaultSel = $('#settings-default-model');
+      const enhanceSel = $('#settings-enhance-model');
+      const codeSel = $('#settings-code-model');
+      
+      if (!defaultSel || !enhanceSel || !codeSel) return;
+      
+      // Fetch available models
+      const rProv = await fetch('/api/providers');
+      const dProv = await rProv.json();
+      const ollamaModels = dProv.providers?.ollama || [];
+      
+      // Fetch current .env settings
+      const rEnv = await fetch('/api/env');
+      const env = await rEnv.json();
+      
+      // Populate dropdowns
+      const populateDropdown = (sel, currentVal, emptyLabel) => {
+        sel.innerHTML = `<option value="">${emptyLabel}</option>` + 
+          ollamaModels.map(m => `<option value="${m.id}">${escHtml(m.label || m.id)}</option>`).join('');
+        if (currentVal && ollamaModels.some(m => m.id === currentVal)) {
+          sel.value = currentVal;
+        } else if (currentVal) {
+          // If the model exists in .env but not in the list, add it as a custom option
+          sel.innerHTML += `<option value="${escHtml(currentVal)}">${escHtml(currentVal)} (Remote/Offline)</option>`;
+          sel.value = currentVal;
+        }
+      };
+      
+      populateDropdown(defaultSel, env['OLLAMA_MODEL'], 'System default');
+      populateDropdown(enhanceSel, env['ENHANCE_MODEL'], 'System default');
+      populateDropdown(codeSel, env['CODE_MODEL'], 'System default');
+      
+    } catch(e) {
+      console.error('Failed to load settings models', e);
+    }
   }
 
   async function loadEnvSettings() {

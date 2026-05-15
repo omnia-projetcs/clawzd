@@ -83,6 +83,33 @@
         </select>
       </div>
       <div class="settings-group">
+        <label class="settings-label">Default Chat Model</label>
+        <div style="font-size:10px; color:var(--text-muted); margin-bottom:4px;">
+          Model used for chat conversations. Saved in <code>.env</code> as <code>OLLAMA_MODEL</code>.
+        </div>
+        <select id="settings-default-model" class="settings-input">
+          <option value="">Loading models…</option>
+        </select>
+      </div>
+      <div class="settings-group">
+        <label class="settings-label">Enhance Model</label>
+        <div style="font-size:10px; color:var(--text-muted); margin-bottom:4px;">
+          Fast model for prompt enrichment (image/video/chat). Should be a non-reasoning model.
+        </div>
+        <select id="settings-enhance-model" class="settings-input">
+          <option value="">Loading models…</option>
+        </select>
+      </div>
+      <div class="settings-group">
+        <label class="settings-label">Code Model</label>
+        <div style="font-size:10px; color:var(--text-muted); margin-bottom:4px;">
+          Model used for code execution and generation tasks. Saved as <code>CODE_MODEL</code>.
+        </div>
+        <select id="settings-code-model" class="settings-input">
+          <option value="">Loading models…</option>
+        </select>
+      </div>
+      <div class="settings-group">
         <label class="settings-label">Default Pre-prompt</label>
         <select id="settings-preprompt" class="settings-input">
           <option value="none">None</option>

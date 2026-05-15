@@ -59,6 +59,7 @@ OLLAMA_MODEL = os.getenv("OLLAMA_MODEL", "qwen3.5:9b")
 # Fast non-reasoning model used for prompt enrichment (image/video/chat enhance).
 # Must be a non-reasoning instruction model to avoid <think> token budget waste.
 ENHANCE_MODEL = os.getenv("ENHANCE_MODEL", "hf.co/unsloth/GLM-4.7-Flash-REAP-23B-A3B-GGUF:Q4_K_S")
+CODE_MODEL = os.getenv("CODE_MODEL", OLLAMA_MODEL)
 OLLAMA_NUM_GPU = int(os.getenv("OLLAMA_NUM_GPU", "999"))  # 999 = all layers on GPU (100% VRAM)
 OLLAMA_NUM_CTX = int(os.getenv("OLLAMA_NUM_CTX", "-1"))    # -1 = max context window
 
