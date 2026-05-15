@@ -2339,8 +2339,10 @@ async def arena_send(request: Request):
                 if p_key in ("ollama", "local"):
                     # Execute sequentially to prevent VRAM thrashing and timeouts on remote Ollama servers
                     async with _ollama_arena_lock:
-                        await _unload_all_ollama_models()
-                        await do_stream()
+                        try:
+                            await do_stream()
+                        finally:
+                            await _unload_ollama_model(m_key)
                 else:
                     await do_stream()
                     
@@ -2381,7 +2383,16 @@ async def arena_stream(stream_id: str):
     async def event_generator():
         queue = _arena_queues[stream_id]
         while True:
-            token = await queue.get()
+            try:
+                # Use a timeout to periodically send a keep-alive comment
+                # This prevents proxies (Nginx/Cloudflare) from dropping idle connections
+                # while waiting for the remote Ollama lock or model loading.
+                token = await asyncio.wait_for(queue.get(), timeout=10.0)
+            except asyncio.TimeoutError:
+                # Yield a keep-alive event so the connection stays open
+                yield {"event": "keepalive", "data": ""}
+                continue
+
             if token is None:
                 yield {"data": "[DONE]"}
                 # Cleanup queue after short delay
@@ -2395,33 +2406,26 @@ async def arena_stream(stream_id: str):
     return EventSourceResponse(event_generator())
 
 
-async def _unload_all_ollama_models():
-    """Unload all currently running models in Ollama to free up VRAM."""
+async def _unload_ollama_model(model_name: str):
+    """Unload a specific Ollama model to free up VRAM and prevent saturation."""
     from app.core.llm_provider import _resolve_ollama_host, _resolve_ollama_api_key, _resolve_ollama_verify
     import httpx
+    if not model_name:
+        return
     try:
         ollama_host = _resolve_ollama_host()
         ollama_key = _resolve_ollama_api_key()
         headers = {"Authorization": f"Bearer {ollama_key}"} if ollama_key else {}
         async with httpx.AsyncClient(verify=_resolve_ollama_verify()) as client:
-            resp = await client.get(f"{ollama_host}/api/ps", timeout=10.0, headers=headers)
-            if resp.status_code == 200:
-                models = resp.json().get("models", [])
-                for m in models:
-                    model_name = m.get("name")
-                    if model_name:
-                        try:
-                            await client.post(
-                                f"{ollama_host}/api/generate",
-                                json={"model": model_name, "keep_alive": 0},
-                                headers=headers,
-                                timeout=60.0
-                            )
-                            logger.info("Unloaded Ollama model: %s", model_name)
-                        except Exception as e:
-                            logger.warning("Timeout or error unloading Ollama model %s: %s", model_name, e)
+            await client.post(
+                f"{ollama_host}/api/generate",
+                json={"model": model_name, "keep_alive": 0},
+                headers=headers,
+                timeout=30.0
+            )
+            logger.info("Unloaded Ollama model: %s", model_name)
     except Exception as e:
-        logger.warning("Failed to check or unload Ollama models: %s", e)
+        logger.warning("Failed to unload Ollama model %s: %s", model_name, e)
 
 
 @app.post("/arena/evaluate")
@@ -2443,9 +2447,10 @@ async def arena_evaluate(request: Request):
     if model_key:
         kwargs["model"] = model_key
 
+    ollama_lock = None
     if provider_key in ("ollama", "local"):
-        await _unload_all_ollama_models()
         kwargs["response_format"] = {"type": "json_object"}
+        ollama_lock = _ollama_arena_lock
     
     sys_prompt = "You are an impartial AI judge. Your task is to evaluate an AI response to a given prompt. Score it out of 10 and give a 1-sentence explanation."
     
@@ -2456,6 +2461,8 @@ async def arena_evaluate(request: Request):
     final_ratings = {}
     
     try:
+        if ollama_lock:
+            await ollama_lock.acquire()
         # Evaluate each response individually
         for s_id, text in responses.items():
             try:
@@ -2563,6 +2570,12 @@ async def arena_evaluate(request: Request):
     except Exception as e:
         logger.error("Arena evaluation error: %s. Last Response: %s", e, locals().get('result_text', ''))
         raise HTTPException(500, detail="The AI judge failed to return a valid evaluation JSON (timeout or format error).")
+    finally:
+        if ollama_lock:
+            try:
+                await _unload_ollama_model(model_key)
+            finally:
+                ollama_lock.release()
 
 
 # --- Preprompts API ---
