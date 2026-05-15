@@ -50,14 +50,27 @@ def _resolve_ollama_api_key() -> str:
     return _env.get("OLLAMA_API_KEY", _os.getenv("OLLAMA_API_KEY", ""))
 
 
+def _resolve_ollama_verify() -> bool:
+    """Resolve OLLAMA_VERIFY_SSL at call time from .env.
+
+    This allows toggling verification (useful for self-signed certs)
+    without restarting the server.
+    """
+    import os as _os
+    from dotenv import dotenv_values as _dv
+    _env = _dv(".env") if _os.path.exists(".env") else {}
+    raw = _env.get("OLLAMA_VERIFY_SSL", _os.getenv("OLLAMA_VERIFY_SSL", "true"))
+    return str(raw).lower() not in ("0", "false", "no", "off")
+
+
 async def _get_local_models() -> list[dict]:
     """Build local model list dynamically from Ollama."""
     ollama_host = _resolve_ollama_host()
     ollama_api_key = _resolve_ollama_api_key()
     try:
         headers = {"Authorization": f"Bearer {ollama_api_key}"} if ollama_api_key else {}
-        async with httpx.AsyncClient(verify=OLLAMA_VERIFY_SSL) as client:
-            resp = await client.get(f"{ollama_host}/api/tags", timeout=5, headers=headers)
+        async with httpx.AsyncClient(verify=_resolve_ollama_verify()) as client:
+            resp = await client.get(f"{ollama_host}/api/tags", timeout=10, headers=headers)
         if resp.status_code == 200:
             data = resp.json()
         else:
@@ -325,8 +338,8 @@ class OllamaLLM(LLMProvider):
         api_key = _resolve_ollama_api_key()
         try:
             headers = {"Authorization": f"Bearer {api_key}"} if api_key else {}
-            async with httpx.AsyncClient(verify=OLLAMA_VERIFY_SSL) as client:
-                resp = await client.get(f"{host}/api/tags", timeout=2.0, headers=headers)
+            async with httpx.AsyncClient(verify=_resolve_ollama_verify()) as client:
+                resp = await client.get(f"{host}/api/tags", timeout=5.0, headers=headers)
             if resp.status_code == 200:
                 alive = True
             else:
@@ -445,7 +458,7 @@ class OllamaLLM(LLMProvider):
         }
 
         try:
-            async with httpx.AsyncClient(timeout=httpx.Timeout(120.0), verify=OLLAMA_VERIFY_SSL) as client:
+            async with httpx.AsyncClient(timeout=httpx.Timeout(120.0), verify=_resolve_ollama_verify()) as client:
                 async with client.stream(
                     "POST", f"{ollama_host}/api/chat",
                     json=payload, headers=headers,
@@ -465,7 +478,14 @@ class OllamaLLM(LLMProvider):
                         except Exception:
                             continue
         except Exception as e:
-            yield f"⚠️ **Vision error:** {e}"
+            # Add actionable hint for TLS issues
+            hint = ""
+            try:
+                if not _resolve_ollama_verify():
+                    hint = " (SSL verification disabled via OLLAMA_VERIFY_SSL=false)"
+            except Exception:
+                pass
+            yield f"⚠️ **Vision error contacting {ollama_host}:** {e}{hint}"
             return
 
         elapsed = time.perf_counter() - t0
