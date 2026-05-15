@@ -561,6 +561,17 @@ async def token_usage_endpoint():
     }
 
 
+# --- Tokenization Prefetch ---
+@app.post("/api/tokenize/prefetch")
+async def prefetch_tokens(request: Request):
+    """Trigger background tokenization for the given text to eliminate latency during generation."""
+    body = await request.json()
+    text = body.get("text", "")
+    model = body.get("model", "gpt-4o")
+    if text:
+        from app.core.tokens import shadow_tokenizer
+        shadow_tokenizer.prefetch(text, model)
+    return {"status": "accepted"}
 # --- SSE streaming endpoint ---
 @app.get("/stream/{session_id}")
 async def chat_stream(session_id: str):

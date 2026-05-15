@@ -3037,6 +3037,30 @@
     // Sync token usage from backend
     if (window.tokenTracker) window.tokenTracker.syncFromBackend();
 
+    // --- Shadow Tokenization Prefetch Hook ---
+    function attachPrefetchHook(inputElement) {
+      if (!inputElement) return;
+      let debounceTimer;
+      inputElement.addEventListener('input', () => {
+        clearTimeout(debounceTimer);
+        debounceTimer = setTimeout(() => {
+          const text = inputElement.value || inputElement.innerText || '';
+          if (text && text.trim().length > 3) {
+            // Assume model from selector or default
+            const model = document.getElementById('model-selector')?.value || 'gpt-4o';
+            fetch('/api/tokenize/prefetch', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ text: text, model: model })
+            }).catch(e => console.debug('Prefetch error:', e));
+          }
+        }, 300);
+      });
+    }
+
+    attachPrefetchHook($('#chat-input'));
+    attachPrefetchHook($('#editor-chat-input'));
+
     // Twitter Watch
     // Removed as per user request
 
