@@ -109,6 +109,17 @@ class MediaStudio {
       });
     }
 
+    // ── Audio estimation: update info bar on text change ───────────
+    this._estimateTimer = null;
+    const audioTextEl = $('#media-audio-text');
+    if (audioTextEl) {
+      audioTextEl.addEventListener('input', () => this._debouncedEstimate());
+    }
+    const ttsEngineEl = $('#media-tts-engine');
+    if (ttsEngineEl) {
+      ttsEngineEl.addEventListener('change', () => this._debouncedEstimate());
+    }
+
     // Reference audio upload (voice cloning)
     const audioRefBtn = $('#media-audio-ref-btn');
     const audioRefInput = $('#media-audio-ref-input');

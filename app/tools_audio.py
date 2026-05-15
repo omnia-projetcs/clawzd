@@ -473,7 +473,13 @@ def _denoise_audio(audio, sample_rate, strength=0.02):
 
 
 async def _generate_tts_bark(text, voice_style="female_soft", language="auto"):
-    """Generate speech using Bark (more natural, multi-language)."""
+    """Generate speech using Bark (more natural, multi-language).
+
+    Bark generates ~13 s of audio per chunk.  French speech averages
+    ~5 chars/word and ~150 words/min → one chunk ≈ 100 chars to stay
+    safely within 13 s.  We split aggressively so that the model
+    reproduces the *entire* input text without truncation.
+    """
     import torch
     import numpy as np
 
@@ -486,23 +492,32 @@ async def _generate_tts_bark(text, voice_style="female_soft", language="auto"):
     # Bark uses voice presets (e.g. "v2/fr_speaker_0")
     voice_preset = preset["bark_speaker"]
     gender_tag = preset.get("gender_tag", "")
-    
+
     # Override language if explicitly selected
     if language and language != "auto":
         parts = voice_preset.split("/")
         if len(parts) == 2 and "_" in parts[1]:
-            # Replace 'fr_speaker_0' with '{language}_speaker_0'
             lang_part, rest = parts[1].split("_", 1)
             voice_preset = f"{parts[0]}/{language}_{rest}"
 
-    # Split long text
-    chunks = _split_text(text, max_len=200)  # Bark works best with shorter chunks
+    # ── Split text into SHORT chunks (≤100 chars) ──────────────────────
+    # Bark can only reliably produce ~13 s of audio per generation.
+    # 100 chars ≈ 20 words ≈ 8-10 s of speech → safe margin.
+    chunks = _split_text(text, max_len=100)
     all_audio = []
+    total_chunks = len(chunks)
 
     sample_rate = model.generation_config.sample_rate
     silence = np.zeros(int(sample_rate * 0.25), dtype=np.float32)
 
-    for chunk in chunks:
+    logger.info("Bark TTS: %d chunk(s) to generate from %d chars", total_chunks, len(text))
+
+    for i, chunk in enumerate(chunks):
+        # Update progress: 20% → 80% spread over chunks
+        pct = 20.0 + (i / max(total_chunks, 1)) * 60.0
+        _audio_generation_progress.update({"active": True, "progress": pct,
+            "stage": f"chunk {i+1}/{total_chunks}"})
+
         # Prepend gender bias tag for more consistent voice output
         tagged_chunk = gender_tag + chunk if gender_tag else chunk
 
@@ -532,7 +547,7 @@ async def _generate_tts_bark(text, voice_style="female_soft", language="auto"):
         all_audio.append(silence)
 
     if all_audio:
-        all_audio.pop() # remove trailing silence
+        all_audio.pop()  # remove trailing silence
 
     audio = np.concatenate(all_audio) if len(all_audio) > 1 else all_audio[0]
 
@@ -575,22 +590,61 @@ async def _generate_music(prompt, genre="", tempo_bpm=120, duration=30):
 
 
 def _split_text(text, max_len=500):
-    """Split text into chunks at sentence boundaries."""
+    """Split text into chunks that the TTS model can handle faithfully.
+
+    Priority order:
+      1. Split on sentence boundaries  ( .  !  ?  …  )
+      2. Split on clause boundaries     ( ,  ;  :  –  — )
+      3. Split on word boundaries       (spaces)
+
+    Every returned chunk is guaranteed ≤ max_len characters.
+    """
+    text = text.strip()
+    if not text:
+        return []
     if len(text) <= max_len:
         return [text]
 
-    sentences = re.split(r'(?<=[.!?])\s+', text)
+    # ── Pass 1: split on sentence boundaries ────────────────────
+    sentence_re = re.compile(r'(?<=[.!?…])\s+')
+    raw_sentences = sentence_re.split(text)
+
+    # ── Pass 2: break any sentence still > max_len on clause marks
+    clause_re = re.compile(r'(?<=[,;:–—])\s+')
+    fragments = []
+    for s in raw_sentences:
+        if len(s) <= max_len:
+            fragments.append(s)
+        else:
+            for part in clause_re.split(s):
+                fragments.append(part)
+
+    # ── Pass 3: break any fragment still > max_len on word boundaries
+    fine = []
+    for frag in fragments:
+        if len(frag) <= max_len:
+            fine.append(frag)
+        else:
+            words = frag.split()
+            buf = ""
+            for w in words:
+                if buf and len(buf) + 1 + len(w) > max_len:
+                    fine.append(buf)
+                    buf = w
+                else:
+                    buf = (buf + " " + w).strip()
+            if buf:
+                fine.append(buf)
+
+    # ── Pass 4: merge tiny fragments back together (≥ 30 chars pref.)
     chunks = []
     current = ""
-
-    for s in sentences:
-        if len(current) + len(s) + 1 > max_len:
-            if current:
-                chunks.append(current.strip())
-            current = s
+    for f in fine:
+        if current and len(current) + 1 + len(f) > max_len:
+            chunks.append(current.strip())
+            current = f
         else:
-            current = (current + " " + s).strip()
-
+            current = (current + " " + f).strip()
     if current:
         chunks.append(current.strip())
 
@@ -900,3 +954,66 @@ async def download_status():
 async def audio_generation_progress():
     """Return the current audio generation progress."""
     return _audio_generation_progress
+
+
+@router.post("/estimate")
+async def estimate_audio(request: Request):
+    """Estimate generation time and output audio duration for a given text.
+
+    Returns:
+        chunks:          number of TTS chunks that will be generated
+        audio_duration:  estimated output audio length in seconds
+        gen_time:        estimated wall-clock generation time in seconds
+        gen_time_label:  human-readable generation time string
+    """
+    data = await request.json()
+    text = data.get("text", "").strip()
+    mode = data.get("mode", "tts")
+    tts_engine = data.get("tts_engine", "speecht5")
+    duration = float(data.get("duration", 30))  # for music mode
+
+    if mode == "music":
+        # MusicGen: ~50 tokens/s, generation speed ≈ 0.3-1× realtime on GPU
+        gen_time = duration * (0.5 if _gpu_ok else 3.0)
+        return {
+            "chunks": 1,
+            "audio_duration": round(duration, 1),
+            "gen_time": round(gen_time, 1),
+            "gen_time_label": _format_duration(gen_time),
+        }
+
+    if not text:
+        return {"chunks": 0, "audio_duration": 0, "gen_time": 0, "gen_time_label": "0s"}
+
+    if mode == "song" or tts_engine == "bark":
+        # Bark: 100-char chunks, ~13s audio each, ~8s/chunk GPU, ~30s/chunk CPU
+        chunks = _split_text(text, max_len=100)
+        n = len(chunks)
+        audio_dur = n * 10  # ~10s of speech per chunk (conservative)
+        per_chunk = 8.0 if _gpu_ok else 30.0
+        gen_time = n * per_chunk
+    else:
+        # SpeechT5: 500-char chunks, ~150 words/min, very fast
+        chunks = _split_text(text, max_len=500)
+        n = len(chunks)
+        word_count = len(text.split())
+        audio_dur = word_count / 2.5  # ~150 wpm = 2.5 words/s
+        per_chunk = 2.0 if _gpu_ok else 8.0
+        gen_time = n * per_chunk
+
+    return {
+        "chunks": n,
+        "audio_duration": round(audio_dur, 1),
+        "gen_time": round(gen_time, 1),
+        "gen_time_label": _format_duration(gen_time),
+    }
+
+
+def _format_duration(seconds: float) -> str:
+    """Convert seconds to a human-readable string like '1m 30s'."""
+    s = int(seconds)
+    if s < 60:
+        return f"{s}s"
+    m = s // 60
+    r = s % 60
+    return f"{m}m {r}s" if r else f"{m}m"
