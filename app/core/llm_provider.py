@@ -15,6 +15,7 @@ from config import (
     OLLAMA_HOST,
     OLLAMA_MODEL,
     OLLAMA_API_KEY,
+    OLLAMA_VERIFY_SSL,
     ANTHROPIC_API_KEY,
     GOOGLE_API_KEY,
     GROK_API_KEY,
@@ -55,7 +56,7 @@ async def _get_local_models() -> list[dict]:
     ollama_api_key = _resolve_ollama_api_key()
     try:
         headers = {"Authorization": f"Bearer {ollama_api_key}"} if ollama_api_key else {}
-        async with httpx.AsyncClient() as client:
+        async with httpx.AsyncClient(verify=OLLAMA_VERIFY_SSL) as client:
             resp = await client.get(f"{ollama_host}/api/tags", timeout=5, headers=headers)
         if resp.status_code == 200:
             data = resp.json()
@@ -319,7 +320,7 @@ class OllamaLLM(LLMProvider):
         api_key = _resolve_ollama_api_key()
         try:
             headers = {"Authorization": f"Bearer {api_key}"} if api_key else {}
-            async with httpx.AsyncClient() as client:
+            async with httpx.AsyncClient(verify=OLLAMA_VERIFY_SSL) as client:
                 resp = await client.get(f"{host}/api/tags", timeout=2.0, headers=headers)
             alive = resp.status_code == 200
         except Exception:
@@ -434,11 +435,11 @@ class OllamaLLM(LLMProvider):
         }
 
         try:
-            async with httpx.AsyncClient(timeout=httpx.Timeout(120.0)) as client:
-                async with client.stream(
-                    "POST", f"{ollama_host}/api/chat",
-                    json=payload, headers=headers,
-                ) as resp:
+            async with httpx.AsyncClient(timeout=httpx.Timeout(120.0), verify=OLLAMA_VERIFY_SSL) as client:
+                    async with client.stream(
+                        "POST", f"{ollama_host}/api/chat",
+                        json=payload, headers=headers,
+                    ) as resp:
                     async for line in resp.aiter_lines():
                         if not line.strip():
                             continue

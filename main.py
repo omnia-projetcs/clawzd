@@ -8,7 +8,7 @@ import time
 import httpx
 import uvicorn
 
-from config import OLLAMA_HOST, OLLAMA_MODEL, LLM_PROVIDER, APP_HOST, APP_PORT
+from config import OLLAMA_HOST, OLLAMA_MODEL, LLM_PROVIDER, APP_HOST, APP_PORT, OLLAMA_VERIFY_SSL
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(name)s] %(message)s")
 logger = logging.getLogger("clawzd.main")
@@ -17,7 +17,7 @@ logger = logging.getLogger("clawzd.main")
 def check_ollama_health() -> bool:
     """Verify that Ollama is running and the active model is available."""
     try:
-        resp = httpx.get(f"{OLLAMA_HOST}/api/tags", timeout=5)
+        resp = httpx.get(f"{OLLAMA_HOST}/api/tags", timeout=5, verify=OLLAMA_VERIFY_SSL)
         if resp.status_code != 200:
             logger.error("Ollama not responding at %s (HTTP %d)", OLLAMA_HOST, resp.status_code)
             return False

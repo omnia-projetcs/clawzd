@@ -5,6 +5,7 @@ Integrates PyCodeAudit scanners: Semgrep, Trivy, detect-secrets, dep-scan
 alongside pylint, bandit, and radon for comprehensive OWASP/CIS auditing.
 """
 import subprocess
+import asyncio
 import tempfile
 import textwrap
 import shutil
@@ -967,7 +968,10 @@ async def execute_code(request: Request):
     code = data.get("code", "")
     if not code.strip():
         return {"error": "No code provided", "returncode": -1}
-    return executor.execute(code)
+    # Offload the potentially blocking execution to a thread to avoid
+    # blocking the asyncio event loop (subprocess.run is blocking).
+    result = await asyncio.to_thread(executor.execute, code)
+    return result
 
 
 @router.post("/audit")

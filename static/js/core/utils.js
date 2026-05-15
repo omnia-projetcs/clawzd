@@ -2,22 +2,21 @@
  * Clawzd — Shared DOM Utilities.
  *
  * Core helper functions used across all modules.
- * These are exported as ES modules AND placed on window
- * for backward compatibility with the app.js IIFE.
+ * Placed on window for backward compatibility with the app.js IIFE.
  */
 
 /** Query a single element */
-export function $(selector, context) {
+function _u$(selector, context) {
   return (context || document).querySelector(selector);
 }
 
 /** Query all elements (returns array) */
-export function $$(selector, context) {
+function _u$$(selector, context) {
   return Array.from((context || document).querySelectorAll(selector));
 }
 
 /** Create a DOM element with attributes and children */
-export function el(tag, attrs, children) {
+function _uEl(tag, attrs, children) {
   const e = document.createElement(tag);
   if (attrs) {
     Object.entries(attrs).forEach(([k, v]) => {
@@ -37,12 +36,12 @@ export function el(tag, attrs, children) {
 }
 
 /** Show a toast notification */
-export function toast(msg, duration = 5000) {
+function _uToast(msg, duration = 5000) {
   // Delegate to the global toast if loaded (ensures notification history integration)
-  if (window.toast && window.toast !== toast) {
+  if (window.toast && window.toast !== _uToast) {
     return window.toast(msg, duration);
   }
-  const t = el('div', { class: 'toast', html: msg });
+  const t = _uEl('div', { class: 'toast', html: msg });
   document.body.appendChild(t);
   
   const delay = Math.max(0, (duration / 1000) - 0.3);
@@ -52,7 +51,7 @@ export function toast(msg, duration = 5000) {
 }
 
 /** Escape HTML entities */
-export function escHtml(s) {
+function _uEscHtml(s) {
   if (s == null) return '';
   s = String(s);
   return s
@@ -63,7 +62,7 @@ export function escHtml(s) {
 }
 
 /** Format ISO date to relative time */
-export function timeAgo(iso) {
+function _uTimeAgo(iso) {
   const d = new Date(iso);
   const now = new Date();
   const diff = (now - d) / 1000;
@@ -75,4 +74,5 @@ export function timeAgo(iso) {
 
 /* ---- Backward Compatibility ---- */
 // Expose on window for scripts that haven't migrated to imports yet.
-window._utils = { $, $$, el, toast, escHtml, timeAgo };
+window._utils = { $: _u$, $$: _u$$, el: _uEl, toast: _uToast, escHtml: _uEscHtml, timeAgo: _uTimeAgo };
+

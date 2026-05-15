@@ -321,5 +321,3 @@
 
   /* ---- Export ---- */
   window.StreamingParser = StreamingParser;
-
-export { StreamingParser };

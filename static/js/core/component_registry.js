@@ -26,7 +26,7 @@ const _instances = new Map();
  * @property {(container: HTMLElement) => void} [destroy]
  */
 
-export const ComponentRegistry = {
+const ComponentRegistry = {
   /**
    * Register a new component type.
    * @param {string} name - Unique component name

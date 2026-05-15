@@ -54,6 +54,10 @@ ENHANCE_MODEL = os.getenv("ENHANCE_MODEL", "hf.co/unsloth/GLM-4.7-Flash-REAP-23B
 OLLAMA_NUM_GPU = int(os.getenv("OLLAMA_NUM_GPU", "999"))  # 999 = all layers on GPU (100% VRAM)
 OLLAMA_NUM_CTX = int(os.getenv("OLLAMA_NUM_CTX", "-1"))    # -1 = max context window
 
+# Whether to verify TLS certificates when contacting a remote Ollama server.
+# Set to "false" in .env to disable verification (useful for self-signed certs).
+OLLAMA_VERIFY_SSL: bool = os.getenv("OLLAMA_VERIFY_SSL", "true").lower() not in ("0", "false", "no", "off")
+
 # --- Research Models (open_deep_research-inspired role-specialization) ---
 # Assign different models to different research pipeline stages for
 # optimal speed/quality/cost tradeoffs. Each defaults to the main model

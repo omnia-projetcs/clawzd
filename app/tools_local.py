@@ -4,6 +4,7 @@ Only whitelisted commands are allowed, running in the workspace directory.
 """
 import subprocess
 import shlex
+import asyncio
 from fastapi import APIRouter, HTTPException, Request
 
 router = APIRouter()
@@ -35,7 +36,9 @@ async def run_command(request: Request):
         )
 
     try:
-        result = subprocess.run(
+        # Run the blocking subprocess in a thread to avoid blocking the event loop
+        result = await asyncio.to_thread(
+            subprocess.run,
             tokens,
             capture_output=True,
             text=True,

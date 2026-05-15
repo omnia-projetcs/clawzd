@@ -27,7 +27,7 @@
 /** @type {Map<string, Set<Function>>} */
 const _handlers = new Map();
 
-export const EventBus = {
+const EventBus = {
   /**
    * Subscribe to an event.
    * @param {string} event - Event name (e.g., 'chat:token')

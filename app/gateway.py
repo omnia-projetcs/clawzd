@@ -59,7 +59,7 @@ from app.core.tool_permissions import (
 from app.metrics import get_metrics
 from app.cache import cache_stats
 from app.core.tokens import count_tokens, count_message_tokens
-from config import STATIC_DIR, TEMPLATES_DIR, DATA_DIR, CORS_ORIGINS, RATE_LIMIT, APP_VERSION
+from config import STATIC_DIR, TEMPLATES_DIR, DATA_DIR, CORS_ORIGINS, RATE_LIMIT, APP_VERSION, OLLAMA_VERIFY_SSL
 
 import re as _re
 import httpx
@@ -2563,7 +2563,7 @@ async def get_llm_status():
         ollama_host = _resolve_ollama_host()
         ollama_key = _resolve_ollama_api_key()
         headers = {"Authorization": f"Bearer {ollama_key}"} if ollama_key else {}
-        async with httpx.AsyncClient(timeout=3.0) as client:
+        async with httpx.AsyncClient(timeout=3.0, verify=OLLAMA_VERIFY_SSL) as client:
             resp = await client.get(f"{ollama_host}/api/tags", headers=headers)
             if resp.status_code == 200:
                 return {"status": "running", "active_model": OLLAMA_MODEL, "host": ollama_host}

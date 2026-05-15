@@ -273,5 +273,3 @@ const STORAGE_KEY = 'omniclaw-theme';
   };
 
   window.ThemeEngine = ThemeEngine;
-
-export { ThemeEngine };

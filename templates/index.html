@@ -102,8 +102,13 @@
     <script src="/static/js/components/task_indicator.js?v={{ app_version }}"></script>
     <!-- WebSocket transport (loaded before app.js) -->
     <script src="/static/js/transport.js?v={{ app_version }}"></script>
-    <!-- Core ES modules — single entry point -->
-    <script type="module" src="/static/js/main.js?v={{ app_version }}"></script>
+    <!-- Core modules — loaded before app.js to set window.* globals -->
+    <script src="/static/js/core/event_bus.js?v={{ app_version }}"></script>
+    <script src="/static/js/core/component_registry.js?v={{ app_version }}"></script>
+    <script src="/static/js/core/streaming_parser.js?v={{ app_version }}"></script>
+    <script src="/static/js/core/theme.js?v={{ app_version }}"></script>
+    <script src="/static/js/core/utils.js?v={{ app_version }}"></script>
+    <script src="/static/js/main.js?v={{ app_version }}"></script>
     <script defer src="/static/js/app.js?v={{ app_version }}"></script>
   </body>
 </html>
