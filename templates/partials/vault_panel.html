@@ -1,0 +1,138 @@
+<!-- ---- Knowledge Vault Panel ---- -->
+<div class="vault-layout" id="vault-layout" style="display:none">
+  <!-- Left: Stats + Upload -->
+  <div class="vault-left">
+    <!-- Stats Card -->
+    <div class="vault-stats-card">
+      <div class="vault-stats-title">
+        <svg class="ic" width="16" height="16"><use href="#icon-layers"></use></svg>
+        Knowledge Vault
+      </div>
+      <div class="vault-stats-row">
+        <div class="vault-stat">
+          <div class="vault-stat-val" id="vault-stat-docs">0</div>
+          <div class="vault-stat-label">Documents</div>
+        </div>
+        <div class="vault-stat">
+          <div class="vault-stat-val" id="vault-stat-chunks">0</div>
+          <div class="vault-stat-label">Chunks</div>
+        </div>
+      </div>
+      <div class="vault-stat-info" id="vault-stat-info">
+        Shared with global RAG — available in Chat & Clone
+      </div>
+    </div>
+
+    <!-- Upload Zone -->
+    <div class="vault-upload-zone" id="vault-upload-zone">
+      <div class="vault-upload-icon">
+        <svg class="ic" width="32" height="32"><use href="#icon-upload"></use></svg>
+      </div>
+      <div class="vault-upload-text">
+        <strong>Drop files here</strong><br>
+        or click to browse
+      </div>
+      <div class="vault-upload-formats">
+        PDF · DOCX · XLSX · CSV · MD · TXT · Code · ZIP
+      </div>
+      <input type="file" id="vault-file-input" multiple hidden
+             accept=".pdf,.docx,.pptx,.xlsx,.csv,.md,.txt,.json,.py,.js,.ts,.html,.css,.go,.rs,.java,.zip,.tar,.gz">
+    </div>
+
+    <!-- Upload Progress -->
+    <div class="vault-upload-progress" id="vault-upload-progress" style="display:none">
+      <div class="vault-progress-bar">
+        <div class="vault-progress-fill" id="vault-progress-fill"></div>
+      </div>
+      <div class="vault-progress-text" id="vault-progress-text">Indexing...</div>
+    </div>
+
+    <!-- Actions -->
+    <div class="vault-actions">
+      <button class="btn btn-secondary btn-sm btn-block" id="vault-btn-scan"
+              title="Scan data/rag/ folder for new files">
+        <svg class="ic" width="14" height="14"><use href="#icon-refresh"></use></svg>
+        Scan RAG Folder
+      </button>
+      <button class="btn btn-sm btn-block vault-btn-danger" id="vault-btn-clear"
+              title="Clear entire knowledge base">
+        <svg class="ic" width="14" height="14"><use href="#icon-trash"></use></svg>
+        Clear All
+      </button>
+    </div>
+  </div>
+
+  <!-- Center: Source List + Search -->
+  <div class="vault-center">
+    <!-- Search Bar -->
+    <div class="vault-search-bar">
+      <svg class="ic vault-search-icon" width="16" height="16"><use href="#icon-search"></use></svg>
+      <input type="text" id="vault-search-input"
+             class="vault-search-input"
+             placeholder="Semantic search across all documents..."
+             autocomplete="off">
+      <button class="btn btn-primary btn-sm" id="vault-search-btn">Search</button>
+    </div>
+
+    <!-- Search Results (hidden by default) -->
+    <div class="vault-search-results" id="vault-search-results" style="display:none">
+      <div class="vault-section-header">
+        <span>
+          <svg class="ic" width="14" height="14"><use href="#icon-search"></use></svg>
+          Search Results
+        </span>
+        <button class="icon-btn" id="vault-search-close" title="Close results">
+          <svg class="ic" width="12" height="12"><use href="#icon-x"></use></svg>
+        </button>
+      </div>
+      <div class="vault-results-body" id="vault-results-body"></div>
+    </div>
+
+    <!-- Source List -->
+    <div class="vault-section">
+      <div class="vault-section-header">
+        <span>
+          <svg class="ic" width="14" height="14"><use href="#icon-file"></use></svg>
+          Indexed Documents
+        </span>
+        <button class="icon-btn" id="vault-sources-refresh" title="Refresh">
+          <svg class="ic" width="12" height="12"><use href="#icon-refresh"></use></svg>
+        </button>
+      </div>
+      <div class="vault-sources-list" id="vault-sources-list">
+        <div class="vault-empty">No documents indexed yet. Upload files to get started.</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Right: Knowledge Graph -->
+  <div class="vault-right">
+    <div class="vault-section-header">
+      <span>
+        <svg class="ic" width="14" height="14"><use href="#icon-activity"></use></svg>
+        Knowledge Graph
+      </span>
+      <button class="icon-btn" id="vault-graph-refresh" title="Refresh graph">
+        <svg class="ic" width="12" height="12"><use href="#icon-refresh"></use></svg>
+      </button>
+    </div>
+    <div class="vault-graph-container" id="vault-graph-container">
+      <svg class="vault-graph-svg" id="vault-graph-svg" xmlns="http://www.w3.org/2000/svg"></svg>
+      <div class="vault-graph-empty" id="vault-graph-empty">
+        <svg class="ic" width="24" height="24" style="opacity:0.3"><use href="#icon-activity"></use></svg>
+        <div>Upload documents to see connections</div>
+      </div>
+    </div>
+    <!-- Graph Legend -->
+    <div class="vault-graph-legend" id="vault-graph-legend">
+      <span class="vault-legend-item"><span class="vault-legend-dot" style="background:#ef4444"></span>PDF</span>
+      <span class="vault-legend-item"><span class="vault-legend-dot" style="background:#3b82f6"></span>Word</span>
+      <span class="vault-legend-item"><span class="vault-legend-dot" style="background:#8b5cf6"></span>Markdown</span>
+      <span class="vault-legend-item"><span class="vault-legend-dot" style="background:#10b981"></span>Excel</span>
+      <span class="vault-legend-item"><span class="vault-legend-dot" style="background:#22d3ee"></span>Code</span>
+      <span class="vault-legend-item"><span class="vault-legend-dot" style="background:#6b7280"></span>Text</span>
+    </div>
+    <!-- Graph Tooltip -->
+    <div class="vault-tooltip" id="vault-tooltip" style="display:none"></div>
+  </div>
+</div>

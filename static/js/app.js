@@ -3015,19 +3015,18 @@
     // Clone Studio (My Clone — sub-mode of Automation)
     window.cloneStudio = new CloneStudio();
 
-    // Automation sub-tab toggle (Workflows vs My Clone)
+    // Vault Studio (Knowledge Vault — sub-mode of Automation)
+    if (window.VaultStudio) window.vaultStudio = new VaultStudio();
+
+    // Automation sub-tab toggle (Workflows vs My Clone vs Knowledge Vault)
     $$('#auto-subtab-bar .auto-subtab').forEach(tab => {
       tab.addEventListener('click', () => {
         $$('#auto-subtab-bar .auto-subtab').forEach(t => t.classList.remove('active'));
         tab.classList.add('active');
         const sub = tab.dataset.submode;
-        if (sub === 'workflows') {
-          window.automationStudio?.toggle(true);
-          window.cloneStudio?.toggle(false);
-        } else {
-          window.automationStudio?.toggle(false);
-          window.cloneStudio?.toggle(true);
-        }
+        window.automationStudio?.toggle(sub === 'workflows');
+        window.cloneStudio?.toggle(sub === 'clone');
+        window.vaultStudio?.toggle(sub === 'vault');
       });
     });
 
@@ -3115,10 +3114,12 @@
           const subMode = activeSub?.dataset.submode || 'workflows';
           window.automationStudio?.toggle(subMode === 'workflows');
           window.cloneStudio?.toggle(subMode === 'clone');
+          window.vaultStudio?.toggle(subMode === 'vault');
         } else {
           if (autoSubBar) autoSubBar.style.display = 'none';
           window.automationStudio?.toggle(false);
           window.cloneStudio?.toggle(false);
+          window.vaultStudio?.toggle(false);
         }
         window.researchStudio?.toggle(mode === 'research');
         window.projectStudio?.toggle(mode === 'project');

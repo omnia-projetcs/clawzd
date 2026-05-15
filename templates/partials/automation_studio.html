@@ -7,6 +7,9 @@
         <button class="auto-subtab" data-submode="clone" id="auto-subtab-clone">
           <span class="subtab-icon">🧬</span> My Clone
         </button>
+        <button class="auto-subtab" data-submode="vault" id="auto-subtab-vault">
+          <span class="subtab-icon">🧠</span> Knowledge Vault
+        </button>
       </div>
       <div class="automation-layout" id="automation-layout" style="display:none">
         <!-- Left: Workflow List -->
@@ -58,6 +61,8 @@
               <div class="auto-palette-node" draggable="true" data-type="db_query"><span class="auto-icon" data-icon="layers"></span> DB Query</div>
               <div class="auto-palette-node" draggable="true" data-type="http_request"><span class="auto-icon" data-icon="link"></span> HTTP Request</div>
               <div class="auto-palette-node" draggable="true" data-type="web_search"><span class="auto-icon" data-icon="search"></span> Web Search</div>
+              <div class="auto-palette-node" draggable="true" data-type="rag_ingest"><span class="auto-icon" data-icon="layers"></span> RAG Ingest</div>
+              <div class="auto-palette-node" draggable="true" data-type="rag_clear"><span class="auto-icon" data-icon="trash"></span> RAG Clear</div>
             </div>
             <div class="auto-palette-group" data-cat="ai">
               <div class="auto-palette-cat"><span class="auto-icon" data-icon="cpu"></span> AI</div>
@@ -178,3 +183,5 @@
           </div>
         </div>
       </div>
+
+      {% include 'partials/vault_panel.html' %}
