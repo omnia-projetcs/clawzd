@@ -446,10 +446,10 @@ class OllamaLLM(LLMProvider):
 
         try:
             async with httpx.AsyncClient(timeout=httpx.Timeout(120.0), verify=OLLAMA_VERIFY_SSL) as client:
-                    async with client.stream(
-                        "POST", f"{ollama_host}/api/chat",
-                        json=payload, headers=headers,
-                    ) as resp:
+                async with client.stream(
+                    "POST", f"{ollama_host}/api/chat",
+                    json=payload, headers=headers,
+                ) as resp:
                     async for line in resp.aiter_lines():
                         if not line.strip():
                             continue
