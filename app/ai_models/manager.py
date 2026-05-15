@@ -16,6 +16,17 @@ from config import BASE_DIR, OLLAMA_HOST
 
 logger = logging.getLogger("clawzd.models")
 
+
+def _is_ollama_remote() -> bool:
+    """Return True if OLLAMA_HOST points to a non-local address."""
+    from urllib.parse import urlparse
+    try:
+        parsed = urlparse(OLLAMA_HOST)
+        host = (parsed.hostname or "").lower()
+        return host not in ("", "localhost", "127.0.0.1", "::1", "0.0.0.0")
+    except Exception:
+        return False
+
 router = APIRouter()
 
 CATALOG_PATH = str(BASE_DIR / "models_catalog.json")
@@ -446,7 +457,13 @@ async def get_catalog():
 
         catalog.append(entry)
 
-    return {"catalog": catalog, "active_model": active_model}
+    is_remote = _is_ollama_remote()
+    return {
+        "catalog": catalog,
+        "active_model": active_model,
+        "is_remote": is_remote,
+        "ollama_host": OLLAMA_HOST if is_remote else None,
+    }
 
 
 @router.get("/local")

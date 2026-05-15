@@ -16,6 +16,8 @@ class ModelManager {
     this.hardware = {};
     this.activeVendor = 'all';
     this.pollInterval = null;
+    this.isRemote = false;
+    this.remoteHost = null;
 
     // Close modal
     $('#models-close').addEventListener('click', () => this.close());
@@ -67,6 +69,8 @@ class ModelManager {
       const r = await fetch('/models/catalog');
       const d = await r.json();
       this.catalog = d.catalog || [];
+      this.isRemote = !!d.is_remote;
+      this.remoteHost = d.ollama_host || null;
     } catch (e) { console.error('Failed to load model catalog:', e); }
   }
 
@@ -79,8 +83,13 @@ class ModelManager {
       const vramFree = this.hardware.vram_free_mib ? `(${(this.hardware.vram_free_mib / 1024).toFixed(1)} Go Free)` : '';
       const ram = this.hardware.ram_total_mib ? `${(this.hardware.ram_total_mib / 1024).toFixed(0)} Go RAM` : '';
       this.hwInfo.textContent = `${gpu} — ${vram} ${vramFree} • ${ram}`;
+      if (this.isRemote) {
+        this.hwInfo.textContent = `🌐 Remote Ollama: ${this.remoteHost} • Local: ${gpu} — ${vram}`;
+      }
     } catch (e) {
-      this.hwInfo.textContent = 'Hardware info unavailable';
+      this.hwInfo.textContent = this.isRemote
+        ? `🌐 Remote Ollama: ${this.remoteHost || 'unknown'}`
+        : 'Hardware info unavailable';
     }
   }
 
@@ -125,8 +134,16 @@ class ModelManager {
             <button class="btn btn-danger" onclick="OC.deleteModel('${escHtml(modelRef)}','${escHtml(m.name)}')"> Delete</button>`;
         }
       } else {
-        actions = `
-          <button class="btn btn-download" onclick="OC.downloadModel('${escHtml(m.id)}')">⬇ Download</button>`;
+        // Not downloaded — check if remote mode affects download capability
+        if (this.isRemote && m.backend === 'hf') {
+          // HF models download locally — useless when Ollama is remote
+          actions = `
+            <button class="btn btn-download" disabled title="Hugging Face downloads go to local disk — not available in remote Ollama mode">⬇ Download (local only)</button>`;
+        } else {
+          // Ollama pull goes to the remote Ollama server — works fine
+          actions = `
+            <button class="btn btn-download" onclick="OC.downloadModel('${escHtml(m.id)}')">${this.isRemote ? '🌐' : '⬇'} Download${this.isRemote ? ' (remote)' : ''}</button>`;
+        }
       }
 
       const statusHtml = m.active
