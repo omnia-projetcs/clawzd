@@ -12,6 +12,14 @@ import re
 import uuid
 import logging
 
+# Disable the safetensors auto-conversion background thread.
+# It tries to create a conversion PR on HuggingFace Hub and times out.
+try:
+    import transformers.safetensors_conversion
+    transformers.safetensors_conversion.auto_conversion = lambda *a, **kw: None
+except Exception:
+    pass
+
 def _should_use_local_files(repo_id: str) -> bool:
     import os
     from config import MODELS_DIR
@@ -160,6 +168,9 @@ def _get_tts_pipeline(model_name="speecht5"):
                 torch_dtype=torch.float32,
                 use_safetensors=False,
             )
+            # Pre-set pad_token_id to avoid deprecation warning when passing it at generate() time
+            if model.generation_config.pad_token_id is None:
+                model.generation_config.pad_token_id = model.generation_config.eos_token_id
             if _gpu_ok:
                 model = model.to("cuda")
             _tts_pipeline = {"type": "bark", "processor": processor, "model": model}
@@ -456,12 +467,12 @@ async def _generate_tts_bark(text, voice_style="female_soft", language="auto"):
         if _gpu_ok:
             inputs = {k: v.to("cuda") for k, v in inputs.items()}
 
+        # Build explicit attention_mask to suppress the transformers warning
+        if "attention_mask" not in inputs and "input_ids" in inputs:
+            inputs["attention_mask"] = torch.ones_like(inputs["input_ids"])
+
         with torch.no_grad():
-            output = model.generate(
-                **inputs,
-                pad_token_id=model.generation_config.eos_token_id,
-                max_length=None,
-            )
+            output = model.generate(**inputs)
         all_audio.append(output.cpu().numpy().squeeze())
         all_audio.append(silence)
 
