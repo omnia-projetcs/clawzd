@@ -46,7 +46,15 @@ TAVILY_API_KEY = os.getenv("TAVILY_API_KEY", "")
 ENABLE_CLOUD_MODELS: bool = os.getenv("ENABLE_CLOUD_MODELS", "true").lower() not in ("0", "false", "no", "off")
 
 # --- Ollama (local LLM backend) ---
-OLLAMA_HOST = os.getenv("OLLAMA_HOST", "http://localhost:11434")
+_raw_ollama = os.getenv("OLLAMA_HOST", "http://localhost:11434")
+# Normalize Ollama host: remove trailing '/v1' or trailing slash to avoid
+# building incorrect URLs like 'https://host/v1/api/tags' when callers append
+# '/api/...'. Users sometimes paste the full API base including '/v1'.
+if _raw_ollama.endswith('/v1'):
+    _raw_ollama = _raw_ollama[:-3]
+if _raw_ollama.endswith('/'):
+    _raw_ollama = _raw_ollama[:-1]
+OLLAMA_HOST = _raw_ollama
 OLLAMA_MODEL = os.getenv("OLLAMA_MODEL", "qwen3.5:9b")
 # Fast non-reasoning model used for prompt enrichment (image/video/chat enhance).
 # Must be a non-reasoning instruction model to avoid <think> token budget waste.

@@ -60,6 +60,10 @@ async def _get_local_models() -> list[dict]:
             resp = await client.get(f"{ollama_host}/api/tags", timeout=5, headers=headers)
         if resp.status_code == 200:
             data = resp.json()
+        else:
+            body = resp.text[:1000] if resp.text else ""
+            logger.warning("Ollama /api/tags returned HTTP %d from %s: %s", resp.status_code, ollama_host, body)
+            data = {}
             models = []
             for m in data.get("models", []):
                 raw_name = m.get("name", "unknown")
@@ -87,6 +91,7 @@ async def _get_local_models() -> list[dict]:
                 return models
     except Exception as e:
         logger.warning("Failed to fetch local models from Ollama at %s: %s", ollama_host, e)
+        logger.debug("Exception details while fetching /api/tags", exc_info=True)
     # Fallback: show configured model
     from config import OLLAMA_MODEL
     return [{"id": OLLAMA_MODEL, "label": f"{OLLAMA_MODEL} (Ollama)"}]
@@ -322,9 +327,14 @@ class OllamaLLM(LLMProvider):
             headers = {"Authorization": f"Bearer {api_key}"} if api_key else {}
             async with httpx.AsyncClient(verify=OLLAMA_VERIFY_SSL) as client:
                 resp = await client.get(f"{host}/api/tags", timeout=2.0, headers=headers)
-            alive = resp.status_code == 200
+            if resp.status_code == 200:
+                alive = True
+            else:
+                alive = False
+                logger.debug("Ollama health check non-200 from %s: %d %s", host, resp.status_code, resp.text[:500])
         except Exception:
             alive = False
+            logger.debug("Ollama health check failed for %s", host, exc_info=True)
         self._health_cache["ok"] = alive
         self._health_cache["ts"] = now
         return alive
