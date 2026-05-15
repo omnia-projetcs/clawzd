@@ -168,8 +168,12 @@ def _get_tts_pipeline(model_name="speecht5"):
             from transformers import SpeechT5Processor, SpeechT5ForTextToSpeech, SpeechT5HifiGan
             logger.info("Loading SpeechT5 TTS model...")
             processor = SpeechT5Processor.from_pretrained("microsoft/speecht5_tts", local_files_only=_should_use_local_files("microsoft/speecht5_tts"))
-            model = SpeechT5ForTextToSpeech.from_pretrained("microsoft/speecht5_tts", local_files_only=_should_use_local_files("microsoft/speecht5_tts"))
-            vocoder = SpeechT5HifiGan.from_pretrained("microsoft/speecht5_hifigan", local_files_only=_should_use_local_files("microsoft/speecht5_hifigan"))
+            model = SpeechT5ForTextToSpeech.from_pretrained("microsoft/speecht5_tts", local_files_only=_should_use_local_files("microsoft/speecht5_tts"),
+                use_safetensors=False,
+            )
+            vocoder = SpeechT5HifiGan.from_pretrained("microsoft/speecht5_hifigan", local_files_only=_should_use_local_files("microsoft/speecht5_hifigan"),
+                use_safetensors=False,
+            )
             # Load pre-downloaded speaker embeddings
             import os
             embeddings_path = os.path.join(DATA_DIR, "audio_speakers", "speecht5_speaker_embeddings.pt")
