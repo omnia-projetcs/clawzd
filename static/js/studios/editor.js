@@ -1263,7 +1263,7 @@ class EditorMode {
       this.editorStreaming = false;
       if (this.editorBubble) {
         const content = this.editorBubble.querySelector('.msg-content');
-        if (content) content.innerHTML = renderMd(this._formatThoughtsBeforeMd(this.editorText));
+        if (content) content.innerHTML = renderMd(this.editorText);
         this.editorBubble.dataset.raw = encodeURIComponent(this.editorText);
         highlightAll(this.editorBubble);
       }
@@ -1297,7 +1297,7 @@ class EditorMode {
               if (d.hasAttribute('open')) openDetails.push(i);
             });
 
-            let preview = this._formatThoughtsBeforeMd(this.editorText);
+            let preview = this.editorText;
             const fc = (preview.match(/```/g) || []).length;
             if (fc % 2 !== 0) preview += '\n```';
             content.innerHTML = renderMd(preview) + '<span class="streaming-cursor"></span>';

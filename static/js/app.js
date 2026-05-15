@@ -574,6 +574,16 @@
     h = h.replace(/&lt;think&gt;/g, '<details class="tool-thinking" open><summary> <em>Thinking…</em></summary><div style="padding:12px;color:var(--text-muted);font-style:italic;overflow-x:auto;">');
     h = h.replace(/&lt;\/think&gt;/g, '</div></details>');
 
+    // IDE <thought> tags — wrap in collapsible agent reflections
+    // Completed thought blocks
+    h = h.replace(/&lt;thought&gt;([\s\S]*?)&lt;\/thought&gt;/gi, (_, content) => {
+      return ph(`<details class="ai-thought"><summary>💭 Agent Reflections</summary><div style="padding:12px;color:var(--text-muted);font-style:italic;overflow-x:auto;">${content}</div></details>`);
+    });
+    // Unclosed (streaming) thought blocks
+    h = h.replace(/&lt;thought&gt;([\s\S]*)$/i, (_, content) => {
+      return ph(`<details class="ai-thought" open><summary>💭 Agent Reflections (Thinking...)</summary><div style="padding:12px;color:var(--text-muted);font-style:italic;overflow-x:auto;">${content}</div></details>`);
+    });
+
     // Tables (| col | col |)
     h = h.replace(/((?:\|[^\n]+\|\s*\n){2,})/g, (table) => {
       const rows = table.trim().split('\n').filter(r => r.trim());
@@ -4620,7 +4630,16 @@
       edPickerBtn.addEventListener('click', (e) => {
         e.stopPropagation();
         renderEditorModelPicker();
-        edPickerDrop.classList.toggle('open');
+        const isOpen = edPickerDrop.classList.toggle('open');
+        if (isOpen) {
+          // Use fixed positioning to escape overflow:hidden on .editor-chat
+          const rect = edPickerBtn.getBoundingClientRect();
+          edPickerDrop.style.position = 'fixed';
+          edPickerDrop.style.bottom = (window.innerHeight - rect.top + 5) + 'px';
+          edPickerDrop.style.right = (window.innerWidth - rect.right) + 'px';
+          edPickerDrop.style.left = 'auto';
+          edPickerDrop.style.top = 'auto';
+        }
       });
       document.addEventListener('click', (e) => {
         if (!e.target.closest('#editor-model-picker')) {
