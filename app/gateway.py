@@ -2278,98 +2278,156 @@ async def serve_app_file(app_id: str, filename: str):
 
 # --- Battle Arena API ---
 
+# Per-model timeout for Arena generation (seconds)
+_ARENA_MODEL_TIMEOUT = 300  # 5 minutes max per model
+
+
 @app.post("/arena/send")
 async def arena_send(request: Request):
-    """Start generation for multiple models in the Arena."""
+    """Start generation for multiple models in the Arena.
+
+    Ollama/local models are executed **sequentially** in a single coordinator
+    task to prevent VRAM saturation on remote servers (DGx10).  Each Ollama
+    model is unloaded after completion with a pause to let VRAM flush.
+
+    Cloud providers run in parallel since they don't share GPU resources.
+    """
     data = await request.json()
     user_msg = _sanitize_input(data.get("message", "").strip())
     models = data.get("models", [])
-    
+
     if not user_msg:
         raise HTTPException(400, "Message is required")
     if not models or len(models) > 10:
         raise HTTPException(400, "1 to 10 models required")
-        
-    streams = []
-    
 
+    streams = []
+    # Separate Ollama models from cloud providers
+    ollama_entries: list[dict] = []
+    cloud_entries: list[dict] = []
 
     for m in models:
         provider_key = m.get("provider", "local")
         model_key = m.get("model", "")
         stream_id = str(uuid.uuid4())
         _arena_queues[stream_id] = asyncio.Queue()
-        streams.append({
+        entry = {
             "stream_id": stream_id,
             "provider": provider_key,
-            "model": model_key
-        })
-        
-        # Launch generation task for this specific model
-        async def _generate(s_id=stream_id, p_key=provider_key, m_key=model_key):
-            queue = _arena_queues[s_id]
-            try:
-                import time
-                t0 = time.perf_counter()
-                tokens_count = 0
-                
-                provider = get_llm_provider(p_key)
-                kwargs = {}
-                if m_key:
-                    kwargs["model"] = m_key
-                kwargs["max_tokens"] = 8192
-                    
-                messages = [
-                    {"role": "system", "content": "You are a helpful and detailed AI assistant. Provide complete and comprehensive answers. Do NOT truncate your response."},
-                    {"role": "user", "content": user_msg}
-                ]
-                
-                async def do_stream():
-                    nonlocal tokens_count
-                    async for token in provider.chat_stream(messages, **kwargs):
-                        if any(marker in token for marker in ["<|endoftext|>", "<|im_start|>", "<|im_end|>", "<|eot_id|>", "</s>", "<|end|>"]):
-                            for marker in ["<|endoftext|>", "<|im_start|>", "<|im_end|>", "<|eot_id|>", "</s>", "<|end|>"]:
-                                token = token.replace(marker, "")
-                            if not token:
-                                continue
-                        tokens_count += 1
-                        await queue.put(token)
-                
-                if p_key in ("ollama", "local"):
-                    # Ollama requests are automatically serialized by the
-                    # global semaphore in OllamaLLM.chat_stream().
-                    try:
-                        await do_stream()
-                    finally:
-                        await _unload_ollama_model(m_key)
-                else:
-                    await do_stream()
-                    
-                total_time = time.perf_counter() - t0
-                tps = tokens_count / total_time if total_time > 0 else 0
-                import json
-                stats_msg = f'\n\n__STATS__{json.dumps({"time": round(total_time, 2), "tokens": tokens_count, "tps": round(tps, 1)})}__STATS__\n\n'
-                await queue.put(stats_msg)
+            "model": model_key,
+        }
+        streams.append(entry)
+        if provider_key in ("ollama", "local"):
+            ollama_entries.append(entry)
+        else:
+            cloud_entries.append(entry)
 
-                # Track metrics for Arena generation
-                input_tokens = count_tokens(user_msg, model=model_key or "")
-                from app.metrics import get_metrics
-                get_metrics().record_llm_call(
-                    provider=p_key,
-                    model=m_key or getattr(provider, "default_model", "unknown"),
-                    input_tokens=input_tokens,
-                    output_tokens=tokens_count,
-                    latency_s=total_time,
-                    session_id="arena"
+    # ------------------------------------------------------------------
+    # Shared per-model generation coroutine (no unload — caller handles)
+    # ------------------------------------------------------------------
+    async def _generate_single(s_id: str, p_key: str, m_key: str):
+        """Generate tokens for one model and push them into its queue."""
+        queue = _arena_queues.get(s_id)
+        if queue is None:
+            return
+        try:
+            import time as _t
+            t0 = _t.perf_counter()
+            tokens_count = 0
+
+            provider = get_llm_provider(p_key)
+            kwargs: dict = {}
+            if m_key:
+                kwargs["model"] = m_key
+            kwargs["max_tokens"] = 8192
+
+            messages = [
+                {"role": "system", "content": "You are a helpful and detailed AI assistant. Provide complete and comprehensive answers. Do NOT truncate your response."},
+                {"role": "user", "content": user_msg},
+            ]
+
+            async for token in provider.chat_stream(messages, **kwargs):
+                # Strip special tokens from local models
+                if any(marker in token for marker in ["<|endoftext|>", "<|im_start|>", "<|im_end|>", "<|eot_id|>", "</s>", "<|end|>"]):
+                    for marker in ["<|endoftext|>", "<|im_start|>", "<|im_end|>", "<|eot_id|>", "</s>", "<|end|>"]:
+                        token = token.replace(marker, "")
+                    if not token:
+                        continue
+                tokens_count += 1
+                await queue.put(token)
+
+            total_time = _t.perf_counter() - t0
+            tps = tokens_count / total_time if total_time > 0 else 0
+            import json as _json
+            stats_msg = f'\n\n__STATS__{_json.dumps({"time": round(total_time, 2), "tokens": tokens_count, "tps": round(tps, 1)})}__STATS__\n\n'
+            await queue.put(stats_msg)
+
+            # Track metrics
+            input_tokens = count_tokens(user_msg, model=m_key or "")
+            from app.metrics import get_metrics
+            get_metrics().record_llm_call(
+                provider=p_key,
+                model=m_key or getattr(provider, "default_model", "unknown"),
+                input_tokens=input_tokens,
+                output_tokens=tokens_count,
+                latency_s=total_time,
+                session_id="arena",
+            )
+        except Exception as e:
+            logger.error("Arena LLM error (%s/%s): %s", p_key, m_key, e)
+            await queue.put(f"\n\n❌ **Error**: {e}")
+        finally:
+            await queue.put(None)  # signal end-of-stream
+
+    # ------------------------------------------------------------------
+    # Cloud provider tasks — safe to run in parallel
+    # ------------------------------------------------------------------
+    for entry in cloud_entries:
+        async def _cloud_wrapper(e=entry):
+            try:
+                await asyncio.wait_for(
+                    _generate_single(e["stream_id"], e["provider"], e["model"]),
+                    timeout=_ARENA_MODEL_TIMEOUT,
                 )
-            except Exception as e:
-                logger.error("Arena LLM error (%s/%s): %s", p_key, m_key, e)
-                await queue.put(f"\n\n❌ **Error**: {e}")
-            finally:
-                await queue.put(None)
-                
-        asyncio.create_task(_generate())
-        
+            except asyncio.TimeoutError:
+                q = _arena_queues.get(e["stream_id"])
+                if q:
+                    await q.put("\n\n⏱️ **Timeout** — model took too long.")
+                    await q.put(None)
+        asyncio.create_task(_cloud_wrapper())
+
+    # ------------------------------------------------------------------
+    # Ollama coordinator — runs models ONE AT A TIME with unload between
+    # ------------------------------------------------------------------
+    if ollama_entries:
+        async def _ollama_coordinator():
+            for entry in ollama_entries:
+                s_id = entry["stream_id"]
+                m_key = entry["model"]
+                try:
+                    await asyncio.wait_for(
+                        _generate_single(s_id, entry["provider"], m_key),
+                        timeout=_ARENA_MODEL_TIMEOUT,
+                    )
+                except asyncio.TimeoutError:
+                    logger.error("Arena Ollama timeout for %s after %ds", m_key, _ARENA_MODEL_TIMEOUT)
+                    q = _arena_queues.get(s_id)
+                    if q:
+                        await q.put(f"\n\n⏱️ **Timeout** — `{m_key}` took over {_ARENA_MODEL_TIMEOUT}s.")
+                        await q.put(None)
+                except Exception as e:
+                    logger.error("Arena Ollama coordinator error for %s: %s", m_key, e)
+                finally:
+                    # Unload model to free VRAM before loading the next one
+                    try:
+                        await _unload_ollama_model(m_key)
+                    except Exception:
+                        pass
+                    # Pause to let VRAM actually flush on the remote GPU
+                    await asyncio.sleep(3)
+
+        asyncio.create_task(_ollama_coordinator())
+
     return {"status": "processing", "streams": streams}
 
 
@@ -2378,30 +2436,27 @@ async def arena_stream(stream_id: str):
     """SSE endpoint for Arena columns."""
     if stream_id not in _arena_queues:
         raise HTTPException(404, "Stream not found")
-        
+
     async def event_generator():
         queue = _arena_queues[stream_id]
-        while True:
-            try:
-                # Use a timeout to periodically send a keep-alive comment
-                # This prevents proxies (Nginx/Cloudflare) from dropping idle connections
-                # while waiting for the remote Ollama lock or model loading.
-                token = await asyncio.wait_for(queue.get(), timeout=10.0)
-            except asyncio.TimeoutError:
-                # Yield a keep-alive event so the connection stays open
-                yield {"event": "keepalive", "data": ""}
-                continue
+        try:
+            while True:
+                try:
+                    # Keep-alive every 15s to prevent proxy drops while
+                    # waiting behind the Ollama sequential queue.
+                    token = await asyncio.wait_for(queue.get(), timeout=15.0)
+                except asyncio.TimeoutError:
+                    yield {"event": "keepalive", "data": ""}
+                    continue
 
-            if token is None:
-                yield {"data": "[DONE]"}
-                # Cleanup queue after short delay
-                async def _cleanup():
-                    await asyncio.sleep(60)
-                    _arena_queues.pop(stream_id, None)
-                asyncio.create_task(_cleanup())
-                break
-            yield {"data": token}
-            
+                if token is None:
+                    yield {"data": "[DONE]"}
+                    break
+                yield {"data": token}
+        finally:
+            # Immediate cleanup — no dangling references
+            _arena_queues.pop(stream_id, None)
+
     return EventSourceResponse(event_generator())
 
 

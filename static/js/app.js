@@ -1519,6 +1519,13 @@
         toast('Please select at least 1 model in the picker');
         return;
       }
+
+      // --- Close any stale streams from a previous run ---
+      if (window.arenaStreams && window.arenaStreams.length > 0) {
+        window.arenaStreams.forEach(s => { try { s.es.close(); } catch (_) {} });
+      }
+      window.arenaStreams = [];
+
       this.hideWelcome();
       this.inputEl.value = ''; this.resize(); this.sendBtn.disabled = true;
       $('#arena-container').style.display = 'grid';
@@ -1526,7 +1533,6 @@
       $('#arena-eval-panel').style.display = 'none';
 
       const cols = {};
-      window.arenaStreams = [];
 
       try {
         const r = await fetch('/arena/send', {
@@ -1552,16 +1558,25 @@
               <span>${escHtml(title)}</span>
               <span style="font-size:10px; color:var(--text-muted)">${escHtml(stream.provider)}</span>
             </div>
-            <div class="arena-col-body" id="col-${stream.stream_id}"></div>
+            <div class="arena-col-body" id="col-${stream.stream_id}">
+              <div class="arena-waiting" style="display:flex; align-items:center; gap:8px; padding:16px; color:var(--text-muted); font-size:13px;">
+                <span class="tool-spinner"></span> Waiting in queue…
+              </div>
+            </div>
             <div class="arena-col-footer" id="footer-${stream.stream_id}" style="display:none; border-top: 1px solid var(--border); padding: 12px; background: rgba(124, 58, 237, 0.05); flex-shrink: 0;"></div>
           `;
           $('#arena-container').appendChild(col);
-          cols[stream.stream_id] = { text: '', el: col.querySelector('.arena-col-body') };
+          cols[stream.stream_id] = { text: '', el: col.querySelector('.arena-col-body'), started: false };
 
           const es = new EventSource(`/arena/stream/${stream.stream_id}`);
           es.onerror = () => {
             es.close();
-            cols[stream.stream_id].text += `\n\n❌ Connection error <br><button id="retry-${stream.stream_id}" class="code-action-btn" style="margin-top:8px" onclick="OC.retryArenaStream('${stream.stream_id}', '${stream.model}', '${stream.provider}')">${icon('refresh', 14)} Retry</button>`;
+            if (!cols[stream.stream_id].started) {
+              cols[stream.stream_id].text = '❌ Connection error — server unreachable or model failed to load.';
+            } else {
+              cols[stream.stream_id].text += `\n\n❌ Connection lost`;
+            }
+            cols[stream.stream_id].text += `\n\n<button id="retry-${stream.stream_id}" class="code-action-btn" style="margin-top:8px" onclick="OC.retryArenaStream('${stream.stream_id}', '${stream.model}', '${stream.provider}')">${icon('refresh', 14)} Retry</button>`;
             cols[stream.stream_id].el.innerHTML = renderMd(cols[stream.stream_id].text);
             activeStreams--;
             if (activeStreams <= 0) {
@@ -1570,6 +1585,8 @@
               window.arenaLastPrompt = msg;
             }
           };
+          // Ignore keepalive events (they have no useful data)
+          es.addEventListener('keepalive', () => { /* noop — connection stays alive */ });
           es.onmessage = e => {
             if (e.data === '[DONE]') {
               es.close();
@@ -1617,6 +1634,12 @@
               return;
             }
             const col = cols[stream.stream_id];
+            // Remove the "waiting" spinner on first real token
+            if (!col.started) {
+              col.started = true;
+              const waitEl = col.el.querySelector('.arena-waiting');
+              if (waitEl) waitEl.remove();
+            }
             col.text += e.data;
 
             // Throttle DOM renders (~150ms interval)
