@@ -90,7 +90,6 @@ def _is_model_in_ollama(model_name: str) -> bool:
 def _is_hf_model_downloaded(repo_id: str) -> bool:
     """Check if a Hugging Face model is locally downloaded."""
     from pathlib import Path
-    import os
     
     # Check config for custom MODELS_DIR, fallback to ~/.cache
     try:

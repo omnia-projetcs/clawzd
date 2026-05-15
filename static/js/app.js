@@ -4807,6 +4807,8 @@
       $('#settings-overlay').classList.add('open');
       // Load tool permissions into the HITL grid
       _loadToolPermsGrid();
+      // Load integrations & connectors status
+      loadSettingsConnectors();
     });
     $('#settings-close').addEventListener('click', () => $('#settings-overlay').classList.remove('open'));
     $('#settings-overlay').addEventListener('click', e => { if (e.target === e.currentTarget) e.currentTarget.classList.remove('open'); });
@@ -5401,6 +5403,86 @@
       }
     } catch (e) {
       console.error(e);
+    }
+  }
+
+  // ---- Integrations & Connectors grid in Settings drawer ----
+  async function loadSettingsConnectors() {
+    const grid = $('#settings-connectors-grid');
+    if (!grid) return;
+    try {
+      const r = await fetch('/api/env');
+      const env = await r.json();
+
+      const connectors = [
+        { id: 'TELEGRAM', name: 'Telegram', icon: 'telegram', color: '#0088cc',
+          tokenKey: 'TELEGRAM_BOT_TOKEN', url: 'https://core.telegram.org/bots#botfather',
+          hint: 'Create a bot via @BotFather' },
+        { id: 'DISCORD', name: 'Discord', icon: 'discord', color: '#5865F2',
+          tokenKey: 'DISCORD_BOT_TOKEN', url: 'https://discord.com/developers/applications',
+          hint: 'Create an app in Developer Portal' },
+        { id: 'SMTP', name: 'Email (SMTP)', icon: 'send', color: '#8b5cf6',
+          tokenKey: 'SMTP_HOST', url: 'https://support.google.com/a/answer/176600',
+          hint: 'Configure SMTP server' },
+        { id: 'TWITTER', name: 'X (Twitter)', icon: 'xTwitter', color: '#000000',
+          tokenKey: 'TWITTER_API_KEY', url: 'https://developer.x.com/en/portal/dashboard',
+          hint: 'Create app in X Developer Portal' },
+        { id: 'LINKEDIN', name: 'LinkedIn', icon: 'linkedin', color: '#0A66C2',
+          tokenKey: 'LINKEDIN_ACCESS_TOKEN', url: 'https://www.linkedin.com/developers/apps',
+          hint: 'Create app in LinkedIn Developer' },
+        { id: 'MEDIUM', name: 'Medium', icon: 'medium', color: '#00ab6c',
+          tokenKey: 'MEDIUM_INTEGRATION_TOKEN', url: 'https://medium.com/me/settings/security',
+          hint: 'Generate Integration Token' },
+      ];
+
+      grid.innerHTML = connectors.map(c => {
+        const hasToken = !!(env[c.tokenKey] && env[c.tokenKey].trim());
+        const statusColor = hasToken ? 'var(--green, #22c55e)' : 'var(--text-muted)';
+        const statusText = hasToken ? '● Connected' : '○ Not configured';
+        const iconHtml = window.icon ? window.icon(c.icon, 14) : `<svg class="ic" width="14" height="14"><use href="#icon-${c.icon}"></use></svg>`;
+        return `
+          <div class="settings-connector-card" data-connector-id="${c.id}" style="
+            background:var(--bg-default);
+            border:1px solid var(--border);
+            border-radius:8px;
+            padding:10px;
+            display:flex;
+            flex-direction:column;
+            gap:6px;
+            cursor:pointer;
+            transition:border-color 0.2s, background 0.2s;
+          ">
+            <div style="display:flex;align-items:center;gap:8px;">
+              <span style="color:${c.color};display:inline-flex;">${iconHtml}</span>
+              <span style="font-size:12px;font-weight:600;color:var(--text-primary);">${c.name}</span>
+            </div>
+            <div style="font-size:10px;color:${statusColor};font-weight:500;">${statusText}</div>
+            <div style="font-size:10px;color:var(--text-muted);line-height:1.4;">${c.hint}</div>
+            <a href="${c.url}" target="_blank" rel="noopener noreferrer"
+               style="font-size:10px;color:var(--accent);text-decoration:none;margin-top:auto;"
+               onclick="event.stopPropagation();">
+              🔗 Setup guide →
+            </a>
+          </div>`;
+      }).join('');
+
+      // Click any card → open Tokens modal
+      grid.querySelectorAll('.settings-connector-card').forEach(card => {
+        card.addEventListener('click', () => {
+          const btnEnv = $('#btn-open-env-modal');
+          if (btnEnv) btnEnv.click();
+        });
+        card.addEventListener('mouseenter', () => {
+          card.style.borderColor = 'var(--accent)';
+          card.style.background = 'var(--bg-elevated)';
+        });
+        card.addEventListener('mouseleave', () => {
+          card.style.borderColor = 'var(--border)';
+          card.style.background = 'var(--bg-default)';
+        });
+      });
+    } catch (e) {
+      grid.innerHTML = '<div style="color:var(--text-muted);font-size:11px;grid-column:1/-1;">Failed to load connectors.</div>';
     }
   }
 
