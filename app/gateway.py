@@ -474,6 +474,7 @@ async def system_health():
 # --- In-memory SSE queues per session ---
 _sse_queues: dict[str, asyncio.Queue] = {}
 _arena_queues: dict[str, asyncio.Queue] = {}
+_ollama_arena_lock = asyncio.Lock()
 _active_generations: dict[str, str] = {}
 _cancelled_sessions: set[str] = set()
 
@@ -2313,14 +2314,23 @@ async def arena_send(request: Request):
                     {"role": "user", "content": user_msg}
                 ]
                 
-                async for token in provider.chat_stream(messages, **kwargs):
-                    if any(marker in token for marker in ["<|endoftext|>", "<|im_start|>", "<|im_end|>", "<|eot_id|>", "</s>", "<|end|>"]):
-                        for marker in ["<|endoftext|>", "<|im_start|>", "<|im_end|>", "<|eot_id|>", "</s>", "<|end|>"]:
-                            token = token.replace(marker, "")
-                        if not token:
-                            continue
-                    tokens_count += 1
-                    await queue.put(token)
+                async def do_stream():
+                    nonlocal tokens_count
+                    async for token in provider.chat_stream(messages, **kwargs):
+                        if any(marker in token for marker in ["<|endoftext|>", "<|im_start|>", "<|im_end|>", "<|eot_id|>", "</s>", "<|end|>"]):
+                            for marker in ["<|endoftext|>", "<|im_start|>", "<|im_end|>", "<|eot_id|>", "</s>", "<|end|>"]:
+                                token = token.replace(marker, "")
+                            if not token:
+                                continue
+                        tokens_count += 1
+                        await queue.put(token)
+                
+                if p_key in ("ollama", "local"):
+                    # Execute sequentially to prevent VRAM thrashing and timeouts on remote Ollama servers
+                    async with _ollama_arena_lock:
+                        await do_stream()
+                else:
+                    await do_stream()
                     
                 total_time = time.perf_counter() - t0
                 tps = tokens_count / total_time if total_time > 0 else 0
@@ -2375,14 +2385,14 @@ async def arena_stream(stream_id: str):
 
 async def _unload_all_ollama_models():
     """Unload all currently running models in Ollama to free up VRAM."""
-    from app.core.llm_provider import _resolve_ollama_host, _resolve_ollama_api_key
+    from app.core.llm_provider import _resolve_ollama_host, _resolve_ollama_api_key, _resolve_ollama_verify
     import httpx
     try:
         ollama_host = _resolve_ollama_host()
         ollama_key = _resolve_ollama_api_key()
         headers = {"Authorization": f"Bearer {ollama_key}"} if ollama_key else {}
-        async with httpx.AsyncClient() as client:
-            resp = await client.get(f"{ollama_host}/api/ps", timeout=2.0, headers=headers)
+        async with httpx.AsyncClient(verify=_resolve_ollama_verify()) as client:
+            resp = await client.get(f"{ollama_host}/api/ps", timeout=5.0, headers=headers)
             if resp.status_code == 200:
                 models = resp.json().get("models", [])
                 for m in models:
@@ -2392,7 +2402,7 @@ async def _unload_all_ollama_models():
                             f"{ollama_host}/api/chat",
                             json={"model": model_name, "keep_alive": 0},
                             headers=headers,
-                            timeout=2.0
+                            timeout=5.0
                         )
                         logger.info("Unloaded Ollama model: %s", model_name)
     except Exception as e:
