@@ -160,7 +160,7 @@
           return `${id}("${label.trim()}")`;
         });
         fixed = fixed.replace(/(\w+)(\{)([^}"]+[()\[\]\/<>][^}"]*)(\})/g, (m, id, open, label, close) => {
-          return `${id}{"${label.trim()}"}` ;
+          return `${id}{"${label.trim()}"}`;
         });
 
         const lines = fixed.split('\n');
@@ -177,9 +177,9 @@
           if (subgraphLineMap.has(i)) return; // skip subgraph lines
           const trimmed = line.trim();
           if (!trimmed || trimmed === 'end' || trimmed.startsWith('%%') ||
-              trimmed.startsWith('classDef') || trimmed.startsWith('class ') ||
-              trimmed.startsWith('style ') || trimmed.startsWith('linkStyle') ||
-              /^(flowchart|graph|sequenceDiagram|classDiagram|erDiagram|gantt|pie|mindmap|timeline|stateDiagram)/i.test(trimmed)) return;
+            trimmed.startsWith('classDef') || trimmed.startsWith('class ') ||
+            trimmed.startsWith('style ') || trimmed.startsWith('linkStyle') ||
+            /^(flowchart|graph|sequenceDiagram|classDiagram|erDiagram|gantt|pie|mindmap|timeline|stateDiagram)/i.test(trimmed)) return;
           // Extract node IDs from arrows: A --> B, A --- B, etc.
           const arrowParts = trimmed.split(/\s*(?:-->|==>|-\.->|---->|---|===|~~~|-\.-|--\s|--\||<-->)\s*/);
           arrowParts.forEach(part => {
@@ -436,12 +436,12 @@
       const run = ['python', 'py', 'sh', 'bash'].includes(ll);
       const preview = ['html', 'htm', 'svg'].includes(ll);
       const isEditor = window.editor && window.editor.activeTab;
-      
+
       const rb = run ? `<button class="code-run-btn" onclick="OC.runCode('${id}')">${icon('terminal', 14)} Run</button>` : '';
       const pb = preview ? `<button class="code-action-btn code-preview-btn" onclick="OC.previewHtml('${id}')">${icon('eye', 14)} Preview</button>` : '';
       const sb = `<button class="code-action-btn code-save-btn" onclick="OC.saveToFiles('${id}','${escHtml(lang)}','${escHtml(label)}')">${icon('save', 14)} Save</button>`;
       const ab = isEditor ? `<button class="code-action-btn code-apply-btn" onclick="OC.applyToEditor('${id}')" title="Apply to active editor file">${icon('check', 14)} Apply</button>` : '';
-      
+
       const lcls = lang ? ` class="language-${lang}"` : '';
       return ph(
         `<div class="code-block-header"><span>${escHtml(label)}</span>` +
@@ -483,20 +483,20 @@
             let filesHtml = '';
             const files = params.files || {};
             for (const [fname, content] of Object.entries(files)) {
-                let lang = 'html';
-                if (fname.endsWith('.css')) lang = 'css';
-                if (fname.endsWith('.js')) lang = 'javascript';
-                const safeContent = (typeof content === 'string' ? content : JSON.stringify(content))
-                    .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
-                filesHtml += `<div style="font-weight:bold;margin:8px 0 4px 0;color:var(--text-secondary);font-size:12px;">📄 ${escHtml(fname)}</div>`;
-                filesHtml += `<pre style="margin:0 0 12px 0;background:var(--bg-primary);border:1px solid var(--border);border-radius:var(--radius-sm);padding:12px;overflow-x:auto;"><code class="language-${lang}">${safeContent}</code></pre>`;
+              let lang = 'html';
+              if (fname.endsWith('.css')) lang = 'css';
+              if (fname.endsWith('.js')) lang = 'javascript';
+              const safeContent = (typeof content === 'string' ? content : JSON.stringify(content))
+                .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+              filesHtml += `<div style="font-weight:bold;margin:8px 0 4px 0;color:var(--text-secondary);font-size:12px;">📄 ${escHtml(fname)}</div>`;
+              filesHtml += `<pre style="margin:0 0 12px 0;background:var(--bg-primary);border:1px solid var(--border);border-radius:var(--radius-sm);padding:12px;overflow-x:auto;"><code class="language-${lang}">${safeContent}</code></pre>`;
             }
             if (!filesHtml) {
-               const safeJson = JSON.stringify(params, null, 2)
-                 .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
-               detailContent = `<pre style="margin:8px 0;background:var(--bg-primary);border:1px solid var(--border);border-radius:var(--radius-sm);padding:12px;overflow-x:auto;font-size:12px;"><code>${safeJson}</code></pre>`;
+              const safeJson = JSON.stringify(params, null, 2)
+                .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+              detailContent = `<pre style="margin:8px 0;background:var(--bg-primary);border:1px solid var(--border);border-radius:var(--radius-sm);padding:12px;overflow-x:auto;font-size:12px;"><code>${safeJson}</code></pre>`;
             } else {
-               detailContent = filesHtml;
+              detailContent = filesHtml;
             }
           } else {
             // Show params as formatted JSON
@@ -509,17 +509,17 @@
         // Not valid JSON — show raw content but clean up escaped newlines so it's readable during streaming
         isTool = true; // Still treat as tool if it's truncated/streaming
         if (match.includes('```create_app') || match.includes('```update_app')) {
-            toolLabel = match.includes('```create_app') ? 'create_app' : 'update_app';
+          toolLabel = match.includes('```create_app') ? 'create_app' : 'update_app';
         } else if (match.includes('```execute_python') || match.includes('```python')) {
-            toolLabel = 'execute_python';
+          toolLabel = 'execute_python';
         }
         let readableContent = content.replace(/\\n/g, '\n').replace(/\\"/g, '"');
         let langClass = '';
         if (toolLabel === 'create_app' || toolLabel === 'update_app') {
-            langClass = ' class="language-html"';
-            if (readableContent.trim().toLowerCase().startsWith('html\n')) readableContent = readableContent.trim().substring(5);
+          langClass = ' class="language-html"';
+          if (readableContent.trim().toLowerCase().startsWith('html\n')) readableContent = readableContent.trim().substring(5);
         } else if (toolLabel === 'execute_python') {
-            langClass = ' class="language-python"';
+          langClass = ' class="language-python"';
         }
         const safeContent = readableContent.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
         detailContent = `<pre style="margin:8px 0;background:var(--bg-primary);border:1px solid var(--border);border-radius:var(--radius-sm);padding:12px;overflow-x:auto;"><code${langClass}>${safeContent}</code></pre>`;
@@ -544,7 +544,7 @@
     h = h.replace(/__TOOL_APPROVAL__([\s\S]+?)__TOOL_APPROVAL__/g, (m, content) => {
       try {
         if (window.toolApproval) window.toolApproval._show(JSON.parse(content));
-      } catch (e) {}
+      } catch (e) { }
       return '';
     });
 
@@ -1095,7 +1095,7 @@
               <div style="padding:10px">${safeHtml}</div>
             </details>
             <div class="auto-plan-confirm" style="margin-top:10px; display:flex; gap:10px; padding: 10px; background: var(--bg-secondary); border-radius: 8px;">
-              <button class="btn primary confirm-build-btn" style="flex: 1;">${icon('check', 14)} Valider et Générer l'application</button>
+              <button class="btn primary confirm-build-btn" style="flex: 1;">${icon('check', 14)} Validate and Launch Generation</button>
               <button class="btn cancel-build-btn" style="flex: 1;">${icon('x', 14)} Annuler</button>
             </div>
           `;
@@ -1103,14 +1103,14 @@
           const confirmBtn = this.bubble.querySelector('.confirm-build-btn');
           const cancelBtn = this.bubble.querySelector('.cancel-build-btn');
           const btnContainer = this.bubble.querySelector('.auto-plan-confirm');
-          
+
           confirmBtn.addEventListener('click', async () => {
             this.autoPlanState = 'building';
             confirmBtn.disabled = true;
             cancelBtn.style.display = 'none';
-            confirmBtn.innerHTML = '⏳ Génération en cours...';
-            
-            toast('Lancement de la génération...');
+            confirmBtn.innerHTML = '⏳ Work in progress...';
+
+            toast('Starting...');
             const buildMsg = `[Auto-Generated Implementation Plan:\n${capturedPlan}]\n\nPlease execute and build the code for this plan exactly as described. Output ONLY the code and required actions.`;
 
             try {
@@ -1141,7 +1141,7 @@
           cancelBtn.addEventListener('click', () => {
             btnContainer.remove();
             this.autoPlanState = null;
-            toast('Génération annulée.');
+            toast('Cancelled.');
           });
         }
 
@@ -1583,7 +1583,7 @@
               const col = cols[stream.stream_id];
               if (col._renderTimer) { clearTimeout(col._renderTimer); col._renderTimer = null; }
               let finalPreview = col.text;
-              
+
               let statsHtml = '';
               const statsRe = /__STATS__([\s\S]+?)__STATS__/;
               const statsMatch = finalPreview.match(statsRe);
@@ -1594,11 +1594,11 @@
                   if (streamObj) streamObj.stats = stats;
                   statsHtml = `<div class="arena-stats" style="margin-top:16px; padding:12px; border-radius:var(--radius-sm); background:var(--bg-tertiary); font-size:12px; border:1px solid var(--border);">
                     <div style="display:flex; justify-content:space-between; margin-bottom:4px;">
-                      <span style="color:var(--text-muted)">⏱️ Temps de réponse</span>
+                      <span style="color:var(--text-muted)">Response Time</span>
                       <strong>${stats.time}s</strong>
                     </div>
                     <div style="display:flex; justify-content:space-between; margin-bottom:4px;">
-                      <span style="color:var(--text-muted)"> Tokens E/S</span>
+                      <span style="color:var(--text-muted)">Tokens E/S</span>
                       <strong>${stats.tokens}</strong>
                     </div>
                     <div style="display:flex; justify-content:space-between;">
@@ -1637,11 +1637,11 @@
                     if (streamObj) streamObj.stats = stats;
                     statsHtml = `<div class="arena-stats" style="margin-top:16px; padding:12px; border-radius:var(--radius-sm); background:var(--bg-tertiary); font-size:12px; border:1px solid var(--border);">
                       <div style="display:flex; justify-content:space-between; margin-bottom:4px;">
-                        <span style="color:var(--text-muted)">⏱️ Temps de réponse</span>
+                        <span style="color:var(--text-muted)">Response Time</span>
                         <strong>${stats.time}s</strong>
                       </div>
                       <div style="display:flex; justify-content:space-between; margin-bottom:4px;">
-                        <span style="color:var(--text-muted)"> Tokens E/S</span>
+                        <span style="color:var(--text-muted)">Tokens E/S</span>
                         <strong>${stats.tokens}</strong>
                       </div>
                       <div style="display:flex; justify-content:space-between;">
@@ -1819,24 +1819,9 @@
       }
 
       try {
-      // Use WebSocket transport if connected
-      if (this.transport && this.transport.isWebSocket) {
-        this.transport.send({
-          message: enrichedMsg,
-          provider: $('#provider-select').value,
-          model: $('#model-select').value,
-          preprompt: requestPreprompt,
-          active_project: active_project,
-          active_file: active_file,
-          rag_mode: window.ragMode || false,
-          action_mode: actionMode,
-          images: visionImages
-        });
-      } else {
-        // Legacy SSE path
-        await fetch(`/send/${this.sessionId}`, {
-          method: 'POST', headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
+        // Use WebSocket transport if connected
+        if (this.transport && this.transport.isWebSocket) {
+          this.transport.send({
             message: enrichedMsg,
             provider: $('#provider-select').value,
             model: $('#model-select').value,
@@ -1846,9 +1831,24 @@
             rag_mode: window.ragMode || false,
             action_mode: actionMode,
             images: visionImages
-          })
-        });
-      }
+          });
+        } else {
+          // Legacy SSE path
+          await fetch(`/send/${this.sessionId}`, {
+            method: 'POST', headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              message: enrichedMsg,
+              provider: $('#provider-select').value,
+              model: $('#model-select').value,
+              preprompt: requestPreprompt,
+              active_project: active_project,
+              active_file: active_file,
+              rag_mode: window.ragMode || false,
+              action_mode: actionMode,
+              images: visionImages
+            })
+          });
+        }
       } catch (e) { toast(ICONS.x(14) + ' Send error'); this.sendBtn.disabled = false; }
     }
     addMsg(role, content, metadata) {
@@ -2120,7 +2120,7 @@
       if (!window.chat) return;
       const colEl = document.getElementById('col-' + oldStreamId);
       if (colEl) colEl.innerHTML = '<div style="color:var(--text-muted);font-style:italic;margin-top:8px;">⏳ Retrying...</div>';
-      
+
       try {
         const r = await fetch('/arena/send', {
           method: 'POST',
@@ -2136,12 +2136,12 @@
           const newStream = d.streams[0];
           // Remove old stream from window.arenaStreams
           window.arenaStreams = window.arenaStreams.filter(s => s.id !== oldStreamId);
-          
+
           const es = new EventSource(`/arena/stream/${newStream.stream_id}`);
           let text = '';
           const streamObj = { id: newStream.stream_id, es: es, model: newStream.model, provider: newStream.provider };
           window.arenaStreams.push(streamObj);
-          
+
           // Update the column ID so it matches the new stream ID
           colEl.id = 'col-' + newStream.stream_id;
           const footerEl = colEl.parentElement.querySelector('.arena-col-footer');
@@ -2150,22 +2150,22 @@
             footerEl.style.display = 'none';
             footerEl.innerHTML = '';
           }
-          
+
           let renderPending = false;
           let renderTimer = null;
-          
+
           es.onerror = () => {
             es.close();
             text += `\n\n❌ Connection error <br><button id="retry-${newStream.stream_id}" class="code-action-btn" style="margin-top:8px" onclick="OC.retryArenaStream('${newStream.stream_id}', '${newStream.model}', '${newStream.provider}')">${icon('refresh', 14)} Retry</button>`;
             colEl.innerHTML = renderMd(text);
           };
-          
+
           es.onmessage = e => {
             if (e.data === '[DONE]') {
               es.close();
               if (renderTimer) clearTimeout(renderTimer);
               let finalPreview = text;
-              
+
               let statsHtml = '';
               const statsRe = /__STATS__([\\s\\S]+?)__STATS__/;
               const statsMatch = finalPreview.match(statsRe);
@@ -2175,11 +2175,11 @@
                   streamObj.stats = stats;
                   statsHtml = `<div class="arena-stats" style="margin-top:16px; padding:12px; border-radius:var(--radius-sm); background:var(--bg-tertiary); font-size:12px; border:1px solid var(--border);">
                     <div style="display:flex; justify-content:space-between; margin-bottom:4px;">
-                      <span style="color:var(--text-muted)">⏱️ Temps de réponse</span>
+                      <span style="color:var(--text-muted)">Response Time</span>
                       <strong>${stats.time}s</strong>
                     </div>
                     <div style="display:flex; justify-content:space-between; margin-bottom:4px;">
-                      <span style="color:var(--text-muted)"> Tokens E/S</span>
+                      <span style="color:var(--text-muted)">Tokens E/S</span>
                       <strong>${stats.tokens}</strong>
                     </div>
                     <div style="display:flex; justify-content:space-between;">
@@ -2204,7 +2204,7 @@
                 renderPending = false;
                 renderTimer = null;
                 let preview = text;
-                
+
                 let statsHtml = '';
                 const statsRe = /__STATS__([\\s\\S]+?)__STATS__/;
                 const statsMatch = preview.match(statsRe);
@@ -2214,11 +2214,11 @@
                     streamObj.stats = stats;
                     statsHtml = `<div class="arena-stats" style="margin-top:16px; padding:12px; border-radius:var(--radius-sm); background:var(--bg-tertiary); font-size:12px; border:1px solid var(--border);">
                       <div style="display:flex; justify-content:space-between; margin-bottom:4px;">
-                        <span style="color:var(--text-muted)">⏱️ Temps de réponse</span>
+                        <span style="color:var(--text-muted)">Response Time</span>
                         <strong>${stats.time}s</strong>
                       </div>
                       <div style="display:flex; justify-content:space-between; margin-bottom:4px;">
-                        <span style="color:var(--text-muted)"> Tokens E/S</span>
+                        <span style="color:var(--text-muted)">Tokens E/S</span>
                         <strong>${stats.tokens}</strong>
                       </div>
                       <div style="display:flex; justify-content:space-between;">
@@ -2372,7 +2372,7 @@
       const b = document.getElementById(id); if (!b) return;
       const c = b.querySelector('code');
       const text = c ? c.textContent : b.textContent;
-      
+
       const fallbackCopy = (text) => {
         const textArea = document.createElement("textarea");
         textArea.value = text;
@@ -2417,11 +2417,11 @@
       if (overlay && overlay.classList.contains('open')) {
         const iframe = document.getElementById('preview-iframe');
         if (iframe && iframe.src) {
-           const urlObj = new URL(iframe.src, window.location.origin);
-           const currentPath = urlObj.searchParams.get('path');
-           if (!path || currentPath === path) {
-             iframe.src = '/workspace/file-raw?path=' + encodeURIComponent(currentPath) + '&_t=' + new Date().getTime();
-           }
+          const urlObj = new URL(iframe.src, window.location.origin);
+          const currentPath = urlObj.searchParams.get('path');
+          if (!path || currentPath === path) {
+            iframe.src = '/workspace/file-raw?path=' + encodeURIComponent(currentPath) + '&_t=' + new Date().getTime();
+          }
         }
       }
     },
@@ -3738,7 +3738,7 @@
           $('#preview-close').addEventListener('click', () => overlay.classList.remove('open'));
         }
         $('#preview-title').textContent = 'Preview: ' + path;
-        
+
         // Add timestamp to prevent caching
         const ts = new Date().getTime();
         $('#preview-iframe').src = '/workspace/file-raw?path=' + encodeURIComponent(path) + '&_t=' + ts;
@@ -4583,7 +4583,7 @@
           edPickerDrop.classList.remove('open');
         }
       });
-      
+
       // Update editor label if provider select changes elsewhere
       $('#provider-select').addEventListener('change', () => {
         renderEditorModelPicker();
@@ -4644,7 +4644,7 @@
           const streamKeys = Object.keys(responses);
           const total = streamKeys.length;
           let completed = 0;
-          
+
           if (total === 0) {
             toast('No models to evaluate.');
             btn.textContent = 'Ask AI to Judge';
@@ -4694,9 +4694,9 @@
                     model: $('#model-select').value
                   })
                 });
-                
+
                 let d = {};
-                try { d = await r.json(); } catch(e) {}
+                try { d = await r.json(); } catch (e) { }
 
                 if (r.ok && d.ratings && Object.keys(d.ratings).length > 0) {
                   const info = d.ratings[s_id];
@@ -4724,7 +4724,7 @@
             if (lastInfo) {
               const streamObj = window.arenaStreams.find(s => s.id === s_id);
               if (streamObj) streamObj.eval = lastInfo;
-              
+
               const footerEl = document.getElementById(`footer-${s_id}`);
               if (footerEl) {
                 footerEl.style.display = 'block';
@@ -4752,13 +4752,13 @@
             toast('Some evaluations encountered errors. Check individual columns.');
           }
           btn.textContent = 'Evaluation Complete';
-          
+
           setTimeout(() => {
             if (progressContainer) progressContainer.style.display = 'none';
             btn.disabled = false;
             btn.textContent = 'Ask AI to Judge';
           }, 3000);
-          
+
         } catch (err) {
           toast('Evaluation error: ' + err.message);
           btn.textContent = 'Ask AI to Judge';
@@ -4769,7 +4769,7 @@
       if (e.target && e.target.closest('#arena-export-btn')) {
         const exportExcel = () => {
           const wsData = [['Modèle', 'Provider', 'Requête', 'Temps (s)', 'Tokens', 'TPS', 'Score / 10', 'Justification']];
-          
+
           if (window.arenaStreams) {
             window.arenaStreams.forEach(s => {
               const m = window.arenaSelectedModels.find(mod => mod.model === s.model && mod.provider === s.provider) || s;
@@ -4784,7 +4784,7 @@
               wsData.push([modelName, provider, prompt, time, tokens, tps, score, rationale]);
             });
           }
-          
+
           const wb = XLSX.utils.book_new();
           const ws = XLSX.utils.aoa_to_sheet(wsData);
           XLSX.utils.book_append_sheet(wb, ws, "Arena Results");
@@ -5472,7 +5472,7 @@
 
   // ---- RAG Profil management ----
 
-  window.loadRagProfiles = async function() {
+  window.loadRagProfiles = async function () {
     try {
       const r = await fetch('/api/rag-profiles');
       const d = await r.json();
@@ -5486,7 +5486,7 @@
             Open ${escHtml(p)}
           </button>
         `).join('');
-        
+
         container.querySelectorAll('.rag-profile-btn').forEach(btn => {
           btn.addEventListener('click', async () => {
             await openRagProfilEditor(btn.dataset.profile);
@@ -5652,9 +5652,12 @@
           container.appendChild(canvas);
           new Chart(canvas.getContext('2d'), {
             type: chartType, data: { labels: config.labels || [], datasets },
-            options: { responsive: true, maintainAspectRatio: false,
-              plugins: { title: { display: !!config.title, text: config.title || '', color: '#e1e5eb' },
-                legend: { labels: { color: '#9ca3af' } } },
+            options: {
+              responsive: true, maintainAspectRatio: false,
+              plugins: {
+                title: { display: !!config.title, text: config.title || '', color: '#e1e5eb' },
+                legend: { labels: { color: '#9ca3af' } }
+              },
               scales: isPie ? {} : {
                 x: { ticks: { color: '#9ca3af' }, grid: { color: 'rgba(255,255,255,0.06)' } },
                 y: { ticks: { color: '#9ca3af' }, grid: { color: 'rgba(255,255,255,0.06)' }, beginAtZero: true }

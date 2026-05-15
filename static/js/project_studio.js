@@ -31,7 +31,7 @@
       $('#proj-btn-save-name')?.addEventListener('click', () => {
         this.saveProject();
         $('#proj-btn-save-name').style.display = 'none';
-        toast(ICONS.check(14) + ' Nom du projet appliqué');
+        toast(ICONS.check(14) + ' Project name applied');
       });
       // Import TXT
       $('#proj-btn-import-txt')?.addEventListener('click', () => {

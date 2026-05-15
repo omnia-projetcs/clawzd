@@ -105,13 +105,13 @@ class PresentationStudio {
       }
     });
     const closeAllBrowsers = () => {
-      ['presentation-gallery-browser', 'presentation-library-browser', 
-       'presentation-illustrations-browser', 'presentation-stock-browser',
-       'presentation-templates-browser', 'presentation-saved-browser',
-       'presentation-docgen-browser'].forEach(id => {
-         const el = $('#' + id);
-         if (el) el.style.display = 'none';
-      });
+      ['presentation-gallery-browser', 'presentation-library-browser',
+        'presentation-illustrations-browser', 'presentation-stock-browser',
+        'presentation-templates-browser', 'presentation-saved-browser',
+        'presentation-docgen-browser'].forEach(id => {
+          const el = $('#' + id);
+          if (el) el.style.display = 'none';
+        });
     };
 
     $('#pt-add-text')?.addEventListener('click', () => this.addElement('text', 'Double click to edit'));
@@ -1925,13 +1925,13 @@ class PresentationStudio {
         btn.className = 'presentation-template-tile';
         btn.style.position = 'relative';
         btn.style.cursor = 'pointer';
-        
+
         // Simple visual preview using the theme colors
         const colors = t.colors || {};
         const bg = colors.bg || '#000';
         const accent = colors.accent || '#fff';
         const surface = colors.surface || '#222';
-        
+
         btn.innerHTML = `
            <div style="width:100%; height:80px; background:${bg}; border-radius:4px; margin-bottom:4px; position:relative; overflow:hidden; border:1px solid var(--border)">
              <div style="position:absolute; top:10%; left:10%; width:80%; height:20%; background:${accent}; opacity:0.8; border-radius:2px;"></div>
@@ -1942,15 +1942,15 @@ class PresentationStudio {
              <strong style="font-size:11px;">${t.title}</strong>
            </div>
          `;
-         
+
         btn.onclick = async () => {
           const isEmpty = this.pages.length === 0 || (this.pages.length === 1 && this.pages[0].elements.length === 0);
           let mode = 'replace';
           if (!isEmpty) {
-            const action = confirm('Cliquez sur OK pour REMPLACER vos slides actuels par ce template.\nCliquez sur Annuler pour AJOUTER ces slides à votre présentation actuelle.');
+            const action = confirm('Click OK to REPLACE your current slides with this template.\nClick Cancel to ADD these slides to your current presentation.');
             mode = action ? 'replace' : 'add';
           }
-          
+
           try {
             const lr = await fetch(`/presentation/template/${t.id}`);
             if (lr.ok) {
@@ -1980,10 +1980,10 @@ class PresentationStudio {
               this.renderPages();
               this.renderCanvas();
 
-              toast(mode === 'replace' ? ' Template chargé!' : ' Slides ajoutés!');
+              toast(mode === 'replace' ? ' Template loaded!' : ' Slides added!');
             }
           } catch (e) {
-            toast(' Échec du chargement du template', 4000);
+            toast(' Template loading failed', 4000);
           }
         };
         list.appendChild(btn);
@@ -2683,10 +2683,10 @@ class PresentationStudio {
     const statusEl = $('#pt-tpl-linkedin-status');
     const url = (urlInput?.value || '').trim();
     if (!url || !url.includes('linkedin.com')) {
-      toast(ICONS.circle(14) + ' Veuillez entrer une URL LinkedIn valide');
+      toast(ICONS.circle(14) + ' Please enter a valid LinkedIn URL');
       return;
     }
-    if (statusEl) { statusEl.style.display = ''; statusEl.innerHTML = '⏳ Récupération du profil LinkedIn...'; }
+    if (statusEl) { statusEl.style.display = ''; statusEl.innerHTML = '⏳ Fetching LinkedIn profile...'; }
     const fetchBtn = $('#pt-tpl-linkedin-fetch');
     if (fetchBtn) { fetchBtn.disabled = true; fetchBtn.textContent = '⏳...'; }
     try {
@@ -2714,10 +2714,10 @@ class PresentationStudio {
         previewEl.innerHTML = html;
         previewGrp.style.display = '';
       }
-      if (statusEl) { statusEl.innerHTML = '✅ Profil LinkedIn importé avec succès'; }
-      toast('✅ Profil LinkedIn importé !');
+      if (statusEl) { statusEl.innerHTML = '✅ LinkedIn profile imported successfully'; }
+      toast('✅ LinkedIn profile imported !');
     } catch (e) {
-      if (statusEl) { statusEl.innerHTML = `❌ Erreur: ${e.message}`; }
+      if (statusEl) { statusEl.innerHTML = `❌ Error: ${e.message}`; }
       toast('❌ ' + e.message);
     } finally {
       if (fetchBtn) { fetchBtn.disabled = false; fetchBtn.textContent = '🔍 Fetch'; }
@@ -2774,9 +2774,9 @@ class PresentationStudio {
       }
       const data = await resp.json();
       if (!resp.ok) throw new Error(data.detail || 'Generation failed');
-      toast(`✅ ${this.templateSubMode === 'business_card' ? 'Carte de visite' : 'CV'} généré !`);
+      toast(`✅ ${this.templateSubMode === 'business_card' ? 'Business Card' : 'CV'} generated !`);
       if (data.seo_keywords?.length) {
-        toast(`🏷️ Mots-clés SEO: ${data.seo_keywords.slice(0, 5).join(', ')}`, 5000);
+        toast(`🏷️ SEO keywords: ${data.seo_keywords.slice(0, 5).join(', ')}`, 5000);
       }
       if (data.presentation) {
         this.pages = data.presentation.pages;
@@ -2854,7 +2854,7 @@ class PresentationStudio {
 
     // Request fullscreen
     const docEl = document.documentElement;
-    if (docEl.requestFullscreen) docEl.requestFullscreen().catch(() => {});
+    if (docEl.requestFullscreen) docEl.requestFullscreen().catch(() => { });
     else if (docEl.webkitRequestFullscreen) docEl.webkitRequestFullscreen();
 
     // Bind events
@@ -2903,7 +2903,7 @@ class PresentationStudio {
 
     // Exit fullscreen
     if (document.fullscreenElement) {
-      document.exitFullscreen().catch(() => {});
+      document.exitFullscreen().catch(() => { });
     } else if (document.webkitFullscreenElement) {
       document.webkitExitFullscreen();
     }
@@ -3071,11 +3071,11 @@ class PresentationStudio {
           shape.setAttribute('ry', el.height / 2 - sw);
         } else if (st === 'triangle') {
           shape = document.createElementNS(svgNS, 'polygon');
-          shape.setAttribute('points', `${el.width/2},${sw} ${el.width-sw},${el.height-sw} ${sw},${el.height-sw}`);
+          shape.setAttribute('points', `${el.width / 2},${sw} ${el.width - sw},${el.height - sw} ${sw},${el.height - sw}`);
         } else {
           shape = document.createElementNS(svgNS, 'rect');
-          shape.setAttribute('x', sw/2);
-          shape.setAttribute('y', sw/2);
+          shape.setAttribute('x', sw / 2);
+          shape.setAttribute('y', sw / 2);
           shape.setAttribute('width', el.width - sw);
           shape.setAttribute('height', el.height - sw);
           shape.setAttribute('rx', el.borderRadius || 0);

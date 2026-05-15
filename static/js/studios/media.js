@@ -131,7 +131,7 @@ class MediaStudio {
             player.src = data.url;
             preview.style.display = 'block';
           }
-          toast(ICONS.check(14) + ' Échantillon vocal chargé');
+          toast(ICONS.check(14) + ' Voice sample loaded');
         } catch (err) {
           toast(ICONS.x(14) + ' Upload failed: ' + err.message);
         } finally {
@@ -287,7 +287,7 @@ class MediaStudio {
           this.closeLightbox();
           this.useImageAsVideoSource(item);
         } else {
-          toast(ICONS.circle(14) + ' Sélectionnez une image statique (PNG/JPG) pour Image→Vidéo');
+          toast(ICONS.circle(14) + ' Select a static image (PNG/JPG) for Image→Video');
         }
       }
     });
@@ -865,7 +865,7 @@ class MediaStudio {
       const actions = el('div', { class: 'media-card-actions' });
       actions.innerHTML = `
         ${isStaticImage ? `<button class="media-card-action-btn" title="Create Variation (Image-to-Image)" data-action="variant">${window.icon ? window.icon('wand', 16) : ''}</button>` : ''}
-        ${isStaticImage ? `<button class="media-card-action-btn i2v" title="Générer une vidéo depuis cette image" data-action="i2v">${window.icon ? window.icon('video', 16) : '🎬'}</button>` : ''}
+        ${isStaticImage ? `<button class="media-card-action-btn i2v" title="Generate a video from this image" data-action="i2v">${window.icon ? window.icon('video', 16) : '🎬'}</button>` : ''}
         <button class="media-card-action-btn" title="Download" data-action="download">${window.icon ? window.icon('download', 16) : ''}</button>
         <button class="media-card-action-btn delete" title="Delete" data-action="delete">${window.icon ? window.icon('trash', 16) : ''}</button>`;
       actions.addEventListener('click', e => {
@@ -1279,7 +1279,7 @@ class MediaStudio {
       }
     } catch (e) {
       if (e.name === 'AbortError') {
-        toast((window.icon ? window.icon('x', 14) : '❌') + ' Génération annulée');
+        toast((window.icon ? window.icon('x', 14) : '❌') + ' Generation cancelled');
       } else {
         toast(' Generation failed: ' + e.message);
       }
@@ -1515,11 +1515,11 @@ class MediaStudio {
   async convertVideo(targetFormat) {
     const files = [...this.selected];
     if (files.length === 0) {
-      toast((window.icon ? window.icon('circle', 14) : '⚪') + ' Sélectionnez une vidéo ou un GIF à convertir');
+      toast((window.icon ? window.icon('circle', 14) : '⚪') + ' Select a video or GIF to convert');
       return;
     }
     if (files.length > 1) {
-      toast((window.icon ? window.icon('circle', 14) : '⚪') + ' Veuillez sélectionner un seul fichier à convertir');
+      toast((window.icon ? window.icon('circle', 14) : '⚪') + ' Please select a single file to convert');
       return;
     }
     const filename = files[0];
@@ -1528,15 +1528,15 @@ class MediaStudio {
     const isWebm = filename.toLowerCase().endsWith('.webm');
 
     if (!isGif && !isMp4 && !isWebm) {
-      toast((window.icon ? window.icon('x', 14) : '❌') + " Le fichier sélectionné n'est ni un GIF ni une vidéo");
+      toast((window.icon ? window.icon('x', 14) : '❌') + " The selected file is neither a GIF nor a video");
       return;
     }
     if (filename.toLowerCase().endsWith(`.${targetFormat}`)) {
-      toast((window.icon ? window.icon('circle', 14) : '⚪') + ` Le fichier est déjà au format ${targetFormat.toUpperCase()}`);
+      toast((window.icon ? window.icon('circle', 14) : '⚪') + ` The file is already in ${targetFormat.toUpperCase()} format`);
       return;
     }
 
-    toast((window.icon ? window.icon('hourglass', 14) : '⏳') + ` Conversion de ${filename} en ${targetFormat.toUpperCase()}...`);
+    toast((window.icon ? window.icon('hourglass', 14) : '⏳') + ` Converting ${filename} to ${targetFormat.toUpperCase()}...`);
     try {
       const r = await fetch('/image/convert-video', {
         method: 'POST',
@@ -1544,13 +1544,13 @@ class MediaStudio {
         body: JSON.stringify({ filename, target_format: targetFormat })
       });
       const d = await r.json();
-      if (!r.ok) throw new Error(d.detail || 'Erreur du serveur');
+      if (!r.ok) throw new Error(d.detail || 'Server error');
 
-      toast((window.icon ? window.icon('check', 14) : '✅') + ' Conversion réussie !');
+      toast((window.icon ? window.icon('check', 14) : '✅') + ' Conversion successful !');
       this.selected.clear();
       await this.loadGallery();
     } catch (e) {
-      toast((window.icon ? window.icon('x', 14) : '❌') + ' Échec de la conversion : ' + e.message);
+      toast((window.icon ? window.icon('x', 14) : '❌') + ' Conversion failed: ' + e.message);
     }
   }
 
@@ -1701,7 +1701,7 @@ class MediaStudio {
   useImageAsVideoSource(item) {
     // Guard: only static raster images
     if (item.isAudio || item.isVideo || item.isSvg) {
-      toast(ICONS.circle(14) + ' Sélectionnez une image statique (PNG/JPG) pour Img→Vidéo');
+      toast(ICONS.circle(14) + ' Select a static image (PNG/JPG) for Image→Video');
       return;
     }
 
@@ -1737,7 +1737,7 @@ class MediaStudio {
     const sidebar = document.querySelector('.media-sidebar');
     if (sidebar) sidebar.scrollTop = 0;
 
-    toast(`${ICONS.sparkles(14)} Image importée comme source vidéo (${videoModelSel?.options[videoModelSel?.selectedIndex]?.text || 'CogVideoX'}) — cliquez Générer`);
+    toast(`${ICONS.sparkles(14)} Image imported as video source (${videoModelSel?.options[videoModelSel?.selectedIndex]?.text || 'CogVideoX'}) — click Generate`);
   }
 }
 
