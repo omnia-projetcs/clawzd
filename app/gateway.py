@@ -2328,6 +2328,7 @@ async def arena_send(request: Request):
                 if p_key in ("ollama", "local"):
                     # Execute sequentially to prevent VRAM thrashing and timeouts on remote Ollama servers
                     async with _ollama_arena_lock:
+                        await _unload_all_ollama_models()
                         await do_stream()
                 else:
                     await do_stream()
