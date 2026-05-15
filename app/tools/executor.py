@@ -1721,7 +1721,57 @@ def parse_tool_calls(text: str) -> list[dict]:
     if not calls:
         calls.extend(_parse_bare_tool_calls(text, matched_spans))
 
+    # --- Fallback: scan for XML-style tool calls ---
+    # Some models (especially Claude, Gemini, Qwen) emit XML-like tags:
+    # <read_file><file_path>...</file_path></read_file>
+    if not calls:
+        calls.extend(_parse_xml_tool_calls(text, matched_spans))
+
     return calls
+
+
+def _parse_xml_tool_calls(text: str, exclude_spans: list[tuple[int, int]]) -> list[dict]:
+    """Fallback parser for tool calls emitted as XML/HTML tags.
+    Matches: <tool_name><param1>value</param1></tool_name>
+    """
+    import re as _re
+    results = []
+    # Search for <tool_name> ... </tool_name>
+    xml_pattern = _re.compile(rf"<({_TOOL_FENCE_NAMES})>([\s\S]*?)</\1>", _re.IGNORECASE)
+    
+    for match in xml_pattern.finditer(text):
+        start = match.start()
+        # Skip if inside an already-matched fenced block
+        if any(s <= start < e for s, e in exclude_spans):
+            continue
+            
+        tool_name = match.group(1).lower().strip()
+        args_text = match.group(2).strip()
+        
+        # Parse XML arguments: <key>value</key>
+        arg_pattern = _re.compile(r"<([^>]+)>([\s\S]*?)</\1>")
+        params = {}
+        for arg_match in arg_pattern.finditer(args_text):
+            params[arg_match.group(1).strip()] = arg_match.group(2).strip()
+            
+        if not params and args_text:
+            # If no tags, maybe it's just raw text (like for run_command)
+            if tool_name == "execute_python":
+                params = {"code": args_text}
+            elif tool_name == "run_command":
+                params = {"command": args_text}
+            else:
+                params = {"query": args_text}
+                
+        results.append({
+            "tool": tool_name,
+            "params": params,
+            "raw": match.group(0),
+        })
+        from app.utils.logger import logger
+        logger.info("XML tool call detected: %s (%d chars)", tool_name, len(match.group(0)))
+        
+    return results
 
 
 def _parse_bare_tool_calls(text: str, exclude_spans: list[tuple[int, int]]) -> list[dict]:

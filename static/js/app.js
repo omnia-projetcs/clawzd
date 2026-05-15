@@ -535,6 +535,20 @@
       );
     });
 
+    // XML Tool blocks — render as collapsible "Thinking..." sections
+    const xmlToolNames = 'read_file|write_file|edit_file|execute_python|search_web|screenshot_remote|screenshot_local|generate_image|run_command|browse_web|audit_code|rag_search|create_app|update_app|analyze_data|fetch_market_data';
+    const xmlToolRe = new RegExp(`&lt;(${xmlToolNames})&gt;([\\s\\S]*?)&lt;\\/\\1&gt;`, 'gi');
+    h = h.replace(xmlToolRe, (match, toolName, content) => {
+      const safeContent = content; // already escaped by escHtml
+      const detailContent = `<pre style="margin:8px 0;background:var(--bg-primary);border:1px solid var(--border);border-radius:var(--radius-sm);padding:12px;overflow-x:auto;"><code class="language-xml">${safeContent}</code></pre>`;
+      return ph(
+        `<details class="tool-thinking">` +
+        `<summary> <em>Thinking… </em><span class="tool-thinking-label">${escHtml(toolName.toLowerCase())}</span></summary>` +
+        detailContent +
+        `</details>`
+      );
+    });
+
     // Terminal output details
     h = h.replace(/__DETAILS__([\s\S]*?)__DETAILS__/g, (_, content) => {
       return ph(`<details class="tool-thinking"><summary>Terminal Output</summary><pre style="margin:8px 0;background:var(--bg-primary);border:1px solid var(--border);border-radius:var(--radius-sm);padding:12px;overflow-x:auto;"><code>${content.trim()}</code></pre></details>`);
