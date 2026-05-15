@@ -21,6 +21,15 @@ echo ""
 echo "--- Pulling latest changes ---"
 git pull origin main 2>&1 || echo "WARNING: git pull failed (not a git repo or no remote)"
 
+# --- System dependencies ---
+echo ""
+echo "--- Updating System Dependencies ---"
+if command -v apt-get &> /dev/null; then
+    if command -v sudo &> /dev/null; then
+        sudo apt-get update && sudo apt-get install -y espeak espeak-data libespeak-dev ffmpeg || true
+    fi
+fi
+
 # --- Reinstall dependencies ---
 echo ""
 echo "--- Updating Python dependencies ---"

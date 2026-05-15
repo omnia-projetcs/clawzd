@@ -457,6 +457,88 @@ async def _generate_tts(text, voice_style="female_soft", language="auto", durati
     return audio, sample_rate
 
 
+def _generate_tts_pyttsx3_sync(text, voice_style="female_soft", language="auto", duration_max=300):
+    """Sync function to run pyttsx3 generation."""
+    import pyttsx3
+    import tempfile
+    import os
+    import numpy as np
+    import scipy.io.wavfile as wav
+
+    engine = pyttsx3.init()
+    engine.setProperty("rate", 150)
+    engine.setProperty("volume", 1.0)
+
+    lang_code = "fr" if language == "auto" else language
+
+    # Select voice
+    voices = engine.getProperty("voices")
+    chosen = None
+    for v in voices:
+        ident = (v.id + " " + (v.name or "")).lower()
+        if lang_code.lower() in ident:
+            chosen = v.id
+            break
+
+    if chosen:
+        engine.setProperty("voice", chosen)
+
+    # Adjust voice style using espeak variants
+    current_voice = engine.getProperty("voice")
+    if current_voice and "espeak" in current_voice.lower():
+        base_voice = current_voice.split("+")[0]
+        if "female" in voice_style:
+            if "soft" in voice_style:
+                engine.setProperty("voice", f"{base_voice}+f2")
+            else:
+                engine.setProperty("voice", f"{base_voice}+f4")
+        elif "male" in voice_style:
+            if "deep" in voice_style:
+                engine.setProperty("voice", f"{base_voice}+m1")
+                engine.setProperty("rate", 130)
+            else:
+                engine.setProperty("voice", f"{base_voice}+m3")
+        elif "child" in voice_style:
+            engine.setProperty("voice", f"{base_voice}+m6")  # m6 is often used for high pitch/child
+
+    with tempfile.NamedTemporaryFile(suffix=".wav", delete=False) as tmp:
+        tmp_path = tmp.name
+
+    try:
+        engine.save_to_file(text, tmp_path)
+        engine.runAndWait()
+
+        if not os.path.exists(tmp_path) or os.path.getsize(tmp_path) == 0:
+            raise RuntimeError("pyttsx3 failed to generate audio file.")
+
+        sample_rate, audio = wav.read(tmp_path)
+
+        if len(audio.shape) > 1:
+            audio = audio.mean(axis=1)
+
+        if audio.dtype == np.int16:
+            audio = audio.astype(np.float32) / 32767.0
+        elif audio.dtype == np.int32:
+            audio = audio.astype(np.float32) / 2147483648.0
+
+        max_samples = int(duration_max * sample_rate)
+        if len(audio) > max_samples:
+            audio = audio[:max_samples]
+
+        return audio, sample_rate
+
+    finally:
+        if os.path.exists(tmp_path):
+            os.remove(tmp_path)
+
+async def _generate_tts_pyttsx3(text, voice_style="female_soft", language="auto", duration_max=300):
+    import asyncio
+    loop = asyncio.get_running_loop()
+    # Run in executor to prevent blocking the async loop
+    return await loop.run_in_executor(None, _generate_tts_pyttsx3_sync, text, voice_style, language, duration_max)
+
+
+
 def _denoise_audio(audio, sample_rate, strength=0.02):
     """Light noise-gate + high-pass filter to remove crackling / hiss.
 
@@ -731,6 +813,9 @@ async def generate_audio(request: Request):
             }
             if tts_engine == "bark":
                 audio, sr = await _generate_tts_bark(text, voice_style, language)
+                _audio_generation_progress["progress"] = 80.0
+            elif tts_engine == "pyttsx3":
+                audio, sr = await _generate_tts_pyttsx3(text, voice_style, language, duration)
                 _audio_generation_progress["progress"] = 80.0
             else:
                 audio, sr = await _generate_tts(text, voice_style, language, duration)
