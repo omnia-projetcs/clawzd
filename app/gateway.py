@@ -1575,6 +1575,31 @@ async def _process_chat(session_id: str, data: dict) -> dict:
                             await queue.put(edit_marker)
                             full_conversation += edit_marker
 
+                        # If an apply_patch tool modified files, emit file edit markers
+                        # so the frontend IDE can refresh and open the modified files.
+                        if (resolved or tool_name) == "apply_patch" and result.get("success"):
+                            try:
+                                import json as _json
+                                ops = result.get("operations") or []
+                                for op in ops:
+                                    # prefer 'target' (new path) then 'path'
+                                    p = op.get('target') or op.get('path') or op.get('file')
+                                    if not p:
+                                        continue
+                                    edit_data = {
+                                        "path": p,
+                                        "diff": op.get("diff", ""),
+                                        "lines_added": op.get("lines_added", 0),
+                                        "lines_removed": op.get("lines_removed", 0),
+                                        "lines_changed": op.get("lines_changed", 0),
+                                        "show_diff": False,
+                                    }
+                                    edit_marker = f"\n\n__FILE_EDIT__{_json.dumps(edit_data)}__\n\n"
+                                    await queue.put(edit_marker)
+                                    full_conversation += edit_marker
+                            except Exception:
+                                pass
+
                         # TodoWrite: broadcast plan update to frontend in real-time.
                         # NOTE: The marker is SSE-only — do NOT add to full_conversation
                         # to prevent it from being persisted in chat history.
