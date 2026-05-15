@@ -67,10 +67,14 @@
     // Handle inline tool approval requests (HITL)
     h = h.replace(/__TOOL_APPROVAL__([\s\S]+?)__TOOL_APPROVAL__/g, (m, content) => {
       try {
-        if (window.toolApproval) window.toolApproval._show(JSON.parse(content));
+        const raw = content.replace(/&amp;/g, '&').replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&quot;/g, '"');
+        if (window.toolApproval) window.toolApproval._show(JSON.parse(raw));
       } catch (e) {}
       return '';
     });
+
+    // Hide unclosed tool approval blocks during streaming
+    h = h.replace(/__TOOL_APPROVAL__([\s\S]*)$/g, '');
 
     // Remove internal markers
     h = h.replace(/__FILE_EDIT__({.+?})__/g, '');
