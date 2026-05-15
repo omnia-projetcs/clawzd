@@ -2415,13 +2415,15 @@ async def arena_evaluate(request: Request):
     data = await request.json()
     prompt = data.get("prompt", "")
     responses = data.get("responses", {})  # dict of stream_id -> text
-    provider_key = data.get("provider", "local")
-    model_key = data.get("model", "")
+    
+    from config import LLM_PROVIDER
+    provider_key = LLM_PROVIDER
+    provider = get_llm_provider(provider_key)
+    model_key = getattr(provider, "default_model", "")
     
     if not prompt or not responses:
         raise HTTPException(400, "Prompt and responses required")
         
-    provider = get_llm_provider(provider_key)
     kwargs = {}
     if model_key:
         kwargs["model"] = model_key
