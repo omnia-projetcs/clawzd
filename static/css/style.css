@@ -2480,11 +2480,12 @@ pre code .ln::before {
   border-top: 1px solid var(--border);
   display: flex; flex-direction: column;
   min-height: 32px; height: 180px;
-  overflow: hidden;
+  overflow: visible;
   transition: none;
   position: relative;
+  z-index: 20;
 }
-.editor-terminal.collapsed { height: 32px !important; }
+.editor-terminal.collapsed { height: 32px !important; overflow: hidden; }
 .editor-terminal-resize {
   position: absolute; top: -3px; left: 0; right: 0; height: 6px;
   cursor: ns-resize; z-index: 5;

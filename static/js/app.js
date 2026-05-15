@@ -549,6 +549,19 @@
       );
     });
 
+    // Unclosed (streaming) XML Tool blocks
+    const xmlToolStreamingRe = new RegExp(`&lt;(${xmlToolNames})&gt;([\\s\\S]*)$`, 'i');
+    h = h.replace(xmlToolStreamingRe, (match, toolName, content) => {
+      const safeContent = content; // already escaped by escHtml
+      const detailContent = `<pre style="margin:8px 0;background:var(--bg-primary);border:1px solid var(--border);border-radius:var(--radius-sm);padding:12px;overflow-x:auto;"><code class="language-xml">${safeContent}</code></pre>`;
+      return ph(
+        `<details class="tool-thinking" open>` +
+        `<summary> <em>Thinking… </em><span class="tool-thinking-label">${escHtml(toolName.toLowerCase())}</span></summary>` +
+        detailContent +
+        `</details>`
+      );
+    });
+
     // Terminal output details
     h = h.replace(/__DETAILS__([\s\S]*?)__DETAILS__/g, (_, content) => {
       return ph(`<details class="tool-thinking"><summary>Terminal Output</summary><pre style="margin:8px 0;background:var(--bg-primary);border:1px solid var(--border);border-radius:var(--radius-sm);padding:12px;overflow-x:auto;"><code>${content.trim()}</code></pre></details>`);

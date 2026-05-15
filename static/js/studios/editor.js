@@ -913,7 +913,7 @@ class EditorMode {
   _autoSaveTimer = null;
   _hlTimer = null;
   _acCursorPos = -1; // cursor position when autocomplete was triggered
-  _acEnabled = true; // can be toggled
+  _acEnabled = false; // disabled by default per user request
 
   _clearGhost() {
     this._ghostText = '';
