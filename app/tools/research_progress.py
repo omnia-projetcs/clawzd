@@ -128,15 +128,15 @@ class ResearchProgress:
 
 def _default_phase_label(phase: str) -> str:
     labels = {
-        ResearchPhase.BRIEF:        "📋 Génération du brief de recherche...",
-        ResearchPhase.PERSPECTIVES: "🔭 Décomposition des perspectives (STORM)...",
-        ResearchPhase.PARALLEL:     "🔬 Recherche parallèle multi-perspectives...",
-        ResearchPhase.SEARCH:       "🔍 Recherche itérative...",
-        ResearchPhase.EVALUATE:     "📊 Évaluation multi-critères...",
-        ResearchPhase.REFLECT:      "🪞 Réflexion stratégique...",
-        ResearchPhase.CONDENSE:     "🗜️ Condensation du contexte...",
-        ResearchPhase.REPORT:       "✍️ Génération du rapport final...",
-        ResearchPhase.DONE:         "✅ Recherche terminée",
+        ResearchPhase.BRIEF:        "📋 Generating research brief...",
+        ResearchPhase.PERSPECTIVES: "🔭 Decomposing perspectives (STORM)...",
+        ResearchPhase.PARALLEL:     "🔬 Parallel multi-perspective research...",
+        ResearchPhase.SEARCH:       "🔍 Iterative research...",
+        ResearchPhase.EVALUATE:     "📊 Multi-criteria evaluation...",
+        ResearchPhase.REFLECT:      "🪞 Strategic reflection...",
+        ResearchPhase.CONDENSE:     "🗜️ Condensing context...",
+        ResearchPhase.REPORT:       "✍️ Generating final report...",
+        ResearchPhase.DONE:         "✅ Research complete",
     }
     return labels.get(phase, phase)
 

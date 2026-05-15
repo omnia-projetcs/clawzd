@@ -1492,7 +1492,7 @@ async def _process_chat(session_id: str, data: dict) -> dict:
                             if snippet:
                                 search_lines.append(f"   {snippet}")
                         search_md = "\n".join(search_lines)
-                        search_preview = f"\n\n✅ **{len(search_items)} résultat(s) trouvé(s) :**\n\n{search_md}\n\n"
+                        search_preview = f"\n\n✅ **{len(search_items)} result(s) found:**\n\n{search_md}\n\n"
                         await queue.put(search_preview)
                         full_conversation += search_preview
                         _active_generations[session_id] = full_conversation
@@ -2449,7 +2449,7 @@ async def arena_evaluate(request: Request):
                 
                 if parse_success and isinstance(parsed, dict):
                     # Look for variations of keys
-                    score_val = parsed.get("score", parsed.get("Score", parsed.get("note", parsed.get("Note", parsed.get("évaluation", parsed.get("evaluation"))))))
+                    score_val = parsed.get("score", parsed.get("Score", parsed.get("note", parsed.get("Note", parsed.get("rating", parsed.get("rating"))))))
                     rationale_val = parsed.get("rationale", parsed.get("Rationale", parsed.get("justification", parsed.get("Justification", parsed.get("explanation", parsed.get("reasoning"))))))
                     
                     if score_val is None and "ratings" in parsed and isinstance(parsed["ratings"], dict):
@@ -2495,12 +2495,12 @@ async def arena_evaluate(request: Request):
                 if score_val == "-":
                     error_flag = True
                     if not rationale_val or rationale_val == "..." or rationale_val.strip() == "":
-                        rationale_val = "Le modèle n'a pas pu évaluer la réponse (format illisible)."
+                        rationale_val = "The model was unable to evaluate the response (unreadable format)."
                     
                 final_ratings[s_id] = {"score": score_val, "rationale": str(rationale_val).strip(), "error": error_flag}
             except Exception as e:
                 logger.error("Arena evaluation error for %s: %s. Last Response: %s", s_id, e, locals().get('result_text', ''))
-                final_ratings[s_id] = {"score": "-", "rationale": f"Erreur de génération : {str(e)[:150]}", "error": True}
+                final_ratings[s_id] = {"score": "-", "rationale": f"Generation error: {str(e)[:150]}", "error": True}
                 
         return {"ratings": final_ratings}
     except Exception as e:

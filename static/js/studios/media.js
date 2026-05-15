@@ -484,9 +484,9 @@ class MediaStudio {
     // Update text placeholder based on sub-mode
     const audioText = $('#media-audio-text');
     if (audioText && isAudio) {
-      if (isTTS) audioText.placeholder = 'Entrez le texte à convertir en parole...';
-      else if (isClone) audioText.placeholder = 'Texte à dire avec la voix clonée...';
-      else if (isSong) audioText.placeholder = 'Paroles ou thème de la chanson...';
+      if (isTTS) audioText.placeholder = 'Enter the text you want to convert to speech...';
+      else if (isClone) audioText.placeholder = 'Enter the text you want to convert to speech...';
+      else if (isSong) audioText.placeholder = 'Enter the lyrics or theme of the song...';
     }
   }
 
@@ -616,7 +616,7 @@ class MediaStudio {
         try {
           await fetch(`/api/tasks/${task.id}/stop`, { method: 'POST' });
           if (window.toast) toast((window.icon ? window.icon('x', 14) : '❌') + ' Generation cancelled');
-        } catch (_) {}
+        } catch (_) { }
         this._finishResumedTask();
       };
     }
@@ -959,7 +959,7 @@ class MediaStudio {
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ task_id: '' }),
           });
-        } catch (_) {}
+        } catch (_) { }
         // Then abort the SSE connection client-side
         if (this._abortController) {
           this._abortController.abort();
@@ -1007,7 +1007,7 @@ class MediaStudio {
             }
           }
         } catch (e) { /* ignore check error */ }
-        
+
         // Always start the download progress poll just in case a partial download needs to complete
         this._hfDlPoll = setInterval(async () => {
           try {

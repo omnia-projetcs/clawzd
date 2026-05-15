@@ -1460,7 +1460,7 @@ async def _assemble_sectioned_report(
         {"role": "system", "content": (
             "Write a concise Executive Summary (200-300 words) for this research report. "
             "Highlight the 3-5 most important findings. Use bullet points. Be analytical. "
-            "Return plain Markdown, starting with '## Résumé Exécutif'."
+            "Return plain Markdown, starting with '## Executive Summary'."
         )},
         {"role": "user", "content": (
             f"Research topic: {query}\n\n"
@@ -1471,19 +1471,19 @@ async def _assemble_sectioned_report(
     try:
         exec_summary = await llm_call(exec_prompt, provider, model)
         if not exec_summary.strip().startswith("#"):
-            exec_summary = f"## Résumé Exécutif\n\n{exec_summary.strip()}"
+            exec_summary = f"## Executive Summary\n\n{exec_summary.strip()}"
     except Exception as e:
         logger.warning("Executive summary generation failed: %s", e)
-        exec_summary = f"## Résumé Exécutif\n\n*Rapport de recherche sur : {query}*"
+        exec_summary = f"## Executive Summary\n\n*Research report on: {query}*"
 
     word_count = sum(len(s.split()) for s in sections)
     metrics_table = {
-        "title": "Métriques de Recherche",
-        "headers": ["Métrique", "Valeur"],
+        "title": "Research Metrics",
+        "headers": ["Metric", "Value"],
         "rows": [
-            ["Score de qualité", f"{score:.0%}"],
-            ["Sections générées", str(len(sections))],
-            ["Sources collectées", str(len(numbered_sources))],
+            ["Quality Score", f"{score:.0%}"],
+            ["Sections Generated", str(len(sections))],
+            ["Sources Collected", str(len(numbered_sources))],
             ["Mots (~)", str(word_count)],
         ],
     }

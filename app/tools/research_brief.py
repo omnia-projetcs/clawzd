@@ -264,7 +264,7 @@ async def check_research_clarity(
             "question": data.get("question", ""),
             "verification": data.get(
                 "verification",
-                f"Démarrage de la recherche sur : {query[:80]}...",
+                f"Starting research on: {query[:80]}...",
             ),
         }
     except Exception as e:
@@ -272,5 +272,5 @@ async def check_research_clarity(
         return {
             "needs_clarification": False,
             "question": "",
-            "verification": f"Démarrage de la recherche sur : {query[:80]}...",
+            "verification": f"Starting research on: {query[:80]}...",
         }
