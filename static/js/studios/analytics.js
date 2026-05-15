@@ -323,18 +323,18 @@
     });
   }
 
-  // ---- Tool Savings Doughnut ----
+  // ---- Model Usage Doughnut ----
 
   function renderToolChart(data) {
     const ctx = $('#an-chart-tools');
     if (!ctx) return;
     const container = ctx.parentElement;
 
-    if (!data || !data.tools || !data.tools.length) {
+    if (!data || !data.models || !data.models.length) {
       if (toolChart) toolChart.destroy();
       ctx.style.display = 'none';
       if (!container.querySelector('.an-empty-chart')) {
-        container.insertAdjacentHTML('beforeend', '<div class="an-empty-chart" style="position:absolute;inset:0;display:flex;align-items:center;justify-content:center;color:var(--text-muted);font-style:italic;font-size:12px;">No tool data available</div>');
+        container.insertAdjacentHTML('beforeend', '<div class="an-empty-chart" style="position:absolute;inset:0;display:flex;align-items:center;justify-content:center;color:var(--text-muted);font-style:italic;font-size:12px;">No model data available</div>');
       }
       return;
     }
@@ -343,17 +343,20 @@
     const emptyMsg = container.querySelector('.an-empty-chart');
     if (emptyMsg) emptyMsg.remove();
 
-    const tools = data.tools.slice(0, 8);
+    const models = data.models.slice(0, 8);
 
     if (toolChart) toolChart.destroy();
 
     toolChart = new Chart(ctx, {
       type: 'doughnut',
       data: {
-        labels: tools.map(t => t.tool),
+        labels: models.map(m => {
+          const name = m.model || 'unknown';
+          return name.length > 20 ? name.slice(0, 18) + '…' : name;
+        }),
         datasets: [{
-          data: tools.map(t => t.count),
-          backgroundColor: PALETTE.slice(0, tools.length),
+          data: models.map(m => m.calls),
+          backgroundColor: PALETTE.slice(0, models.length),
           borderColor: 'transparent',
           hoverOffset: 6,
         }],
@@ -369,8 +372,8 @@
             ...chartDefaults().plugins.tooltip,
             callbacks: {
               label: ctx => {
-                const t = tools[ctx.dataIndex];
-                return `${t.tool}: ${t.count} (${t.savings_pct}% saved)`;
+                const m = models[ctx.dataIndex];
+                return `${m.model}: ${m.calls} calls — ${fmt(m.total_tokens)} tokens`;
               },
             },
           },
@@ -460,18 +463,17 @@
     const fresh = $('#an-freshness');
     if (fresh) fresh.innerHTML = '<span class="an-live-dot"></span> Loading…';
 
-    const [fleet, ts, models, tools, heatmap] = await Promise.all([
+    const [fleet, ts, models, heatmap] = await Promise.all([
       fetchFleet(),
       fetchTimeseries(hours),
       fetchModels(hours),
-      fetchTools(hours),
       fetchHeatmap(),
     ]);
 
     renderKPIs(fleet);
     renderTokenChart(ts);
     renderModelChart(models);
-    renderToolChart(tools);
+    renderToolChart(models);
     renderHeatmap(heatmap);
     renderSessions(fleet);
 

@@ -77,6 +77,27 @@ Clawzd is a self-hosted, modular AI assistant that combines multiple LLM provide
 ## 🏗️ Architecture
 
 ![Architecture Overview](static/img/static/schem.jpeg)
+ 
+---
+
+## 🖼️ Gallery
+
+| Chat preview | Chat Dev Code | Chat Arena |
+|---|---|---|
+| ![Chat Dev preview](static/img/static/chat_dev.png) | ![Chat Dev (Code)](static/img/static/chat_dev_code.png) | ![Chat Arena](static/img/static/chat_arena.png) |
+
+| Editor | Media Studio | Presentation |
+|---|---|---|
+| ![Editor](static/img/static/edi.png) | ![Media Studio](static/img/static/media.png) | ![Presentation](static/img/static/presentation.png) |
+
+| Project Studio | Research |
+|---|---|
+| ![Project Studio](static/img/static/project.png) | ![Research](static/img/static/Research.png) |
+
+
+| Analytics | Automation |
+|---|---|
+| ![Analytics](static/img/static/Analytics.png) | ![Automation](static/img/static/Automation_myclone.png) |
 
 ---
 

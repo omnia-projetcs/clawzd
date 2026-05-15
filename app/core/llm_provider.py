@@ -3,7 +3,9 @@ Clawzd — LLM Provider abstraction layer.
 Supports Anthropic Claude, Google Gemini, Grok (xAI), Groq, HuggingFace,
 Mistral, Ollama, OpenAI, and OpenRouter.
 """
+import asyncio
 import logging
+import os
 import time
 from abc import ABC, abstractmethod
 from collections.abc import AsyncGenerator
@@ -27,6 +29,35 @@ from config import (
 )
 
 logger = logging.getLogger("clawzd.llm")
+
+# ---------------------------------------------------------------------------
+# Global Ollama concurrency guard
+# ---------------------------------------------------------------------------
+# Prevents multiple concurrent Ollama inferences that saturate VRAM on remote
+# servers and cause crashes / zombie processes.  Configurable via .env:
+#   OLLAMA_MAX_CONCURRENT=1   (default, safe for single-GPU)
+#   OLLAMA_MAX_CONCURRENT=2   (multi-GPU setups)
+
+def _resolve_ollama_max_concurrent() -> int:
+    """Read OLLAMA_MAX_CONCURRENT from .env at call-time."""
+    from dotenv import dotenv_values as _dv
+    _env = _dv(".env") if os.path.exists(".env") else {}
+    raw = _env.get("OLLAMA_MAX_CONCURRENT", os.getenv("OLLAMA_MAX_CONCURRENT", "1"))
+    try:
+        return max(1, int(raw))
+    except (ValueError, TypeError):
+        return 1
+
+_ollama_inference_semaphore: asyncio.Semaphore | None = None
+
+def _get_ollama_semaphore() -> asyncio.Semaphore:
+    """Lazy-init the semaphore (must be created inside a running event loop)."""
+    global _ollama_inference_semaphore
+    if _ollama_inference_semaphore is None:
+        _ollama_inference_semaphore = asyncio.Semaphore(_resolve_ollama_max_concurrent())
+        logger.info("Ollama concurrency guard initialized (max_concurrent=%d)",
+                    _resolve_ollama_max_concurrent())
+    return _ollama_inference_semaphore
 
 # --- Available models per provider ---
 
@@ -353,6 +384,28 @@ class OllamaLLM(LLMProvider):
         return alive
 
     async def chat_stream(self, messages, model=None, **kwargs):
+        # Acquire the global semaphore to prevent concurrent Ollama inferences
+        # that crash remote servers by saturating VRAM.
+        sem = _get_ollama_semaphore()
+        if sem.locked():
+            logger.info("Ollama semaphore busy — queuing request (model=%s)", model or OLLAMA_MODEL)
+        async with sem:
+            async for token in self._chat_stream_inner(messages, model, **kwargs):
+                yield token
+
+    async def chat(self, messages: list[dict], **kwargs) -> str:
+        """Non-streaming wrapper with semaphore guard."""
+        sem = _get_ollama_semaphore()
+        if sem.locked():
+            logger.info("Ollama semaphore busy — queuing chat request")
+        async with sem:
+            parts = []
+            async for token in self._chat_stream_inner(messages, **kwargs):
+                parts.append(token)
+            return "".join(parts)
+
+    async def _chat_stream_inner(self, messages, model=None, **kwargs):
+        """Actual streaming logic (called under semaphore)."""
         # Re-check host on every request so .env changes are picked up
         self._ensure_client()
         ollama_host = self._current_host

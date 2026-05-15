@@ -474,7 +474,6 @@ async def system_health():
 # --- In-memory SSE queues per session ---
 _sse_queues: dict[str, asyncio.Queue] = {}
 _arena_queues: dict[str, asyncio.Queue] = {}
-_ollama_arena_lock = asyncio.Lock()
 _active_generations: dict[str, str] = {}
 _cancelled_sessions: set[str] = set()
 
@@ -2337,12 +2336,12 @@ async def arena_send(request: Request):
                         await queue.put(token)
                 
                 if p_key in ("ollama", "local"):
-                    # Execute sequentially to prevent VRAM thrashing and timeouts on remote Ollama servers
-                    async with _ollama_arena_lock:
-                        try:
-                            await do_stream()
-                        finally:
-                            await _unload_ollama_model(m_key)
+                    # Ollama requests are automatically serialized by the
+                    # global semaphore in OllamaLLM.chat_stream().
+                    try:
+                        await do_stream()
+                    finally:
+                        await _unload_ollama_model(m_key)
                 else:
                     await do_stream()
                     
@@ -2447,10 +2446,8 @@ async def arena_evaluate(request: Request):
     if model_key:
         kwargs["model"] = model_key
 
-    ollama_lock = None
     if provider_key in ("ollama", "local"):
         kwargs["response_format"] = {"type": "json_object"}
-        ollama_lock = _ollama_arena_lock
     
     sys_prompt = "You are an impartial AI judge. Your task is to evaluate an AI response to a given prompt. Score it out of 10 and give a 1-sentence explanation."
     
@@ -2461,8 +2458,6 @@ async def arena_evaluate(request: Request):
     final_ratings = {}
     
     try:
-        if ollama_lock:
-            await ollama_lock.acquire()
         # Evaluate each response individually
         for s_id, text in responses.items():
             try:
@@ -2571,11 +2566,12 @@ async def arena_evaluate(request: Request):
         logger.error("Arena evaluation error: %s. Last Response: %s", e, locals().get('result_text', ''))
         raise HTTPException(500, detail="The AI judge failed to return a valid evaluation JSON (timeout or format error).")
     finally:
-        if ollama_lock:
+        # Unload the evaluation model to free VRAM for the next request
+        if provider_key in ("ollama", "local"):
             try:
                 await _unload_ollama_model(model_key)
-            finally:
-                ollama_lock.release()
+            except Exception:
+                pass
 
 
 # --- Preprompts API ---
