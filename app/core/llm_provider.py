@@ -64,31 +64,31 @@ async def _get_local_models() -> list[dict]:
             body = resp.text[:1000] if resp.text else ""
             logger.warning("Ollama /api/tags returned HTTP %d from %s: %s", resp.status_code, ollama_host, body)
             data = {}
-            models = []
-            for m in data.get("models", []):
-                raw_name = m.get("name", "unknown")
-                
-                # Clean up the name for the label (remove registry, namespace, tags)
-                clean_name = raw_name
-                if "/" in clean_name:
-                    clean_name = clean_name.split("/")[-1]
-                if clean_name.endswith(":latest"):
-                    clean_name = clean_name[:-7]
-                if "-GGUF" in clean_name:
-                    clean_name = clean_name.split("-GGUF")[0]
-                elif "-gguf" in clean_name.lower():
-                    # Handle other cases like -gguf or -Gguf
-                    import re
-                    clean_name = re.sub(r'(?i)-gguf.*$', '', clean_name)
-                
-                size_gb = round(m.get("size", 0) / (1024**3), 1)
-                label = f"{clean_name} ({size_gb} GB)"
-                models.append({"id": raw_name, "label": label})
-                
-            if models:
-                # Sort models alphabetically by label
-                models.sort(key=lambda x: x["label"].lower())
-                return models
+        models = []
+        for m in data.get("models", []):
+            raw_name = m.get("name", "unknown")
+            
+            # Clean up the name for the label (remove registry, namespace, tags)
+            clean_name = raw_name
+            if "/" in clean_name:
+                clean_name = clean_name.split("/")[-1]
+            if clean_name.endswith(":latest"):
+                clean_name = clean_name[:-7]
+            if "-GGUF" in clean_name:
+                clean_name = clean_name.split("-GGUF")[0]
+            elif "-gguf" in clean_name.lower():
+                # Handle other cases like -gguf or -Gguf
+                import re
+                clean_name = re.sub(r'(?i)-gguf.*$', '', clean_name)
+            
+            size_gb = round(m.get("size", 0) / (1024**3), 1)
+            label = f"{clean_name} ({size_gb} GB)"
+            models.append({"id": raw_name, "label": label})
+            
+        if models:
+            # Sort models alphabetically by label
+            models.sort(key=lambda x: x["label"].lower())
+            return models
     except Exception as e:
         logger.warning("Failed to fetch local models from Ollama at %s: %s", ollama_host, e)
         logger.debug("Exception details while fetching /api/tags", exc_info=True)
