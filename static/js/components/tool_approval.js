@@ -40,7 +40,8 @@
           `<button class="ta-btn ta-btn-ok"    onclick="window.toolApproval._reply('${id}',true)">✓ Approve</button>` +
         `</div>`;
 
-      const chat = document.getElementById('chat-messages');
+      let chat = document.getElementById('editor-chat-messages');
+      if (!chat) chat = document.getElementById('chat-messages');
       if (chat) { chat.appendChild(card); chat.scrollTop = chat.scrollHeight; }
 
       this._timer(id, 120);
