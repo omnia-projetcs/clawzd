@@ -4605,7 +4605,7 @@
           window.ragMode = false;
           $('#preprompt-select').value = 'none';
           pickerLabel.textContent = `Arena (${window.arenaSelectedModels.length})`;
-          $('#chat-messages').innerHTML = '<div class="arena-container" id="arena-container" style="display:none"></div><div class="arena-eval-panel" id="arena-eval-panel" style="display:none; gap: 8px; justify-content: center;"><button class="arena-eval-btn" id="arena-eval-btn">Ask AI to Judge</button><button class="arena-eval-btn" id="arena-export-btn" style="background: linear-gradient(135deg, #10b981, #059669);"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="margin-right:6px; vertical-align:middle"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>Export Excel</button></div>';
+          $('#chat-messages').innerHTML = '<div class="arena-container" id="arena-container" style="display:none"></div><div class="arena-eval-panel" id="arena-eval-panel" style="display:none; gap: 8px; justify-content: center;"><button class="arena-eval-btn" id="arena-eval-btn">Ask AI to Judge</button><button class="arena-eval-btn" id="arena-restart-btn" style="background: linear-gradient(135deg, #f59e0b, #d97706);"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="margin-right:6px; vertical-align:middle"><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"></path><path d="M3 3v5h5"></path></svg>Restart</button><button class="arena-eval-btn" id="arena-export-btn" style="background: linear-gradient(135deg, #10b981, #059669);"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="margin-right:6px; vertical-align:middle"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>Export Excel</button></div>';
         } else if (pp === 'rag') {
           window.arenaMode = false;
           window.ragMode = true;
@@ -4763,6 +4763,19 @@
           toast('Evaluation error: ' + err.message);
           btn.textContent = 'Ask AI to Judge';
           btn.disabled = false;
+        }
+      }
+
+      if (e.target && e.target.closest('#arena-restart-btn')) {
+        const prompt = window.arenaLastPrompt || '';
+        if (!prompt) {
+          toast('No prompt to restart.');
+          return;
+        }
+        const chatInput = document.getElementById('chat-input');
+        if (chatInput) {
+          chatInput.value = prompt;
+          window.chat.send();
         }
       }
 
