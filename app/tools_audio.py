@@ -420,8 +420,16 @@ async def _generate_tts(text, voice_style="female_soft", language="auto", durati
     # Split text into chunks (SpeechT5 has ~600 char limit)
     chunks = _split_text(text, max_len=500)
     all_audio = []
+    total_chunks = len(chunks)
 
-    for chunk in chunks:
+    logger.info("SpeechT5 TTS: %d chunk(s) to generate from %d chars", total_chunks, len(text))
+
+    for i, chunk in enumerate(chunks):
+        # Update progress: 20% → 80% spread over chunks
+        pct = 20.0 + (i / max(total_chunks, 1)) * 60.0
+        _audio_generation_progress.update({"active": True, "progress": pct,
+            "stage": f"chunk {i+1}/{total_chunks}"})
+
         inputs = processor(text=chunk, return_tensors="pt")
         if _gpu_ok:
             inputs = {k: v.to("cuda") for k, v in inputs.items()}
@@ -581,8 +589,30 @@ async def _generate_music(prompt, genre="", tempo_bpm=120, duration=30):
     max_new_tokens = int(duration * 50)
     max_new_tokens = min(max_new_tokens, 6000)  # Cap at ~120s
 
-    with torch.no_grad():
-        audio_values = model.generate(**inputs, max_new_tokens=max_new_tokens)
+    # Estimate generation time and start a progress thread
+    import threading, time as _time
+    _est_seconds = duration * (0.5 if _gpu_ok else 3.0)
+    _music_start = _time.monotonic()
+    _music_done = threading.Event()
+
+    def _music_progress_updater():
+        while not _music_done.is_set():
+            elapsed = _time.monotonic() - _music_start
+            # Estimate progress: 15% → 85% based on estimated time
+            pct = 15.0 + min(70.0, (elapsed / max(_est_seconds, 1.0)) * 70.0)
+            _audio_generation_progress.update({"active": True, "progress": pct,
+                "stage": f"generating ({int(elapsed)}s)"})
+            _music_done.wait(timeout=1.0)
+
+    progress_thread = threading.Thread(target=_music_progress_updater, daemon=True)
+    progress_thread.start()
+
+    try:
+        with torch.no_grad():
+            audio_values = model.generate(**inputs, max_new_tokens=max_new_tokens)
+    finally:
+        _music_done.set()
+        progress_thread.join(timeout=2.0)
 
     audio = audio_values[0, 0].cpu().numpy()
     sample_rate = model.config.audio_encoder.sampling_rate

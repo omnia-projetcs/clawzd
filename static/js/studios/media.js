@@ -482,6 +482,11 @@ class MediaStudio {
     if (audioDurGrp) audioDurGrp.style.display = isAudio ? '' : 'none';
     if (audioFmtGrp) audioFmtGrp.style.display = isAudio ? '' : 'none';
 
+    // Audio estimation group
+    const estimateGrp = $('#media-audio-estimate-group');
+    if (estimateGrp) estimateGrp.style.display = isAudio && (isTTS || isSong) ? '' : 'none';
+    if (isAudio && (isTTS || isSong)) this._debouncedEstimate();
+
     // Update audio duration slider max based on sub-mode
     const audioDurSlider = $('#media-audio-duration');
     if (audioDurSlider && isAudio) {
@@ -499,6 +504,49 @@ class MediaStudio {
       else if (isClone) audioText.placeholder = 'Enter the text you want to convert to speech...';
       else if (isSong) audioText.placeholder = 'Enter the lyrics or theme of the song...';
     }
+  }
+
+  // ── Audio estimation helpers ─────────────────────────────────────
+  _debouncedEstimate() {
+    if (this._estimateTimer) clearTimeout(this._estimateTimer);
+    this._estimateTimer = setTimeout(() => this._updateEstimate(), 400);
+  }
+
+  async _updateEstimate() {
+    const textEl = $('#media-audio-text');
+    const text = textEl ? textEl.value.trim() : '';
+    const ttsEngine = ($('#media-tts-engine') || {}).value || 'speecht5';
+    const estimateEl = $('#media-audio-estimate-text');
+    const estimateGrp = $('#media-audio-estimate-group');
+
+    if (!text || text.length < 5) {
+      if (estimateEl) estimateEl.textContent = '—';
+      return;
+    }
+
+    try {
+      const mode = this.audioSubMode === 'song' ? 'song' : 'tts';
+      const resp = await fetch('/audio/estimate', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ text, mode, tts_engine: ttsEngine }),
+      });
+      if (!resp.ok) return;
+      const d = await resp.json();
+      if (estimateEl) {
+        const audioIcon = '🔊';
+        const clockIcon = '⏱️';
+        const chunkIcon = '📦';
+        estimateEl.innerHTML = `
+          ${chunkIcon} <b>${d.chunks}</b> chunk${d.chunks > 1 ? 's' : ''}
+          &nbsp;·&nbsp;
+          ${audioIcon} ~<b>${d.audio_duration}s</b> audio
+          &nbsp;·&nbsp;
+          ${clockIcon} ~<b>${d.gen_time_label}</b> gen.
+        `;
+      }
+      if (estimateGrp) estimateGrp.style.display = '';
+    } catch (_) { /* ignore */ }
   }
 
   setReferenceImage(item) {
@@ -575,6 +623,7 @@ class MediaStudio {
     const progress = $('#media-progress');
     const progressBar = $('#media-progress-bar');
     const cancelBtn = $('#media-cancel-btn');
+    const statusEl = $('#media-progress-status');
 
     if (genBtn) {
       genBtn.classList.add('loading');
@@ -584,6 +633,10 @@ class MediaStudio {
     }
     if (progress) progress.classList.add('active', 'indeterminate');
     if (cancelBtn) cancelBtn.style.display = 'inline-flex';
+    if (statusEl) {
+      statusEl.classList.add('active');
+      statusEl.textContent = `\u23F3 Resuming ${task.type} generation...`;
+    }
 
     // Poll generation progress
     this._genProgressPoll = setInterval(async () => {
@@ -647,8 +700,13 @@ class MediaStudio {
     const progress = $('#media-progress');
     const progressBar = $('#media-progress-bar');
     const cancelBtn = $('#media-cancel-btn');
+    const statusEl = $('#media-progress-status');
 
     if (cancelBtn) cancelBtn.style.display = 'none';
+    if (statusEl) {
+      statusEl.classList.remove('active');
+      statusEl.textContent = '';
+    }
     if (genBtn) {
       genBtn.classList.remove('loading');
       genBtn.disabled = false;
@@ -956,8 +1014,27 @@ class MediaStudio {
     const cancelBtn = $('#media-cancel-btn');
     const progress = $('#media-progress');
     const progressBar = $('#media-progress-bar');
+    const statusEl = $('#media-progress-status');
     if (genBtn) genBtn.classList.add('loading');
     if (genBtn) genBtn.disabled = true;
+
+    // Elapsed time tracking
+    this._genStartTime = Date.now();
+    this._genElapsedTimer = setInterval(() => {
+      const elapsed = this._formatElapsed(Date.now() - this._genStartTime);
+      const lbl = genBtn?.querySelector('.gen-label');
+      // Only update if we don't have a more specific label already
+      if (lbl && !lbl.textContent.includes('%') && !lbl.textContent.includes('Saving')) {
+        lbl.textContent = `Generating... (${elapsed})`;
+      }
+      // Update status bar elapsed time
+      if (statusEl && statusEl.classList.contains('active')) {
+        const curText = statusEl.textContent;
+        // Append or update the elapsed suffix
+        const base = curText.replace(/\s*\u2014\s*\d+[ms\d\s]+$/, '').replace(/\s*\(\d+[ms\d\s]+\)\s*$/, '');
+        statusEl.textContent = `${base} \u2014 ${elapsed}`;
+      }
+    }, 1000);
 
     this._abortController = new AbortController();
     if (cancelBtn) {
@@ -994,6 +1071,12 @@ class MediaStudio {
         progress.classList.remove('indeterminate');
         if (progressBar) progressBar.style.width = '0%';
       }
+    }
+    // Show status bar
+    if (statusEl) {
+      statusEl.classList.add('active');
+      const typeLabel = this.type === 'audio' ? 'audio' : (this.type === 'video' ? 'vid\u00E9o' : 'image');
+      statusEl.textContent = `\u23F3 Loading ${typeLabel} model...`;
     }
 
     let successCount = 0;
@@ -1123,6 +1206,7 @@ class MediaStudio {
                           progress.classList.remove('indeterminate');
                           progressBar.style.width = pct + '%';
                         }
+                        if (statusEl) statusEl.textContent = `\u{1F3A8} Image generation: ${pct}%`;
                       }
                     } else if (d.status === 'done') {
                       result = d.result;
@@ -1191,6 +1275,11 @@ class MediaStudio {
                           progress.classList.remove('indeterminate');
                           progressBar.style.width = pct + '%';
                         }
+                        const step = d.step || 0;
+                        const total = d.total_steps || 0;
+                        if (statusEl) statusEl.textContent = d.stage === 'encoding'
+                          ? '\u{1F3AC} Encoding video frames...'
+                          : `\u{1F3AC} Video step ${step}/${total} \u2014 ${pct}%`;
                       }
                     } else if (d.status === 'done') {
                       result = d.result;
@@ -1223,11 +1312,27 @@ class MediaStudio {
                 if (pg.active && genBtn) {
                   const lbl = genBtn.querySelector('.gen-label');
                   const pct = Math.round(pg.progress);
-                  const stage = pg.stage === 'saving' ? 'Saving...' : `Generating... ${pct}%`;
+                  let stage;
+                  if (pg.stage === 'saving') stage = 'Saving...';
+                  else if (pg.stage && pg.stage.startsWith('chunk '))
+                    stage = `${pg.stage} — ${pct}%`;
+                  else stage = `Generating... ${pct}%`;
                   if (lbl) lbl.textContent = stage;
                   if (progressBar) {
                     progress.classList.remove('indeterminate');
                     progressBar.style.width = pct + '%';
+                  }
+                  // Update status element with detailed info
+                  if (statusEl) {
+                    let statusText = '';
+                    if (pg.stage === 'loading_model') statusText = '\u23F3 Loading audio model...';
+                    else if (pg.stage === 'saving') statusText = '\u{1F4BE} Saving audio file...';
+                    else if (pg.stage && pg.stage.startsWith('chunk '))
+                      statusText = `\u{1F3B5} Generating ${pg.stage}: ${pct}%`;
+                    else if (pg.stage && pg.stage.startsWith('generating'))
+                      statusText = `\u{1F3B5} ${pg.stage} — ${pct}%`;
+                    else statusText = `\u{1F3B5} Audio generation: ${pct}%`;
+                    statusEl.textContent = statusText;
                   }
                 }
               }
@@ -1303,6 +1408,10 @@ class MediaStudio {
         clearInterval(this._hfDlPoll);
         this._hfDlPoll = null;
       }
+      if (this._genElapsedTimer) {
+        clearInterval(this._genElapsedTimer);
+        this._genElapsedTimer = null;
+      }
       this.generating = false;
       this._abortController = null;
       const cancelBtn = $('#media-cancel-btn');
@@ -1315,6 +1424,10 @@ class MediaStudio {
       }
       if (progress) progress.classList.remove('active', 'indeterminate');
       if (progressBar) progressBar.style.width = '0%';
+      if (statusEl) {
+        statusEl.classList.remove('active');
+        statusEl.textContent = '';
+      }
       const dlMsg = $('#media-download-msg');
       if (dlMsg) {
         dlMsg.style.display = 'none';
@@ -1325,6 +1438,14 @@ class MediaStudio {
         prevCont.style.display = 'none';
       }
     }
+  }
+
+  _formatElapsed(ms) {
+    const s = Math.floor(ms / 1000);
+    if (s < 60) return `${s}s`;
+    const m = Math.floor(s / 60);
+    const r = s % 60;
+    return r ? `${m}m ${r}s` : `${m}m`;
   }
 
   async deleteFile(filename) {

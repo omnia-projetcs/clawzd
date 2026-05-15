@@ -3612,11 +3612,11 @@ textarea.media-form-input { min-height: 80px; line-height: 1.5; }
   animation: toolSpin .6s linear infinite;
 }
 .media-generate-btn.loading .gen-spinner { display: inline-block; }
-.media-generate-btn.loading .gen-label { display: none; }
+.media-generate-btn.loading .gen-label .media-icon { display: none; }
 
 /* Progress bar */
 .media-progress {
-  height: 3px; background: var(--border); border-radius: 2px;
+  height: 4px; background: var(--border); border-radius: 2px;
   overflow: hidden; margin-top: 4px; display: none;
 }
 .media-progress.active { display: block; }
@@ -3637,6 +3637,22 @@ textarea.media-form-input { min-height: 80px; line-height: 1.5; }
   0% { margin-left: 0%; width: 30%; }
   50% { margin-left: 40%; width: 40%; }
   100% { margin-left: 100%; width: 30%; }
+}
+/* Status text below progress bar */
+.media-progress-status {
+  display: none; font-size: 11px; font-weight: 600;
+  color: var(--text-secondary); text-align: center;
+  margin-top: 6px; padding: 6px 10px;
+  background: rgba(124,92,252,.08);
+  border: 1px solid rgba(124,92,252,.15);
+  border-radius: 6px;
+  font-family: 'JetBrains Mono', monospace;
+  animation: statusPulse 3s ease-in-out infinite;
+}
+.media-progress-status.active { display: block; }
+@keyframes statusPulse {
+  0%, 100% { border-color: rgba(124,92,252,.15); }
+  50% { border-color: rgba(124,92,252,.35); }
 }
 
 /* ---- Media Main Content ---- */
