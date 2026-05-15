@@ -698,7 +698,7 @@ async def generate_audio(request: Request):
     duration = min(float(data.get("duration", 30)), 300)
     format_type = data.get("format", "wav")
     language = data.get("language", "auto")
-    tts_engine = data.get("tts_engine", "speecht5")
+    tts_engine = data.get("tts_engine", "bark")
 
     enhance_prompt = data.get("enhance_prompt", False)
 

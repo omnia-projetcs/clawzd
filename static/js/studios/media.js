@@ -515,7 +515,7 @@ class MediaStudio {
   async _updateEstimate() {
     const textEl = $('#media-audio-text');
     const text = textEl ? textEl.value.trim() : '';
-    const ttsEngine = ($('#media-tts-engine') || {}).value || 'speecht5';
+    const ttsEngine = ($('#media-tts-engine') || {}).value || 'bark';
     const estimateEl = $('#media-audio-estimate-text');
     const estimateGrp = $('#media-audio-estimate-group');
 
@@ -1298,7 +1298,7 @@ class MediaStudio {
           const audioText = ($('#media-audio-text') || {}).value || '';
           const audioFmt = ($('#media-format-audio') || {}).value || 'wav';
           const voiceStyle = ($('#media-voice-style') || {}).value || 'female_soft';
-          const ttsEngine = ($('#media-tts-engine') || {}).value || 'speecht5';
+          const ttsEngine = ($('#media-tts-engine') || {}).value || 'bark';
           const genre = ($('#media-genre') || {}).value || '';
           const tempoBpm = parseInt(($('#media-tempo') || {}).value) || 120;
           const audioDur = parseFloat(($('#media-audio-duration') || {}).value) || 30;
