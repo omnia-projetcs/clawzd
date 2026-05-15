@@ -5164,6 +5164,26 @@
         groups[groupName].push(key);
       }
 
+      // ── Ensure connector/integration keys ALWAYS appear (even if not in .env) ──
+      const REQUIRED_CONNECTOR_KEYS = {
+        'TELEGRAM': ['TELEGRAM_BOT_TOKEN'],
+        'DISCORD': ['DISCORD_BOT_TOKEN', 'DISCORD_CHANNEL_IDS'],
+        'SMTP': ['SMTP_HOST', 'SMTP_PORT', 'SMTP_USER', 'SMTP_PASSWORD', 'NOTIFICATION_EMAIL'],
+        'TWITTER': ['TWITTER_API_KEY', 'TWITTER_API_SECRET', 'TWITTER_ACCESS_TOKEN', 'TWITTER_ACCESS_SECRET'],
+        'LINKEDIN': ['LINKEDIN_ACCESS_TOKEN', 'LINKEDIN_AUTHOR_ID'],
+        'MEDIUM': ['MEDIUM_INTEGRATION_TOKEN', 'MEDIUM_AUTHOR_ID'],
+      };
+      for (const [group, requiredKeys] of Object.entries(REQUIRED_CONNECTOR_KEYS)) {
+        if (!groups[group]) groups[group] = [];
+        for (const rk of requiredKeys) {
+          if (!groups[group].includes(rk)) {
+            groups[group].push(rk);
+          }
+          // Ensure the key exists in `d` so the input gets a value attribute
+          if (d[rk] === undefined) d[rk] = '';
+        }
+      }
+
       let tableHtml = `<div style="display:flex; flex-direction:column; gap:24px;">`;
 
       // Provider documentation for help links in the env modal
