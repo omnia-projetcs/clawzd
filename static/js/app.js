@@ -5139,13 +5139,23 @@
       const groups = {};
       const sensitiveKeywords = ['KEY', 'SECRET', 'TOKEN', 'PASSWORD'];
 
+      // Explicit key → group overrides for keys that don't match a prefix pattern
+      const KEY_GROUP_OVERRIDES = {
+        'NOTIFICATION_EMAIL': 'SMTP',
+        'SLACK_WEBHOOK_URL': 'SMTP',
+        'N8N_WEBHOOK_URL': 'System / Other'
+      };
+
       for (const key of keys) {
-        let groupName = 'System / Other';
-        const prefixes = ['GOOGLE', 'GROQ', 'OPENAI', 'ANTHROPIC', 'HUGGINGFACE', 'MISTRAL', 'OPENROUTER', 'GROK', 'TAVILY', 'APP', 'OLLAMA'];
-        for (const prefix of prefixes) {
-          if (key.startsWith(prefix + '_')) {
-            groupName = prefix;
-            break;
+        let groupName = KEY_GROUP_OVERRIDES[key] || null;
+        if (!groupName) {
+          groupName = 'System / Other';
+          const prefixes = ['GOOGLE', 'GROQ', 'OPENAI', 'ANTHROPIC', 'HUGGINGFACE', 'MISTRAL', 'OPENROUTER', 'GROK', 'TAVILY', 'APP', 'OLLAMA', 'TELEGRAM', 'DISCORD', 'TWITTER', 'LINKEDIN', 'MEDIUM', 'SMTP'];
+          for (const prefix of prefixes) {
+            if (key.startsWith(prefix + '_')) {
+              groupName = prefix;
+              break;
+            }
           }
         }
         if (!groups[groupName]) groups[groupName] = [];
@@ -5215,11 +5225,78 @@
           url: 'https://app.tavily.com/home',
           subscription: '✅ Free: 1,000 searches/month. Paid plans from $50/mo.',
           keyFormat: 'tvly-...'
+        },
+        TELEGRAM: {
+          name: 'Telegram Bot',
+          url: 'https://core.telegram.org/bots#botfather',
+          subscription: '✅ Free. Create a bot via @BotFather on Telegram to get your token.',
+          keyFormat: '123456:ABC-DEF1234...',
+          fields: [
+            { key: 'TELEGRAM_BOT_TOKEN', label: 'Bot Token', hint: 'Token from @BotFather (e.g. 123456:ABC-DEF1234ghIkl-zyx57W2v1u123ew11)' }
+          ]
+        },
+        DISCORD: {
+          name: 'Discord Bot',
+          url: 'https://discord.com/developers/applications',
+          subscription: '✅ Free. Create an application in the Discord Developer Portal and add a Bot.',
+          keyFormat: 'MTk4NjIz...',
+          fields: [
+            { key: 'DISCORD_BOT_TOKEN', label: 'Bot Token', hint: 'Token from Discord Developer Portal → Bot → Token' }
+          ]
+        },
+        TWITTER: {
+          name: 'X (Twitter)',
+          url: 'https://developer.x.com/en/portal/dashboard',
+          subscription: '⚠️ Free tier allows posting only (1,500 tweets/mo). Basic plan $100/mo for read access.',
+          keyFormat: '',
+          fields: [
+            { key: 'TWITTER_API_KEY', label: 'API Key (Consumer Key)', hint: 'From X Developer Portal → Project → Keys and Tokens' },
+            { key: 'TWITTER_API_SECRET', label: 'API Secret (Consumer Secret)', hint: 'Keep this secret — used to sign requests' },
+            { key: 'TWITTER_ACCESS_TOKEN', label: 'Access Token', hint: 'OAuth 1.0a access token for your account' },
+            { key: 'TWITTER_ACCESS_SECRET', label: 'Access Token Secret', hint: 'OAuth 1.0a access token secret' }
+          ]
+        },
+        LINKEDIN: {
+          name: 'LinkedIn',
+          url: 'https://www.linkedin.com/developers/apps',
+          subscription: '✅ Free. Create an app in LinkedIn Developer Portal. Requires OAuth 2.0 access token.',
+          keyFormat: 'AQV...',
+          fields: [
+            { key: 'LINKEDIN_ACCESS_TOKEN', label: 'Access Token', hint: 'OAuth 2.0 token — generate via 3-legged OAuth flow or LinkedIn token tool' },
+            { key: 'LINKEDIN_AUTHOR_ID', label: 'Author ID (URN)', hint: 'Your LinkedIn member URN (e.g. urn:li:person:XXXXX) or organization URN' }
+          ]
+        },
+        MEDIUM: {
+          name: 'Medium',
+          url: 'https://medium.com/me/settings/security',
+          subscription: '✅ Free. Generate an Integration Token in Medium Settings → Security and apps.',
+          keyFormat: '',
+          fields: [
+            { key: 'MEDIUM_INTEGRATION_TOKEN', label: 'Integration Token', hint: 'From Medium → Settings → Security and apps → Integration tokens' },
+            { key: 'MEDIUM_AUTHOR_ID', label: 'Author ID', hint: 'Your Medium user ID (visible in API response or profile URL)' }
+          ]
+        },
+        SMTP: {
+          name: 'SMTP (Email)',
+          url: 'https://support.google.com/a/answer/176600',
+          subscription: '✅ Use any SMTP provider (Gmail, SendGrid, Mailgun, etc.). Gmail requires App Password with 2FA enabled.',
+          keyFormat: '',
+          fields: [
+            { key: 'SMTP_HOST', label: 'SMTP Host', hint: 'e.g. smtp.gmail.com, smtp.sendgrid.net, smtp.mailgun.org' },
+            { key: 'SMTP_PORT', label: 'SMTP Port', hint: '587 (TLS/STARTTLS) or 465 (SSL) — 587 recommended' },
+            { key: 'SMTP_USER', label: 'Username / Email', hint: 'Your email address or SMTP username' },
+            { key: 'SMTP_PASSWORD', label: 'Password / App Password', hint: 'For Gmail: use an App Password (not your regular password)' },
+            { key: 'NOTIFICATION_EMAIL', label: 'Notification Recipient', hint: 'Email address to receive system notifications' }
+          ]
         }
       };
 
       for (const [groupName, groupKeys] of Object.entries(groups).sort()) {
         const doc = PROVIDER_DOCS[groupName];
+        const displayName = doc ? doc.name : groupName;
+        const linkLabel = ['SMTP', 'TELEGRAM', 'DISCORD', 'MEDIUM'].includes(groupName)
+          ? `🔗 ${doc.name} setup guide →`
+          : `🔑 Get your ${doc ? doc.name : groupName} API key →`;
         const helpRow = doc ? `
           <div style="padding:8px 10px; margin-bottom:6px; background:var(--bg-elevated); border-radius:6px; border-left:3px solid var(--accent); font-size:11px; line-height:1.6; color:var(--text-muted);">
             <div style="margin-bottom:2px;">
@@ -5227,7 +5304,7 @@
             </div>
             <div>
               <a href="${doc.url}" target="_blank" rel="noopener noreferrer" style="color:var(--accent); text-decoration:underline; font-weight:500;">
-                🔑 Get your ${doc.name} API key →
+                ${linkLabel}
               </a>
               ${doc.keyFormat ? `<span style="margin-left:8px; opacity:0.7;">Format: <code style="font-size:10px; padding:1px 4px; background:var(--bg-default); border-radius:3px;">${doc.keyFormat}</code></span>` : ''}
             </div>
@@ -5236,7 +5313,7 @@
 
         tableHtml += `
           <div>
-            <h3 style="font-size:13px; color:var(--text-primary); margin-bottom:8px; border-bottom:1px solid var(--border); padding-bottom:4px;">${groupName}</h3>
+            <h3 style="font-size:13px; color:var(--text-primary); margin-bottom:8px; border-bottom:1px solid var(--border); padding-bottom:4px;">${displayName}</h3>
             ${helpRow}
             <table style="width:100%; border-collapse:collapse; font-size:12px; text-align:left;">
               <tbody>
@@ -5250,11 +5327,20 @@
             </button>
           ` : '';
 
+          // Look up human-readable label + hint from doc.fields if available
+          const fieldMeta = doc?.fields?.find(f => f.key === key);
+          const displayLabel = fieldMeta ? fieldMeta.label : key;
+          const hintText = fieldMeta?.hint || '';
+          const placeholderAttr = hintText ? ` placeholder="${hintText}"` : '';
+
           tableHtml += `
             <tr style="border-bottom:1px solid var(--border);">
-              <td style="padding:8px 4px; color:var(--text-muted); font-family:var(--font-mono); font-size:11px; width:40%;">${key}</td>
+              <td style="padding:8px 4px; color:var(--text-muted); font-size:11px; width:40%;">
+                <div style="font-weight:500; color:var(--text-secondary);">${displayLabel}</div>
+                ${fieldMeta ? `<div style="font-family:var(--font-mono); font-size:10px; opacity:0.6; margin-top:1px;">${key}</div>` : ''}
+              </td>
               <td style="padding:8px 4px; display:flex; align-items:center;">
-                <input type="${inputType}" class="settings-input" data-env-key="${key}" value="${d[key] || ''}" style="flex:1; font-family:var(--font-mono); font-size:11px; padding:4px 8px; border:1px solid transparent; background:var(--bg-elevated); outline:none;">
+                <input type="${inputType}" class="settings-input" data-env-key="${key}" value="${d[key] || ''}"${placeholderAttr} style="flex:1; font-family:var(--font-mono); font-size:11px; padding:4px 8px; border:1px solid transparent; background:var(--bg-elevated); outline:none;">
                 ${toggleBtn}
               </td>
             </tr>
