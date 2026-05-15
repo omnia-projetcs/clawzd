@@ -152,6 +152,12 @@ NODE_TYPES = {
         "params": [{"key": "query", "label": "Search Query", "type": "text", "default": ""},
                    {"key": "k", "label": "Max Results", "type": "number", "default": 5},
                    {"key": "threshold", "label": "Min Relevance (0-1, lower=stricter)", "type": "text", "default": "0.5"}]},
+    "rag_ingest": {"label": "RAG Ingest", "category": "data", "color": "#8b5cf6",
+        "icon": "layers", "inputs": ["main"], "outputs": ["main"],
+        "params": [{"key": "source_path", "label": "File / Folder Path", "type": "text", "default": ""}]},
+    "rag_clear": {"label": "RAG Clear Source", "category": "data", "color": "#ef4444",
+        "icon": "trash", "inputs": ["main"], "outputs": ["main"],
+        "params": [{"key": "source_name", "label": "Source Name", "type": "text", "default": ""}]},
 }
 
 
@@ -882,6 +888,45 @@ async def _exec_node(node: dict, input_data: dict, wf: dict, testing_mode: bool 
                 f"[{r['source']}] {r['content']}" for r in rag_results
             )
             return {**input_data, "rag_results": rag_results, "rag_text": rag_text, "rag_query": query}
+
+        elif ntype == "rag_ingest":
+            from app.ai_models.rag import _index_document, _extract_text, _chunk_text, _ALL_SUPPORTED
+            source_path = resolved.get("source_path", "")
+            if not source_path or not os.path.exists(source_path):
+                return {**input_data, "rag_ingest_error": f"Path not found: {source_path}"}
+            indexed = []
+            if os.path.isfile(source_path):
+                with open(source_path, "rb") as f:
+                    content = f.read()
+                result = _index_document(content, os.path.basename(source_path))
+                indexed.append(result)
+            elif os.path.isdir(source_path):
+                for root, dirs, files in os.walk(source_path):
+                    dirs[:] = [d for d in dirs if not d.startswith(".")]
+                    for fname in files:
+                        ext = ("." + fname.rsplit(".", 1)[-1].lower()) if "." in fname else ""
+                        if ext not in _ALL_SUPPORTED:
+                            continue
+                        fpath = os.path.join(root, fname)
+                        try:
+                            with open(fpath, "rb") as f:
+                                content = f.read()
+                            result = _index_document(content, fname)
+                            indexed.append(result)
+                        except Exception as e:
+                            indexed.append({"status": "error", "filename": fname, "error": str(e)})
+            return {**input_data, "rag_ingested": indexed, "rag_ingest_count": len(indexed)}
+
+        elif ntype == "rag_clear":
+            source_name = resolved.get("source_name", "")
+            if not source_name:
+                return {**input_data, "rag_clear_error": "No source_name provided"}
+            try:
+                from app.ai_models.rag import _delete_source_chunks
+                _delete_source_chunks(source_name)
+                return {**input_data, "rag_cleared": source_name}
+            except Exception as e:
+                return {**input_data, "rag_clear_error": str(e)}
 
         else:
             return {**input_data, "error": f"Unknown node type: {ntype}"}

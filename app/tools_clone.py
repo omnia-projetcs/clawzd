@@ -449,6 +449,11 @@ async def _generate_reply(message: str, channel: str, knowledge: str) -> dict:
     # Step 2 — Check safety
     flagged = bool(SAFETY_KEYWORDS.search(message))
 
+    # Step 2.5 — Search Knowledge Vault for relevant context
+    vault_ctx = _search_clone_vault(message, k=3)
+    if vault_ctx:
+        knowledge += f"\n\n=== VAULT CONTEXT (vectorized documents) ===\n{vault_ctx}\n=== END VAULT ===\n"
+
     # Step 3 — Generate reply
     system = (
         "You are the exact person described in the profile below. You are NOT an AI assistant or language model. "
@@ -531,6 +536,233 @@ def _compute_confidence(reply: str, knowledge: str, message: str) -> float:
                                          "no relevant", "pas d'information"]):
         score -= 0.25
     return max(0.0, min(1.0, score))
+
+
+# ── Knowledge Vault (RAG vectorized store — shared with global RAG) ──
+
+def _get_vault():
+    """Return the global RAG collection & encoder.
+
+    The vault shares the same ``knowledge_base`` ChromaDB collection used
+    by the global RAG system so documents are available everywhere.
+    """
+    from app.ai_models.rag import _get_rag
+    return _get_rag()  # returns (collection, encoder)
+
+
+def _search_clone_vault(query: str, k: int = 3, threshold: float = 0.4) -> Optional[str]:
+    """Search the clone vault for relevant context. Returns formatted text or None."""
+    try:
+        vault_col, encoder = _get_vault()
+        if vault_col.count() == 0:
+            return None
+        query_emb = encoder.encode(query).tolist()
+        results = vault_col.query(
+            query_embeddings=[query_emb], n_results=k,
+            include=["documents", "metadatas", "distances"],
+        )
+        docs = results.get("documents", [[]])[0]
+        distances = results.get("distances", [[]])[0]
+        metadatas = results.get("metadatas", [[]])[0]
+        if not docs:
+            return None
+        parts = []
+        for doc, dist, meta in zip(docs, distances, metadatas):
+            if dist < threshold:
+                src = (meta or {}).get("source", "?")
+                parts.append(f"[{src}] {doc}")
+        return "\n\n---\n\n".join(parts) if parts else None
+    except Exception as e:
+        logger.debug("Clone vault search skipped: %s", e)
+        return None
+
+
+@router.post("/vault/upload")
+async def vault_upload(files: list[UploadFile] = File(...)):
+    """Upload files to the Clone Knowledge Vault and index them."""
+    from app.ai_models.rag import _extract_text, _chunk_text, _get_file_type
+    vault_col, encoder = _get_vault()
+    results = []
+    for file in files:
+        try:
+            content = await file.read()
+            fname = file.filename or "unknown"
+            text = _extract_text(content, fname)
+            chunks = _chunk_text(text)
+            if not chunks:
+                results.append({"status": "empty", "filename": fname, "chunks": 0})
+                continue
+            file_type = _get_file_type(fname)
+            for idx, chunk in enumerate(chunks):
+                emb = encoder.encode(chunk).tolist()
+                doc_id = f"vault_{fname}_{idx}"
+                vault_col.upsert(
+                    documents=[chunk], embeddings=[emb], ids=[doc_id],
+                    metadatas=[{
+                        "source": fname, "chunk_index": idx,
+                        "file_type": file_type,
+                        "indexed_at": datetime.now(timezone.utc).isoformat(),
+                    }],
+                )
+            results.append({"status": "indexed", "filename": fname,
+                            "chunks": len(chunks), "file_type": file_type})
+            logger.info("Vault: indexed %s (%d chunks)", fname, len(chunks))
+        except Exception as e:
+            results.append({"status": "error", "filename": file.filename, "error": str(e)})
+    return {"results": results, "total": len(results),
+            "indexed": sum(1 for r in results if r.get("status") == "indexed")}
+
+
+@router.get("/vault/sources")
+async def vault_sources():
+    """List all indexed sources with chunk counts."""
+    vault_col, _ = _get_vault()
+    all_data = vault_col.get(include=["metadatas"])
+    sources: dict[str, dict] = {}
+    for m in (all_data.get("metadatas") or []):
+        src = (m or {}).get("source", "unknown")
+        if src not in sources:
+            sources[src] = {
+                "name": src, "chunks": 0,
+                "file_type": (m or {}).get("file_type", "unknown"),
+                "indexed_at": (m or {}).get("indexed_at", ""),
+            }
+        sources[src]["chunks"] += 1
+    return {"sources": sorted(sources.values(), key=lambda x: x["name"])}
+
+
+@router.delete("/vault/source/{source_name:path}")
+async def vault_delete_source(source_name: str):
+    """Delete all chunks for a specific source."""
+    vault_col, _ = _get_vault()
+    all_data = vault_col.get(include=["metadatas"])
+    ids_to_delete = [
+        doc_id for doc_id, meta
+        in zip(all_data.get("ids", []), all_data.get("metadatas", []))
+        if (meta or {}).get("source") == source_name
+    ]
+    if not ids_to_delete:
+        raise HTTPException(404, f"Source '{source_name}' not found")
+    vault_col.delete(ids=ids_to_delete)
+    logger.info("Vault: deleted %d chunks from '%s'", len(ids_to_delete), source_name)
+    return {"status": "deleted", "source": source_name, "chunks_removed": len(ids_to_delete)}
+
+
+@router.get("/vault/search")
+async def vault_search(query: str, k: int = 5):
+    """Semantic search across the clone vault."""
+    vault_col, encoder = _get_vault()
+    if vault_col.count() == 0:
+        return {"documents": [], "metadatas": [], "scores": []}
+    emb = encoder.encode(query).tolist()
+    results = vault_col.query(
+        query_embeddings=[emb], n_results=k,
+        include=["documents", "metadatas", "distances"],
+    )
+    docs = results.get("documents", [[]])[0]
+    distances = results.get("distances", [[]])[0]
+    metadatas = results.get("metadatas", [[]])[0]
+    scores = [round((1.0 - d) * 100, 1) for d in distances]
+    return {"documents": docs, "metadatas": metadatas, "scores": scores}
+
+
+@router.get("/vault/stats")
+async def vault_stats():
+    """Return vault statistics."""
+    try:
+        vault_col, _ = _get_vault()
+        count = vault_col.count()
+        all_meta = vault_col.get(include=["metadatas"])
+        sources = set()
+        for m in (all_meta.get("metadatas") or []):
+            sources.add((m or {}).get("source", "unknown"))
+        return {"total_chunks": count, "source_count": len(sources)}
+    except Exception:
+        return {"total_chunks": 0, "source_count": 0}
+
+
+@router.get("/vault/graph")
+async def vault_graph():
+    """Return a graph structure for knowledge visualization.
+
+    Nodes = unique sources, Edges = pairs of sources sharing
+    semantic similarity above a threshold.
+    """
+    try:
+        vault_col, encoder = _get_vault()
+        if vault_col.count() == 0:
+            return {"nodes": [], "edges": []}
+
+        all_data = vault_col.get(include=["metadatas", "embeddings"])
+        ids = all_data.get("ids", [])
+        metadatas = all_data.get("metadatas", [])
+        embeddings = all_data.get("embeddings", [])
+
+        # Build per-source average embeddings
+        import numpy as np
+        source_embs: dict[str, list] = {}
+        source_meta: dict[str, dict] = {}
+        for doc_id, meta, emb in zip(ids, metadatas, embeddings):
+            src = (meta or {}).get("source", "unknown")
+            ft = (meta or {}).get("file_type", "")
+            if src not in source_embs:
+                source_embs[src] = []
+                source_meta[src] = {"file_type": ft, "chunks": 0}
+            source_embs[src].append(emb)
+            source_meta[src]["chunks"] += 1
+
+        # Average embeddings per source
+        src_names = list(source_embs.keys())
+        avg_embs = []
+        for src in src_names:
+            avg = np.mean(source_embs[src], axis=0)
+            avg_embs.append(avg / (np.linalg.norm(avg) + 1e-10))
+
+        # Build nodes
+        type_colors = {
+            "PDF": "#ef4444", "Word": "#3b82f6", "Excel": "#10b981",
+            "CSV": "#06b6d4", "Markdown": "#8b5cf6", "Text": "#6b7280",
+            "PowerPoint": "#f59e0b", "Archive": "#78716c",
+        }
+        nodes = []
+        for i, src in enumerate(src_names):
+            ft = source_meta[src]["file_type"]
+            color = type_colors.get(ft, "#a855f7")
+            if ft.startswith("Code"):
+                color = "#22d3ee"
+            nodes.append({
+                "id": src, "label": src.split("/")[-1] if "/" in src else src,
+                "file_type": ft, "chunks": source_meta[src]["chunks"],
+                "color": color,
+            })
+
+        # Build edges (cosine similarity > threshold)
+        edges = []
+        sim_threshold = 0.35
+        for i in range(len(src_names)):
+            for j in range(i + 1, len(src_names)):
+                sim = float(np.dot(avg_embs[i], avg_embs[j]))
+                if sim > sim_threshold:
+                    edges.append({
+                        "source": src_names[i], "target": src_names[j],
+                        "weight": round(sim, 3),
+                    })
+
+        return {"nodes": nodes, "edges": edges}
+    except Exception as e:
+        logger.error("Vault graph error: %s", e)
+        return {"nodes": [], "edges": []}
+
+
+@router.delete("/vault/clear")
+async def vault_clear():
+    """Clear the entire vault."""
+    vault_col, _ = _get_vault()
+    all_ids = vault_col.get().get("ids", [])
+    if all_ids:
+        vault_col.delete(ids=all_ids)
+    logger.info("Vault: cleared %d chunks", len(all_ids))
+    return {"status": "cleared", "chunks_removed": len(all_ids)}
 
 
 # ── Onboarding ──
