@@ -63,14 +63,20 @@ except Exception as e:
 # ---------------------------------------------------------------------------
 # Voice presets for TTS
 # ---------------------------------------------------------------------------
+# Bark v2 FR speakers — community-verified gender mapping:
+#   0 = male (deep, mature)      3 = male (medium, standard)
+#   1 = female (warm, soft)      2 = female (young, bright)
+#   4 = male (slightly higher)   5 = female (confident, pro)
+#   6 = male  7 = female  8 = male  9 = female
+# "gender_tag" is prepended to Bark input to bias the model's voice.
 VOICE_PRESETS = {
-    "male_deep": {"description": "Man (deep)", "bark_speaker": "v2/fr_speaker_0", "speecht5_speaker": 1},
-    "male_medium": {"description": "Man (medium)", "bark_speaker": "v2/fr_speaker_3", "speecht5_speaker": 5},
-    "female_soft": {"description": "Woman (soft)", "bark_speaker": "v2/fr_speaker_1", "speecht5_speaker": 2},
-    "female_pro": {"description": "Woman (pro)", "bark_speaker": "v2/fr_speaker_5", "speecht5_speaker": 6},
-    "child": {"description": "Child", "bark_speaker": "v2/fr_speaker_4", "speecht5_speaker": 2},
-    "robot": {"description": "Robot", "bark_speaker": "v2/en_speaker_9", "speecht5_speaker": 4},
-    "narrator": {"description": "Narrator", "bark_speaker": "v2/en_speaker_6", "speecht5_speaker": 0},
+    "male_deep":   {"description": "Man (deep)",   "bark_speaker": "v2/fr_speaker_0", "speecht5_speaker": 1, "gender_tag": "[MAN] "},
+    "male_medium": {"description": "Man (medium)", "bark_speaker": "v2/fr_speaker_3", "speecht5_speaker": 5, "gender_tag": "[MAN] "},
+    "female_soft":  {"description": "Woman (soft)",  "bark_speaker": "v2/fr_speaker_1", "speecht5_speaker": 2, "gender_tag": "[WOMAN] "},
+    "female_pro":   {"description": "Woman (pro)",   "bark_speaker": "v2/fr_speaker_5", "speecht5_speaker": 6, "gender_tag": "[WOMAN] "},
+    "child":        {"description": "Child",         "bark_speaker": "v2/fr_speaker_2", "speecht5_speaker": 2, "gender_tag": ""},
+    "robot":        {"description": "Robot",         "bark_speaker": "v2/en_speaker_9", "speecht5_speaker": 4, "gender_tag": ""},
+    "narrator":     {"description": "Narrator",      "bark_speaker": "v2/en_speaker_6", "speecht5_speaker": 0, "gender_tag": "[MAN] "},
 }
 
 MUSIC_GENRES = [
@@ -168,9 +174,19 @@ def _get_tts_pipeline(model_name="speecht5"):
                 torch_dtype=torch.float32,
                 use_safetensors=False,
             )
-            # Pre-set pad_token_id to avoid deprecation warning when passing it at generate() time
-            if model.generation_config.pad_token_id is None:
-                model.generation_config.pad_token_id = model.generation_config.eos_token_id
+            # ── Sanitise generation_config to suppress transformers warnings ──
+            gc = model.generation_config
+            # 1. pad_token_id must be set explicitly
+            if gc.pad_token_id is None:
+                gc.pad_token_id = gc.eos_token_id
+            # 2. Remove deprecated `min_eos_p` — it triggers a
+            #    "generation_config + generation-related args" warning
+            if hasattr(gc, "min_eos_p"):
+                delattr(gc, "min_eos_p")
+            # 3. Clear the default max_length=20 that conflicts with
+            #    max_new_tokens=768 set by Bark internally
+            if getattr(gc, "max_length", None) is not None:
+                gc.max_length = None
             if _gpu_ok:
                 model = model.to("cuda")
             _tts_pipeline = {"type": "bark", "processor": processor, "model": model}
@@ -433,6 +449,29 @@ async def _generate_tts(text, voice_style="female_soft", language="auto", durati
     return audio, sample_rate
 
 
+def _denoise_audio(audio, sample_rate, strength=0.02):
+    """Light noise-gate + high-pass filter to remove crackling / hiss.
+
+    - High-pass at 80 Hz removes DC offset and low rumble.
+    - A soft noise-gate zeros out samples below `strength` amplitude
+      (typ. 0.02 ≈ −34 dB) to kill hiss in pauses.
+    """
+    import numpy as np
+    try:
+        from scipy.signal import butter, sosfilt
+        # 2nd-order Butterworth high-pass at 80 Hz
+        sos = butter(2, 80, btype="high", fs=sample_rate, output="sos")
+        audio = sosfilt(sos, audio).astype(np.float32)
+    except Exception:
+        pass  # scipy unavailable — skip filter
+
+    # Soft noise-gate
+    gate = np.abs(audio) > strength
+    audio = audio * gate
+
+    return audio
+
+
 async def _generate_tts_bark(text, voice_style="female_soft", language="auto"):
     """Generate speech using Bark (more natural, multi-language)."""
     import torch
@@ -446,6 +485,7 @@ async def _generate_tts_bark(text, voice_style="female_soft", language="auto"):
 
     # Bark uses voice presets (e.g. "v2/fr_speaker_0")
     voice_preset = preset["bark_speaker"]
+    gender_tag = preset.get("gender_tag", "")
     
     # Override language if explicitly selected
     if language and language != "auto":
@@ -463,16 +503,31 @@ async def _generate_tts_bark(text, voice_style="female_soft", language="auto"):
     silence = np.zeros(int(sample_rate * 0.25), dtype=np.float32)
 
     for chunk in chunks:
-        inputs = processor(chunk, voice_preset=voice_preset, return_tensors="pt")
+        # Prepend gender bias tag for more consistent voice output
+        tagged_chunk = gender_tag + chunk if gender_tag else chunk
+
+        inputs = processor(tagged_chunk, voice_preset=voice_preset, return_tensors="pt")
         if _gpu_ok:
             inputs = {k: v.to("cuda") for k, v in inputs.items()}
 
-        # Build explicit attention_mask to suppress the transformers warning
-        if "attention_mask" not in inputs and "input_ids" in inputs:
-            inputs["attention_mask"] = torch.ones_like(inputs["input_ids"])
+        # Build explicit attention_mask for every tensor that looks like
+        # token ids — this suppresses the "attention_mask not set" warning.
+        for key in list(inputs.keys()):
+            mask_key = key.replace("input_ids", "attention_mask")
+            if key.endswith("input_ids") and mask_key not in inputs:
+                inputs[mask_key] = torch.ones_like(inputs[key])
 
         with torch.no_grad():
-            output = model.generate(**inputs)
+            # Lower temperatures → more conservative, fewer artifacts/crackling
+            #   semantic_temperature:  controls text-to-semantic tokens (default 0.7)
+            #   coarse_temperature:    controls coarse acoustic tokens (default 0.7)
+            #   fine_temperature:      controls fine acoustic tokens   (default 0.5)
+            output = model.generate(
+                **inputs,
+                semantic_temperature=0.6,
+                coarse_temperature=0.5,
+                fine_temperature=0.4,
+            )
         all_audio.append(output.cpu().numpy().squeeze())
         all_audio.append(silence)
 
@@ -480,6 +535,10 @@ async def _generate_tts_bark(text, voice_style="female_soft", language="auto"):
         all_audio.pop() # remove trailing silence
 
     audio = np.concatenate(all_audio) if len(all_audio) > 1 else all_audio[0]
+
+    # Post-processing: remove crackling / hiss
+    audio = _denoise_audio(audio, sample_rate)
+
     return audio, sample_rate
 
 
