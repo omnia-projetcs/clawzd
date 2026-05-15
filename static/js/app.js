@@ -4633,6 +4633,10 @@
       const selModel = models.find(m => m.id === currentModel);
       if (selModel) {
         edPickerLabel.textContent = selModel.label || selModel.id;
+      } else if (currentModel === '' && window._envData && window._envData['CODE_MODEL']) {
+        const codeModelId = window._envData['CODE_MODEL'];
+        const m = models.find(x => x.id === codeModelId);
+        edPickerLabel.textContent = (m ? (m.label || m.id) : codeModelId) + ' (Code)';
       } else if (currentProv === 'ollama' && window._activeLocalModel) {
         edPickerLabel.textContent = window._activeLocalModel;
       } else {

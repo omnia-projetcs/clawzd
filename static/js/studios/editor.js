@@ -1184,7 +1184,11 @@ class EditorMode {
 
     if (!this.editorSessionId) {
       try {
-        const r = await fetch('/chat/new', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ provider: $('#provider-select').value, model: $('#model-select').value, preprompt: this._getAgentPreprompt() }) });
+        let model = $('#model-select').value;
+        if (!model && window._envData && window._envData['CODE_MODEL']) {
+          model = window._envData['CODE_MODEL'];
+        }
+        const r = await fetch('/chat/new', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ provider: $('#provider-select').value, model: model, preprompt: this._getAgentPreprompt() }) });
         const d = await r.json();
         this.editorSessionId = d.id;
         this.connectEditorSSE();
