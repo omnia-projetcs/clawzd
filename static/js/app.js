@@ -3038,7 +3038,7 @@
     if (window.tokenTracker) window.tokenTracker.syncFromBackend();
 
     // Twitter Watch
-    window.twitterWatch = new TwitterWatch();
+    // Removed as per user request
 
     // Project Studio
     if (window.ProjectStudio) window.projectStudio = new ProjectStudio();
