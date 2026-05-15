@@ -128,6 +128,10 @@ class ResearchStudioV2 {
         document.querySelectorAll('.rs-panel').forEach(p => p.classList.remove('active'));
         const target = document.getElementById(`rs-panel-${panel}`);
         if (target) target.classList.add('active');
+        
+        if (panel === 'social' && window.twitterWatch) {
+          window.twitterWatch.loadWatchlist();
+        }
       });
     });
 

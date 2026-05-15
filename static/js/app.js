@@ -3298,6 +3298,7 @@
     window.editor.loadProjects();
 
     // Right panel tabs (Activity / Chat / Todo / Git / Twitter)
+    // Right panel tabs (Activity / Chat / Todo / Git)
     $$('.editor-right-tab').forEach(tab => {
       tab.addEventListener('click', () => {
         $$('.editor-right-tab').forEach(t => t.classList.remove('active'));
@@ -3307,7 +3308,6 @@
         $('#editor-chat').classList.toggle('active', panel === 'chat');
         $('#editor-todo')?.classList.toggle('active', panel === 'todo');
         $('#editor-git').classList.toggle('active', panel === 'git');
-        $('#editor-twitter')?.classList.toggle('active', panel === 'twitter');
         // Load git data when switching to git tab
         if (panel === 'git') {
           window.editor.loadGitStatus();
@@ -3316,10 +3316,6 @@
         // Render todos when switching to todo tab
         if (panel === 'todo') {
           window.editor.renderTodos();
-        }
-        // Load watchlist when switching to twitter tab
-        if (panel === 'twitter' && window.twitterWatch) {
-          window.twitterWatch.loadWatchlist();
         }
       });
     });

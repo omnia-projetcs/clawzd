@@ -347,6 +347,35 @@ async def _do_web_search(query: str, max_results: int = 50) -> list[dict]:
             logger.warning("Twitter/X search failed: %s", e)
             return []
 
+    async def _linkedin_search() -> list[dict]:
+        """Search LinkedIn profiles and articles using the tools_twitter module."""
+        try:
+            from app.tools_twitter import search_linkedin_profiles, search_linkedin_articles
+            # Search both in parallel
+            profiles, articles = await asyncio.gather(
+                search_linkedin_profiles(query, max_results=min(max_results, 10)),
+                search_linkedin_articles(query, max_results=min(max_results, 10))
+            )
+            merged = []
+            for p in profiles:
+                merged.append({
+                    "title": f"[LinkedIn] {p.get('name', '')} - {p.get('headline', '')}",
+                    "snippet": p.get("snippet", ""),
+                    "url": p.get("url", ""),
+                    "source": "linkedin"
+                })
+            for a in articles:
+                merged.append({
+                    "title": f"[LinkedIn Article] {a.get('title', '')} by {a.get('author', '')}",
+                    "snippet": a.get("snippet", ""),
+                    "url": a.get("url", ""),
+                    "source": "linkedin"
+                })
+            return merged
+        except Exception as e:
+            logger.warning("LinkedIn search failed: %s", e)
+            return []
+
     async def _news_search() -> list[dict]:
         """Search news articles via DuckDuckGo News API."""
         try:
@@ -382,9 +411,9 @@ async def _do_web_search(query: str, max_results: int = 50) -> list[dict]:
 
     # Run primary sources in parallel
     (tavily_results, ddg_results, scholar_results,
-     reddit_results, twitter_results, news_results) = await asyncio.gather(
+     reddit_results, twitter_results, linkedin_results, news_results) = await asyncio.gather(
         _tavily_search(), _ddg_search(), _scholar_search(),
-        _reddit_search(), _twitter_search(), _news_search(),
+        _reddit_search(), _twitter_search(), _linkedin_search(), _news_search(),
     )
 
     # 3rd test fallback: if Tavily and DDGS both fail/return nothing
@@ -394,10 +423,10 @@ async def _do_web_search(query: str, max_results: int = 50) -> list[dict]:
         lightpanda_results = await _lightpanda_search()
 
     # Merge & deduplicate by URL
-    # Priority order: Tavily > News > Twitter > Reddit > Scholar > DDG > Lightpanda
+    # Priority order: Tavily > News > Twitter > LinkedIn > Reddit > Scholar > DDG > Lightpanda
     seen_urls = set()
     merged = []
-    for r in (tavily_results + news_results + twitter_results
+    for r in (tavily_results + news_results + twitter_results + linkedin_results
               + reddit_results + scholar_results + ddg_results
               + lightpanda_results):
         url = r.get("url", "")

@@ -310,12 +310,7 @@
         </svg>
         Git
       </button>
-      <button class="editor-right-tab" data-panel="twitter" id="ert-twitter">
-        <svg class="ic" width="16" height="16">
-          <use href="#icon-search"></use>
-        </svg>
-        Social
-      </button>
+
     </div>
     <!-- Activity Feed -->
     <div class="editor-activity" id="editor-activity">
@@ -412,102 +407,7 @@
         </div>
       </div>
     </div>
-    <!-- Social Watch Panel (Twitter/X + LinkedIn) -->
-    <div class="editor-twitter" id="editor-twitter">
-      <div class="tw-search-bar">
-        <div class="tw-platform-row">
-          <button class="tw-platform-btn active"
-                  data-platform="twitter"
-                  id="tw-plat-twitter"
-                  title="Twitter/X">
-            <svg class="ic" width="14" height="14">
-              <use href="#icon-x-twitter"></use>
-            </svg>
-          </button>
-          <button class="tw-platform-btn"
-                  data-platform="linkedin"
-                  id="tw-plat-linkedin"
-                  title="LinkedIn">
-            <svg class="ic" width="14" height="14">
-              <use href="#icon-linkedin"></use>
-            </svg>
-          </button>
-          <select class="tw-linkedin-type" id="tw-linkedin-type" style="display:none">
-            <option value="profiles">Profiles / CV</option>
-            <option value="articles">Articles</option>
-          </select>
-        </div>
-        <div class="tw-search-wrap">
-          <svg class="ic" width="14" height="14">
-            <use href="#icon-search"></use>
-          </svg>
-          <input class="tw-search-input"
-                 id="tw-search-input"
-                 placeholder="Search tweets, @user, or #hashtag..."
-                 autocomplete="off">
-          <button class="tw-search-btn" id="tw-search-btn" title="Search">
-            <svg class="ic" width="14" height="14">
-              <use href="#icon-send"></use>
-            </svg>
-          </button>
-        </div>
-      </div>
-      <div class="tw-tabs">
-        <button class="tw-tab active" data-tw-view="results" id="tw-tab-results">Results</button>
-        <button class="tw-tab" data-tw-view="trending" id="tw-tab-trending">Trending</button>
-        <button class="tw-tab" data-tw-view="watchlist" id="tw-tab-watchlist">
-          Watchlist
-          <span class="tw-watchlist-badge" id="tw-watchlist-badge"></span>
-        </button>
-      </div>
-      <div class="tw-view tw-results active" id="tw-results">
-        <div class="tw-empty" id="tw-empty">
-          <svg class="ic" width="32" height="32" style="opacity:.4">
-            <use href="#icon-search"></use>
-          </svg>
-          <p>
-            Search Twitter/X or LinkedIn.
-            <br>
-            Switch platform above, then enter your query.
-          </p>
-        </div>
-        <div class="tw-feed" id="tw-feed"></div>
-      </div>
-      <div class="tw-view tw-trending" id="tw-trending">
-        <div class="tw-trending-list" id="tw-trending-list">
-          <div class="tw-empty">
-            <svg class="ic" width="24" height="24" style="opacity:.4">
-              <use href="#icon-activity"></use>
-            </svg>
-            <p>Click to load trending topics.</p>
-          </div>
-        </div>
-        <button class="tw-load-trending-btn" id="tw-load-trending">Load Trending Topics</button>
-      </div>
-      <div class="tw-view tw-watchlist-view" id="tw-watchlist">
-        <div class="tw-watchlist-header">
-          <span class="tw-watchlist-title">Saved Watches</span>
-          <button class="tw-watchlist-add" id="tw-watchlist-add" title="Add watch">
-            <svg class="ic" width="12" height="12">
-              <use href="#icon-plus"></use>
-            </svg>
-            Add
-          </button>
-          <button class="tw-watchlist-refresh"
-                  id="tw-watchlist-refresh"
-                  title="Refresh all">
-            <svg class="ic" width="12" height="12">
-              <use href="#icon-refresh"></use>
-            </svg>
-          </button>
-        </div>
-        <div class="tw-watchlist-list" id="tw-watchlist-list">
-          <div class="tw-empty">
-            <p>No watches yet. Add keywords or usernames to monitor.</p>
-          </div>
-        </div>
-      </div>
-    </div>
+
     <!-- Git Panel -->
     <div class="editor-git" id="editor-git">
       <div class="git-no-repo" id="git-no-repo">
