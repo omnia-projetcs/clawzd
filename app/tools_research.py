@@ -702,7 +702,7 @@ async def _research_loop(pid: str):
     # Use differentiated models per pipeline role (open_deep_research-inspired)
     main_model = RESEARCH_MAIN_MODEL if RESEARCH_MAIN_MODEL != model else model
     compression_model = RESEARCH_COMPRESSION_MODEL if RESEARCH_COMPRESSION_MODEL != model else model
-    report_model = RESEARCH_REPORT_MODEL if RESEARCH_REPORT_MODEL != model else model
+    # report_model = RESEARCH_REPORT_MODEL if RESEARCH_REPORT_MODEL != model else model  # Currently unused
 
     # ── GPT-Researcher-inspired: structured progress + cost tracking ──────────
     _progress = ResearchProgress(
@@ -1168,7 +1168,7 @@ async def _research_loop(pid: str):
                             proj["assets"].append(asset)
                             await _emit_new_asset(asset)
                             iter_data["actions"].append({"type": "rag", "query": rag_q, "timestamp": datetime.now(timezone.utc).isoformat()})
-                            await _emit_log(f"   RAG returned context")
+                            await _emit_log("   RAG returned context")
                     except Exception:
                         pass
 

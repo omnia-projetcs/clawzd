@@ -611,7 +611,6 @@ class GoogleLLM(LLMProvider):
 
         # Run the synchronous stream iterator in a thread to avoid blocking the event loop
         import asyncio
-        import queue as _queue
 
         sync_response = await asyncio.to_thread(
             self.client.models.generate_content_stream, **gen_kwargs
