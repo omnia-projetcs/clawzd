@@ -2404,21 +2404,24 @@ async def _unload_all_ollama_models():
         ollama_key = _resolve_ollama_api_key()
         headers = {"Authorization": f"Bearer {ollama_key}"} if ollama_key else {}
         async with httpx.AsyncClient(verify=_resolve_ollama_verify()) as client:
-            resp = await client.get(f"{ollama_host}/api/ps", timeout=5.0, headers=headers)
+            resp = await client.get(f"{ollama_host}/api/ps", timeout=10.0, headers=headers)
             if resp.status_code == 200:
                 models = resp.json().get("models", [])
                 for m in models:
                     model_name = m.get("name")
                     if model_name:
-                        await client.post(
-                            f"{ollama_host}/api/chat",
-                            json={"model": model_name, "keep_alive": 0},
-                            headers=headers,
-                            timeout=5.0
-                        )
-                        logger.info("Unloaded Ollama model: %s", model_name)
+                        try:
+                            await client.post(
+                                f"{ollama_host}/api/generate",
+                                json={"model": model_name, "keep_alive": 0},
+                                headers=headers,
+                                timeout=60.0
+                            )
+                            logger.info("Unloaded Ollama model: %s", model_name)
+                        except Exception as e:
+                            logger.warning("Timeout or error unloading Ollama model %s: %s", model_name, e)
     except Exception as e:
-        logger.warning("Failed to unload Ollama models: %s", e)
+        logger.warning("Failed to check or unload Ollama models: %s", e)
 
 
 @app.post("/arena/evaluate")
