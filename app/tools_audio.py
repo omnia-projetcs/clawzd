@@ -185,7 +185,7 @@ def _get_tts_pipeline(model_name="speecht5"):
                 import io
                 import numpy as np
                 url = "https://huggingface.co/datasets/Matthijs/cmu-arctic-xvectors/resolve/main/spkrec-xvect.zip"
-                resp = urllib.request.urlopen(url)
+                resp = urllib.request.urlopen(url, timeout=60)
                 embeddings = []
                 with zipfile.ZipFile(io.BytesIO(resp.read())) as z:
                     npy_files = sorted([n for n in z.namelist() if n.endswith(".npy")])
@@ -196,7 +196,7 @@ def _get_tts_pipeline(model_name="speecht5"):
                 torch.save(embeddings, embeddings_path)
                 logger.info("Saved SpeechT5 speaker embeddings.")
             
-            embeddings_dataset = torch.load(embeddings_path)
+            embeddings_dataset = torch.load(embeddings_path, weights_only=True)
             if _gpu_ok:
                 model = model.to("cuda")
                 vocoder = vocoder.to("cuda")
@@ -793,8 +793,9 @@ async def delete_audio(request: Request):
 async def check_audio_model(mode: str = "tts", tts_engine: str = "speecht5"):
     """Check if the audio model is already downloaded."""
     from pathlib import Path
+    from config import MODELS_DIR
 
-    cache_dir = Path.home() / ".cache" / "huggingface" / "hub"
+    cache_dir = Path(MODELS_DIR) / "hub"
 
     model_map = {
         "tts": {
@@ -802,7 +803,7 @@ async def check_audio_model(mode: str = "tts", tts_engine: str = "speecht5"):
             "bark": "suno/bark",
         },
         "music": {"default": "facebook/musicgen-small"},
-        "song": {"default": "facebook/musicgen-small"},
+        "song": {"default": "suno/bark"},
         "voice_clone": {"default": "coqui/XTTS-v2"},
     }
 
@@ -815,7 +816,7 @@ async def check_audio_model(mode: str = "tts", tts_engine: str = "speecht5"):
     # Check if model folder exists in HF cache
     safe_name = "models--" + target.replace("/", "--")
     model_path = cache_dir / safe_name
-    downloaded = model_path.exists() and any(model_path.rglob("*.safetensors")) or any(model_path.rglob("*.bin"))
+    downloaded = model_path.exists() and (any(model_path.rglob("*.safetensors")) or any(model_path.rglob("*.bin")))
 
     return {"downloaded": bool(downloaded), "model": target}
 
