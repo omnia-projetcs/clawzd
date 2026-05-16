@@ -266,11 +266,27 @@ const AppBuilderPanel = (() => {
   /**
    * Close the Skill Catalog and send a pre-filled prompt to Chat
    * so the user can edit/update the app via the AI assistant.
+   * Reuses the current chat session to maintain conversation context.
+   * Forces developer preprompt (required for tool access).
    */
   function editInChat(appId, appName, customPrompt = '') {
     // Close the Skill Catalog overlay
     const overlay = document.getElementById('skills-catalog-overlay');
     if (overlay) overlay.classList.remove('open');
+
+    // Switch to chat mode if not already active
+    const chatModeBtn = document.querySelector('#mode-toggle .mode-btn[data-mode="chat"]');
+    if (chatModeBtn && !chatModeBtn.classList.contains('active')) {
+      chatModeBtn.click();
+    }
+
+    // Force developer preprompt — required for update_app/create_app tool access.
+    // Without this, the LLM may be in a mode that has no tool access.
+    const prepromptSelect = document.getElementById('preprompt-select');
+    if (prepromptSelect) prepromptSelect.value = 'developer';
+    // Also set action mode to auto for autonomous tool execution
+    const actionModeSelect = document.getElementById('action-mode-select');
+    if (actionModeSelect) actionModeSelect.value = 'auto';
 
     // ALWAYS inject the update_app directive prefix — this is critical to
     // prevent the LLM from using create_app (which would create a duplicate).
@@ -281,24 +297,21 @@ const AppBuilderPanel = (() => {
       `Do NOT use create_app — that would create a duplicate.\n` +
       `Preview: /apps/${appId}/preview\n\n`;
 
-    // Pre-fill the chat input with an edit prompt
+    const message = customPrompt
+      ? (updateDirective + customPrompt)
+      : (updateDirective +
+        `Update my application "${appName}" (ID: ${appId}). ` +
+        `Modify the existing files as needed.`);
+
+    // Inject into the existing chat session — do NOT create a new one.
+    // Use the chat input and programmatic send to reuse the current session.
     const chatInput = document.getElementById('chat-input');
-    if (chatInput) {
-      chatInput.value = customPrompt
-        ? (updateDirective + customPrompt)
-        : (updateDirective +
-          `Update my application "${appName}" (ID: ${appId}). ` +
-          `Modify the existing files as needed.`);
+    if (chatInput && window.chat) {
+      chatInput.value = message;
       chatInput.focus();
       // Trigger resize
       chatInput.style.height = 'auto';
       chatInput.style.height = Math.min(chatInput.scrollHeight, 150) + 'px';
-    }
-
-    // Switch to chat mode if in editor mode
-    const chatModeBtn = document.querySelector('#mode-toggle .mode-btn[data-mode="chat"]');
-    if (chatModeBtn && !chatModeBtn.classList.contains('active')) {
-      chatModeBtn.click();
     }
   }
 
