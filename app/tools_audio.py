@@ -70,20 +70,20 @@ except Exception as e:
 #   6 = male  7 = female  8 = male  9 = female
 # "gender_tag" is prepended to Bark input to bias the model's voice.
 VOICE_PRESETS = {
-    "male_deep":   {"description": "Man (deep)",   "bark_speaker": "v2/fr_speaker_0", "speecht5_speaker": 1, "gender_tag": "[MAN] ",
-                    "edge_fr": "fr-FR-HenriNeural", "edge_en": "en-US-GuyNeural", "espeak_variant": "+m1"},
-    "male_medium": {"description": "Man (medium)", "bark_speaker": "v2/fr_speaker_3", "speecht5_speaker": 5, "gender_tag": "[MAN] ",
-                    "edge_fr": "fr-FR-RemyMultilingualNeural", "edge_en": "en-US-AndrewNeural", "espeak_variant": "+m3"},
-    "female_soft":  {"description": "Woman (soft)",  "bark_speaker": "v2/fr_speaker_1", "speecht5_speaker": 2, "gender_tag": "[WOMAN] ",
-                    "edge_fr": "fr-FR-DeniseNeural", "edge_en": "en-US-JennyNeural", "espeak_variant": "+f2"},
-    "female_pro":   {"description": "Woman (pro)",   "bark_speaker": "v2/fr_speaker_5", "speecht5_speaker": 6, "gender_tag": "[WOMAN] ",
-                    "edge_fr": "fr-FR-VivienneMultilingualNeural", "edge_en": "en-US-AvaNeural", "espeak_variant": "+f4"},
-    "child":        {"description": "Child",         "bark_speaker": "v2/fr_speaker_2", "speecht5_speaker": 2, "gender_tag": "",
-                    "edge_fr": "fr-FR-EloiseNeural", "edge_en": "en-US-AnaNeural", "espeak_variant": "+f5"},
-    "robot":        {"description": "Robot",         "bark_speaker": "v2/en_speaker_9", "speecht5_speaker": 4, "gender_tag": "",
-                    "edge_fr": "fr-FR-HenriNeural", "edge_en": "en-US-EricNeural", "espeak_variant": "+m7"},
-    "narrator":     {"description": "Narrator",      "bark_speaker": "v2/en_speaker_6", "speecht5_speaker": 0, "gender_tag": "[MAN] ",
-                    "edge_fr": "fr-FR-RemyMultilingualNeural", "edge_en": "en-US-BrianNeural", "espeak_variant": "+m1"},
+    "male_deep":   {"description": "Man (deep)",   "gender_tag": "[MAN] ",
+                    "edge_fr": "fr-FR-HenriNeural", "edge_en": "en-US-GuyNeural"},
+    "male_medium": {"description": "Man (medium)", "gender_tag": "[MAN] ",
+                    "edge_fr": "fr-FR-RemyMultilingualNeural", "edge_en": "en-US-AndrewNeural"},
+    "female_soft":  {"description": "Woman (soft)",  "gender_tag": "[WOMAN] ",
+                    "edge_fr": "fr-FR-DeniseNeural", "edge_en": "en-US-JennyNeural"},
+    "female_pro":   {"description": "Woman (pro)",   "gender_tag": "[WOMAN] ",
+                    "edge_fr": "fr-FR-VivienneMultilingualNeural", "edge_en": "en-US-AvaNeural"},
+    "child":        {"description": "Child",         "gender_tag": "",
+                    "edge_fr": "fr-FR-EloiseNeural", "edge_en": "en-US-AnaNeural"},
+    "robot":        {"description": "Robot",         "gender_tag": "",
+                    "edge_fr": "fr-FR-HenriNeural", "edge_en": "en-US-EricNeural"},
+    "narrator":     {"description": "Narrator",      "gender_tag": "[MAN] ",
+                    "edge_fr": "fr-FR-RemyMultilingualNeural", "edge_en": "en-US-BrianNeural"},
 }
 
 # Edge TTS language → locale mapping
@@ -132,12 +132,8 @@ def _cancel_audio_generation(task_id: str = ""):
 
 def _release_all_audio():
     """Release all audio pipelines and free VRAM."""
-    global _tts_pipeline, _tts_model_name, _music_pipeline, _music_model_name
+    global _music_pipeline, _music_model_name
     import gc
-    if _tts_pipeline is not None:
-        del _tts_pipeline
-        _tts_pipeline = None
-        _tts_model_name = None
     if _music_pipeline is not None:
         del _music_pipeline
         _music_pipeline = None
@@ -163,99 +159,6 @@ def _release_image_pipelines():
     except Exception:
         pass
 
-
-def _get_tts_pipeline(model_name="speecht5"):
-    """Load TTS pipeline (SpeechT5 or Bark)."""
-    global _tts_pipeline, _tts_model_name, _audio_download_state
-
-    if _tts_pipeline is not None and _tts_model_name == model_name:
-        return _tts_pipeline
-
-    _release_all_audio()
-    _release_image_pipelines()
-
-    _audio_download_state = {"active": True, "progress": 0.0, "model": model_name}
-
-    try:
-        import torch
-
-        if model_name == "bark":
-            from transformers import AutoProcessor, BarkModel
-            logger.info("Loading Bark TTS model...")
-            processor = AutoProcessor.from_pretrained("suno/bark", local_files_only=_should_use_local_files("suno/bark"))
-            model = BarkModel.from_pretrained("suno/bark", local_files_only=_should_use_local_files("suno/bark"),
-                torch_dtype=torch.float32,
-                use_safetensors=False,
-            )
-            # ── Sanitise generation_config to suppress transformers warnings ──
-            gc = model.generation_config
-            # 1. pad_token_id must be set explicitly
-            if gc.pad_token_id is None:
-                gc.pad_token_id = gc.eos_token_id
-            # 2. Remove deprecated `min_eos_p` — it triggers a
-            #    "generation_config + generation-related args" warning
-            if hasattr(gc, "min_eos_p"):
-                delattr(gc, "min_eos_p")
-            # 3. Clear the default max_length=20 that conflicts with
-            #    max_new_tokens=768 set by Bark internally
-            if getattr(gc, "max_length", None) is not None:
-                gc.max_length = None
-            if _gpu_ok:
-                model = model.to("cuda")
-            _tts_pipeline = {"type": "bark", "processor": processor, "model": model}
-
-        else:  # speecht5
-            from transformers import SpeechT5Processor, SpeechT5ForTextToSpeech, SpeechT5HifiGan
-            logger.info("Loading SpeechT5 TTS model...")
-            processor = SpeechT5Processor.from_pretrained("microsoft/speecht5_tts", local_files_only=_should_use_local_files("microsoft/speecht5_tts"))
-            model = SpeechT5ForTextToSpeech.from_pretrained("microsoft/speecht5_tts", local_files_only=_should_use_local_files("microsoft/speecht5_tts"),
-                use_safetensors=False,
-            )
-            vocoder = SpeechT5HifiGan.from_pretrained("microsoft/speecht5_hifigan", local_files_only=_should_use_local_files("microsoft/speecht5_hifigan"),
-                use_safetensors=False,
-            )
-            # Load pre-downloaded speaker embeddings
-            import os
-            embeddings_path = os.path.join(DATA_DIR, "audio_speakers", "speecht5_speaker_embeddings.pt")
-            if not os.path.exists(embeddings_path):
-                logger.info("Downloading SpeechT5 speaker embeddings...")
-                os.makedirs(os.path.dirname(embeddings_path), exist_ok=True)
-                import urllib.request
-                import zipfile
-                import io
-                import numpy as np
-                url = "https://huggingface.co/datasets/Matthijs/cmu-arctic-xvectors/resolve/main/spkrec-xvect.zip"
-                resp = urllib.request.urlopen(url, timeout=60)
-                embeddings = []
-                with zipfile.ZipFile(io.BytesIO(resp.read())) as z:
-                    npy_files = sorted([n for n in z.namelist() if n.endswith(".npy")])
-                    for f in npy_files[:7]:
-                        with z.open(f) as npy_file:
-                            x = np.load(io.BytesIO(npy_file.read()))
-                            embeddings.append(torch.tensor(x))
-                torch.save(embeddings, embeddings_path)
-                logger.info("Saved SpeechT5 speaker embeddings.")
-            
-            embeddings_dataset = torch.load(embeddings_path, weights_only=True)
-            if _gpu_ok:
-                model = model.to("cuda")
-                vocoder = vocoder.to("cuda")
-            _tts_pipeline = {
-                "type": "speecht5",
-                "processor": processor,
-                "model": model,
-                "vocoder": vocoder,
-                "embeddings": embeddings_dataset,
-            }
-
-        _tts_model_name = model_name
-        _audio_download_state["active"] = False
-        return _tts_pipeline
-
-    except Exception as e:
-        _audio_download_state["active"] = False
-        logger.error("Failed to load TTS pipeline: %s", e)
-        raise RuntimeError(f"TTS pipeline failed: {e}")
 
 
 def _get_music_pipeline(model_name="musicgen-small"):
@@ -412,135 +315,6 @@ async def _enhance_lyrics_with_llm(prompt: str) -> str:
 
 
 
-async def _generate_tts(text, voice_style="female_soft", language="auto", duration_max=300):
-    """Generate speech from text using SpeechT5."""
-    import torch
-    import numpy as np
-
-    pipeline = _get_tts_pipeline("speecht5")
-
-    preset = VOICE_PRESETS.get(voice_style, VOICE_PRESETS["female_soft"])
-    speaker_idx = preset["speecht5_speaker"] % len(pipeline["embeddings"])
-    speaker_embedding = pipeline["embeddings"][speaker_idx].unsqueeze(0)
-
-    if _gpu_ok:
-        speaker_embedding = speaker_embedding.to("cuda")
-
-    processor = pipeline["processor"]
-    model = pipeline["model"]
-    vocoder = pipeline["vocoder"]
-
-    # Split text into chunks (SpeechT5 has ~600 char limit)
-    chunks = _split_text(text, max_len=500)
-    all_audio = []
-    total_chunks = len(chunks)
-
-    logger.info("SpeechT5 TTS: %d chunk(s) to generate from %d chars", total_chunks, len(text))
-
-    for i, chunk in enumerate(chunks):
-        # Update progress: 20% → 80% spread over chunks
-        pct = 20.0 + (i / max(total_chunks, 1)) * 60.0
-        _audio_generation_progress.update({"active": True, "progress": pct,
-            "stage": f"chunk {i+1}/{total_chunks}"})
-
-        inputs = processor(text=chunk, return_tensors="pt")
-        if _gpu_ok:
-            inputs = {k: v.to("cuda") for k, v in inputs.items()}
-
-        with torch.no_grad():
-            speech = model.generate_speech(
-                inputs["input_ids"],
-                speaker_embedding,
-                vocoder=vocoder,
-            )
-        all_audio.append(speech.cpu().numpy())
-        all_audio.append(np.zeros(int(16000 * 0.25), dtype=np.float32))
-
-    if all_audio:
-        all_audio.pop() # remove trailing silence
-
-    audio = np.concatenate(all_audio) if len(all_audio) > 1 else all_audio[0]
-
-    # Trim to max duration
-    sample_rate = 16000
-    max_samples = int(duration_max * sample_rate)
-    if len(audio) > max_samples:
-        audio = audio[:max_samples]
-
-    return audio, sample_rate
-
-
-def _generate_tts_espeak_sync(text, voice_style="female_soft", language="auto", duration_max=300):
-    """Generate TTS using espeak-ng directly via subprocess.
-
-    Bypasses pyttsx3 entirely to avoid the SetVoiceByName bug on
-    modern espeak-ng where voice IDs use the family/lang format.
-    """
-    import tempfile
-    import os
-    import numpy as np
-    import scipy.io.wavfile as wav
-
-    lang_code = "fr" if language == "auto" else language
-    preset = VOICE_PRESETS.get(voice_style, VOICE_PRESETS["female_soft"])
-    variant = preset.get("espeak_variant", "")
-
-    # Build espeak-ng voice string: language + optional variant
-    voice = lang_code + variant  # e.g. "fr+f2", "en+m1"
-
-    # Speed: slightly slower for deep voices, default 150 wpm
-    speed = "130" if "deep" in voice_style else "150"
-
-    with tempfile.NamedTemporaryFile(suffix=".wav", delete=False) as tmp:
-        tmp_path = tmp.name
-
-    try:
-        import subprocess
-        result = subprocess.run(
-            ["espeak-ng", "-v", voice, "-s", speed, "-a", "80",
-             "-w", tmp_path, text],
-            capture_output=True, text=True, timeout=120
-        )
-        if result.returncode != 0:
-            logger.warning("espeak-ng failed (rc=%d): %s", result.returncode, result.stderr)
-            # Fallback: try without variant
-            subprocess.run(
-                ["espeak-ng", "-v", lang_code, "-s", speed, "-a", "80",
-                 "-w", tmp_path, text],
-                capture_output=True, text=True, timeout=120, check=True
-            )
-
-        if not os.path.exists(tmp_path) or os.path.getsize(tmp_path) == 0:
-            raise RuntimeError("espeak-ng failed to generate audio file.")
-
-        sample_rate, audio = wav.read(tmp_path)
-
-        if len(audio.shape) > 1:
-            audio = audio.mean(axis=1)
-
-        if audio.dtype == np.int16:
-            audio = audio.astype(np.float32) / 32767.0
-        elif audio.dtype == np.int32:
-            audio = audio.astype(np.float32) / 2147483648.0
-
-        max_samples = int(duration_max * sample_rate)
-        if len(audio) > max_samples:
-            audio = audio[:max_samples]
-
-        return audio, sample_rate
-
-    finally:
-        if os.path.exists(tmp_path):
-            os.remove(tmp_path)
-
-
-async def _generate_tts_espeak(text, voice_style="female_soft", language="auto", duration_max=300):
-    """Async wrapper for espeak-ng TTS."""
-    import asyncio
-    loop = asyncio.get_running_loop()
-    return await loop.run_in_executor(None, _generate_tts_espeak_sync, text, voice_style, language, duration_max)
-
-
 async def _generate_tts_edge(text, voice_style="female_soft", language="auto", duration_max=300):
     """Generate TTS using Microsoft Edge neural voices (edge-tts).
 
@@ -657,90 +431,6 @@ def _denoise_audio(audio, sample_rate, strength=0.03):
 
     return audio
 
-
-async def _generate_tts_bark(text, voice_style="female_soft", language="auto"):
-    """Generate speech using Bark (more natural, multi-language).
-
-    Bark generates ~13 s of audio per chunk.  French speech averages
-    ~5 chars/word and ~150 words/min → one chunk ≈ 100 chars to stay
-    safely within 13 s.  We split aggressively so that the model
-    reproduces the *entire* input text without truncation.
-    """
-    import torch
-    import numpy as np
-
-    pipeline = _get_tts_pipeline("bark")
-    preset = VOICE_PRESETS.get(voice_style, VOICE_PRESETS["female_soft"])
-
-    processor = pipeline["processor"]
-    model = pipeline["model"]
-
-    # Bark uses voice presets (e.g. "v2/fr_speaker_0")
-    voice_preset = preset["bark_speaker"]
-    gender_tag = preset.get("gender_tag", "")
-
-    # Override language if explicitly selected
-    if language and language != "auto":
-        parts = voice_preset.split("/")
-        if len(parts) == 2 and "_" in parts[1]:
-            lang_part, rest = parts[1].split("_", 1)
-            voice_preset = f"{parts[0]}/{language}_{rest}"
-
-    # ── Split text into SHORT chunks (≤100 chars) ──────────────────────
-    # Bark can only reliably produce ~13 s of audio per generation.
-    # 100 chars ≈ 20 words ≈ 8-10 s of speech → safe margin.
-    chunks = _split_text(text, max_len=100)
-    all_audio = []
-    total_chunks = len(chunks)
-
-    sample_rate = model.generation_config.sample_rate
-    silence = np.zeros(int(sample_rate * 0.25), dtype=np.float32)
-
-    logger.info("Bark TTS: %d chunk(s) to generate from %d chars", total_chunks, len(text))
-
-    for i, chunk in enumerate(chunks):
-        # Update progress: 20% → 80% spread over chunks
-        pct = 20.0 + (i / max(total_chunks, 1)) * 60.0
-        _audio_generation_progress.update({"active": True, "progress": pct,
-            "stage": f"chunk {i+1}/{total_chunks}"})
-
-        # Prepend gender bias tag for more consistent voice output
-        tagged_chunk = gender_tag + chunk if gender_tag else chunk
-
-        inputs = processor(tagged_chunk, voice_preset=voice_preset, return_tensors="pt")
-        if _gpu_ok:
-            inputs = {k: v.to("cuda") for k, v in inputs.items()}
-
-        # Build explicit attention_mask for every tensor that looks like
-        # token ids — this suppresses the "attention_mask not set" warning.
-        for key in list(inputs.keys()):
-            mask_key = key.replace("input_ids", "attention_mask")
-            if key.endswith("input_ids") and mask_key not in inputs:
-                inputs[mask_key] = torch.ones_like(inputs[key])
-
-        with torch.no_grad():
-            # Lower temperatures → more conservative, fewer artifacts/crackling
-            #   semantic_temperature:  controls text-to-semantic tokens (default 0.7)
-            #   coarse_temperature:    controls coarse acoustic tokens (default 0.7)
-            #   fine_temperature:      controls fine acoustic tokens   (default 0.5)
-            output = model.generate(
-                **inputs,
-                semantic_temperature=0.6,
-                coarse_temperature=0.5,
-                fine_temperature=0.4,
-            )
-        all_audio.append(output.cpu().numpy().squeeze())
-        all_audio.append(silence)
-
-    if all_audio:
-        all_audio.pop()  # remove trailing silence
-
-    audio = np.concatenate(all_audio) if len(all_audio) > 1 else all_audio[0]
-
-    # Post-processing: remove crackling / hiss
-    audio = _denoise_audio(audio, sample_rate)
-
-    return audio, sample_rate
 
 
 async def _generate_music(prompt, genre="", tempo_bpm=120, duration=30):
@@ -907,23 +597,14 @@ async def generate_audio(request: Request):
             _audio_generation_progress = {
                 "active": True, "progress": 20.0, "stage": "generating",
             }
-            if tts_engine == "edge":
-                audio, sr = await _generate_tts_edge(text, voice_style, language, duration)
-                _audio_generation_progress["progress"] = 80.0
-            elif tts_engine == "bark":
-                audio, sr = await _generate_tts_bark(text, voice_style, language)
-                _audio_generation_progress["progress"] = 80.0
-            elif tts_engine == "pyttsx3":
-                audio, sr = await _generate_tts_espeak(text, voice_style, language, duration)
-                _audio_generation_progress["progress"] = 80.0
-            else:
-                audio, sr = await _generate_tts(text, voice_style, language, duration)
-                _audio_generation_progress["progress"] = 80.0
+            # Only Edge TTS is supported for general TTS
+            audio, sr = await _generate_tts_edge(text, voice_style, language, duration)
+            _audio_generation_progress["progress"] = 80.0
 
             _audio_generation_progress = {
                 "active": True, "progress": 90.0, "stage": "saving",
             }
-            meta_prompt = f"[TTS/{voice_style}] {text[:200]}"
+            meta_prompt = f"[TTS/edge/{language}/{voice_style}] {text[:200]}"
             filename = _save_audio(audio, sr, format_type, meta_prompt, mode=mode)
 
         elif mode == "voice_clone":
@@ -1002,14 +683,13 @@ async def generate_audio(request: Request):
                 text = await _enhance_lyrics_with_llm(text)
                 generated_prompt = text
                 
-            # Format text for Bark singing
-            # Using music notes helps Bark realize it should sing, but can bias it towards English.
+            # Format text for Edge singing
             # We wrap the text in notes and add a language hint if not auto.
             lang_hint = f"[{language.upper()}] " if language and language != "auto" else ""
             song_text = "♪ " + lang_hint + text.replace("\n", " ♪\n♪ ") + " ♪"
             song_text = song_text.replace("♪ ♪", "♪")
             
-            audio, sr = await _generate_tts_bark(song_text, voice_style=voice_style, language=language)
+            audio, sr = await _generate_tts_edge(song_text, voice_style=voice_style, language=language)
             
             _audio_generation_progress = {
                 "active": True, "progress": 90.0, "stage": "saving",
@@ -1136,12 +816,8 @@ async def check_audio_model(mode: str = "tts", tts_engine: str = "speecht5"):
     cache_dir = Path(MODELS_DIR) / "hub"
 
     model_map = {
-        "tts": {
-            "speecht5": "microsoft/speecht5_tts",
-            "bark": "suno/bark",
-        },
         "music": {"default": "facebook/musicgen-small"},
-        "song": {"default": "suno/bark"},
+        "song": {"default": "microsoft/speecht5_tts"},
         "voice_clone": {"default": "coqui/XTTS-v2"},
     }
 
@@ -1199,14 +875,7 @@ async def estimate_audio(request: Request):
     if not text:
         return {"chunks": 0, "audio_duration": 0, "gen_time": 0, "gen_time_label": "0s"}
 
-    if mode == "song" or tts_engine == "bark":
-        # Bark: 100-char chunks, ~13s audio each, ~8s/chunk GPU, ~30s/chunk CPU
-        chunks = _split_text(text, max_len=100)
-        n = len(chunks)
-        audio_dur = n * 10  # ~10s of speech per chunk (conservative)
-        per_chunk = 8.0 if _gpu_ok else 30.0
-        gen_time = n * per_chunk
-    elif tts_engine == "edge":
+    if mode == "song" or tts_engine == "edge":
         # Edge TTS: API based, single chunk, very fast
         n = 1
         word_count = len(text.split())

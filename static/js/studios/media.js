@@ -1388,7 +1388,10 @@ class MediaStudio {
       if (mediaMain) mediaMain.scrollTop = 0;
 
       if (successCount > 0) {
-        toast(`${ICONS.check(14)} Generated ${successCount}/${totalRuns} image${successCount !== 1 ? 's' : ''}`);
+        let typeStr = 'image' + (successCount !== 1 ? 's' : '');
+        if (this.type === 'audio') typeStr = 'NEW AUDIO FILE';
+        else if (this.type === 'video') typeStr = 'NEW VIDEO';
+        toast(`${ICONS.check(14)} Generated ${successCount}/${totalRuns} ${typeStr}`);
       }
       if (lastError && successCount < totalRuns) {
         toast(' ' + lastError);
