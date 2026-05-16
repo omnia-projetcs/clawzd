@@ -165,10 +165,10 @@
   background: var(--bg-primary, #0f172a);
   border: 1px solid var(--border, #334155);
   border-radius: 12px;
-  overflow: hidden;
   transition: all 0.2s;
   display: flex;
   flex-direction: column;
+  position: relative;
 }
 .ab-card:hover {
   border-color: rgba(99, 102, 241, 0.4);
@@ -183,6 +183,8 @@
   justify-content: center;
   cursor: pointer;
   transition: background 0.3s;
+  border-radius: 12px 12px 0 0;
+  overflow: hidden;
 }
 .ab-card-preview:hover {
   background: linear-gradient(135deg, #334155 0%, #1e293b 100%);
@@ -228,7 +230,7 @@
 .ab-card-dropdown {
   display: none;
   position: absolute; top: 100%; right: 0;
-  min-width: 180px; z-index: 50;
+  min-width: 180px; z-index: 1000;
   background: var(--bg-surface, #1e293b);
   border: 1px solid var(--border, #334155);
   border-radius: 10px;
