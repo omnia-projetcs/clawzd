@@ -743,10 +743,10 @@ const apiKey = await fetch('/apps/${appId}/api/secrets/MY_KEY')
       container.innerHTML = `
         <div class="ab-svc-section">
           <h5>📝 SQL Console</h5>
-          <div class="ab-svc-sql">
+          <div class="ab-svc-sql" style="display: flex; flex-direction: column; gap: 8px; align-items: flex-end;">
             <textarea id="ab-sql-input" class="ab-code-textarea" rows="3" placeholder="SELECT * FROM my_table;"
-              style="min-height:60px; max-height:120px; border-radius:8px; border:1px solid #21262d;"></textarea>
-            <button class="ab-btn ab-btn-primary" onclick="AppBuilderPanel.executeSQL('${appId}')" style="margin-top:6px;">▶ Execute</button>
+              style="width: 100%; box-sizing: border-box; min-height:60px; max-height:120px; border-radius:8px; border:1px solid #21262d;"></textarea>
+            <button class="ab-btn ab-btn-primary" onclick="AppBuilderPanel.executeSQL('${appId}')">▶ Execute</button>
           </div>
           <div id="ab-sql-result"></div>
         </div>
