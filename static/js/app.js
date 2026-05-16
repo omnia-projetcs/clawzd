@@ -5536,7 +5536,11 @@
         }
       };
 
-      for (const [groupName, groupKeys] of Object.entries(groups).sort()) {
+      for (const [groupName, groupKeys] of Object.entries(groups).sort((a, b) => {
+        if (a[0] === 'System / Other') return 1;
+        if (b[0] === 'System / Other') return -1;
+        return a[0].localeCompare(b[0]);
+      })) {
         const doc = PROVIDER_DOCS[groupName];
         const displayName = doc ? doc.name : groupName;
         const linkLabel = ['SMTP', 'TELEGRAM', 'DISCORD', 'MEDIUM'].includes(groupName)
