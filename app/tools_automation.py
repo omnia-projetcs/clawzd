@@ -1287,13 +1287,39 @@ def _patch_telegram_listener():
     async def _telegram_poller():
         import httpx
         offset = 0
-        logger.info("Automation: Telegram poller started")
-        while True:
-            try:
-                async with httpx.AsyncClient(timeout=35) as c:
-                    r = await c.get(f"https://api.telegram.org/bot{token}/getUpdates",
-                                    params={"offset": offset, "timeout": 30})
+
+        # ── Delete any existing webhook (webhooks and getUpdates are mutually exclusive) ──
+        try:
+            async with httpx.AsyncClient(timeout=10) as _c:
+                wr = await _c.post(
+                    f"https://api.telegram.org/bot{token}/deleteWebhook",
+                    json={"drop_pending_updates": False},
+                )
+                wr_data = wr.json()
+                if wr_data.get("ok"):
+                    logger.info("Automation: Telegram webhook deleted (switching to polling mode)")
+                else:
+                    logger.warning("Automation: deleteWebhook response: %s", wr_data)
+        except Exception as e:
+            logger.warning("Automation: failed to delete Telegram webhook: %s", e)
+
+        logger.info("Automation: Telegram poller started (polling mode)")
+
+        # Use a persistent client to avoid connection issues during LLM generation
+        async with httpx.AsyncClient(timeout=httpx.Timeout(60.0, connect=10.0)) as c:
+            while True:
+                try:
+                    r = await c.get(
+                        f"https://api.telegram.org/bot{token}/getUpdates",
+                        params={"offset": offset, "timeout": 30},
+                        timeout=35,
+                    )
                     data = r.json()
+                    if not data.get("ok"):
+                        logger.warning("Telegram getUpdates error: %s", data.get("description", data))
+                        await asyncio.sleep(5)
+                        continue
+
                     for update in data.get("result", []):
                         offset = update["update_id"] + 1
                         msg = update.get("message", {})
@@ -1310,6 +1336,8 @@ def _patch_telegram_listener():
                             logger.warning("Telegram msg from unauthorized user %s — ignored", sender_id)
                             continue
 
+                        logger.info("Telegram msg from %s (chat %s): %s", sender_id, chat_id, text[:80])
+
                         # ── 1. Dispatch to automation workflows ──
                         await dispatch_event("telegram", {
                             "message": text,
@@ -1321,6 +1349,12 @@ def _patch_telegram_listener():
 
                         # ── 2. Generate LLM reply (same logic as webhook) ──
                         try:
+                            # Send "typing…" indicator while generating
+                            await c.post(
+                                f"https://api.telegram.org/bot{token}/sendChatAction",
+                                json={"chat_id": chat_id, "action": "typing"},
+                            )
+
                             from app.llm_provider import get_llm_provider
                             from app.preprompts import get_preprompt
                             from app.database import create_session, add_message
@@ -1342,18 +1376,29 @@ def _patch_telegram_listener():
 
                             # Send reply
                             reply_url = f"https://api.telegram.org/bot{token}/sendMessage"
-                            await c.post(reply_url, json={
+                            resp = await c.post(reply_url, json={
                                 "chat_id": chat_id,
                                 "text": full[:4096],
                                 "parse_mode": "Markdown",
                             })
-                            logger.info("Telegram reply sent to %s (%d chars)", sender_id, len(full))
+                            if resp.status_code == 200 and resp.json().get("ok"):
+                                logger.info("Telegram reply sent to %s (%d chars)", sender_id, len(full))
+                            else:
+                                # Markdown parse failures — retry without parse_mode
+                                logger.warning("Telegram reply failed (Markdown), retrying as plain text: %s", resp.text[:200])
+                                await c.post(reply_url, json={
+                                    "chat_id": chat_id,
+                                    "text": full[:4096],
+                                })
                         except Exception as e:
-                            logger.error("Telegram reply generation failed: %s", e)
+                            logger.error("Telegram reply generation failed: %s", e, exc_info=True)
 
-            except Exception as e:
-                logger.debug("Telegram poller error: %s", e)
-                await asyncio.sleep(5)
+                except httpx.TimeoutException:
+                    # Long-poll timeout is normal — just retry
+                    continue
+                except Exception as e:
+                    logger.warning("Telegram poller error: %s", e)
+                    await asyncio.sleep(5)
 
     asyncio.create_task(_telegram_poller())
     logger.info("Automation: Telegram listener started")
