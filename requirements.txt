@@ -109,3 +109,4 @@ datasets==2.19.2
 kernels >= 0.11.1
 scrapling[fetchers]>=0.4.8
 pyttsx3>=2.90
+edge-tts>=7.0

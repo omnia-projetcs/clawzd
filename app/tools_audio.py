@@ -70,13 +70,26 @@ except Exception as e:
 #   6 = male  7 = female  8 = male  9 = female
 # "gender_tag" is prepended to Bark input to bias the model's voice.
 VOICE_PRESETS = {
-    "male_deep":   {"description": "Man (deep)",   "bark_speaker": "v2/fr_speaker_0", "speecht5_speaker": 1, "gender_tag": "[MAN] "},
-    "male_medium": {"description": "Man (medium)", "bark_speaker": "v2/fr_speaker_3", "speecht5_speaker": 5, "gender_tag": "[MAN] "},
-    "female_soft":  {"description": "Woman (soft)",  "bark_speaker": "v2/fr_speaker_1", "speecht5_speaker": 2, "gender_tag": "[WOMAN] "},
-    "female_pro":   {"description": "Woman (pro)",   "bark_speaker": "v2/fr_speaker_5", "speecht5_speaker": 6, "gender_tag": "[WOMAN] "},
-    "child":        {"description": "Child",         "bark_speaker": "v2/fr_speaker_2", "speecht5_speaker": 2, "gender_tag": ""},
-    "robot":        {"description": "Robot",         "bark_speaker": "v2/en_speaker_9", "speecht5_speaker": 4, "gender_tag": ""},
-    "narrator":     {"description": "Narrator",      "bark_speaker": "v2/en_speaker_6", "speecht5_speaker": 0, "gender_tag": "[MAN] "},
+    "male_deep":   {"description": "Man (deep)",   "bark_speaker": "v2/fr_speaker_0", "speecht5_speaker": 1, "gender_tag": "[MAN] ",
+                    "edge_fr": "fr-FR-HenriNeural", "edge_en": "en-US-GuyNeural", "espeak_variant": "+m1"},
+    "male_medium": {"description": "Man (medium)", "bark_speaker": "v2/fr_speaker_3", "speecht5_speaker": 5, "gender_tag": "[MAN] ",
+                    "edge_fr": "fr-FR-RemyMultilingualNeural", "edge_en": "en-US-AndrewNeural", "espeak_variant": "+m3"},
+    "female_soft":  {"description": "Woman (soft)",  "bark_speaker": "v2/fr_speaker_1", "speecht5_speaker": 2, "gender_tag": "[WOMAN] ",
+                    "edge_fr": "fr-FR-DeniseNeural", "edge_en": "en-US-JennyNeural", "espeak_variant": "+f2"},
+    "female_pro":   {"description": "Woman (pro)",   "bark_speaker": "v2/fr_speaker_5", "speecht5_speaker": 6, "gender_tag": "[WOMAN] ",
+                    "edge_fr": "fr-FR-VivienneMultilingualNeural", "edge_en": "en-US-AvaNeural", "espeak_variant": "+f4"},
+    "child":        {"description": "Child",         "bark_speaker": "v2/fr_speaker_2", "speecht5_speaker": 2, "gender_tag": "",
+                    "edge_fr": "fr-FR-EloiseNeural", "edge_en": "en-US-AnaNeural", "espeak_variant": "+f5"},
+    "robot":        {"description": "Robot",         "bark_speaker": "v2/en_speaker_9", "speecht5_speaker": 4, "gender_tag": "",
+                    "edge_fr": "fr-FR-HenriNeural", "edge_en": "en-US-EricNeural", "espeak_variant": "+m7"},
+    "narrator":     {"description": "Narrator",      "bark_speaker": "v2/en_speaker_6", "speecht5_speaker": 0, "gender_tag": "[MAN] ",
+                    "edge_fr": "fr-FR-RemyMultilingualNeural", "edge_en": "en-US-BrianNeural", "espeak_variant": "+m1"},
+}
+
+# Edge TTS language → locale mapping
+_EDGE_LANG_MAP = {
+    "fr": "fr-FR", "en": "en-US", "es": "es-ES", "de": "de-DE",
+    "it": "it-IT", "pt": "pt-BR", "ja": "ja-JP", "zh": "zh-CN",
 }
 
 MUSIC_GENRES = [
@@ -457,59 +470,48 @@ async def _generate_tts(text, voice_style="female_soft", language="auto", durati
     return audio, sample_rate
 
 
-def _generate_tts_pyttsx3_sync(text, voice_style="female_soft", language="auto", duration_max=300):
-    """Sync function to run pyttsx3 generation."""
-    import pyttsx3
+def _generate_tts_espeak_sync(text, voice_style="female_soft", language="auto", duration_max=300):
+    """Generate TTS using espeak-ng directly via subprocess.
+
+    Bypasses pyttsx3 entirely to avoid the SetVoiceByName bug on
+    modern espeak-ng where voice IDs use the family/lang format.
+    """
     import tempfile
     import os
     import numpy as np
     import scipy.io.wavfile as wav
 
-    engine = pyttsx3.init()
-    engine.setProperty("rate", 150)
-    engine.setProperty("volume", 1.0)
-
     lang_code = "fr" if language == "auto" else language
+    preset = VOICE_PRESETS.get(voice_style, VOICE_PRESETS["female_soft"])
+    variant = preset.get("espeak_variant", "")
 
-    # Select voice
-    voices = engine.getProperty("voices")
-    chosen = None
-    for v in voices:
-        ident = (v.id + " " + (v.name or "")).lower()
-        if lang_code.lower() in ident:
-            chosen = v.id
-            break
+    # Build espeak-ng voice string: language + optional variant
+    voice = lang_code + variant  # e.g. "fr+f2", "en+m1"
 
-    if chosen:
-        engine.setProperty("voice", chosen)
-
-    # Adjust voice style using espeak variants
-    current_voice = engine.getProperty("voice")
-    if current_voice and "espeak" in current_voice.lower():
-        base_voice = current_voice.split("+")[0]
-        if "female" in voice_style:
-            if "soft" in voice_style:
-                engine.setProperty("voice", f"{base_voice}+f2")
-            else:
-                engine.setProperty("voice", f"{base_voice}+f4")
-        elif "male" in voice_style:
-            if "deep" in voice_style:
-                engine.setProperty("voice", f"{base_voice}+m1")
-                engine.setProperty("rate", 130)
-            else:
-                engine.setProperty("voice", f"{base_voice}+m3")
-        elif "child" in voice_style:
-            engine.setProperty("voice", f"{base_voice}+m6")  # m6 is often used for high pitch/child
+    # Speed: slightly slower for deep voices, default 150 wpm
+    speed = "130" if "deep" in voice_style else "150"
 
     with tempfile.NamedTemporaryFile(suffix=".wav", delete=False) as tmp:
         tmp_path = tmp.name
 
     try:
-        engine.save_to_file(text, tmp_path)
-        engine.runAndWait()
+        import subprocess
+        result = subprocess.run(
+            ["espeak-ng", "-v", voice, "-s", speed, "-a", "80",
+             "-w", tmp_path, text],
+            capture_output=True, text=True, timeout=120
+        )
+        if result.returncode != 0:
+            logger.warning("espeak-ng failed (rc=%d): %s", result.returncode, result.stderr)
+            # Fallback: try without variant
+            subprocess.run(
+                ["espeak-ng", "-v", lang_code, "-s", speed, "-a", "80",
+                 "-w", tmp_path, text],
+                capture_output=True, text=True, timeout=120, check=True
+            )
 
         if not os.path.exists(tmp_path) or os.path.getsize(tmp_path) == 0:
-            raise RuntimeError("pyttsx3 failed to generate audio file.")
+            raise RuntimeError("espeak-ng failed to generate audio file.")
 
         sample_rate, audio = wav.read(tmp_path)
 
@@ -531,33 +533,127 @@ def _generate_tts_pyttsx3_sync(text, voice_style="female_soft", language="auto",
         if os.path.exists(tmp_path):
             os.remove(tmp_path)
 
-async def _generate_tts_pyttsx3(text, voice_style="female_soft", language="auto", duration_max=300):
+
+async def _generate_tts_espeak(text, voice_style="female_soft", language="auto", duration_max=300):
+    """Async wrapper for espeak-ng TTS."""
     import asyncio
     loop = asyncio.get_running_loop()
-    # Run in executor to prevent blocking the async loop
-    return await loop.run_in_executor(None, _generate_tts_pyttsx3_sync, text, voice_style, language, duration_max)
+    return await loop.run_in_executor(None, _generate_tts_espeak_sync, text, voice_style, language, duration_max)
+
+
+async def _generate_tts_edge(text, voice_style="female_soft", language="auto", duration_max=300):
+    """Generate TTS using Microsoft Edge neural voices (edge-tts).
+
+    Produces crystal-clear, natural-sounding speech with no crackling
+    or background noise. Requires internet access.
+    """
+    import edge_tts
+    import tempfile
+    import os
+    import numpy as np
+    import scipy.io.wavfile as wav
+
+    preset = VOICE_PRESETS.get(voice_style, VOICE_PRESETS["female_soft"])
+    lang_code = "fr" if language == "auto" else language
+
+    # Pick the right Edge voice for the language
+    if lang_code in ("fr", "fr-fr", "fr-be", "fr-ch"):
+        voice_name = preset.get("edge_fr", "fr-FR-DeniseNeural")
+    elif lang_code in ("en", "en-us", "en-gb"):
+        voice_name = preset.get("edge_en", "en-US-JennyNeural")
+    else:
+        # For other languages, try to find a matching locale
+        locale = _EDGE_LANG_MAP.get(lang_code, f"{lang_code}-{lang_code.upper()}")
+        # Use Multilingual voices for best coverage
+        if "female" in voice_style or "child" in voice_style:
+            voice_name = preset.get("edge_fr", "fr-FR-VivienneMultilingualNeural")
+        else:
+            voice_name = preset.get("edge_en", "en-US-AndrewMultilingualNeural")
+        # Override with locale-specific if possible
+        try:
+            voices = await edge_tts.list_voices()
+            for v in voices:
+                if v["Locale"].startswith(lang_code):
+                    wanted_gender = "Female" if ("female" in voice_style or "child" in voice_style) else "Male"
+                    if v["Gender"] == wanted_gender:
+                        voice_name = v["ShortName"]
+                        break
+        except Exception:
+            pass  # Keep default voice
+
+    with tempfile.NamedTemporaryFile(suffix=".mp3", delete=False) as tmp:
+        tmp_mp3 = tmp.name
+    tmp_wav = tmp_mp3.replace(".mp3", ".wav")
+
+    try:
+        communicate = edge_tts.Communicate(text, voice_name)
+        await communicate.save(tmp_mp3)
+
+        if not os.path.exists(tmp_mp3) or os.path.getsize(tmp_mp3) == 0:
+            raise RuntimeError(f"Edge TTS failed to generate audio for voice {voice_name}.")
+
+        # Convert MP3 → WAV for consistent pipeline handling
+        import subprocess
+        subprocess.run(
+            ["ffmpeg", "-y", "-i", tmp_mp3, "-ar", "24000", "-ac", "1", tmp_wav],
+            capture_output=True, timeout=60, check=True
+        )
+
+        sample_rate, audio = wav.read(tmp_wav)
+
+        if len(audio.shape) > 1:
+            audio = audio.mean(axis=1)
+
+        if audio.dtype == np.int16:
+            audio = audio.astype(np.float32) / 32767.0
+        elif audio.dtype == np.int32:
+            audio = audio.astype(np.float32) / 2147483648.0
+
+        max_samples = int(duration_max * sample_rate)
+        if len(audio) > max_samples:
+            audio = audio[:max_samples]
+
+        logger.info("Edge TTS: generated %d samples @ %dHz with voice %s", len(audio), sample_rate, voice_name)
+        return audio, sample_rate
+
+    finally:
+        for p in (tmp_mp3, tmp_wav):
+            if os.path.exists(p):
+                os.remove(p)
 
 
 
-def _denoise_audio(audio, sample_rate, strength=0.02):
-    """Light noise-gate + high-pass filter to remove crackling / hiss.
+def _denoise_audio(audio, sample_rate, strength=0.03):
+    """Multi-stage cleanup to remove crackling, hiss, and saturation.
 
-    - High-pass at 80 Hz removes DC offset and low rumble.
-    - A soft noise-gate zeros out samples below `strength` amplitude
-      (typ. 0.02 ≈ −34 dB) to kill hiss in pauses.
+    1. High-pass at 80 Hz — removes DC offset and low rumble.
+    2. Low-pass at min(sr/2-100, 8000) Hz — cuts harsh high-frequency artefacts.
+    3. Soft noise-gate — zeros out samples below `strength` amplitude.
+    4. Peak normalization to -3 dBFS — prevents saturation.
     """
     import numpy as np
     try:
         from scipy.signal import butter, sosfilt
-        # 2nd-order Butterworth high-pass at 80 Hz
-        sos = butter(2, 80, btype="high", fs=sample_rate, output="sos")
-        audio = sosfilt(sos, audio).astype(np.float32)
-    except Exception:
-        pass  # scipy unavailable — skip filter
+        # High-pass at 80 Hz (2nd-order Butterworth)
+        sos_hp = butter(2, 80, btype="high", fs=sample_rate, output="sos")
+        audio = sosfilt(sos_hp, audio).astype(np.float32)
 
-    # Soft noise-gate
+        # Low-pass to cut harsh artefacts (clamp below Nyquist)
+        lp_freq = min(8000, sample_rate / 2 - 100)
+        if lp_freq > 100:
+            sos_lp = butter(3, lp_freq, btype="low", fs=sample_rate, output="sos")
+            audio = sosfilt(sos_lp, audio).astype(np.float32)
+    except Exception:
+        pass  # scipy unavailable — skip filters
+
+    # Soft noise-gate: zero out very quiet samples (hiss in pauses)
     gate = np.abs(audio) > strength
     audio = audio * gate
+
+    # Peak-normalize to -3 dBFS (≈ 0.707) to avoid saturation
+    peak = np.max(np.abs(audio))
+    if peak > 0.01:
+        audio = audio / peak * 0.707
 
     return audio
 
@@ -811,11 +907,14 @@ async def generate_audio(request: Request):
             _audio_generation_progress = {
                 "active": True, "progress": 20.0, "stage": "generating",
             }
-            if tts_engine == "bark":
+            if tts_engine == "edge":
+                audio, sr = await _generate_tts_edge(text, voice_style, language, duration)
+                _audio_generation_progress["progress"] = 80.0
+            elif tts_engine == "bark":
                 audio, sr = await _generate_tts_bark(text, voice_style, language)
                 _audio_generation_progress["progress"] = 80.0
             elif tts_engine == "pyttsx3":
-                audio, sr = await _generate_tts_pyttsx3(text, voice_style, language, duration)
+                audio, sr = await _generate_tts_espeak(text, voice_style, language, duration)
                 _audio_generation_progress["progress"] = 80.0
             else:
                 audio, sr = await _generate_tts(text, voice_style, language, duration)

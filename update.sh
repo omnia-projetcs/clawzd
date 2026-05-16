@@ -26,7 +26,7 @@ echo ""
 echo "--- Updating System Dependencies ---"
 if command -v apt-get &> /dev/null; then
     if command -v sudo &> /dev/null; then
-        sudo apt-get update && sudo apt-get install -y espeak espeak-data libespeak-dev ffmpeg || true
+        sudo apt-get update && sudo apt-get install -y espeak espeak-ng espeak-data libespeak-dev ffmpeg || true
     fi
 fi
 
