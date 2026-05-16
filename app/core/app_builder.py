@@ -161,11 +161,13 @@ def create_app(
     if "index.html" not in files:
         files["index.html"] = "<h1>App</h1>"
 
-    # Write all files
+    # Write all files (preserve subdirectory structure)
     for filename, content in files.items():
-        # Sanitize filename
-        safe_name = os.path.basename(filename)
+        safe_name = _sanitize_rel_path(filename)
+        if safe_name is None:
+            continue
         filepath = os.path.join(app_dir, safe_name)
+        os.makedirs(os.path.dirname(filepath), exist_ok=True)
         with open(filepath, "w", encoding="utf-8") as f:
             f.write(content)
 
@@ -236,11 +238,14 @@ def update_app(
     if not os.path.exists(meta_path):
         return None
 
-    # Update files
+    # Update files (preserve subdirectory structure)
     if files:
         for filename, content in files.items():
-            safe_name = os.path.basename(filename)
+            safe_name = _sanitize_rel_path(filename)
+            if safe_name is None:
+                continue
             filepath = os.path.join(app_dir, safe_name)
+            os.makedirs(os.path.dirname(filepath), exist_ok=True)
             with open(filepath, "w", encoding="utf-8") as f:
                 f.write(content)
 
@@ -283,7 +288,13 @@ def delete_app(app_id: str) -> bool:
 
 def get_app_file(app_id: str, filename: str) -> Optional[str]:
     """Get a specific file content from an app."""
-    filepath = os.path.join(APPS_DIR, app_id, os.path.basename(filename))
+    safe_name = _sanitize_rel_path(filename)
+    if safe_name is None:
+        return None
+    filepath = os.path.realpath(os.path.join(APPS_DIR, app_id, safe_name))
+    app_root = os.path.realpath(os.path.join(APPS_DIR, app_id))
+    if not filepath.startswith(app_root):
+        return None
     if not os.path.exists(filepath):
         return None
     with open(filepath, "r", encoding="utf-8") as f:
@@ -315,3 +326,153 @@ def delete_app_file(app_id: str, filename: str) -> bool:
 
     logger.info("Deleted file %s from app %s", safe_name, app_id)
     return True
+
+
+# ---------------------------------------------------------------------------
+# Path Sanitization
+# ---------------------------------------------------------------------------
+
+def _sanitize_rel_path(filename: str) -> Optional[str]:
+    """Sanitize a relative file path, blocking traversal.
+
+    Returns the cleaned path or None if dangerous.
+    """
+    # Normalize separators
+    cleaned = filename.replace("\\", "/")
+    # Remove leading slashes
+    cleaned = cleaned.lstrip("/")
+    # Block path traversal
+    if ".." in cleaned.split("/"):
+        return None
+    # Block internal metadata files
+    basename = os.path.basename(cleaned)
+    if basename.startswith("_") and basename.endswith(".json"):
+        return None
+    if basename in ("app.db",):
+        return None
+    return cleaned if cleaned else None
+
+
+# ---------------------------------------------------------------------------
+# Import from Workspace
+# ---------------------------------------------------------------------------
+
+# Extensions considered binary (skip during import)
+_BINARY_EXTS = {
+    "png", "jpg", "jpeg", "gif", "bmp", "ico", "webp", "svg",
+    "mp4", "webm", "mp3", "wav", "ogg", "flac",
+    "pdf", "zip", "tar", "gz", "7z", "rar",
+    "woff", "woff2", "ttf", "otf", "eot",
+    "exe", "dll", "so", "dylib",
+    "pyc", "pyo", "class", "o", "obj",
+}
+
+# Directories always skipped during import
+_SKIP_DIRS = {
+    ".git", "__pycache__", "node_modules", ".venv", "venv",
+    ".mypy_cache", ".pytest_cache", ".tox", "dist", "build",
+    ".eggs", ".idea", ".vscode",
+}
+
+# Max file size for text import (2 MB)
+_MAX_IMPORT_FILE_SIZE = 2 * 1024 * 1024
+
+
+def import_from_workspace(
+    project_path: str,
+    name: str,
+    workspace_dir: str = "./workspace",
+    session_id: Optional[str] = None,
+    icon: Optional[str] = None,
+) -> dict:
+    """Import a workspace project folder as a mini-app.
+
+    Recursively reads all text files from the project directory,
+    preserving the folder structure, and creates an app.
+
+    Args:
+        project_path: Relative path inside the workspace (e.g. 'myproject').
+        name: Display name for the created app.
+        workspace_dir: Absolute or relative path to the workspace root.
+        session_id: Optional chat session ID.
+        icon: Optional icon emoji/string.
+
+    Returns:
+        App metadata dict.
+
+    Raises:
+        FileNotFoundError: If the project directory doesn't exist.
+        ValueError: If no importable files found.
+    """
+    ws_base = os.path.realpath(workspace_dir)
+    # Sanitize project path
+    clean_project = project_path.replace("..", "").strip("/")
+    target_dir = os.path.realpath(os.path.join(ws_base, clean_project))
+
+    # Security: must stay inside workspace
+    if not target_dir.startswith(ws_base):
+        raise ValueError("Project path escapes workspace boundary")
+
+    if not os.path.isdir(target_dir):
+        raise FileNotFoundError(f"Project directory not found: {clean_project}")
+
+    files: dict[str, str] = {}
+    skipped = 0
+
+    for root, dirs, filenames in os.walk(target_dir):
+        # Skip hidden and known non-source directories
+        dirs[:] = [
+            d for d in dirs
+            if not d.startswith(".") and d not in _SKIP_DIRS
+        ]
+
+        for fname in sorted(filenames):
+            # Skip hidden files
+            if fname.startswith("."):
+                continue
+
+            # Skip binary extensions
+            ext = fname.rsplit(".", 1)[-1].lower() if "." in fname else ""
+            if ext in _BINARY_EXTS:
+                skipped += 1
+                continue
+
+            full_path = os.path.join(root, fname)
+
+            # Skip files that are too large
+            try:
+                if os.path.getsize(full_path) > _MAX_IMPORT_FILE_SIZE:
+                    skipped += 1
+                    continue
+            except OSError:
+                continue
+
+            # Compute relative path from project root
+            rel_path = os.path.relpath(full_path, target_dir)
+
+            # Read as text
+            try:
+                with open(full_path, "r", encoding="utf-8", errors="replace") as f:
+                    content = f.read()
+                files[rel_path] = content
+            except (IOError, UnicodeDecodeError):
+                skipped += 1
+                continue
+
+    if not files:
+        raise ValueError(
+            f"No importable files found in '{clean_project}' "
+            f"(skipped {skipped} binary/large files)"
+        )
+
+    logger.info(
+        "Importing workspace project '%s': %d files (%d skipped)",
+        clean_project, len(files), skipped,
+    )
+
+    return create_app(
+        name=name,
+        files=files,
+        session_id=session_id,
+        icon=icon or "📦",
+    )

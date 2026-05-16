@@ -4269,6 +4269,12 @@
       });
     }
 
+    // Deploy as App
+    const eftDeployBtn = $('#eft-deploy-app');
+    if (eftDeployBtn) {
+      eftDeployBtn.addEventListener('click', () => window.editor.deployAsApp());
+    }
+
     // Sidebar tabs
     $$('.sidebar-tab').forEach(tab => tab.addEventListener('click', () => {
       $$('.sidebar-tab').forEach(t => t.classList.remove('active'));

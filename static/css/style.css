@@ -2929,6 +2929,126 @@ pre code .ln::before {
   color: var(--text-primary); border-color: var(--accent);
   background: rgba(124,92,252,.06);
 }
+.eft-deploy-btn {
+  background: linear-gradient(135deg, rgba(124,92,252,.12), rgba(99,102,241,.12));
+  border-color: rgba(124,92,252,.25);
+  color: var(--accent);
+}
+.eft-deploy-btn:hover {
+  background: linear-gradient(135deg, rgba(124,92,252,.22), rgba(99,102,241,.22));
+  border-color: var(--accent); color: #fff;
+}
+
+/* ---- Deploy as App Modal ---- */
+.deploy-app-modal-overlay {
+  position: fixed; inset: 0; background: rgba(0,0,0,.65);
+  z-index: 2100; display: flex; align-items: center; justify-content: center;
+  backdrop-filter: blur(8px); animation: fadeIn .2s ease;
+}
+.deploy-app-modal {
+  width: 480px; max-width: 92vw;
+  background: var(--bg-surface); border: 1px solid var(--border);
+  border-radius: var(--radius-lg); overflow: hidden;
+  box-shadow: 0 24px 80px rgba(0,0,0,.5), 0 0 0 1px rgba(124,92,252,.08);
+  animation: slideUp .3s ease;
+}
+.dam-header {
+  display: flex; align-items: center; gap: 10px;
+  padding: 16px 20px; background: var(--bg-elevated);
+  border-bottom: 1px solid var(--border);
+}
+.dam-icon { font-size: 20px; }
+.dam-header h3 {
+  flex: 1; margin: 0; font-size: 16px; font-weight: 700;
+  background: linear-gradient(135deg, var(--accent), #ec4899);
+  -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+}
+.dam-close {
+  background: none; border: none; color: var(--text-muted);
+  cursor: pointer; font-size: 16px; padding: 4px;
+  transition: color var(--transition);
+}
+.dam-close:hover { color: var(--text-primary); }
+.dam-body { padding: 20px; display: flex; flex-direction: column; gap: 14px; }
+.dam-info {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 10px 14px; background: var(--bg-primary);
+  border: 1px solid var(--border); border-radius: var(--radius-sm);
+}
+.dam-info-label { font-size: 11px; color: var(--text-muted); text-transform: uppercase; letter-spacing: .04em; font-weight: 600; }
+.dam-info-value { font-size: 13px; font-weight: 700; color: var(--text-primary); }
+.dam-label { font-size: 12px; font-weight: 600; color: var(--text-secondary); }
+.dam-input {
+  width: 100%; background: var(--bg-primary); color: var(--text-primary);
+  border: 1px solid var(--border); border-radius: var(--radius-sm);
+  padding: 10px 14px; font-size: 14px; font-family: inherit;
+  outline: none; transition: border-color var(--transition);
+}
+.dam-input:focus { border-color: var(--accent); box-shadow: 0 0 0 3px rgba(124,92,252,.12); }
+.dam-input-error { border-color: var(--red) !important; animation: shake .3s ease; }
+.dam-hint { font-size: 11px; color: var(--text-muted); line-height: 1.5; }
+.dam-footer {
+  display: flex; justify-content: flex-end; gap: 8px;
+  padding: 14px 20px; border-top: 1px solid var(--border);
+}
+.dam-btn {
+  padding: 8px 18px; border-radius: var(--radius-sm);
+  font-size: 13px; font-weight: 600; cursor: pointer;
+  font-family: inherit; transition: all var(--transition);
+  display: flex; align-items: center; gap: 6px; border: none;
+}
+.dam-btn-cancel {
+  background: var(--bg-elevated); color: var(--text-secondary);
+  border: 1px solid var(--border);
+}
+.dam-btn-cancel:hover { color: var(--text-primary); background: var(--bg-hover); }
+.dam-btn-deploy {
+  background: linear-gradient(135deg, var(--accent), #6366f1);
+  color: #fff;
+}
+.dam-btn-deploy:hover { opacity: .9; transform: translateY(-1px); }
+.dam-btn-deploy:disabled { opacity: .5; cursor: not-allowed; transform: none; }
+.dam-status {
+  display: none; padding: 10px 20px;
+  border-top: 1px solid var(--border); background: var(--bg-elevated);
+}
+.dam-status-text { font-size: 12px; color: var(--text-muted); }
+.dam-status-error { font-size: 12px; color: var(--red); display: flex; align-items: center; gap: 6px; }
+
+@keyframes shake {
+  0%, 100% { transform: translateX(0); }
+  25% { transform: translateX(-4px); }
+  75% { transform: translateX(4px); }
+}
+
+/* ---- App Preview (in editor code area) ---- */
+.app-preview-container {
+  display: flex; flex-direction: column;
+  flex: 1; height: 100%; overflow: hidden;
+}
+.app-preview-toolbar {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 8px 14px; background: var(--bg-elevated);
+  border-bottom: 1px solid var(--border); flex-shrink: 0;
+}
+.app-preview-title {
+  font-size: 13px; font-weight: 700; color: var(--text-primary);
+}
+.app-preview-actions { display: flex; align-items: center; gap: 6px; }
+.app-preview-btn {
+  display: inline-flex; align-items: center; gap: 4px;
+  padding: 4px 10px; border-radius: var(--radius-sm);
+  font-size: 11px; font-weight: 600; font-family: inherit;
+  cursor: pointer; transition: all var(--transition);
+  background: var(--bg-surface); border: 1px solid var(--border);
+  color: var(--text-secondary); text-decoration: none;
+}
+.app-preview-btn:hover { color: var(--accent); border-color: var(--accent); }
+.app-preview-close:hover { color: var(--red); border-color: var(--red); }
+.app-preview-iframe {
+  flex: 1; width: 100%; border: none; background: #fff;
+  border-radius: 0 0 var(--radius-sm) var(--radius-sm);
+}
 
 /* ---- Editor Search Bar ---- */
 .editor-search-bar {

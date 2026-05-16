@@ -2209,6 +2209,37 @@ async def list_apps_endpoint(limit: int = 20):
     return list_apps(limit=limit)
 
 
+@app.post("/apps/import-from-workspace")
+async def import_app_from_workspace(request: Request):
+    """Import a workspace project folder as a mini-app."""
+    from app.core.app_builder import import_from_workspace
+    data = await request.json()
+    project = data.get("project", "").strip()
+    name = data.get("name", "").strip()
+    session_id = data.get("session_id")
+    icon = data.get("icon")
+
+    if not project:
+        raise HTTPException(400, "'project' is required")
+    if not name:
+        name = project.split("/")[-1] or project
+
+    try:
+        from config import WORKSPACE_DIR
+        result = import_from_workspace(
+            project_path=project,
+            name=name,
+            workspace_dir=WORKSPACE_DIR,
+            session_id=session_id,
+            icon=icon,
+        )
+        return result
+    except FileNotFoundError as e:
+        raise HTTPException(404, str(e))
+    except ValueError as e:
+        raise HTTPException(400, str(e))
+
+
 @app.get("/apps/templates")
 async def list_templates():
     """List available starter templates."""
@@ -2403,13 +2434,18 @@ async def export_app_zip(app_id: str):
 
 @app.get("/apps/{app_id}/{filename:path}")
 async def serve_app_file(app_id: str, filename: str):
-    """Serve a file from a mini-app (blocks internal files)."""
+    """Serve a file from a mini-app (blocks internal files, supports subdirs)."""
     from app.core.app_builder import APPS_DIR
     from app.core.app_services import INTERNAL_FILES
     base = _os.path.basename(filename)
     if base in INTERNAL_FILES:
         raise HTTPException(403, "Access denied")
-    filepath = _os.path.join(APPS_DIR, app_id, base)
+    # Support subdirectory paths — sanitize to prevent traversal
+    clean = filename.replace("..", "").lstrip("/")
+    filepath = _os.path.realpath(_os.path.join(APPS_DIR, app_id, clean))
+    app_root = _os.path.realpath(_os.path.join(APPS_DIR, app_id))
+    if not filepath.startswith(app_root):
+        raise HTTPException(403, "Path traversal not allowed")
     if not _os.path.exists(filepath):
         raise HTTPException(404, "File not found")
     return _AppFileResponse(filepath)

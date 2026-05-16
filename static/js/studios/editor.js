@@ -3216,7 +3216,168 @@ class EditorMode {
       $('#project-select').value = history[parseInt(choice) - 1];
     }
   }
+
+  // ---- Deploy Project as App ----
+  async deployAsApp() {
+    const select = $('#project-select');
+    const project = select ? select.value : '.';
+    if (project === '.') {
+      toast(ICONS.x(14) + ' Select a project folder first');
+      return;
+    }
+
+    // Remove any existing modal
+    const old = document.querySelector('.deploy-app-modal-overlay');
+    if (old) old.remove();
+
+    // Build the modal
+    const overlay = document.createElement('div');
+    overlay.className = 'deploy-app-modal-overlay';
+
+    const modal = document.createElement('div');
+    modal.className = 'deploy-app-modal';
+    modal.innerHTML = `
+      <div class="dam-header">
+        <span class="dam-icon">🚀</span>
+        <h3>Deploy as App</h3>
+        <button class="dam-close" id="dam-close" title="Cancel">✕</button>
+      </div>
+      <div class="dam-body">
+        <div class="dam-info">
+          <div class="dam-info-label">Project folder</div>
+          <div class="dam-info-value">📁 ${escHtml(project)}</div>
+        </div>
+        <label class="dam-label" for="dam-name-input">App name</label>
+        <input class="dam-input" id="dam-name-input" type="text"
+               value="${escHtml(project)}" placeholder="My App" autofocus>
+        <div class="dam-hint">
+          Text files will be imported. Binary files, node_modules, .git etc. are skipped.
+        </div>
+      </div>
+      <div class="dam-footer">
+        <button class="dam-btn dam-btn-cancel" id="dam-cancel">Cancel</button>
+        <button class="dam-btn dam-btn-deploy" id="dam-deploy">
+          <svg class="ic" width="14" height="14"><use href="#icon-play"></use></svg>
+          Deploy
+        </button>
+      </div>
+      <div class="dam-status" id="dam-status"></div>
+    `;
+    overlay.appendChild(modal);
+    document.body.appendChild(overlay);
+
+    // Focus input
+    requestAnimationFrame(() => {
+      const inp = $('#dam-name-input');
+      if (inp) { inp.focus(); inp.select(); }
+    });
+
+    // Close handlers
+    const closeModal = () => overlay.remove();
+    $('#dam-close').addEventListener('click', closeModal);
+    $('#dam-cancel').addEventListener('click', closeModal);
+    overlay.addEventListener('click', e => { if (e.target === overlay) closeModal(); });
+
+    // Deploy handler
+    const self = this;
+    $('#dam-deploy').addEventListener('click', async () => {
+      const nameInput = $('#dam-name-input');
+      const appName = nameInput ? nameInput.value.trim() : project;
+      const deployBtn = $('#dam-deploy');
+      const status = $('#dam-status');
+
+      if (!appName) {
+        nameInput.classList.add('dam-input-error');
+        nameInput.focus();
+        return;
+      }
+
+      deployBtn.disabled = true;
+      deployBtn.innerHTML = '<span class="tool-spinner"></span> Deploying…';
+      status.innerHTML = '<span class="dam-status-text">📦 Reading project files…</span>';
+      status.style.display = 'block';
+
+      try {
+        const resp = await fetch('/apps/import-from-workspace', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            project: project,
+            name: appName,
+            icon: '🚀',
+          })
+        });
+
+        if (!resp.ok) {
+          const err = await resp.json();
+          throw new Error(err.detail || 'Import failed');
+        }
+
+        const result = await resp.json();
+        const appId = result.id;
+        const previewUrl = result.preview_url || `/apps/${appId}/index.html`;
+        const fileCount = (result.files || []).length;
+
+        closeModal();
+
+        // Show success toast
+        toast(`🚀 App deployed: <strong>${escHtml(appName)}</strong> (${fileCount} files)`);
+        self.addActivity('🚀', 'Deployed as App', `${appName} → ${appId}`);
+
+        // Open preview in the editor code area
+        self._showAppPreview(appId, appName, previewUrl);
+
+      } catch (err) {
+        status.innerHTML = `<span class="dam-status-error">${ICONS.x(14)} ${escHtml(err.message)}</span>`;
+        deployBtn.disabled = false;
+        deployBtn.innerHTML = '<svg class="ic" width="14" height="14"><use href="#icon-play"></use></svg> Retry';
+      }
+    });
+
+    // Enter key submits
+    $('#dam-name-input').addEventListener('keydown', e => {
+      if (e.key === 'Enter') {
+        e.preventDefault();
+        $('#dam-deploy').click();
+      }
+    });
+  }
+
+  _showAppPreview(appId, appName, previewUrl) {
+    const area = $('#editor-code-area');
+    const welcome = $('#editor-welcome');
+    if (welcome) welcome.style.display = 'none';
+    this.activeTab = null;
+    this.renderTabs();
+
+    area.innerHTML = `
+      <div class="app-preview-container">
+        <div class="app-preview-toolbar">
+          <span class="app-preview-title">🚀 ${escHtml(appName)}</span>
+          <div class="app-preview-actions">
+            <a href="${escHtml(previewUrl)}" target="_blank" class="app-preview-btn" title="Open in new tab">
+              <svg class="ic" width="14" height="14"><use href="#icon-external-link"></use></svg>
+              Open
+            </a>
+            <button class="app-preview-btn" onclick="navigator.clipboard.writeText(location.origin+'${escHtml(previewUrl)}').then(()=>toast('URL copied!'))" title="Copy URL">
+              <svg class="ic" width="14" height="14"><use href="#icon-clipboard"></use></svg>
+              Copy URL
+            </button>
+            <button class="app-preview-btn app-preview-close" title="Close preview" id="app-preview-close">
+              <svg class="ic" width="14" height="14"><use href="#icon-x"></use></svg>
+            </button>
+          </div>
+        </div>
+        <iframe class="app-preview-iframe" src="${escHtml(previewUrl)}" sandbox="allow-scripts allow-same-origin allow-forms allow-popups"></iframe>
+      </div>
+    `;
+
+    // Close preview button
+    const closeBtn = area.querySelector('#app-preview-close');
+    if (closeBtn) closeBtn.addEventListener('click', () => this.showWelcome());
+  }
 }
 
 // Backward compatibility
 window.EditorMode = EditorMode;
+
