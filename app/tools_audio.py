@@ -1206,6 +1206,18 @@ async def estimate_audio(request: Request):
         audio_dur = n * 10  # ~10s of speech per chunk (conservative)
         per_chunk = 8.0 if _gpu_ok else 30.0
         gen_time = n * per_chunk
+    elif tts_engine == "edge":
+        # Edge TTS: API based, single chunk, very fast
+        n = 1
+        word_count = len(text.split())
+        audio_dur = word_count / 2.5  # ~150 wpm
+        gen_time = max(1.0, len(text) / 200.0)  # fast network call
+    elif tts_engine == "pyttsx3":
+        # Espeak: local binary, single chunk, instant
+        n = 1
+        word_count = len(text.split())
+        audio_dur = word_count / 2.5  # ~150 wpm
+        gen_time = max(0.5, len(text) / 500.0)
     else:
         # SpeechT5: 500-char chunks, ~150 words/min, very fast
         chunks = _split_text(text, max_len=500)
