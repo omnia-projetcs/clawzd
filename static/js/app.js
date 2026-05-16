@@ -1072,6 +1072,28 @@
           return; // Don't append todo marker to visible text
         }
       }
+      // Intercept tool approval requests (HITL) — must be handled BEFORE
+      // the token reaches the streaming parser to avoid HTML-escaping issues.
+      if (tok.includes('__TOOL_APPROVAL__')) {
+        const approvalRe = /__TOOL_APPROVAL__(.+?)__TOOL_APPROVAL__/g;
+        let approvalMatch;
+        let remaining = tok;
+        while ((approvalMatch = approvalRe.exec(tok)) !== null) {
+          try {
+            const data = JSON.parse(approvalMatch[1]);
+            if (window.toolApproval) window.toolApproval._show(data);
+          } catch (e) {
+            console.warn('[Clawzd] Failed to parse tool approval:', e);
+          }
+          remaining = remaining.replace(approvalMatch[0], '');
+        }
+        // Strip partial/unclosed approval markers too
+        remaining = remaining.replace(/__TOOL_APPROVAL__[\s\S]*$/g, '');
+        // If there's remaining visible text, still add it
+        remaining = remaining.trim();
+        if (!remaining) return; // Token was only the approval marker
+        tok = remaining;
+      }
       this.text += tok;
       if (window.tokenTracker) window.tokenTracker.addOutput(1);
 
