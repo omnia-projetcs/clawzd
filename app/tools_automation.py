@@ -1268,11 +1268,21 @@ def _patch_discord_listener():
 
 
 def _patch_telegram_listener():
-    """Hook into Telegram polling to dispatch automation events."""
-    # Telegram integration uses polling or webhook — we'll add a simple poller
+    """Hook into Telegram polling to dispatch automation events and reply to messages.
+
+    The Telegram Bot API does NOT support simultaneous getUpdates and webhooks.
+    Therefore the poller is the single entry-point for all incoming Telegram
+    messages: it dispatches automation events AND generates LLM replies.
+    """
     token = os.environ.get("TELEGRAM_BOT_TOKEN", "")
     if not token:
         return
+
+    # Parse allowed user IDs (same as integrations/telegram.py)
+    _raw_ids = os.environ.get("TELEGRAM_ALLOWED_IDS", "").strip()
+    allowed_ids: set[str] = {
+        uid.strip() for uid in _raw_ids.split(",") if uid.strip()
+    } if _raw_ids else set()
 
     async def _telegram_poller():
         import httpx
@@ -1287,14 +1297,60 @@ def _patch_telegram_listener():
                     for update in data.get("result", []):
                         offset = update["update_id"] + 1
                         msg = update.get("message", {})
-                        if msg.get("text"):
-                            await dispatch_event("telegram", {
-                                "message": msg["text"],
-                                "chat_id": str(msg["chat"]["id"]),
-                                "author": msg.get("from", {}).get("username", ""),
-                                "author_id": str(msg.get("from", {}).get("id", "")),
-                                "timestamp": datetime.fromtimestamp(msg.get("date", 0), tz=timezone.utc).isoformat(),
+                        text = msg.get("text", "")
+                        if not text:
+                            continue
+
+                        chat_id = msg.get("chat", {}).get("id")
+                        sender = msg.get("from", {})
+                        sender_id = str(sender.get("id", ""))
+
+                        # ── Allowlist filter ──
+                        if allowed_ids and sender_id not in allowed_ids:
+                            logger.warning("Telegram msg from unauthorized user %s — ignored", sender_id)
+                            continue
+
+                        # ── 1. Dispatch to automation workflows ──
+                        await dispatch_event("telegram", {
+                            "message": text,
+                            "chat_id": str(chat_id),
+                            "author": sender.get("username", ""),
+                            "author_id": sender_id,
+                            "timestamp": datetime.fromtimestamp(msg.get("date", 0), tz=timezone.utc).isoformat(),
+                        })
+
+                        # ── 2. Generate LLM reply (same logic as webhook) ──
+                        try:
+                            from app.llm_provider import get_llm_provider
+                            from app.preprompts import get_preprompt
+                            from app.database import create_session, add_message
+                            import uuid as _uuid
+
+                            session_id = f"tg-{sender_id}-{_uuid.uuid4().hex[:6]}"
+                            create_session(session_id, title=f"[Telegram] {text[:40]}")
+                            add_message(session_id, "user", text)
+
+                            llm_messages = [
+                                {"role": "system", "content": get_preprompt("enrichment") or ""},
+                                {"role": "user", "content": text},
+                            ]
+                            provider = get_llm_provider()
+                            full = ""
+                            async for tok in provider.chat_stream(llm_messages):
+                                full += tok
+                            add_message(session_id, "assistant", full)
+
+                            # Send reply
+                            reply_url = f"https://api.telegram.org/bot{token}/sendMessage"
+                            await c.post(reply_url, json={
+                                "chat_id": chat_id,
+                                "text": full[:4096],
+                                "parse_mode": "Markdown",
                             })
+                            logger.info("Telegram reply sent to %s (%d chars)", sender_id, len(full))
+                        except Exception as e:
+                            logger.error("Telegram reply generation failed: %s", e)
+
             except Exception as e:
                 logger.debug("Telegram poller error: %s", e)
                 await asyncio.sleep(5)

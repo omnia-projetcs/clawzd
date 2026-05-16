@@ -5388,7 +5388,7 @@
 
       // ── Ensure connector/integration keys ALWAYS appear (even if not in .env) ──
       const REQUIRED_CONNECTOR_KEYS = {
-        'TELEGRAM': ['TELEGRAM_BOT_TOKEN'],
+        'TELEGRAM': ['TELEGRAM_BOT_TOKEN', 'TELEGRAM_ALLOWED_IDS'],
         'DISCORD': ['DISCORD_BOT_TOKEN', 'DISCORD_CHANNEL_IDS'],
         'SMTP': ['SMTP_HOST', 'SMTP_PORT', 'SMTP_USER', 'SMTP_PASSWORD', 'NOTIFICATION_EMAIL'],
         'TWITTER': ['TWITTER_API_KEY', 'TWITTER_API_SECRET', 'TWITTER_ACCESS_TOKEN', 'TWITTER_ACCESS_SECRET'],
@@ -5476,7 +5476,8 @@
           subscription: '✅ Free. Create a bot via @BotFather on Telegram to get your token.',
           keyFormat: '123456:ABC-DEF1234...',
           fields: [
-            { key: 'TELEGRAM_BOT_TOKEN', label: 'Bot Token', hint: 'Token from @BotFather (e.g. 123456:ABC-DEF1234ghIkl-zyx57W2v1u123ew11)' }
+            { key: 'TELEGRAM_BOT_TOKEN', label: 'Bot Token', hint: 'Token from @BotFather (e.g. 123456:ABC-DEF1234ghIkl-zyx57W2v1u123ew11)' },
+            { key: 'TELEGRAM_ALLOWED_IDS', label: 'Allowed User IDs', hint: 'Comma-separated Telegram user IDs to restrict access (empty = allow all). Use @userinfobot to find your ID.' }
           ]
         },
         DISCORD: {
