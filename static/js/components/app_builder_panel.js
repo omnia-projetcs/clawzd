@@ -119,7 +119,9 @@ const AppBuilderPanel = (() => {
         </div>
         <div class="ab-card-actions">
           <button class="ab-btn-code" onclick="AppBuilderPanel.showCode('${app.id}')" title="Edit Code">${ICONS.code(12)} Code</button>
+          <button class="ab-btn-services" onclick="AppBuilderPanel.showServices('${app.id}')" title="Secrets & Database">${ICONS.shield(12)} Services</button>
           <button class="ab-btn-edit" onclick="AppBuilderPanel.editInChat('${app.id}', '${escapedName}')" title="Edit in Chat">${ICONS.penTool(12)} Edit</button>
+          <button class="ab-btn-sm" onclick="AppBuilderPanel.exportApp('${app.id}')" title="Export ZIP">📥</button>
           <button class="ab-btn-sm" onclick="AppBuilderPanel.preview('${app.id}')" title="Preview">${ICONS.eye(14)}</button>
           <button class="ab-btn-sm ab-btn-danger" onclick="AppBuilderPanel.remove('${app.id}')" title="Delete">${ICONS.trash(14)}</button>
         </div>
@@ -604,6 +606,263 @@ const AppBuilderPanel = (() => {
     }
   }
 
+  /* ── Services Panel (Secrets + Database) ─────────────── */
+
+  async function showServices(appId) {
+    const body = document.getElementById('ab-body');
+    if (!body) return;
+
+    const app = _apps.find(a => a.id === appId);
+    const esc = window.escHtml || (s => { const d = document.createElement('div'); d.textContent = String(s ?? ''); return d.innerHTML; });
+    const appName = esc(app?.name || appId);
+
+    body.innerHTML = `
+      <div class="ab-services">
+        <div class="ab-code-header">
+          <button class="ab-btn-back" onclick="AppBuilderPanel.open()">${ICONS.chevronLeft(14)} Back</button>
+          <h4>${ICONS.shield(16)} ${appName} — Services</h4>
+        </div>
+        <div class="ab-svc-tabs">
+          <button class="ab-svc-tab active" data-tab="secrets" onclick="AppBuilderPanel.switchServiceTab(this)">🔐 Secrets</button>
+          <button class="ab-svc-tab" data-tab="database" onclick="AppBuilderPanel.switchServiceTab(this)">🗄️ Database</button>
+        </div>
+        <div class="ab-svc-content" id="ab-svc-content"></div>
+      </div>
+    `;
+    body._serviceAppId = appId;
+    await _renderSecretsTab(appId);
+  }
+
+  function switchServiceTab(tabEl) {
+    document.querySelectorAll('.ab-svc-tab').forEach(t => t.classList.remove('active'));
+    tabEl.classList.add('active');
+    const body = document.getElementById('ab-body');
+    const appId = body?._serviceAppId;
+    if (!appId) return;
+    if (tabEl.dataset.tab === 'secrets') _renderSecretsTab(appId);
+    else _renderDatabaseTab(appId);
+  }
+
+  async function _renderSecretsTab(appId) {
+    const container = document.getElementById('ab-svc-content');
+    if (!container) return;
+    container.innerHTML = '<div class="ab-loading">Loading secrets…</div>';
+
+    try {
+      const res = await fetch(`/apps/${appId}/secrets`);
+      const data = await res.json();
+      const secrets = data.secrets || [];
+
+      const rows = secrets.map(s => `
+        <tr>
+          <td class="ab-svc-key">${s.key}</td>
+          <td class="ab-svc-masked">${s.masked}</td>
+          <td class="ab-svc-len">${s.length} chars</td>
+          <td><button class="ab-btn-sm ab-btn-danger" onclick="AppBuilderPanel.deleteSecret('${appId}', '${s.key}')" title="Delete">${ICONS.trash(12)}</button></td>
+        </tr>
+      `).join('');
+
+      container.innerHTML = `
+        <div class="ab-svc-section">
+          <h5>🔐 Stored Secrets</h5>
+          ${secrets.length ? `
+            <table class="ab-svc-table">
+              <thead><tr><th>Key</th><th>Value</th><th>Size</th><th></th></tr></thead>
+              <tbody>${rows}</tbody>
+            </table>
+          ` : '<p class="ab-svc-empty">No secrets yet.</p>'}
+        </div>
+        <div class="ab-svc-section">
+          <h5>➕ Add Secret</h5>
+          <div class="ab-svc-form">
+            <input type="text" id="ab-secret-key" class="ab-input" placeholder="KEY_NAME" style="flex:1;">
+            <input type="password" id="ab-secret-value" class="ab-input" placeholder="Value..." style="flex:2;">
+            <button class="ab-btn ab-btn-primary" onclick="AppBuilderPanel.addSecret('${appId}')">${ICONS.plus(12)} Add</button>
+          </div>
+        </div>
+        <div class="ab-svc-section ab-svc-snippet">
+          <h5>📋 Usage in your app</h5>
+          <pre><code>// In your app.js:
+const apiKey = await fetch('/apps/${appId}/api/secrets/MY_KEY')
+  .then(r => r.text());</code></pre>
+        </div>
+      `;
+    } catch (e) {
+      container.innerHTML = '<div class="ab-svc-empty">Failed to load secrets.</div>';
+    }
+  }
+
+  async function addSecret(appId) {
+    const keyEl = document.getElementById('ab-secret-key');
+    const valEl = document.getElementById('ab-secret-value');
+    const key = keyEl?.value?.trim();
+    const value = valEl?.value || '';
+    if (!key) { toast?.('Key is required', 'error'); return; }
+
+    try {
+      await fetch(`/apps/${appId}/secrets`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ key, value }),
+      });
+      toast?.(`Secret "${key}" saved`, 'success');
+      await _renderSecretsTab(appId);
+    } catch (e) {
+      toast?.('Failed to save secret', 'error');
+    }
+  }
+
+  async function deleteSecret(appId, key) {
+    if (!confirm(`Delete secret "${key}"?`)) return;
+    try {
+      await fetch(`/apps/${appId}/secrets/${encodeURIComponent(key)}`, { method: 'DELETE' });
+      toast?.(`Secret "${key}" deleted`, 'info');
+      await _renderSecretsTab(appId);
+    } catch (e) {
+      toast?.('Failed to delete secret', 'error');
+    }
+  }
+
+  async function _renderDatabaseTab(appId) {
+    const container = document.getElementById('ab-svc-content');
+    if (!container) return;
+    container.innerHTML = '<div class="ab-loading">Loading database…</div>';
+
+    try {
+      const res = await fetch(`/apps/${appId}/api/db/tables`);
+      const data = await res.json();
+      const tables = data.tables || [];
+
+      const tableList = tables.map(t => `
+        <button class="ab-svc-table-btn" onclick="AppBuilderPanel.loadTablePreview('${appId}', '${t.name}')">
+          📄 ${t.name} <span class="ab-svc-row-count">${t.row_count} rows</span>
+        </button>
+      `).join('');
+
+      container.innerHTML = `
+        <div class="ab-svc-section">
+          <h5>📝 SQL Console</h5>
+          <div class="ab-svc-sql">
+            <textarea id="ab-sql-input" class="ab-code-textarea" rows="3" placeholder="SELECT * FROM my_table;"
+              style="min-height:60px; max-height:120px; border-radius:8px; border:1px solid #21262d;"></textarea>
+            <button class="ab-btn ab-btn-primary" onclick="AppBuilderPanel.executeSQL('${appId}')" style="margin-top:6px;">▶ Execute</button>
+          </div>
+          <div id="ab-sql-result"></div>
+        </div>
+        <div class="ab-svc-section">
+          <h5>🗄️ Tables ${tables.length ? `(${tables.length})` : ''}</h5>
+          ${tables.length ? `<div class="ab-svc-table-list">${tableList}</div>` : '<p class="ab-svc-empty">No tables yet. Use the SQL console to create one.</p>'}
+          <div id="ab-table-preview"></div>
+        </div>
+        <div class="ab-svc-section ab-svc-snippet">
+          <h5>📋 Usage in your app</h5>
+          <pre><code>// In your app.js:
+const res = await fetch('/apps/${appId}/api/db/query', {
+  method: 'POST',
+  headers: {'Content-Type': 'application/json'},
+  body: JSON.stringify({
+    sql: 'SELECT * FROM users WHERE id = ?',
+    params: [1]
+  })
+});
+const {columns, rows} = await res.json();</code></pre>
+        </div>
+      `;
+    } catch (e) {
+      container.innerHTML = '<div class="ab-svc-empty">Failed to load database.</div>';
+    }
+  }
+
+  async function executeSQL(appId) {
+    const sqlEl = document.getElementById('ab-sql-input');
+    const resultEl = document.getElementById('ab-sql-result');
+    const sql = sqlEl?.value?.trim();
+    if (!sql || !resultEl) return;
+
+    resultEl.innerHTML = '<div class="ab-loading">Executing…</div>';
+
+    try {
+      const res = await fetch(`/apps/${appId}/api/db/query`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ sql }),
+      });
+      const data = await res.json();
+
+      if (!res.ok) {
+        resultEl.innerHTML = `<div class="ab-svc-error">❌ ${data.detail || 'Query failed'}</div>`;
+        return;
+      }
+
+      if (data.columns) {
+        // SELECT result
+        const headerCells = data.columns.map(c => `<th>${c}</th>`).join('');
+        const bodyRows = data.rows.slice(0, 100).map(row =>
+          '<tr>' + row.map(v => `<td>${v === null ? '<i>NULL</i>' : String(v)}</td>`).join('') + '</tr>'
+        ).join('');
+        resultEl.innerHTML = `
+          <div class="ab-svc-result-info">${data.count} row${data.count !== 1 ? 's' : ''} returned</div>
+          <div class="ab-svc-table-scroll">
+            <table class="ab-svc-table"><thead><tr>${headerCells}</tr></thead><tbody>${bodyRows}</tbody></table>
+          </div>
+        `;
+      } else {
+        // Write result
+        resultEl.innerHTML = `<div class="ab-svc-result-info">✅ ${data.affected} row${data.affected !== 1 ? 's' : ''} affected</div>`;
+        // Refresh table list
+        _renderDatabaseTab(appId);
+      }
+    } catch (e) {
+      resultEl.innerHTML = `<div class="ab-svc-error">❌ ${e.message}</div>`;
+    }
+  }
+
+  async function loadTablePreview(appId, tableName) {
+    const previewEl = document.getElementById('ab-table-preview');
+    if (!previewEl) return;
+    previewEl.innerHTML = '<div class="ab-loading">Loading…</div>';
+
+    try {
+      const [schemaRes, dataRes] = await Promise.all([
+        fetch(`/apps/${appId}/api/db/tables/${tableName}/schema`),
+        fetch(`/apps/${appId}/api/db/query`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ sql: `SELECT * FROM "${tableName}" LIMIT 10` }),
+        }),
+      ]);
+      const schema = await schemaRes.json();
+      const data = await dataRes.json();
+
+      const schemaCols = (schema.columns || []).map(c =>
+        `<span class="ab-svc-col">${c.name} <small>${c.type}${c.pk ? ' PK' : ''}${c.notnull ? ' NOT NULL' : ''}</small></span>`
+      ).join('');
+
+      let tableHtml = '';
+      if (data.columns && data.rows) {
+        const hdr = data.columns.map(c => `<th>${c}</th>`).join('');
+        const rows = data.rows.map(r =>
+          '<tr>' + r.map(v => `<td>${v === null ? '<i>NULL</i>' : String(v)}</td>`).join('') + '</tr>'
+        ).join('');
+        tableHtml = `<div class="ab-svc-table-scroll"><table class="ab-svc-table"><thead><tr>${hdr}</tr></thead><tbody>${rows}</tbody></table></div>`;
+      }
+
+      previewEl.innerHTML = `
+        <div class="ab-svc-table-preview">
+          <h6>📄 ${tableName}</h6>
+          <div class="ab-svc-schema">${schemaCols}</div>
+          ${tableHtml || '<p class="ab-svc-empty">Empty table</p>'}
+        </div>
+      `;
+    } catch (e) {
+      previewEl.innerHTML = `<div class="ab-svc-error">Failed to load table.</div>`;
+    }
+  }
+
+  function exportApp(appId) {
+    window.open(`/apps/${appId}/export`, '_blank');
+  }
+
   function _timeAgo(iso) {
     if (!iso) return '';
     const d = (Date.now() - new Date(iso).getTime()) / 1000;
@@ -615,7 +874,8 @@ const AppBuilderPanel = (() => {
 
   return {
     init, open, close, showCreate, create, toggleGameOptions, preview, remove,
-    editInChat, showEdit, saveEdit, showCode, saveCode, switchTab, addFileTab, deleteFileTab
+    editInChat, showEdit, saveEdit, showCode, saveCode, switchTab, addFileTab, deleteFileTab,
+    showServices, switchServiceTab, addSecret, deleteSecret, executeSQL, loadTablePreview, exportApp
   };
 })();
 

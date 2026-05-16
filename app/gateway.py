@@ -2291,11 +2291,125 @@ async def delete_app_file_endpoint(app_id: str, filename: str):
     return {"status": "deleted", "app_id": app_id, "filename": filename}
 
 
+# --- App Secrets API ---
+
+@app.get("/apps/{app_id}/secrets")
+async def list_app_secrets(app_id: str):
+    """List all secrets for an app (values masked)."""
+    from app.core.app_services import get_secrets
+    return {"app_id": app_id, "secrets": get_secrets(app_id)}
+
+
+@app.post("/apps/{app_id}/secrets")
+async def set_app_secret(app_id: str, request: Request):
+    """Create or update a secret."""
+    from app.core.app_services import set_secret
+    data = await request.json()
+    key = data.get("key", "").strip()
+    value = data.get("value", "")
+    if not key:
+        raise HTTPException(400, "Secret key is required")
+    return set_secret(app_id, key, value)
+
+
+@app.delete("/apps/{app_id}/secrets/{key}")
+async def delete_app_secret(app_id: str, key: str):
+    """Delete a secret."""
+    from app.core.app_services import delete_secret
+    if not delete_secret(app_id, key):
+        raise HTTPException(404, "Secret not found")
+    return {"status": "deleted", "key": key}
+
+
+# --- App Secrets Runtime (accessible from app iframe) ---
+
+@app.get("/apps/{app_id}/api/secrets/{key}")
+async def get_app_secret_runtime(app_id: str, key: str):
+    """Return raw secret value (for runtime use by the app)."""
+    from app.core.app_services import get_secret_value
+    value = get_secret_value(app_id, key)
+    if value is None:
+        raise HTTPException(404, "Secret not found")
+    from fastapi.responses import PlainTextResponse
+    return PlainTextResponse(value)
+
+
+# --- App Database API ---
+
+@app.get("/apps/{app_id}/api/db/tables")
+async def list_app_db_tables(app_id: str):
+    """List tables in an app's database."""
+    from app.core.app_services import list_tables
+    return {"app_id": app_id, "tables": list_tables(app_id)}
+
+
+@app.post("/apps/{app_id}/api/db/query")
+async def app_db_query(app_id: str, request: Request):
+    """Execute a SQL query against an app's database."""
+    from app.core.app_services import execute_query
+    data = await request.json()
+    sql = data.get("sql", "").strip()
+    params = data.get("params", [])
+    if not sql:
+        raise HTTPException(400, "SQL query is required")
+    result = execute_query(app_id, sql, params)
+    if "error" in result:
+        raise HTTPException(400, result["error"])
+    return result
+
+
+@app.get("/apps/{app_id}/api/db/tables/{table}/schema")
+async def app_db_table_schema(app_id: str, table: str):
+    """Get column schema for a table."""
+    from app.core.app_services import get_table_schema
+    schema = get_table_schema(app_id, table)
+    return {"table": table, "columns": schema}
+
+
+# --- App ZIP Export ---
+
+@app.get("/apps/{app_id}/export")
+async def export_app_zip(app_id: str):
+    """Export an app as a downloadable ZIP file."""
+    import io
+    import zipfile
+    from app.core.app_builder import get_app, APPS_DIR
+    from app.core.app_services import INTERNAL_FILES
+    from fastapi.responses import StreamingResponse
+
+    meta = get_app(app_id)
+    if not meta:
+        raise HTTPException(404, "App not found")
+
+    app_dir = _os.path.join(APPS_DIR, app_id)
+    buf = io.BytesIO()
+    app_name = meta.get("name", app_id).replace(" ", "_")
+
+    with zipfile.ZipFile(buf, "w", zipfile.ZIP_DEFLATED) as zf:
+        for fname in _os.listdir(app_dir):
+            if fname in INTERNAL_FILES:
+                continue
+            fpath = _os.path.join(app_dir, fname)
+            if _os.path.isfile(fpath):
+                zf.write(fpath, f"{app_name}/{fname}")
+
+    buf.seek(0)
+    return StreamingResponse(
+        buf,
+        media_type="application/zip",
+        headers={"Content-Disposition": f'attachment; filename="{app_name}.zip"'},
+    )
+
+
 @app.get("/apps/{app_id}/{filename:path}")
 async def serve_app_file(app_id: str, filename: str):
-    """Serve a file from a mini-app."""
+    """Serve a file from a mini-app (blocks internal files)."""
     from app.core.app_builder import APPS_DIR
-    filepath = _os.path.join(APPS_DIR, app_id, _os.path.basename(filename))
+    from app.core.app_services import INTERNAL_FILES
+    base = _os.path.basename(filename)
+    if base in INTERNAL_FILES:
+        raise HTTPException(403, "Access denied")
+    filepath = _os.path.join(APPS_DIR, app_id, base)
     if not _os.path.exists(filepath):
         raise HTTPException(404, "File not found")
     return _AppFileResponse(filepath)
