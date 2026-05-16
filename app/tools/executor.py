@@ -987,8 +987,56 @@ async def execute_tool(tool_name: str, params: dict, context: dict = None) -> di
             return fetch_market_data(params)
 
         elif resolved == "create_app":
-            from app.core.app_builder import create_app
+            from app.core.app_builder import create_app, update_app as _update_app_fn
             from app.core.app_validator import validate_app_files
+
+            # --- Auto-redirect to update_app if an app_id is present ---
+            # This catches LLM mistakes where it calls create_app despite
+            # an existing app ID being in the params or context.
+            redirect_app_id = params.get("app_id", "") or params.get("id", "")
+            if redirect_app_id and redirect_app_id.startswith("app-"):
+                logger.info(
+                    "Auto-redirecting create_app → update_app for app_id=%s",
+                    redirect_app_id,
+                )
+                files = params.get("files", {})
+                name = params.get("name")
+                icon = params.get("icon")
+                visual = params.get("visual")
+                if files and not isinstance(files, dict):
+                    return {"error": "'files' must be a dictionary mapping filenames to code strings."}
+                if files:
+                    # Unnest if LLM put files inside a sub-key
+                    if len(files) == 1 and isinstance(list(files.values())[0], dict):
+                        files = list(files.values())[0]
+                    # Normalize filenames
+                    normalized = {}
+                    for k, v in files.items():
+                        if not isinstance(v, str):
+                            v = str(v)
+                        k_lower = k.lower()
+                        if k_lower in ("html", "index", "index.htm"): k = "index.html"
+                        elif k_lower in ("css", "style", "styles", "styles.css"): k = "style.css"
+                        elif k_lower in ("js", "javascript", "script", "app", "main.js"): k = "app.js"
+                        normalized[k] = v
+                    files = normalized
+                    validation = validate_app_files(files)
+                    if not validation["valid"]:
+                        error_list = "\n".join(f"  • {e}" for e in validation["errors"])
+                        return {
+                            "error": (
+                                f"Code validation failed — fix these issues and retry:\n"
+                                f"{error_list}\n\n"
+                                f"Re-emit a corrected update_app tool call with the fixed code."
+                            ),
+                            "validation_errors": validation["errors"],
+                        }
+                result = _update_app_fn(redirect_app_id, files=files, name=name, icon=icon, visual=visual)
+                if not result:
+                    return {"error": f"App '{redirect_app_id}' not found (auto-redirect from create_app)"}
+                if files:
+                    result["_hint"] = "App updated (auto-redirected from create_app → update_app, code validated ✅)."
+                return result
             name = params.get("name", "My App")
             files = params.get("files", {})
             template = params.get("template", "blank")

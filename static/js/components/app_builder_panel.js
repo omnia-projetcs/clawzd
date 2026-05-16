@@ -228,13 +228,12 @@ const AppBuilderPanel = (() => {
       };
       const modelName = gameNames[gameModel];
 
-      customPrompt = `I want to create a new Mini-Game application named "${name}".\n\n` +
+      customPrompt = `Build the code for my Mini-Game application "${name}".\n\n` +
         `Please build a fully functional **${modelName}** game using vanilla HTML, CSS, and JavaScript. ` +
         `The game MUST be playable directly in the browser using the keyboard (arrow keys for movement, and action buttons like Space/Ctrl for actions if needed). ` +
         `Ensure the game has a start screen, a game over screen, score tracking, and smooth 2D animations using Canvas or DOM elements. ` +
         `Make it look visually appealing with modern CSS and use the theme color ${visual}.\n\n` +
-        `Update the app code and provide a complete working implementation. ` +
-        `Preview URL will be /apps/[AppID]/preview`;
+        `Provide a complete working implementation.`;
     }
 
     try {
@@ -273,14 +272,23 @@ const AppBuilderPanel = (() => {
     const overlay = document.getElementById('skills-catalog-overlay');
     if (overlay) overlay.classList.remove('open');
 
+    // ALWAYS inject the update_app directive prefix — this is critical to
+    // prevent the LLM from using create_app (which would create a duplicate).
+    const updateDirective =
+      `[EXISTING APP — use update_app with app_id "${appId}"]\n` +
+      `IMPORTANT: App "${appName}" already exists (ID: ${appId}). ` +
+      `You MUST use update_app with app_id "${appId}" to modify it. ` +
+      `Do NOT use create_app — that would create a duplicate.\n` +
+      `Preview: /apps/${appId}/preview\n\n`;
+
     // Pre-fill the chat input with an edit prompt
     const chatInput = document.getElementById('chat-input');
     if (chatInput) {
-      chatInput.value = customPrompt || (
-        `[EXISTING APP — use update_app with app_id "${appId}"]\n` +
-        `Update my application "${appName}" (ID: ${appId}). ` +
-        `Do NOT create a new app. Use update_app to modify the existing files.\n\n` +
-        `Preview: /apps/${appId}/preview`);
+      chatInput.value = customPrompt
+        ? (updateDirective + customPrompt)
+        : (updateDirective +
+          `Update my application "${appName}" (ID: ${appId}). ` +
+          `Modify the existing files as needed.`);
       chatInput.focus();
       // Trigger resize
       chatInput.style.height = 'auto';
