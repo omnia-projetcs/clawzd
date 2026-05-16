@@ -36,9 +36,12 @@
     function ph(html) { const k = '\x00BLK' + blocks.length + '\x00'; blocks.push(html); return k; }
 
     // Tool/thinking blocks → simple collapsible (no complex JSON parsing)
-    const toolFenceRe = /```(tool_call|tool|execute_python|search_web|screenshot_remote|screenshot_local|generate_image|run_command|browse_web|audit_code|rag_search|create_app|update_app|analyze_data|fetch_market_data)\s*\n([\s\S]*?)(?:```|$)/g;
+    const toolFenceRe = /```(tool_call|tool|json|execute_python|search_web|screenshot_remote|screenshot_local|generate_image|run_command|browse_web|audit_code|rag_search|create_app|update_app|analyze_data|fetch_market_data)\s*\n([\s\S]*?)(?:```|$)/g;
     h = h.replace(toolFenceRe, (match, toolLabel, content) => {
-      let readableContent = content.trim();
+      // Un-escape HTML entities so the content is readable inside <code>
+      let readableContent = content.trim()
+        .replace(/&amp;/g, '&').replace(/&lt;/g, '<')
+        .replace(/&gt;/g, '>').replace(/&quot;/g, '"');
       let langClass = '';
       if (toolLabel === 'create_app' || toolLabel === 'update_app') {
           langClass = ' class="language-html"';
@@ -48,9 +51,18 @@
       } else if (toolLabel === 'execute_python') {
           langClass = ' class="language-python"';
       }
+      // Try to extract tool name from JSON for better labeling
+      try {
+        const parsed = JSON.parse(readableContent);
+        if (parsed && parsed.tool) toolLabel = parsed.tool;
+      } catch (_) {}
+      // Re-escape for safe HTML insertion
+      const safeContent = readableContent
+        .replace(/&/g, '&amp;').replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;');
       return ph(`<details class="tool-thinking"><summary> <em>Thinking… </em><span class="tool-thinking-label">${escHtml(toolLabel)}</span></summary>` +
              `<pre style="margin:8px 0;background:var(--bg-primary);border:1px solid var(--border);border-radius:8px;padding:12px;overflow-x:auto;">` +
-             `<code${langClass}>${readableContent}</code></pre></details>`);
+             `<code${langClass}>${safeContent}</code></pre></details>`);
     });
 
     // <think> tags → collapsible
@@ -231,15 +243,25 @@
       }
 
       // Final render using the full renderMd (with charts, mermaid, tables, etc.)
-      if (typeof window.renderMd === 'function') {
-        this.container.innerHTML = window.renderMd(this._text);
-        // Apply syntax highlighting
-        if (typeof window.highlightAll === 'function') {
-          window.highlightAll(this.container);
+      try {
+        if (typeof window.renderMd === 'function') {
+          this.container.innerHTML = window.renderMd(this._text);
+          // Apply syntax highlighting
+          if (typeof window.highlightAll === 'function') {
+            window.highlightAll(this.container);
+          }
+        } else {
+          // Fallback: use live preview
+          this.container.innerHTML = livePreview(this._text);
         }
-      } else {
-        // Fallback: use live preview
-        this.container.innerHTML = livePreview(this._text);
+      } catch (err) {
+        console.error('[StreamingParser] finish() render error:', err);
+        // Fallback: try livePreview, then raw text
+        try {
+          this.container.innerHTML = livePreview(this._text);
+        } catch (_) {
+          this.container.textContent = this._text;
+        }
       }
 
       // Emit TPS metrics
@@ -285,40 +307,46 @@
     }
 
     _render() {
-      // Skip render if text hasn't grown enough (throttle for very fast streaming)
-      const delta = this._text.length - this._lastRenderLen;
-      if (delta < 3 && this._lastRenderLen > 0) return;
-      this._lastRenderLen = this._text.length;
+      try {
+        // Skip render if text hasn't grown enough (throttle for very fast streaming)
+        const delta = this._text.length - this._lastRenderLen;
+        if (delta < 3 && this._lastRenderLen > 0) return;
+        this._lastRenderLen = this._text.length;
 
-      const msgEl = this.container.closest('#chat-messages') || this.container.parentElement;
-      const isAtBottom = msgEl ? (msgEl.scrollHeight - msgEl.scrollTop - msgEl.clientHeight < 50) : false;
+        const msgEl = this.container.closest('#chat-messages') || this.container.parentElement;
+        const isAtBottom = msgEl ? (msgEl.scrollHeight - msgEl.scrollTop - msgEl.clientHeight < 50) : false;
 
-      // Use lightweight live preview during streaming
-      this.container.innerHTML = livePreview(this._text);
+        // Use lightweight live preview during streaming
+        this.container.innerHTML = livePreview(this._text);
 
-      // Add streaming cursor
-      if (this.opts.showCursor !== false) {
-        if (!this._cursorEl) {
-          this._cursorEl = document.createElement('span');
-          this._cursorEl.className = 'streaming-cursor';
-        }
-        this.container.appendChild(this._cursorEl);
-      }
-
-      // Syntax highlighting for completed code blocks only
-      if (typeof window.highlightAll === 'function') {
-        window.highlightAll(this.container);
-      } else if (window.hljs) {
-        this.container.querySelectorAll('pre code').forEach(codeEl => {
-          if (!codeEl.dataset.highlighted) {
-            window.hljs.highlightElement(codeEl);
+        // Add streaming cursor
+        if (this.opts.showCursor !== false) {
+          if (!this._cursorEl) {
+            this._cursorEl = document.createElement('span');
+            this._cursorEl.className = 'streaming-cursor';
           }
-        });
-      }
+          this.container.appendChild(this._cursorEl);
+        }
 
-      // Auto-scroll
-      if (msgEl && isAtBottom) {
-        msgEl.scrollTop = msgEl.scrollHeight;
+        // Syntax highlighting for completed code blocks only
+        if (typeof window.highlightAll === 'function') {
+          window.highlightAll(this.container);
+        } else if (window.hljs) {
+          this.container.querySelectorAll('pre code').forEach(codeEl => {
+            if (!codeEl.dataset.highlighted) {
+              window.hljs.highlightElement(codeEl);
+            }
+          });
+        }
+
+        // Auto-scroll
+        if (msgEl && isAtBottom) {
+          msgEl.scrollTop = msgEl.scrollHeight;
+        }
+      } catch (err) {
+        console.error('[StreamingParser] Render error:', err);
+        // Fallback: show raw text to prevent crash
+        this.container.textContent = this._text;
       }
     }
   }

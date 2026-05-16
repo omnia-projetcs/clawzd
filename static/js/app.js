@@ -1044,6 +1044,7 @@
       this.es.onerror = () => { };
     }
     handleToken(tok) {
+      try {
       if (!this.streaming) {
         this.streaming = true; this.text = ''; this.bubble = this.addMsg('assistant', ''); this.status('streaming');
         if (this.stopBtn) { this.stopBtn.style.display = ''; this.sendBtn.style.display = 'none'; }
@@ -1103,6 +1104,11 @@
       if (this._streamParser) {
         this._streamParser.pushToken(tok);
         return; // Skip legacy rendering path
+      }
+      } catch (err) {
+        console.error('[Clawzd] handleToken error:', err);
+        // Still accumulate text even on error so content isn't lost
+        if (tok && tok !== '[DONE]') this.text += '';
       }
 
       // ---- Legacy fallback (if StreamingParser not available) ----
