@@ -1046,6 +1046,8 @@
     handleToken(tok) {
       try {
       if (!this.streaming) {
+        // Remove thinking indicator now that AI is responding
+        this._removeThinkingIndicator();
         this.streaming = true; this.text = ''; this.bubble = this.addMsg('assistant', ''); this.status('streaming');
         if (this.stopBtn) { this.stopBtn.style.display = ''; this.sendBtn.style.display = 'none'; }
         // StreamingParser v2 — hybrid approach:
@@ -1784,6 +1786,7 @@
         highlightAll();
       }
       this.streaming = false;
+      this._removeThinkingIndicator();
       this.bubble = null; this.text = '';
       this.status('connected');
       this.sendBtn.disabled = false;
@@ -1828,6 +1831,7 @@
         this.connectSSE();
       }
       this.hideWelcome(); this.addMsg('user', msg);
+      this._showThinkingIndicator();
 
       // Auto-enrich prompt if enabled
       let enrichedMsg = msg;
@@ -2096,6 +2100,31 @@
       });
     }
     hideWelcome() { const w = $('#chat-welcome'); if (w) w.remove(); }
+    _showThinkingIndicator() {
+      this._removeThinkingIndicator();
+      const indicator = el('div', { class: 'thinking-indicator', id: 'thinking-indicator' }, [
+        el('div', { class: 'thinking-indicator-inner' }, [
+          el('div', { class: 'thinking-avatar', html: icon('bolt') }),
+          el('div', { class: 'thinking-content' }, [
+            el('span', { class: 'thinking-label', text: 'Clawzd is thinking' }),
+            el('div', { class: 'thinking-dots' }, [
+              el('span', { class: 'thinking-dot' }),
+              el('span', { class: 'thinking-dot' }),
+              el('span', { class: 'thinking-dot' })
+            ])
+          ])
+        ])
+      ]);
+      this.msgEl.appendChild(indicator);
+      this.msgEl.scrollTop = this.msgEl.scrollHeight;
+    }
+    _removeThinkingIndicator() {
+      const ind = document.getElementById('thinking-indicator');
+      if (ind) {
+        ind.classList.add('thinking-fade-out');
+        setTimeout(() => ind.remove(), 300);
+      }
+    }
     status(s) {
       const dot = $('#status-dot'), lbl = $('#status-label');
       if (!dot || !lbl) return;
