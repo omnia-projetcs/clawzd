@@ -9,6 +9,16 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
+
+def _safe_int(value: str, default: int) -> int:
+    """Convert a string to int, returning *default* on empty/invalid values."""
+    if not value or not value.strip():
+        return default
+    try:
+        return int(value.strip())
+    except (ValueError, TypeError):
+        return default
+
 # --- Base directory ---
 BASE_DIR = Path(__file__).parent.resolve()
 
@@ -60,8 +70,8 @@ OLLAMA_MODEL = os.getenv("OLLAMA_MODEL", "qwen3.5:9b")
 # Must be a non-reasoning instruction model to avoid <think> token budget waste.
 ENHANCE_MODEL = os.getenv("ENHANCE_MODEL", "hf.co/unsloth/GLM-4.7-Flash-REAP-23B-A3B-GGUF:Q4_K_S")
 CODE_MODEL = os.getenv("CODE_MODEL", OLLAMA_MODEL)
-OLLAMA_NUM_GPU = int(os.getenv("OLLAMA_NUM_GPU", "999"))  # 999 = all layers on GPU (100% VRAM)
-OLLAMA_NUM_CTX = int(os.getenv("OLLAMA_NUM_CTX", "-1"))    # -1 = max context window
+OLLAMA_NUM_GPU = _safe_int(os.getenv("OLLAMA_NUM_GPU", "999"), 999)  # 999 = all layers on GPU (100% VRAM)
+OLLAMA_NUM_CTX = _safe_int(os.getenv("OLLAMA_NUM_CTX", "-1"), -1)    # -1 = max context window
 
 # Whether to verify TLS certificates when contacting a remote Ollama server.
 # Set to "false" in .env to disable verification (useful for self-signed certs).
@@ -126,7 +136,7 @@ RATE_LIMIT = os.getenv("RATE_LIMIT", "30/minute")
 SLACK_WEBHOOK_URL = os.getenv("SLACK_WEBHOOK_URL", "")
 NOTIFICATION_EMAIL = os.getenv("NOTIFICATION_EMAIL", "")
 SMTP_HOST = os.getenv("SMTP_HOST", "")
-SMTP_PORT = int(os.getenv("SMTP_PORT", "587"))
+SMTP_PORT = _safe_int(os.getenv("SMTP_PORT", "587"), 587)
 SMTP_USER = os.getenv("SMTP_USER", "")
 SMTP_PASSWORD = os.getenv("SMTP_PASSWORD", "")
 
@@ -148,5 +158,5 @@ SIGNAL_PHONE = os.getenv("SIGNAL_PHONE", "")
 
 # --- Server ---
 APP_HOST = os.getenv("APP_HOST", "0.0.0.0")
-APP_PORT = int(os.getenv("APP_PORT", "8888"))
+APP_PORT = _safe_int(os.getenv("APP_PORT", "8888"), 8888)
 DEBUG = os.getenv("DEBUG", "").lower() in ("1", "true", "yes", "on")
