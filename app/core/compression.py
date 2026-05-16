@@ -50,7 +50,7 @@ _SUMMARY_TOKENS_CEILING = 12_000
 _PROTECT_FIRST_N = 3
 
 # Minimum tail messages to protect (recent context)
-_PROTECT_LAST_N = 10
+_PROTECT_LAST_N = 14
 
 # Regex to strip base64 data URIs
 _BASE64_PATTERN = re.compile(r'!\[[^\]]*\]\(data:image/[^)]+\)', re.DOTALL)
@@ -103,6 +103,9 @@ _SUMMARY_TEMPLATE = """## Active Task
 
 ## Goal
 [What the user is trying to accomplish overall]
+
+## App Context
+[If the user is building/editing a mini-app, preserve the exact app_id (e.g. app-abc123), app name, and any relevant file names. This is CRITICAL for continuity. If no app context, write "None."]
 
 ## Completed Actions
 [Numbered list: N. ACTION target — outcome. Be specific with file paths, commands, results.]
