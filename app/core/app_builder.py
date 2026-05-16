@@ -288,3 +288,30 @@ def get_app_file(app_id: str, filename: str) -> Optional[str]:
         return None
     with open(filepath, "r", encoding="utf-8") as f:
         return f.read()
+
+
+def delete_app_file(app_id: str, filename: str) -> bool:
+    """Delete a specific file from an app and update metadata."""
+    safe_name = os.path.basename(filename)
+    filepath = os.path.join(APPS_DIR, app_id, safe_name)
+    if not os.path.exists(filepath):
+        return False
+
+    os.remove(filepath)
+
+    # Update metadata
+    meta = get_app(app_id)
+    if meta:
+        file_list = meta.get("files", [])
+        if safe_name in file_list:
+            file_list.remove(safe_name)
+        if filename in file_list:
+            file_list.remove(filename)
+        meta["files"] = file_list
+        meta["updated_at"] = datetime.now(timezone.utc).isoformat()
+        meta_path = os.path.join(APPS_DIR, app_id, "_meta.json")
+        with open(meta_path, "w", encoding="utf-8") as f:
+            json.dump(meta, f, indent=2, ensure_ascii=False)
+
+    logger.info("Deleted file %s from app %s", safe_name, app_id)
+    return True
