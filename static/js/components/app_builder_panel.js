@@ -409,6 +409,7 @@ const AppBuilderPanel = (() => {
             ${fileNames.map((f, i) => `
               <button class="ab-code-tab ${i === 0 ? 'active' : ''}" data-file="${esc(f)}" onclick="AppBuilderPanel.switchTab(this, '${appId}')">
                 ${_fileIcon(f)} ${esc(f)}
+                ${fileNames.length > 1 ? `<span class="ab-code-tab-close" onclick="event.stopPropagation(); AppBuilderPanel.deleteFileTab('${appId}', '${esc(f)}')" title="Delete file">&times;</span>` : ''}
               </button>
             `).join('')}
             <button class="ab-code-tab ab-code-tab-add" onclick="AppBuilderPanel.addFileTab('${appId}')" title="New File">
@@ -536,6 +537,34 @@ const AppBuilderPanel = (() => {
     });
   }
 
+  async function deleteFileTab(appId, filename) {
+    if (!confirm(`Delete "${filename}" from this app?`)) return;
+
+    try {
+      const res = await fetch(`/apps/${appId}/files/${encodeURIComponent(filename)}`, { method: 'DELETE' });
+      if (!res.ok) throw new Error('Delete failed');
+
+      // Remove from local store
+      const body = document.getElementById('ab-body');
+      if (body && body._codeFiles) {
+        delete body._codeFiles[filename];
+      }
+
+      await _loadApps();
+
+      if (typeof window.toast === 'function') {
+        window.toast(`File "${filename}" deleted`, 'info');
+      }
+
+      // Re-render the editor
+      await showCode(appId);
+    } catch (e) {
+      if (typeof window.toast === 'function') {
+        window.toast('Failed to delete file', 'error');
+      }
+    }
+  }
+
   async function saveCode(appId) {
     const body = document.getElementById('ab-body');
     if (!body || !body._codeFiles) return;
@@ -586,7 +615,7 @@ const AppBuilderPanel = (() => {
 
   return {
     init, open, close, showCreate, create, toggleGameOptions, preview, remove,
-    editInChat, showEdit, saveEdit, showCode, saveCode, switchTab, addFileTab
+    editInChat, showEdit, saveEdit, showCode, saveCode, switchTab, addFileTab, deleteFileTab
   };
 })();
 
