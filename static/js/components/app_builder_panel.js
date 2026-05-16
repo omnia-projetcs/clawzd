@@ -118,6 +118,7 @@ const AppBuilderPanel = (() => {
           </div>
         </div>
         <div class="ab-card-actions">
+          <button class="ab-btn-code" onclick="AppBuilderPanel.showCode('${app.id}')" title="Edit Code">${ICONS.code(12)} Code</button>
           <button class="ab-btn-edit" onclick="AppBuilderPanel.editInChat('${app.id}', '${escapedName}')" title="Edit in Chat">${ICONS.penTool(12)} Edit</button>
           <button class="ab-btn-sm" onclick="AppBuilderPanel.preview('${app.id}')" title="Preview">${ICONS.eye(14)}</button>
           <button class="ab-btn-sm ab-btn-danger" onclick="AppBuilderPanel.remove('${app.id}')" title="Delete">${ICONS.trash(14)}</button>
@@ -164,6 +165,10 @@ const AppBuilderPanel = (() => {
             <select id="ab-game-model" class="ab-input" style="width: 100%;">
               <option value="space_invaders">Space Invaders</option>
               <option value="pacman">Pacman</option>
+              <option value="snake">Snake</option>
+              <option value="tetris">Tetris</option>
+              <option value="flappy_bird">Flappy Bird</option>
+              <option value="pong">Pong</option>
               <option value="arcade_combat">2D Arcade Combat Game</option>
             </select>
             <small style="color: var(--text-muted); margin-top: 4px;">
@@ -214,6 +219,10 @@ const AppBuilderPanel = (() => {
       const gameNames = {
         'space_invaders': 'Space Invaders',
         'pacman': 'Pacman',
+        'snake': 'Snake',
+        'tetris': 'Tetris',
+        'flappy_bird': 'Flappy Bird',
+        'pong': 'Pong',
         'arcade_combat': '2D Arcade Combat Game'
       };
       const modelName = gameNames[gameModel];
@@ -346,6 +355,226 @@ const AppBuilderPanel = (() => {
     }
   }
 
+  /* ── Inline Code Editor ──────────────────────────────── */
+
+  function _fileIcon(name) {
+    if (name.endsWith('.html')) return '🌐';
+    if (name.endsWith('.css'))  return '🎨';
+    if (name.endsWith('.js'))   return '⚡';
+    if (name.endsWith('.json')) return '📋';
+    return '📄';
+  }
+
+  function _fileLang(name) {
+    if (name.endsWith('.html')) return 'html';
+    if (name.endsWith('.css'))  return 'css';
+    if (name.endsWith('.js'))   return 'javascript';
+    if (name.endsWith('.json')) return 'json';
+    return 'text';
+  }
+
+  async function showCode(appId) {
+    const body = document.getElementById('ab-body');
+    if (!body) return;
+
+    body.innerHTML = `<div class="ab-loading">${ICONS.box(20)} Loading files…</div>`;
+
+    try {
+      const res = await fetch(`/apps/${appId}/files`);
+      if (!res.ok) throw new Error('Failed to load');
+      const data = await res.json();
+      const files = data.files || {};
+      const fileNames = Object.keys(files);
+
+      if (!fileNames.length) {
+        body.innerHTML = `<div class="ab-empty"><p>No files found for this app.</p></div>`;
+        return;
+      }
+
+      const esc = window.escHtml || (s => { const d = document.createElement('div'); d.textContent = String(s ?? ''); return d.innerHTML; });
+      const appName = esc(data.name || appId);
+      const firstFile = fileNames[0];
+
+      body.innerHTML = `
+        <div class="ab-code-editor">
+          <div class="ab-code-header">
+            <button class="ab-btn-back" onclick="AppBuilderPanel.open()">${ICONS.chevronLeft(14)} Back</button>
+            <h4>${ICONS.code(16)} ${appName}</h4>
+            <div class="ab-code-actions">
+              <button class="ab-btn ab-btn-primary" id="ab-code-save" onclick="AppBuilderPanel.saveCode('${appId}')">${ICONS.check(12)} Save</button>
+              <button class="ab-btn" onclick="AppBuilderPanel.preview('${appId}')">${ICONS.eye(12)} Preview</button>
+            </div>
+          </div>
+          <div class="ab-code-tabs" id="ab-code-tabs">
+            ${fileNames.map((f, i) => `
+              <button class="ab-code-tab ${i === 0 ? 'active' : ''}" data-file="${esc(f)}" onclick="AppBuilderPanel.switchTab(this, '${appId}')">
+                ${_fileIcon(f)} ${esc(f)}
+              </button>
+            `).join('')}
+            <button class="ab-code-tab ab-code-tab-add" onclick="AppBuilderPanel.addFileTab('${appId}')" title="New File">
+              ${ICONS.plus(10)}
+            </button>
+          </div>
+          <div class="ab-code-area">
+            <div class="ab-code-gutter" id="ab-code-gutter"></div>
+            <textarea id="ab-code-textarea" class="ab-code-textarea" spellcheck="false"
+              data-lang="${_fileLang(firstFile)}" data-file="${esc(firstFile)}"></textarea>
+          </div>
+          <div class="ab-code-status" id="ab-code-status">
+            <span>${_fileLang(firstFile).toUpperCase()}</span>
+            <span id="ab-code-line-info">Ln 1, Col 1</span>
+            <span>${fileNames.length} file${fileNames.length > 1 ? 's' : ''}</span>
+          </div>
+        </div>
+      `;
+
+      // Store files in a data attribute for tab switching
+      body._codeFiles = files;
+
+      // Set initial content
+      const ta = document.getElementById('ab-code-textarea');
+      if (ta) {
+        ta.value = files[firstFile] || '';
+        _updateGutter(ta);
+        ta.addEventListener('input', () => _updateGutter(ta));
+        ta.addEventListener('scroll', () => {
+          const gutter = document.getElementById('ab-code-gutter');
+          if (gutter) gutter.scrollTop = ta.scrollTop;
+        });
+        ta.addEventListener('keyup', () => _updateCursorInfo(ta));
+        ta.addEventListener('click', () => _updateCursorInfo(ta));
+        // Handle Tab key for indentation
+        ta.addEventListener('keydown', (e) => {
+          if (e.key === 'Tab') {
+            e.preventDefault();
+            const start = ta.selectionStart;
+            const end = ta.selectionEnd;
+            ta.value = ta.value.substring(0, start) + '  ' + ta.value.substring(end);
+            ta.selectionStart = ta.selectionEnd = start + 2;
+            _updateGutter(ta);
+          }
+        });
+      }
+    } catch (e) {
+      body.innerHTML = `<div class="ab-empty"><p>Failed to load app files.</p></div>`;
+    }
+  }
+
+  function _updateGutter(ta) {
+    const gutter = document.getElementById('ab-code-gutter');
+    if (!gutter) return;
+    const lines = (ta.value || '').split('\n').length;
+    let html = '';
+    for (let i = 1; i <= lines; i++) html += `<div>${i}</div>`;
+    gutter.innerHTML = html;
+  }
+
+  function _updateCursorInfo(ta) {
+    const info = document.getElementById('ab-code-line-info');
+    if (!info) return;
+    const val = ta.value.substring(0, ta.selectionStart);
+    const line = val.split('\n').length;
+    const col = ta.selectionStart - val.lastIndexOf('\n');
+    info.textContent = `Ln ${line}, Col ${col}`;
+  }
+
+  function switchTab(tabEl, appId) {
+    const body = document.getElementById('ab-body');
+    if (!body || !body._codeFiles) return;
+    const fileName = tabEl.dataset.file;
+    const files = body._codeFiles;
+
+    // Save current textarea value to the files store
+    const ta = document.getElementById('ab-code-textarea');
+    if (ta && ta.dataset.file) {
+      files[ta.dataset.file] = ta.value;
+    }
+
+    // Switch active tab
+    document.querySelectorAll('#ab-code-tabs .ab-code-tab').forEach(t => t.classList.remove('active'));
+    tabEl.classList.add('active');
+
+    // Update textarea
+    if (ta) {
+      ta.value = files[fileName] || '';
+      ta.dataset.file = fileName;
+      ta.dataset.lang = _fileLang(fileName);
+      _updateGutter(ta);
+    }
+
+    // Update status bar
+    const status = document.getElementById('ab-code-status');
+    if (status) {
+      status.querySelector('span').textContent = _fileLang(fileName).toUpperCase();
+    }
+  }
+
+  function addFileTab(appId) {
+    const name = prompt('New filename (e.g. utils.js):');
+    if (!name || !name.trim()) return;
+    const cleanName = name.trim();
+
+    const body = document.getElementById('ab-body');
+    if (!body || !body._codeFiles) return;
+
+    // Save current content
+    const ta = document.getElementById('ab-code-textarea');
+    if (ta && ta.dataset.file) {
+      body._codeFiles[ta.dataset.file] = ta.value;
+    }
+
+    // Add the new file
+    body._codeFiles[cleanName] = '';
+
+    // Re-render by calling showCode
+    showCode(appId).then(() => {
+      // Switch to the new tab
+      const tabs = document.querySelectorAll('#ab-code-tabs .ab-code-tab');
+      tabs.forEach(t => {
+        if (t.dataset.file === cleanName) t.click();
+      });
+    });
+  }
+
+  async function saveCode(appId) {
+    const body = document.getElementById('ab-body');
+    if (!body || !body._codeFiles) return;
+
+    // Save current textarea content
+    const ta = document.getElementById('ab-code-textarea');
+    if (ta && ta.dataset.file) {
+      body._codeFiles[ta.dataset.file] = ta.value;
+    }
+
+    const saveBtn = document.getElementById('ab-code-save');
+    if (saveBtn) {
+      saveBtn.disabled = true;
+      saveBtn.innerHTML = `${ICONS.check(12)} Saving…`;
+    }
+
+    try {
+      const res = await fetch(`/apps/${appId}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ files: body._codeFiles }),
+      });
+      if (!res.ok) throw new Error('Save failed');
+      await _loadApps();
+      if (typeof window.toast === 'function') {
+        window.toast('Files saved successfully!', 'success');
+      }
+    } catch (e) {
+      if (typeof window.toast === 'function') {
+        window.toast('Failed to save files', 'error');
+      }
+    } finally {
+      if (saveBtn) {
+        saveBtn.disabled = false;
+        saveBtn.innerHTML = `${ICONS.check(12)} Save`;
+      }
+    }
+  }
+
   function _timeAgo(iso) {
     if (!iso) return '';
     const d = (Date.now() - new Date(iso).getTime()) / 1000;
@@ -355,7 +584,10 @@ const AppBuilderPanel = (() => {
     return Math.floor(d / 86400) + 'd ago';
   }
 
-  return { init, open, close, showCreate, create, toggleGameOptions, preview, remove, editInChat, showEdit, saveEdit };
+  return {
+    init, open, close, showCreate, create, toggleGameOptions, preview, remove,
+    editInChat, showEdit, saveEdit, showCode, saveCode, switchTab, addFileTab
+  };
 })();
 
 window.AppBuilderPanel = AppBuilderPanel;

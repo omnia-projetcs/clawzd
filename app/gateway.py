@@ -2266,6 +2266,21 @@ async def preview_app(app_id: str):
     return _AppFileResponse(filepath, media_type="text/html")
 
 
+@app.get("/apps/{app_id}/files")
+async def get_app_files(app_id: str):
+    """Return all file contents for a mini-app (for inline code editor)."""
+    from app.core.app_builder import get_app, get_app_file
+    meta = get_app(app_id)
+    if not meta:
+        raise HTTPException(404, "App not found")
+    files = {}
+    for fname in meta.get("files", []):
+        content = get_app_file(app_id, fname)
+        if content is not None:
+            files[fname] = content
+    return {"id": app_id, "name": meta.get("name", ""), "files": files}
+
+
 @app.get("/apps/{app_id}/{filename:path}")
 async def serve_app_file(app_id: str, filename: str):
     """Serve a file from a mini-app."""

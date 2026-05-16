@@ -295,6 +295,177 @@
   font-family: 'JetBrains Mono', monospace;
 }
 
+/* ── Code button on card ──────────── */
+.ab-btn-code {
+  background: rgba(16, 185, 129, 0.1);
+  border: 1px solid rgba(16, 185, 129, 0.3);
+  color: #34d399;
+  font-size: 11px;
+  font-family: inherit;
+  cursor: pointer;
+  padding: 4px 10px;
+  border-radius: 6px;
+  transition: all 0.2s;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+.ab-btn-code:hover {
+  background: #10b981;
+  color: #fff;
+  border-color: #10b981;
+}
+
+/* ── Inline Code Editor ───────────── */
+.ab-code-editor {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  min-height: 460px;
+  border-radius: 10px;
+  overflow: hidden;
+  border: 1px solid var(--border, #334155);
+  background: #0d1117;
+}
+
+.ab-code-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 14px;
+  background: #161b22;
+  border-bottom: 1px solid #21262d;
+  gap: 12px;
+}
+.ab-code-header h4 {
+  margin: 0;
+  font-size: 14px;
+  font-weight: 600;
+  color: #e6edf3;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex: 1;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.ab-code-actions {
+  display: flex;
+  gap: 6px;
+  flex-shrink: 0;
+}
+
+/* ── File Tabs ────────────────────── */
+.ab-code-tabs {
+  display: flex;
+  align-items: stretch;
+  background: #0d1117;
+  border-bottom: 1px solid #21262d;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+.ab-code-tabs::-webkit-scrollbar { display: none; }
+
+.ab-code-tab {
+  padding: 7px 14px;
+  background: transparent;
+  border: none;
+  border-bottom: 2px solid transparent;
+  color: #8b949e;
+  font-size: 12px;
+  font-family: 'JetBrains Mono', 'Fira Code', 'Cascadia Code', monospace;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  white-space: nowrap;
+  transition: all 0.15s;
+}
+.ab-code-tab:hover {
+  color: #c9d1d9;
+  background: rgba(255, 255, 255, 0.03);
+}
+.ab-code-tab.active {
+  color: #e6edf3;
+  background: #161b22;
+  border-bottom-color: #58a6ff;
+}
+.ab-code-tab-add {
+  padding: 7px 10px;
+  color: #484f58;
+}
+.ab-code-tab-add:hover {
+  color: #58a6ff;
+}
+
+/* ── Code Area (gutter + textarea) ── */
+.ab-code-area {
+  flex: 1;
+  display: flex;
+  min-height: 0;
+  overflow: hidden;
+}
+.ab-code-gutter {
+  width: 44px;
+  flex-shrink: 0;
+  padding: 12px 0;
+  background: #0d1117;
+  border-right: 1px solid #21262d;
+  color: #484f58;
+  font-family: 'JetBrains Mono', 'Fira Code', monospace;
+  font-size: 13px;
+  line-height: 1.55;
+  text-align: right;
+  overflow: hidden;
+  user-select: none;
+}
+.ab-code-gutter > div {
+  padding-right: 8px;
+  height: 1.55em;
+}
+
+.ab-code-textarea {
+  flex: 1;
+  resize: none;
+  border: none;
+  outline: none;
+  padding: 12px 14px;
+  background: #0d1117;
+  color: #c9d1d9;
+  font-family: 'JetBrains Mono', 'Fira Code', 'Cascadia Code', monospace;
+  font-size: 13px;
+  line-height: 1.55;
+  tab-size: 2;
+  white-space: pre;
+  overflow-wrap: normal;
+  overflow-x: auto;
+  overflow-y: auto;
+}
+.ab-code-textarea:focus {
+  background: #0d1117;
+}
+.ab-code-textarea::selection {
+  background: rgba(56, 139, 253, 0.3);
+}
+
+/* ── Status Bar ───────────────────── */
+.ab-code-status {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 4px 14px;
+  background: #161b22;
+  border-top: 1px solid #21262d;
+  font-size: 11px;
+  font-family: 'JetBrains Mono', monospace;
+  color: #8b949e;
+}
+.ab-code-status span:first-child {
+  color: #58a6ff;
+  font-weight: 600;
+}
+
 /* ── Mobile ────────────────────────── */
 @media (max-width: 768px) {
   .ab-modal {
@@ -305,6 +476,8 @@
   }
   .ab-grid { grid-template-columns: 1fr 1fr; }
   .ab-templates-grid { grid-template-columns: 1fr; }
+  .ab-code-editor { min-height: 300px; }
+  .ab-code-header { flex-wrap: wrap; }
 }
 @media (max-width: 480px) {
   .ab-grid { grid-template-columns: 1fr; }
