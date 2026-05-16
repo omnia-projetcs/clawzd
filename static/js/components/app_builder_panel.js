@@ -277,8 +277,10 @@ const AppBuilderPanel = (() => {
     // Pre-fill the chat input with an edit prompt
     const chatInput = document.getElementById('chat-input');
     if (chatInput) {
-      chatInput.value = customPrompt || (`Edit my application "${appName}" (ID: ${appId}). ` +
-        `Describe what features or changes you'd like to add, and I'll update the app code for you.\n\n` +
+      chatInput.value = customPrompt || (
+        `[EXISTING APP — use update_app with app_id "${appId}"]\n` +
+        `Update my application "${appName}" (ID: ${appId}). ` +
+        `Do NOT create a new app. Use update_app to modify the existing files.\n\n` +
         `Preview: /apps/${appId}/preview`);
       chatInput.focus();
       // Trigger resize
