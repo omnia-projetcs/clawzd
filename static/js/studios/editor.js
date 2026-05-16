@@ -68,7 +68,16 @@ class EditorMode {
 
   _buildDirTree() {
     const tree = {};
-    this.files.sort((a, b) => a.path.localeCompare(b.path)).forEach(f => {
+    const project = $('#project-select') ? $('#project-select').value : '.';
+    
+    let filesToRender = this.files;
+    if (project && project !== '.') {
+      const prefix = project + '/';
+      filesToRender = this.files.filter(f => f.path.startsWith(prefix) || f.path === project);
+      this.collapsed.delete(project);
+    }
+
+    filesToRender.sort((a, b) => a.path.localeCompare(b.path)).forEach(f => {
       const parts = f.path.split('/');
       let node = tree;
       for (let i = 0; i < parts.length - 1; i++) {
@@ -210,6 +219,15 @@ class EditorMode {
       this.addActivity(icon('save'), 'File saved', path);
       if (window.OC && window.OC.refreshPreviewIfOpen) window.OC.refreshPreviewIfOpen(path);
     } catch (e) { toast(ICONS.x(14) + ' Save error'); }
+        // If the file is already open in the editor, update the tab content
+        const openTab = this.openTabs.find(t => t.path === tab.path);
+        if (openTab) {
+          openTab.content = tab.content;
+          openTab.original = tab.content;
+          openTab.modified = false;
+          if (this.activeTab === tab.path) this.loadIntoEditor(openTab);
+          this.renderTabs();
+        }
   }
 
   async createFile() {
@@ -449,10 +467,30 @@ class EditorMode {
   }
 
   // ---- CodeMirror 6 Editor ----
-  loadIntoEditor(tab) {
+  async loadIntoEditor(tab) {
     const area = $('#editor-code-area');
     const welcome = $('#editor-welcome');
     if (welcome) welcome.style.display = 'none';
+
+    // Ensure we have file content. In some cases an openTab entry may exist
+    // without fetched content (undefined/null) — fetch it to avoid empty views.
+    if ((tab.content === undefined || tab.content === null) && tab.path) {
+      try {
+        const r = await fetch('/workspace/file?path=' + encodeURIComponent(tab.path));
+        if (r.ok) {
+          const d = await r.json();
+          tab.content = d.content || '';
+          tab.original = tab.content;
+          tab.modified = false;
+        } else {
+          toast(ICONS.x(14) + ' Cannot read file');
+          return;
+        }
+      } catch (e) {
+        toast(ICONS.x(14) + ' Read error');
+        return;
+      }
+    }
 
     // Try CodeMirror 6 first, fallback to textarea
     if (window.cm6) {
@@ -1841,6 +1879,16 @@ class EditorMode {
         });
         // Record in change history for undo/redo
         this._recordChange(fb.filename, oldContent, fb.code);
+        // If the file is already open in the editor, update the tab content
+        // so the change appears live without requiring user action.
+        const openTab2 = this.openTabs.find(t => t.path === fb.filename);
+        if (openTab2) {
+          openTab2.content = fb.code;
+          openTab2.original = fb.code;
+          openTab2.modified = false;
+          if (this.activeTab === fb.filename) this.loadIntoEditor(openTab2);
+          this.renderTabs();
+        }
         this.addActivity(icon('save'), 'File created', fb.filename);
         if (!firstFile) firstFile = fb.filename;
       } catch (e) {
