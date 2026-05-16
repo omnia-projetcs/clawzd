@@ -22,8 +22,7 @@ const AppBuilderPanel = (() => {
 
   // 40 curated emojis for the app icon picker
   const _EMOJIS = [
-    '📦', '🎨', '🎵', '🎬', '🎲', '🏆', '💡', '⛑️', '🔒', '📋', '📅', '📞', '📐', '🌍', '💰', '💎', '🔥', '⚡', '🌟', '🛡️', '🔮', '🧩', '🤖', '👾', '🎮', '🚘', '🚁', '☢️', '🧪', '🎯',
-    '🦊', '🐉', '🦄', '🍕', '☕', '🎸', '📊', '📈', '🔧', '⚙️', '🔬', '📝', '📚', '💬', '🔔', '🏠', '🛒', '🏛️', '🚀', '🍔', '📸', '⚓', '⌚'
+    '📦', '🎨', '🎵', '🎬', '🎲', '🏆', '💡', '⛑️', '🔒', '📋', '📅', '📞', '📐', '🌍', '💰', '💎', '🔥', '⚡', '🌟', '☀️', '🛡️', '🔮', '🧩', '🤖', '👾', '🎮', '👻', '👽', '🤖', '👾', '🎮', '🚗', '🚁', '☢️', '🧪', '🎯', '🔥', '✅', '✨', '❤️', '🦊', '🐉', '🦄', '🍕', '☕', '🎸', '📊', '📈', '🔧', '⚙️', '🔬', '📝', '📚', '💬', '🔔', '🏠', '🛒', '🏛️', '🚀', '🍔', '📸', '⚓', '⌚', '⚠️', '💀', '👑', '😈', '😻', '🐋', '🌊', '❄️', '🌪️', '🌈', '🐋', '🦀', '🐞', '🌻', '🍒', '🍣', '💰', '💎', '❤️', '🏗️', '🏛️', '🏰', '🏯', '🗽', '🚨', '🚫', '🛟', '🛸', '🎁', '🎃', '🎉', '🏅', '♟️', '🃏', '🎓', '🎶', '🎬', '📑', '🛒', '📨', '📌', '🔒', '⚖️', '📡', '🔬', '💊', '🫟'
   ];
 
   function _emojiOptions(selected) {
@@ -363,16 +362,16 @@ const AppBuilderPanel = (() => {
 
   function _fileIcon(name) {
     if (name.endsWith('.html')) return '🌐';
-    if (name.endsWith('.css'))  return '🎨';
-    if (name.endsWith('.js'))   return '⚡';
+    if (name.endsWith('.css')) return '🎨';
+    if (name.endsWith('.js')) return '⚡';
     if (name.endsWith('.json')) return '📋';
     return '📄';
   }
 
   function _fileLang(name) {
     if (name.endsWith('.html')) return 'html';
-    if (name.endsWith('.css'))  return 'css';
-    if (name.endsWith('.js'))   return 'javascript';
+    if (name.endsWith('.css')) return 'css';
+    if (name.endsWith('.js')) return 'javascript';
     if (name.endsWith('.json')) return 'json';
     return 'text';
   }

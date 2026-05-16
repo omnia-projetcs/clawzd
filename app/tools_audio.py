@@ -183,7 +183,6 @@ def _get_music_pipeline(model_name="musicgen-small"):
         processor = AutoProcessor.from_pretrained(repo, local_files_only=_should_use_local_files(repo))
         model = MusicgenForConditionalGeneration.from_pretrained(repo, local_files_only=_should_use_local_files(repo),
             torch_dtype=torch.float32,
-            use_safetensors=False,
         )
         if _gpu_ok:
             model = model.to("cuda")
@@ -672,30 +671,7 @@ async def generate_audio(request: Request):
             except ImportError:
                 raise HTTPException(500, "TTS library (Coqui) not installed. Run: pip install TTS")
 
-        elif mode == "song":
-            _audio_generation_progress = {
-                "active": True, "progress": 15.0, "stage": "generating",
-            }
-            if not text:
-                raise HTTPException(400, "Lyrics (text) are required for song generation")
-                
-            if enhance_prompt:
-                text = await _enhance_lyrics_with_llm(text)
-                generated_prompt = text
-                
-            # Format text for Edge singing
-            # We wrap the text in notes and add a language hint if not auto.
-            lang_hint = f"[{language.upper()}] " if language and language != "auto" else ""
-            song_text = "♪ " + lang_hint + text.replace("\n", " ♪\n♪ ") + " ♪"
-            song_text = song_text.replace("♪ ♪", "♪")
-            
-            audio, sr = await _generate_tts_edge(song_text, voice_style=voice_style, language=language)
-            
-            _audio_generation_progress = {
-                "active": True, "progress": 90.0, "stage": "saving",
-            }
-            meta_prompt = f"[Song/{voice_style}] {text[:200]}"
-            filename = _save_audio(audio, sr, format_type, meta_prompt, mode=mode)
+
 
         elif mode == "music":
             _audio_generation_progress = {
@@ -817,7 +793,6 @@ async def check_audio_model(mode: str = "tts", tts_engine: str = "speecht5"):
 
     model_map = {
         "music": {"default": "facebook/musicgen-small"},
-        "song": {"default": "microsoft/speecht5_tts"},
         "voice_clone": {"default": "coqui/XTTS-v2"},
     }
 
@@ -875,7 +850,7 @@ async def estimate_audio(request: Request):
     if not text:
         return {"chunks": 0, "audio_duration": 0, "gen_time": 0, "gen_time_label": "0s"}
 
-    if mode == "song" or tts_engine == "edge":
+    if tts_engine == "edge":
         # Edge TTS: API based, single chunk, very fast
         n = 1
         word_count = len(text.split())
