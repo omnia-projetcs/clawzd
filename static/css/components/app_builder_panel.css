@@ -207,12 +207,63 @@
   font-size: 11px;
   color: var(--text-muted, #64748b);
 }
-.ab-card-actions {
-  display: flex;
-  justify-content: flex-end;
-  gap: 4px;
-  padding: 6px 10px 10px;
-  border-top: 1px solid var(--border, #334155);
+/* ── Card Context Menu (⋮) ─────────── */
+.ab-card-menu-wrap {
+  position: relative;
+  flex-shrink: 0;
+}
+.ab-card-menu-btn {
+  background: none; border: none;
+  color: var(--text-muted, #64748b);
+  font-size: 18px; line-height: 1;
+  cursor: pointer; padding: 2px 6px;
+  border-radius: 4px;
+  transition: all 0.15s;
+  font-weight: 700; letter-spacing: 1px;
+}
+.ab-card-menu-btn:hover {
+  color: var(--text-primary, #e2e8f0);
+  background: rgba(255,255,255,0.08);
+}
+.ab-card-dropdown {
+  display: none;
+  position: absolute; top: 100%; right: 0;
+  min-width: 180px; z-index: 50;
+  background: var(--bg-surface, #1e293b);
+  border: 1px solid var(--border, #334155);
+  border-radius: 10px;
+  box-shadow: 0 12px 40px rgba(0,0,0,0.45);
+  padding: 4px 0;
+  animation: abMenuIn 0.15s ease;
+}
+.ab-card-dropdown.open { display: block; }
+@keyframes abMenuIn {
+  from { opacity: 0; transform: translateY(-6px) scale(0.96); }
+  to   { opacity: 1; transform: translateY(0) scale(1); }
+}
+.ab-dd-item {
+  display: flex; align-items: center; gap: 8px;
+  width: 100%; padding: 7px 14px;
+  background: none; border: none;
+  color: var(--text-secondary, #94a3b8);
+  font-size: 12px; font-family: inherit;
+  cursor: pointer; text-align: left;
+  transition: all 0.12s;
+}
+.ab-dd-item:hover {
+  background: rgba(99,102,241,0.08);
+  color: var(--text-primary, #e2e8f0);
+}
+.ab-dd-item svg { flex-shrink: 0; opacity: 0.7; }
+.ab-dd-item:hover svg { opacity: 1; }
+.ab-dd-danger { color: #f87171; }
+.ab-dd-danger:hover {
+  background: rgba(248,113,113,0.1);
+  color: #ef4444;
+}
+.ab-dd-sep {
+  height: 1px; margin: 4px 10px;
+  background: var(--border, #334155);
 }
 .ab-btn-edit {
   background: rgba(99, 102, 241, 0.1);
@@ -715,7 +766,6 @@
   .ab-code-header { flex-wrap: wrap; }
   .ab-services { min-height: 300px; }
   .ab-svc-form { flex-wrap: wrap; }
-  .ab-card-actions { flex-wrap: wrap; }
 }
 @media (max-width: 480px) {
   .ab-grid { grid-template-columns: 1fr; }

@@ -156,6 +156,13 @@ class SkillCatalog {
     this._grid.querySelectorAll('.skill-toggle input').forEach(inp => {
       inp.addEventListener('change', (e) => this._handleToggle(e.target));
     });
+
+    // Close card menus after clicking a dropdown item
+    this._grid.querySelectorAll('.ab-dd-item').forEach(btn => {
+      btn.addEventListener('click', () => {
+        document.querySelectorAll('.ab-card-dropdown.open').forEach(d => d.classList.remove('open'));
+      });
+    });
   }
 
   _renderCard(skill) {

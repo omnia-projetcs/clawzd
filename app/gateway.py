@@ -2432,6 +2432,59 @@ async def export_app_zip(app_id: str):
     )
 
 
+@app.post("/apps/{app_id}/export-to-workspace")
+async def export_app_to_workspace(app_id: str, request: Request):
+    """Export app files into the workspace as an editable project folder."""
+    from app.core.app_builder import get_app, APPS_DIR
+    from app.core.app_services import INTERNAL_FILES
+
+    meta = get_app(app_id)
+    if not meta:
+        raise HTTPException(404, "App not found")
+
+    data = await request.json()
+    project_name = data.get("project", "").strip()
+    if not project_name:
+        # Default to app name, sanitized
+        project_name = (meta.get("name") or app_id).replace(" ", "_").replace("..", "")
+        project_name = project_name.replace("/", "_").replace("\\", "_").strip("._")
+
+    from config import WORKSPACE_DIR
+    ws_base = _os.path.realpath(WORKSPACE_DIR)
+    project_dir = _os.path.realpath(_os.path.join(ws_base, project_name))
+    if not project_dir.startswith(ws_base):
+        raise HTTPException(403, "Invalid project path")
+
+    app_dir = _os.path.join(APPS_DIR, app_id)
+    written = 0
+    errors = []
+
+    for root, dirs, files in _os.walk(app_dir):
+        dirs[:] = [d for d in dirs if not d.startswith('.')]
+        for fname in sorted(files):
+            if fname in INTERNAL_FILES or fname.startswith('.'):
+                continue
+            src = _os.path.join(root, fname)
+            rel = _os.path.relpath(src, app_dir)
+            dst = _os.path.join(project_dir, rel)
+            try:
+                _os.makedirs(_os.path.dirname(dst), exist_ok=True)
+                with open(src, "rb") as fsrc:
+                    with open(dst, "wb") as fdst:
+                        fdst.write(fsrc.read())
+                written += 1
+            except Exception as e:
+                errors.append(f"{rel}: {e}")
+
+    return {
+        "status": "ok",
+        "project": project_name,
+        "app_id": app_id,
+        "written": written,
+        "errors": errors,
+    }
+
+
 @app.get("/apps/{app_id}/{filename:path}")
 async def serve_app_file(app_id: str, filename: str):
     """Serve a file from a mini-app (blocks internal files, supports subdirs)."""

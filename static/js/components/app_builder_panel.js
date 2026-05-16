@@ -32,7 +32,12 @@ const AppBuilderPanel = (() => {
   }
 
   function init() {
-    // No overlay creation needed anymore
+    // Close any open card menu on outside click
+    document.addEventListener('click', (e) => {
+      if (!e.target.closest('.ab-card-menu-wrap')) {
+        document.querySelectorAll('.ab-card-dropdown.open').forEach(d => d.classList.remove('open'));
+      }
+    });
   }
 
   async function open() {
@@ -108,21 +113,26 @@ const AppBuilderPanel = (() => {
         <div class="ab-card-body">
           <div class="ab-card-name" style="display:flex; justify-content:space-between; align-items:center;">
             <span>${esc(app.name || 'Untitled')}</span>
-            <button class="ab-btn-sm" style="background:transparent; border:none; color:var(--text-muted); cursor:pointer; padding:0 4px;" onclick="AppBuilderPanel.showEdit('${app.id}')" title="Edit App Settings">${ICONS.penTool(12)}</button>
+            <div class="ab-card-menu-wrap">
+              <button class="ab-card-menu-btn" onclick="AppBuilderPanel.toggleCardMenu(event, '${app.id}')" title="Actions">⋮</button>
+              <div class="ab-card-dropdown" id="ab-menu-${app.id}">
+                <button class="ab-dd-item" onclick="AppBuilderPanel.preview('${app.id}')">${ICONS.eye(14)} <span>Preview</span></button>
+                <button class="ab-dd-item" onclick="AppBuilderPanel.showCode('${app.id}')">${ICONS.code(14)} <span>Edit Code</span></button>
+                <button class="ab-dd-item" onclick="AppBuilderPanel.showServices('${app.id}')">${ICONS.shield(14)} <span>Services</span></button>
+                <button class="ab-dd-item" onclick="AppBuilderPanel.editInChat('${app.id}', '${escapedName}')">${ICONS.penTool(14)} <span>Edit in Chat</span></button>
+                <button class="ab-dd-item" onclick="AppBuilderPanel.openInEditor('${app.id}', '${escapedName}')">${ICONS.monitor(14)} <span>Open in Editor</span></button>
+                <button class="ab-dd-item" onclick="AppBuilderPanel.showEdit('${app.id}')">${ICONS.settings(14)} <span>Settings</span></button>
+                <div class="ab-dd-sep"></div>
+                <button class="ab-dd-item" onclick="AppBuilderPanel.exportApp('${app.id}')">📥 <span>Export ZIP</span></button>
+                <button class="ab-dd-item ab-dd-danger" onclick="AppBuilderPanel.remove('${app.id}')">${ICONS.trash(14)} <span>Delete</span></button>
+              </div>
+            </div>
           </div>
           <div class="ab-card-meta">
             <span>v${app.version || 1}</span>
             <span>${fileCount} files</span>
             <span>${time}</span>
           </div>
-        </div>
-        <div class="ab-card-actions">
-          <button class="ab-btn-code" onclick="AppBuilderPanel.showCode('${app.id}')" title="Edit Code">${ICONS.code(12)} Code</button>
-          <button class="ab-btn-services" onclick="AppBuilderPanel.showServices('${app.id}')" title="Secrets & Database">${ICONS.shield(12)} Services</button>
-          <button class="ab-btn-edit" onclick="AppBuilderPanel.editInChat('${app.id}', '${escapedName}')" title="Edit in Chat">${ICONS.penTool(12)} Edit</button>
-          <button class="ab-btn-sm" onclick="AppBuilderPanel.exportApp('${app.id}')" title="Export ZIP">📥</button>
-          <button class="ab-btn-sm" onclick="AppBuilderPanel.preview('${app.id}')" title="Preview">${ICONS.eye(14)}</button>
-          <button class="ab-btn-sm ab-btn-danger" onclick="AppBuilderPanel.remove('${app.id}')" title="Delete">${ICONS.trash(14)}</button>
         </div>
       </div>
     `;
@@ -885,6 +895,71 @@ const {columns, rows} = await res.json();</code></pre>
     window.open(`/apps/${appId}/export`, '_blank');
   }
 
+  /**
+   * Export the app files into the workspace and open them in the Editor.
+   */
+  async function openInEditor(appId, appName) {
+    const toastFn = typeof window.toast === 'function' ? window.toast : () => {};
+    try {
+      // 1. Export app files to workspace
+      const res = await fetch(`/apps/${appId}/export-to-workspace`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({}),
+      });
+      if (!res.ok) {
+        const err = await res.json();
+        throw new Error(err.detail || 'Export failed');
+      }
+      const data = await res.json();
+      const projectName = data.project;
+
+      // 2. Close the Skill Catalog overlay
+      const overlay = document.getElementById('skills-catalog-overlay');
+      if (overlay) overlay.classList.remove('open');
+
+      // 3. Switch to Editor mode
+      const editorModeBtn = document.querySelector('#mode-toggle .mode-btn[data-mode="editor"]');
+      if (editorModeBtn && !editorModeBtn.classList.contains('active')) {
+        editorModeBtn.click();
+      }
+
+      // 4. Wait a tick for editor to initialise, then switch project
+      setTimeout(async () => {
+        if (window.editor) {
+          await window.editor.loadProjects();
+          const select = document.getElementById('project-select');
+          if (select) {
+            // Ensure the new project appears in the dropdown
+            let found = false;
+            for (const opt of select.options) {
+              if (opt.value === projectName) { found = true; break; }
+            }
+            if (!found) {
+              const opt = document.createElement('option');
+              opt.value = projectName;
+              opt.textContent = ' ' + projectName;
+              select.appendChild(opt);
+            }
+            select.value = projectName;
+          }
+          window.editor.switchProject(projectName);
+          toastFn(`📂 App "${appName}" opened in Editor (${data.written} files)`);
+        }
+      }, 300);
+    } catch (e) {
+      toastFn(`❌ Failed to open in Editor: ${e.message}`);
+    }
+  }
+
+  function toggleCardMenu(event, appId) {
+    event.stopPropagation();
+    // Close all other menus first
+    document.querySelectorAll('.ab-card-dropdown.open').forEach(d => d.classList.remove('open'));
+    const menu = document.getElementById(`ab-menu-${appId}`);
+    if (menu) menu.classList.toggle('open');
+  }
+
   function _timeAgo(iso) {
     if (!iso) return '';
     const d = (Date.now() - new Date(iso).getTime()) / 1000;
@@ -897,7 +972,8 @@ const {columns, rows} = await res.json();</code></pre>
   return {
     init, open, close, showCreate, create, toggleGameOptions, preview, remove,
     editInChat, showEdit, saveEdit, showCode, saveCode, switchTab, addFileTab, deleteFileTab,
-    showServices, switchServiceTab, addSecret, deleteSecret, executeSQL, loadTablePreview, exportApp
+    showServices, switchServiceTab, addSecret, deleteSecret, executeSQL, loadTablePreview, exportApp,
+    openInEditor, toggleCardMenu
   };
 })();
 
