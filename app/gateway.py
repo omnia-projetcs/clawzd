@@ -2281,6 +2281,16 @@ async def get_app_files(app_id: str):
     return {"id": app_id, "name": meta.get("name", ""), "files": files}
 
 
+@app.delete("/apps/{app_id}/files/{filename}")
+async def delete_app_file_endpoint(app_id: str, filename: str):
+    """Delete a single file from a mini-app."""
+    from app.core.app_builder import delete_app_file
+    deleted = delete_app_file(app_id, filename)
+    if not deleted:
+        raise HTTPException(404, "File not found")
+    return {"status": "deleted", "app_id": app_id, "filename": filename}
+
+
 @app.get("/apps/{app_id}/{filename:path}")
 async def serve_app_file(app_id: str, filename: str):
     """Serve a file from a mini-app."""
