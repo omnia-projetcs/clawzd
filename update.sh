@@ -33,7 +33,7 @@ fi
 # --- Reinstall dependencies ---
 echo ""
 echo "--- Updating Python dependencies ---"
-pip install -r requirements.txt --upgrade --quiet 2>&1 | tail -5
+pip install -r requirements.txt --upgrade
 
 # --- Ensure data directories exist ---
 mkdir -p data/sessions data/profiles data/skills data/images data/screenshots data/audit_reports workspace chroma_db
@@ -123,7 +123,7 @@ else
     
     # Restart in background
     echo "Starting Clawzd via run.sh in background..."
-    ./run.sh &
+    nohup ./run.sh > /dev/null 2>&1 &
     sleep 2
 
     # Verify it started
