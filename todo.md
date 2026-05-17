@@ -377,3 +377,55 @@ Can be used to rebuild from scratch the project with AI assistance.
 - [x] **Autonomous Execution Loop**: Agents execute tools autonomously, review outputs, and iteratively correct themselves before delivering the final result to the user.
 - [x] **Real-time Feedback**: Server-Sent Events (SSE) provide live logs, multi-pass generation progress, and token streaming directly to the offline frontend.
 - [x] **Persistent State & Memory**: Complete persistence across sessions via SQLite (conversations), ChromaDB (RAG embeddings), and structured Markdown (AI profiles, configurations, and artifacts).
+
+## 16. Inspiring Projects
+
+Projects and tools that served as inspiration for Clawzd's architecture, features, and design:
+
+### AI Assistants & Chat Interfaces
+- [Open WebUI](https://github.com/open-webui/open-webui) — Self-hosted LLM web interface, chat UX patterns
+- [AnythingLLM](https://github.com/Mintplex-Labs/anything-llm) — All-in-one AI desktop app with RAG
+- [Abacus.ai](https://abacus.ai) — AI Data Analyst, Revenue Analytics Pro, Humanize Text features
+
+### Agent Frameworks & Orchestration
+- [Hermes Agent](https://github.com/NousResearch/hermes-agent) — Context compression, persistent memory, skill curator, tool output pruning
+- [OpenMonoAgent](https://openmonoagent.ai) — Playbook architecture, file snapshot, undo, tool isolation, doom-loop detection, code-review-graph
+- [OpenCode](https://github.com/nichochar/open-code) — Agentic Build/Plan mode, @file fuzzy search, patch format, TodoWriteTool, change history
+- [Claude Code](https://docs.anthropic.com/en/docs/agents-and-tools/claude-code/overview) — FileReadTool, SnipTool, compact_boundary patterns
+- [OpenClaw](https://github.com/openclaw/openclaw) — Studio runtime/summary dashboard architecture
+
+### Research & Deep Analysis
+- [GPT-Researcher](https://github.com/assafelovic/gpt-researcher) — Research progress tracking, cost callbacks, multi-source scraping pipeline
+- [open_deep_research](https://github.com/langchain-ai/open_deep_research) — Research brief writing, topic prompt transformation, user clarification flow
+- [HyperAgents](https://github.com/agent-labs/hyperagents) — Archive.jsonl, select_next_parent mechanism, ensemble evaluation
+- [Tongyi DeepResearch](https://github.com/QwenLM) — "Heavy Mode" / IterResearch iterative condensation paradigm
+- [WebWeaver](https://arxiv.org/abs/2509.13312) — Web navigation and source selection strategies
+
+### Media Generation
+- [ComfyUI](https://github.com/comfyanonymous/ComfyUI) — Node-based image/video generation workflow inspiration
+- [Stable Diffusion (Stability AI)](https://github.com/Stability-AI/stablediffusion) — Core image generation pipeline
+- [AnimateDiff Lightning (ByteDance)](https://github.com/bytedance/AnimateDiff-Lightning) — Video generation from text prompts
+- [LTX-Video (Lightricks)](https://github.com/Lightricks/LTX-Video) — Text-to-video generation
+- [Wan2.1 (Alibaba)](https://github.com/Wan-Video/Wan2.1) — Advanced video generation model
+- [FLUX (Black Forest Labs)](https://github.com/black-forest-labs/flux) — High-quality image generation (Schnell, Klein)
+
+### Infrastructure & Tools
+- [Ollama](https://github.com/ollama/ollama) — Local LLM serving and model management
+- [FastAPI](https://github.com/tiangolo/fastapi) — High-performance Python web framework
+- [Playwright](https://github.com/microsoft/playwright) — Headless browser automation
+- [Lightpanda](https://github.com/lightpanda-io/browser) — Ultra-lightweight headless browser for AI scraping
+- [ChromaDB](https://github.com/chroma-core/chroma) — Vector database for RAG embeddings
+- [RTK](https://github.com/nichochar/rtk) — Token compression techniques (60-90% context savings)
+
+### Security & Quality
+- [Trivy](https://github.com/aquasecurity/trivy) — SCA, misconfiguration, secrets, and license scanning
+- [DeepEval](https://github.com/confident-ai/deepeval) — LLM response quality validation (relevancy, hallucination)
+- [Semgrep](https://github.com/semgrep/semgrep) — OWASP, secrets, and CI code analysis
+
+### Jailbreak & Prompt Engineering
+- [L1B3RT4S](https://github.com/elder-plinius/L1B3RT4S) — Architecture-specific bypass prompt techniques
+- [Obliteratus](https://github.com/elder-plinius/OBLITERATUS) — Advanced jailbreak prompt engineering
+
+### Other Inspirations
+- [Flickr](https://www.flickr.com) — Media gallery and lightbox UX patterns
+- [Graphify](https://github.com/closedloop-technologies/graphify) — Data visualization approaches
