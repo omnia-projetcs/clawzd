@@ -1325,10 +1325,14 @@ def _import_pptx(content: bytes):
             width = int((shape.width or 100) * scale_x)
             height = int((shape.height or 50) * scale_y)
 
+            # Skip very tiny shapes (artifacts, invisible connectors)
+            if width < 3 and height < 3:
+                continue
+
             # --- Image shapes ---
             is_image = False
             try:
-                if shape.shape_type and hasattr(shape, "image") and shape.image:
+                if hasattr(shape, "image") and shape.image:
                     img_blob = shape.image.blob
                     img_ext = shape.image.content_type.split("/")[-1] if shape.image.content_type else "png"
                     if img_ext == "jpeg":
@@ -1352,28 +1356,28 @@ def _import_pptx(content: bytes):
 
             if is_image:
                 # Images can also have text overlays — extract text on top
-                if shape.has_text_frame:
-                    text_content = shape.text_frame.text.strip()
-                    if text_content:
-                        elements.append(_extract_pptx_text_element(
-                            shape, left, top, width, height,
-                            "transparent", Emu
-                        ))
+                if shape.has_text_frame and shape.text_frame.text.strip():
+                    elements.append(_extract_pptx_text_element(
+                        shape, left, top, width, height,
+                        "transparent", Emu
+                    ))
                 continue
 
-            # --- Shape with fill (colored box) ---
+            # --- Resolve shape fill ---
             shape_bg = _resolve_pptx_fill_color(shape, "transparent")
-            has_visible_fill = shape_bg != "transparent"
 
-            # --- Text extraction ---
+            # --- Check for text ---
             has_text = False
-            text_content = ""
             if shape.has_text_frame:
-                text_content = shape.text_frame.text.strip()
-                has_text = bool(text_content)
+                has_text = bool(shape.text_frame.text.strip())
 
-            if has_visible_fill and has_text:
-                # Shape with fill AND text → create shape behind + text on top
+            # --- Create elements ---
+            # Always create the shape if it has a fill or if it's a visible shape type
+            has_visible_fill = shape_bg != "transparent"
+            is_shape = hasattr(shape, "shape_type") and shape.shape_type is not None
+
+            if has_visible_fill:
+                # Shape with fill → create shape element
                 elements.append({
                     "id": f"el_{uuid.uuid4().hex[:8]}",
                     "type": "shape",
@@ -1385,29 +1389,27 @@ def _import_pptx(content: bytes):
                     "borderWidth": 0,
                     "opacity": 100,
                 })
-                elements.append(_extract_pptx_text_element(
-                    shape, left, top, width, height,
-                    "transparent", Emu
-                ))
-            elif has_text:
-                # Text-only (no visible shape fill)
-                elements.append(_extract_pptx_text_element(
-                    shape, left, top, width, height,
-                    "transparent", Emu
-                ))
-            elif has_visible_fill:
-                # Shape-only (no text)
+            elif is_shape and not has_text:
+                # Shape without resolvable fill and no text → still create it
+                # (might be a gradient, pattern, or theme-styled shape)
                 elements.append({
                     "id": f"el_{uuid.uuid4().hex[:8]}",
                     "type": "shape",
                     "shapeType": "rect",
                     "x": left, "y": top,
                     "width": width, "height": height,
-                    "backgroundColor": shape_bg,
+                    "backgroundColor": "#cccccc",
                     "borderColor": "transparent",
                     "borderWidth": 0,
                     "opacity": 100,
                 })
+
+            # Text on top (always extracted if present)
+            if has_text:
+                elements.append(_extract_pptx_text_element(
+                    shape, left, top, width, height,
+                    "transparent", Emu
+                ))
 
         pages.append({"elements": elements})
 
