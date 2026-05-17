@@ -539,14 +539,45 @@ class CloneStudio {
       logs.forEach(entry => {
         const div = document.createElement('div');
         div.className = 'clone-feed-item';
+        div.style.flexDirection = 'column';
+        div.style.alignItems = 'stretch';
+        div.style.cursor = 'pointer';
+        div.style.gap = '0';
+
         const conf = entry.confidence || 0;
         const badge = conf >= 0.85 ? 'high' : conf >= 0.6 ? 'medium' : 'low';
         const time = entry.timestamp ? new Date(entry.timestamp).toLocaleTimeString() : '';
-        div.innerHTML = `
+        
+        const row = document.createElement('div');
+        row.style.display = 'flex';
+        row.style.gap = '10px';
+        row.style.alignItems = 'center';
+        row.innerHTML = `
           <span class="clone-feed-channel">${escHtml(entry.channel || '—')}</span>
           <span class="clone-feed-msg" title="${escHtml(entry.message || '')}">${escHtml((entry.message || '').substring(0, 60))}</span>
           <span class="clone-feed-badge ${badge}">${conf.toFixed(2)}</span>
           <span class="clone-feed-time">${time}</span>`;
+
+        const replyBox = document.createElement('div');
+        replyBox.style.display = 'none';
+        replyBox.style.marginTop = '8px';
+        replyBox.style.padding = '8px 12px';
+        replyBox.style.background = 'var(--bg-primary)';
+        replyBox.style.border = '1px solid var(--border)';
+        replyBox.style.borderRadius = '6px';
+        replyBox.style.color = 'var(--text-primary)';
+        replyBox.style.fontSize = '12px';
+        replyBox.style.whiteSpace = 'pre-wrap';
+        replyBox.style.lineHeight = '1.4';
+        replyBox.innerHTML = `<strong style="color:var(--text-muted);display:block;margin-bottom:4px;font-size:10px;text-transform:uppercase;letter-spacing:0.5px;">Clone Reply</strong>${escHtml(entry.reply || 'No reply generated.')}`;
+
+        div.appendChild(row);
+        div.appendChild(replyBox);
+
+        div.addEventListener('click', () => {
+          replyBox.style.display = replyBox.style.display === 'none' ? 'block' : 'none';
+        });
+
         feed.appendChild(div);
       });
     } catch (e) { console.error('Clone: loadFeed failed', e); }
