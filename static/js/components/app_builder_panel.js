@@ -968,11 +968,26 @@ const {columns, rows} = await res.json();</code></pre>
     // Use fixed positioning to escape overflow:hidden/auto clipping
     const btn = event.currentTarget;
     const rect = btn.getBoundingClientRect();
+    const menuHeight = 320; // approximate height of the dropdown
+    const viewportH = window.innerHeight;
+    const spaceBelow = viewportH - rect.bottom;
+    const openUpward = spaceBelow < menuHeight && rect.top > menuHeight;
+
     menu.style.position = 'fixed';
-    menu.style.top = (rect.bottom + 4) + 'px';
     menu.style.right = 'auto';
     menu.style.left = (rect.right - 180) + 'px'; // 180 = min-width
     menu.style.zIndex = '9999';
+
+    if (openUpward) {
+      // Open above the button
+      menu.style.top = 'auto';
+      menu.style.bottom = (viewportH - rect.top + 4) + 'px';
+    } else {
+      // Open below the button (default)
+      menu.style.top = (rect.bottom + 4) + 'px';
+      menu.style.bottom = 'auto';
+    }
+
     menu.classList.toggle('open');
   }
 
