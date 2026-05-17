@@ -1170,6 +1170,64 @@ def _resolve_pptx_fill_color(shape, fallback="#cccccc"):
     return fallback
 
 
+def _extract_pptx_text_element(shape, x, y, width, height, bg_color, Emu):
+    """Extract a text element dict from a PPTX shape's text frame."""
+    lines = []
+    font_size = 16
+    font_bold = False
+    font_italic = False
+    font_color = "#000000"
+    text_align = "left"
+
+    for para in shape.text_frame.paragraphs:
+        line_text = para.text
+        if not line_text.strip():
+            lines.append("")
+            continue
+        lines.append(line_text)
+
+        # Extract formatting from first run
+        if para.runs:
+            run = para.runs[0]
+            try:
+                if run.font.size:
+                    font_size = max(8, int(run.font.size / Emu(12700)))
+            except Exception:
+                pass
+            if run.font.bold:
+                font_bold = True
+            if run.font.italic:
+                font_italic = True
+            if run.font.color:
+                font_color = _resolve_pptx_color(run.font.color, "#000000")
+
+        # Alignment
+        try:
+            from pptx.enum.text import PP_ALIGN
+            if para.alignment == PP_ALIGN.CENTER:
+                text_align = "center"
+            elif para.alignment == PP_ALIGN.RIGHT:
+                text_align = "right"
+        except Exception:
+            pass
+
+    content = "\n".join(lines)
+    return {
+        "id": f"el_{uuid.uuid4().hex[:8]}",
+        "type": "text",
+        "content": content.strip(),
+        "x": x, "y": y,
+        "width": width, "height": height,
+        "fontSize": font_size,
+        "color": font_color,
+        "backgroundColor": bg_color,
+        "isBold": font_bold,
+        "isItalic": font_italic,
+        "textAlign": text_align,
+        "opacity": 100,
+    }
+
+
 def _import_pptx(content: bytes):
     """Convert PPTX slides to presentation pages with editable elements."""
     from pptx import Presentation as PptxPresentation
@@ -1191,70 +1249,86 @@ def _import_pptx(content: bytes):
     pages = []
     for slide in prs.slides:
         elements = []
+
+        # ── Extract slide background ──
+        try:
+            bg = slide.background
+            if bg and bg.fill:
+                fill = bg.fill
+                # Solid fill background
+                try:
+                    if fill.type is not None and fill.fore_color:
+                        bg_hex = _resolve_pptx_color(fill.fore_color, None)
+                        if bg_hex and bg_hex.lower() != "#ffffff":
+                            elements.append({
+                                "id": f"el_{uuid.uuid4().hex[:8]}",
+                                "type": "shape",
+                                "shapeType": "rect",
+                                "x": 0, "y": 0,
+                                "width": canvas_w, "height": canvas_h,
+                                "backgroundColor": bg_hex,
+                                "borderColor": "transparent",
+                                "borderWidth": 0,
+                                "opacity": 100,
+                            })
+                except (AttributeError, TypeError):
+                    pass
+        except Exception as e:
+            logger.warning(f"Failed to extract slide background: {e}")
+
+        # ── Extract slide background image (if any) ──
+        try:
+            bg = slide.background
+            if bg and bg.fill and bg.fill.type is not None:
+                try:
+                    bg_img = bg.fill.background()  # noqa
+                except Exception:
+                    pass
+                # Check for background image via XML
+                try:
+                    from lxml import etree
+                    bg_elem = slide.background._element
+                    ns = {'a': 'http://schemas.openxmlformats.org/drawingml/2006/main',
+                          'r': 'http://schemas.openxmlformats.org/officeDocument/2006/relationships'}
+                    blip = bg_elem.find('.//a:blipFill/a:blip', ns)
+                    if blip is not None:
+                        rId = blip.get('{http://schemas.openxmlformats.org/officeDocument/2006/relationships}embed')
+                        if rId:
+                            rel = slide.part.rels[rId]
+                            img_blob = rel.target_part.blob
+                            ct = rel.target_part.content_type or "image/png"
+                            img_ext = ct.split("/")[-1]
+                            if img_ext == "jpeg":
+                                img_ext = "jpg"
+                            img_id = f"import_bg_{uuid.uuid4().hex[:8]}"
+                            img_filename = f"{img_id}.{img_ext}"
+                            img_path = os.path.join(images_dir, img_filename)
+                            with open(img_path, "wb") as f:
+                                f.write(img_blob)
+                            elements.insert(0, {
+                                "id": f"el_{uuid.uuid4().hex[:8]}",
+                                "type": "image",
+                                "src": f"/data/images/{img_filename}",
+                                "x": 0, "y": 0,
+                                "width": canvas_w, "height": canvas_h,
+                                "opacity": 100,
+                            })
+                except Exception as e:
+                    logger.debug(f"No background image found: {e}")
+        except Exception:
+            pass
+
+        # ── Extract shapes ──
         for shape in slide.shapes:
             left = int((shape.left or 0) * scale_x)
             top = int((shape.top or 0) * scale_y)
             width = int((shape.width or 100) * scale_x)
             height = int((shape.height or 50) * scale_y)
 
-            el_id = f"el_{uuid.uuid4().hex[:8]}"
-
-            if shape.has_text_frame:
-                lines = []
-                font_size = 16
-                font_bold = False
-                font_italic = False
-                font_color = "#000000"
-                text_align = "left"
-
-                for para in shape.text_frame.paragraphs:
-                    line_text = para.text
-                    if not line_text.strip():
-                        lines.append("")
-                        continue
-                    lines.append(line_text)
-
-                    # Extract formatting from first run
-                    if para.runs:
-                        run = para.runs[0]
-                        try:
-                            if run.font.size:
-                                font_size = max(8, int(run.font.size / Emu(12700)))
-                        except Exception:
-                            pass
-                        if run.font.bold:
-                            font_bold = True
-                        if run.font.italic:
-                            font_italic = True
-                        if run.font.color:
-                            font_color = _resolve_pptx_color(run.font.color, "#000000")
-
-                    # Alignment
-                    from pptx.enum.text import PP_ALIGN
-                    if para.alignment == PP_ALIGN.CENTER:
-                        text_align = "center"
-                    elif para.alignment == PP_ALIGN.RIGHT:
-                        text_align = "right"
-
-                content = "\n".join(lines)
-                if content.strip():
-                    elements.append({
-                        "id": el_id,
-                        "type": "text",
-                        "content": content,
-                        "x": left, "y": top,
-                        "width": width, "height": height,
-                        "fontSize": font_size,
-                        "color": font_color,
-                        "backgroundColor": "transparent",
-                        "isBold": font_bold,
-                        "isItalic": font_italic,
-                        "textAlign": text_align,
-                        "opacity": 100,
-                    })
-
-            elif shape.shape_type and hasattr(shape, "image"):
-                try:
+            # --- Image shapes ---
+            is_image = False
+            try:
+                if shape.shape_type and hasattr(shape, "image") and shape.image:
                     img_blob = shape.image.blob
                     img_ext = shape.image.content_type.split("/")[-1] if shape.image.content_type else "png"
                     if img_ext == "jpeg":
@@ -1264,29 +1338,72 @@ def _import_pptx(content: bytes):
                     img_path = os.path.join(images_dir, img_filename)
                     with open(img_path, "wb") as f:
                         f.write(img_blob)
-
                     elements.append({
-                        "id": el_id,
+                        "id": f"el_{uuid.uuid4().hex[:8]}",
                         "type": "image",
                         "src": f"/data/images/{img_filename}",
                         "x": left, "y": top,
                         "width": width, "height": height,
                         "opacity": 100,
                     })
-                except Exception as e:
-                    logger.warning(f"Failed to extract image from PPTX shape: {e}")
+                    is_image = True
+            except Exception:
+                pass
 
-            elif hasattr(shape, "shape_type"):
-                # Generic shape (rectangle, etc.)
-                bg_color = _resolve_pptx_fill_color(shape, "#cccccc")
+            if is_image:
+                # Images can also have text overlays — extract text on top
+                if shape.has_text_frame:
+                    text_content = shape.text_frame.text.strip()
+                    if text_content:
+                        elements.append(_extract_pptx_text_element(
+                            shape, left, top, width, height,
+                            "transparent", Emu
+                        ))
+                continue
 
+            # --- Shape with fill (colored box) ---
+            shape_bg = _resolve_pptx_fill_color(shape, "transparent")
+            has_visible_fill = shape_bg != "transparent"
+
+            # --- Text extraction ---
+            has_text = False
+            text_content = ""
+            if shape.has_text_frame:
+                text_content = shape.text_frame.text.strip()
+                has_text = bool(text_content)
+
+            if has_visible_fill and has_text:
+                # Shape with fill AND text → create shape behind + text on top
                 elements.append({
-                    "id": el_id,
+                    "id": f"el_{uuid.uuid4().hex[:8]}",
                     "type": "shape",
                     "shapeType": "rect",
                     "x": left, "y": top,
                     "width": width, "height": height,
-                    "backgroundColor": bg_color,
+                    "backgroundColor": shape_bg,
+                    "borderColor": "transparent",
+                    "borderWidth": 0,
+                    "opacity": 100,
+                })
+                elements.append(_extract_pptx_text_element(
+                    shape, left, top, width, height,
+                    "transparent", Emu
+                ))
+            elif has_text:
+                # Text-only (no visible shape fill)
+                elements.append(_extract_pptx_text_element(
+                    shape, left, top, width, height,
+                    "transparent", Emu
+                ))
+            elif has_visible_fill:
+                # Shape-only (no text)
+                elements.append({
+                    "id": f"el_{uuid.uuid4().hex[:8]}",
+                    "type": "shape",
+                    "shapeType": "rect",
+                    "x": left, "y": top,
+                    "width": width, "height": height,
+                    "backgroundColor": shape_bg,
                     "borderColor": "transparent",
                     "borderWidth": 0,
                     "opacity": 100,
