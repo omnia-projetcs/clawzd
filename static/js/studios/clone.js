@@ -333,7 +333,10 @@ class CloneStudio {
       <div id="clone-cfg-fields" style="display:flex;flex-direction:column;gap:12px;padding:16px;">
         ${(ch.params || []).map(p => `
           <div>
-            <label style="font-size:12px;color:var(--text-muted);display:block;margin-bottom:4px">${escHtml(p.label)}</label>
+            <label style="font-size:12px;color:var(--text-muted);display:flex;align-items:center;margin-bottom:4px">
+              ${escHtml(p.label)}
+              ${p.description ? `<span title="${escHtml(p.description)}" style="cursor:help;margin-left:4px;opacity:0.6"><svg class="ic" width="12" height="12"><use href="#icon-help-circle"></use></svg></span>` : ''}
+            </label>
             ${p.type === 'select'
               ? `<select id="cfg-${escHtml(p.key)}" class="clone-review-mode" style="margin:0;width:100%">
                   ${(p.options || []).map(o => `<option value="${escHtml(o)}" ${(savedParams[p.key]||p.default)===o?'selected':''}>${escHtml(o)}</option>`).join('')}
