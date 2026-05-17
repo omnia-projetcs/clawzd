@@ -1377,12 +1377,9 @@ def _import_pptx(content: bytes):
                     child_tx = (abs_x, abs_y, sx, sy)
                     try:
                         elem = shape.element
-                        ns = {'a': 'http://schemas.openxmlformats.org/drawingml/2006/main',
-                              'p': 'http://schemas.openxmlformats.org/presentationml/2006/main'}
-                        
-                        # Only look at the immediate group properties
-                        chOff_list = elem.xpath('./p:grpSpPr/a:xfrm/a:chOff', namespaces=ns)
-                        chExt_list = elem.xpath('./p:grpSpPr/a:xfrm/a:chExt', namespaces=ns)
+                        # python-pptx OxmlElement.xpath() does not accept 'namespaces' kwarg
+                        chOff_list = elem.xpath('./p:grpSpPr/a:xfrm/a:chOff')
+                        chExt_list = elem.xpath('./p:grpSpPr/a:xfrm/a:chExt')
                         
                         if chOff_list and chExt_list:
                             cx = int(chOff_list[0].get('x', 0))
