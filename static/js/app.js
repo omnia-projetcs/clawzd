@@ -5568,6 +5568,12 @@
               <tbody>
         `;
         for (const key of groupKeys) {
+          // Ne pas afficher ici les clés gérées dans l'UI principale Settings
+          // (évite les doublons pour le provider / modèles)
+          if (groupName === 'System / Other') {
+            const HIDDEN_SYSTEM_KEYS = ['LLM_PROVIDER', 'ENHANCE_MODEL', 'CORE_MODEL'];
+            if (HIDDEN_SYSTEM_KEYS.includes(key)) continue;
+          }
           const isSensitive = sensitiveKeywords.some(kw => key.toUpperCase().includes(kw));
           const inputType = isSensitive ? 'password' : 'text';
           const toggleBtn = isSensitive ? `

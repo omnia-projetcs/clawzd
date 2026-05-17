@@ -762,6 +762,30 @@
                     height:20px;
                     background:var(--border);
                     margin:0 4px"></div>
+        <!-- Play Button (main toolbar) -->
+        <button class="btn btn-primary"
+                id="pt-btn-player"
+                title="Present fullscreen (F5)"
+                style="display:flex;
+                       align-items:center;
+                       gap:6px;
+                       padding:6px 14px;
+                       background:linear-gradient(135deg, #6366f1, #8b5cf6);
+                       border:none">
+          <svg class="ic"
+               width="14"
+               height="14"
+               viewBox="0 0 24 24"
+               fill="currentColor"
+               stroke="none">
+            <polygon points="5,3 19,12 5,21" />
+          </svg>
+          Play
+        </button>
+        <div style="width:1px;
+                    height:20px;
+                    background:var(--border);
+                    margin:0 4px"></div>
         <!-- Folding Menu (Settings) -->
         <div class="dropdown" style="position: relative;">
           <button class="btn btn-secondary dropdown-toggle"
@@ -865,25 +889,42 @@
                   </svg>
                   Save
                 </button>
-                <button class="btn btn-primary"
-                        id="pt-btn-export-dialog"
-                        style="padding:6px 12px">Export...</button>
+              </div>
+            </div>
+            <div style="height:1px; background:var(--border);"></div>
+            <!-- Import / Export Section -->
+            <div style="display:flex; flex-direction:column; gap:6px;">
+              <label style="font-size:10px;
+                            text-transform:uppercase;
+                            color:var(--text-muted);
+                            font-weight:bold">Import / Export</label>
+              <div style="display:flex; gap:8px; align-items:center;">
                 <button class="btn btn-secondary"
-                        id="pt-btn-player"
-                        title="Present fullscreen (F5)"
+                        id="pt-btn-import"
+                        title="Import a PDF or PPTX file"
                         style="display:flex;
                                align-items:center;
                                gap:6px;
                                padding:6px 12px">
-                  <svg class="ic"
-                       width="14"
-                       height="14"
-                       viewBox="0 0 24 24"
-                       fill="currentColor"
-                       stroke="none">
-                    <polygon points="5,3 19,12 5,21" />
+                  <svg class="ic" width="14" height="14">
+                    <use href="#icon-import-txt"></use>
                   </svg>
-                  Play
+                  Import
+                </button>
+                <input type="file"
+                       id="pt-import-input"
+                       accept=".pdf,.pptx"
+                       style="display:none">
+                <button class="btn btn-primary"
+                        id="pt-btn-export-dialog"
+                        style="display:flex;
+                               align-items:center;
+                               gap:6px;
+                               padding:6px 12px">
+                  <svg class="ic" width="14" height="14">
+                    <use href="#icon-download"></use>
+                  </svg>
+                  Export
                 </button>
               </div>
             </div>

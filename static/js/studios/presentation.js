@@ -320,6 +320,64 @@ class PresentationStudio {
     // Player mode
     $('#pt-btn-player')?.addEventListener('click', () => this.startPlayer());
 
+    // Import button
+    $('#pt-btn-import')?.addEventListener('click', () => {
+      $('#pt-import-input')?.click();
+    });
+    $('#pt-import-input')?.addEventListener('change', async (e) => {
+      const file = e.target.files[0];
+      if (!file) return;
+      const ext = file.name.split('.').pop().toLowerCase();
+      if (!['pdf', 'pptx'].includes(ext)) {
+        toast('⚠️ Only PDF and PPTX files are supported', 4000);
+        e.target.value = '';
+        return;
+      }
+      const formData = new FormData();
+      formData.append('file', file);
+      const importBtn = $('#pt-btn-import');
+      if (importBtn) {
+        importBtn.disabled = true;
+        importBtn.innerHTML = '<span class="pt-ai-gen-spinner" style="display:inline-block"></span> Importing...';
+      }
+      try {
+        const res = await fetch('/presentation/import', { method: 'POST', body: formData });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.detail || 'Import failed');
+        if (data.pages && data.pages.length > 0) {
+          this.pages = data.pages;
+          this.canvasW = data.canvas_width || 960;
+          this.canvasH = data.canvas_height || 540;
+          this.currentPage = 0;
+          this.presId = null;
+          localStorage.removeItem('pt-last-id');
+          const titleInput = $('#pt-pres-title');
+          if (titleInput) titleInput.value = data.title || file.name.replace(/\.[^.]+$/, '');
+          this.title = titleInput?.value || '';
+          this.selectElement(null);
+          this.renderPages();
+          this.renderCanvas();
+          this.updateCanvasZoom();
+          this.saveState();
+          toast(ICONS.check(14) + ` Imported ${data.pages.length} slide(s) from ${ext.toUpperCase()}`);
+          // Close menu dropdown
+          const dd = $('#pt-menu-dropdown');
+          if (dd) dd.style.display = 'none';
+        } else {
+          toast('⚠️ No slides found in file', 4000);
+        }
+      } catch (err) {
+        toast(`❌ Import failed: ${err.message}`, 5000);
+        console.error('Import error:', err);
+      } finally {
+        if (importBtn) {
+          importBtn.disabled = false;
+          importBtn.innerHTML = '<svg class="ic" width="14" height="14"><use href="#icon-import-txt"></use></svg> Import';
+        }
+        e.target.value = '';
+      }
+    });
+
     // Handle fullscreen exit to also stop player
     document.addEventListener('fullscreenchange', () => {
       if (!document.fullscreenElement && this._playerActive) {

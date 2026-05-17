@@ -711,6 +711,258 @@ async def export_presentation(request: Request):
         logger.error(f"Error generating presentation: {e}")
         raise HTTPException(500, str(e))
 
+@router.post("/import")
+async def import_presentation(request: Request):
+    """Import a PDF or PPTX file and convert it to presentation pages."""
+    from fastapi import UploadFile, File
+    import tempfile
+
+    form = await request.form()
+    uploaded_file = form.get("file")
+    if not uploaded_file:
+        raise HTTPException(400, "No file uploaded")
+
+    filename = uploaded_file.filename or "unknown"
+    ext = filename.rsplit(".", 1)[-1].lower() if "." in filename else ""
+    if ext not in ("pdf", "pptx"):
+        raise HTTPException(400, f"Unsupported format: {ext}. Only PDF and PPTX are supported.")
+
+    content = await uploaded_file.read()
+    title = filename.rsplit(".", 1)[0] if "." in filename else filename
+
+    try:
+        if ext == "pdf":
+            pages, cw, ch = _import_pdf(content)
+        else:
+            pages, cw, ch = _import_pptx(content)
+
+        return {
+            "status": "ok",
+            "title": title,
+            "pages": pages,
+            "canvas_width": cw,
+            "canvas_height": ch,
+        }
+    except ImportError as e:
+        logger.error(f"Missing dependency for import: {e}")
+        raise HTTPException(500, f"Missing dependency: {e}")
+    except Exception as e:
+        logger.error(f"Error importing presentation: {e}")
+        raise HTTPException(500, str(e))
+
+
+def _import_pdf(content: bytes):
+    """Convert PDF pages to image-based presentation slides."""
+    import tempfile
+
+    images_dir = os.path.join(DATA_DIR, "images")
+    os.makedirs(images_dir, exist_ok=True)
+
+    canvas_w, canvas_h = 960, 540
+
+    # Try pdf2image (poppler) first, fallback to PyMuPDF (fitz)
+    pages = []
+    try:
+        from pdf2image import convert_from_bytes
+        pil_images = convert_from_bytes(content, dpi=150)
+        for idx, img in enumerate(pil_images):
+            img_id = f"import_{uuid.uuid4().hex[:8]}"
+            img_filename = f"{img_id}.png"
+            img_path = os.path.join(images_dir, img_filename)
+            img.save(img_path, "PNG")
+
+            # Scale to canvas
+            iw, ih = img.size
+            scale = min(canvas_w / iw, canvas_h / ih)
+            el_w = int(iw * scale)
+            el_h = int(ih * scale)
+            el_x = (canvas_w - el_w) // 2
+            el_y = (canvas_h - el_h) // 2
+
+            pages.append({
+                "elements": [{
+                    "id": f"el_{uuid.uuid4().hex[:8]}",
+                    "type": "image",
+                    "src": f"/data/images/{img_filename}",
+                    "x": el_x, "y": el_y,
+                    "width": el_w, "height": el_h,
+                    "opacity": 100,
+                }]
+            })
+    except ImportError:
+        try:
+            import fitz  # PyMuPDF
+            doc = fitz.open(stream=content, filetype="pdf")
+            for idx in range(len(doc)):
+                page = doc[idx]
+                mat = fitz.Matrix(2, 2)  # 2x zoom for decent quality
+                pix = page.get_pixmap(matrix=mat)
+                img_id = f"import_{uuid.uuid4().hex[:8]}"
+                img_filename = f"{img_id}.png"
+                img_path = os.path.join(images_dir, img_filename)
+                pix.save(img_path)
+
+                iw, ih = pix.width, pix.height
+                scale = min(canvas_w / iw, canvas_h / ih)
+                el_w = int(iw * scale)
+                el_h = int(ih * scale)
+                el_x = (canvas_w - el_w) // 2
+                el_y = (canvas_h - el_h) // 2
+
+                pages.append({
+                    "elements": [{
+                        "id": f"el_{uuid.uuid4().hex[:8]}",
+                        "type": "image",
+                        "src": f"/data/images/{img_filename}",
+                        "x": el_x, "y": el_y,
+                        "width": el_w, "height": el_h,
+                        "opacity": 100,
+                    }]
+                })
+            doc.close()
+        except ImportError:
+            raise ImportError(
+                "PDF import requires either 'pdf2image' (with poppler) or 'PyMuPDF' (fitz). "
+                "Install with: pip install pdf2image  or  pip install PyMuPDF"
+            )
+
+    if not pages:
+        pages = [{"elements": []}]
+
+    return pages, canvas_w, canvas_h
+
+
+def _import_pptx(content: bytes):
+    """Convert PPTX slides to presentation pages with editable elements."""
+    from pptx import Presentation as PptxPresentation
+    from pptx.util import Emu
+
+    prs = PptxPresentation(BytesIO(content))
+    slide_w_emu = prs.slide_width
+    slide_h_emu = prs.slide_height
+
+    canvas_w = 960
+    canvas_h = int(canvas_w * slide_h_emu / slide_w_emu) if slide_w_emu else 540
+
+    scale_x = canvas_w / slide_w_emu if slide_w_emu else 1
+    scale_y = canvas_h / slide_h_emu if slide_h_emu else 1
+
+    images_dir = os.path.join(DATA_DIR, "images")
+    os.makedirs(images_dir, exist_ok=True)
+
+    pages = []
+    for slide in prs.slides:
+        elements = []
+        for shape in slide.shapes:
+            left = int((shape.left or 0) * scale_x)
+            top = int((shape.top or 0) * scale_y)
+            width = int((shape.width or 100) * scale_x)
+            height = int((shape.height or 50) * scale_y)
+
+            el_id = f"el_{uuid.uuid4().hex[:8]}"
+
+            if shape.has_text_frame:
+                lines = []
+                font_size = 16
+                font_bold = False
+                font_italic = False
+                font_color = "#000000"
+                text_align = "left"
+
+                for para in shape.text_frame.paragraphs:
+                    line_text = para.text
+                    if not line_text.strip():
+                        lines.append("")
+                        continue
+                    lines.append(line_text)
+
+                    # Extract formatting from first run
+                    if para.runs:
+                        run = para.runs[0]
+                        if run.font.size:
+                            font_size = max(8, int(run.font.size / Emu(12700)))
+                        if run.font.bold:
+                            font_bold = True
+                        if run.font.italic:
+                            font_italic = True
+                        if run.font.color and run.font.color.rgb:
+                            font_color = f"#{run.font.color.rgb}"
+
+                    # Alignment
+                    from pptx.enum.text import PP_ALIGN
+                    if para.alignment == PP_ALIGN.CENTER:
+                        text_align = "center"
+                    elif para.alignment == PP_ALIGN.RIGHT:
+                        text_align = "right"
+
+                content = "\n".join(lines)
+                if content.strip():
+                    elements.append({
+                        "id": el_id,
+                        "type": "text",
+                        "content": content,
+                        "x": left, "y": top,
+                        "width": width, "height": height,
+                        "fontSize": font_size,
+                        "color": font_color,
+                        "backgroundColor": "transparent",
+                        "isBold": font_bold,
+                        "isItalic": font_italic,
+                        "textAlign": text_align,
+                        "opacity": 100,
+                    })
+
+            elif shape.shape_type and hasattr(shape, "image"):
+                try:
+                    img_blob = shape.image.blob
+                    img_ext = shape.image.content_type.split("/")[-1] if shape.image.content_type else "png"
+                    if img_ext == "jpeg":
+                        img_ext = "jpg"
+                    img_id = f"import_{uuid.uuid4().hex[:8]}"
+                    img_filename = f"{img_id}.{img_ext}"
+                    img_path = os.path.join(images_dir, img_filename)
+                    with open(img_path, "wb") as f:
+                        f.write(img_blob)
+
+                    elements.append({
+                        "id": el_id,
+                        "type": "image",
+                        "src": f"/data/images/{img_filename}",
+                        "x": left, "y": top,
+                        "width": width, "height": height,
+                        "opacity": 100,
+                    })
+                except Exception as e:
+                    logger.warning(f"Failed to extract image from PPTX shape: {e}")
+
+            elif hasattr(shape, "shape_type"):
+                # Generic shape (rectangle, etc.)
+                bg_color = "#cccccc"
+                try:
+                    if shape.fill and shape.fill.fore_color:
+                        bg_color = f"#{shape.fill.fore_color.rgb}"
+                except Exception:
+                    pass
+
+                elements.append({
+                    "id": el_id,
+                    "type": "shape",
+                    "shapeType": "rect",
+                    "x": left, "y": top,
+                    "width": width, "height": height,
+                    "backgroundColor": bg_color,
+                    "borderColor": "transparent",
+                    "borderWidth": 0,
+                    "opacity": 100,
+                })
+
+        pages.append({"elements": elements})
+
+    if not pages:
+        pages = [{"elements": []}]
+
+    return pages, canvas_w, canvas_h
+
 @router.post("/save")
 async def save_presentation(request: Request):
     data = await request.json()
