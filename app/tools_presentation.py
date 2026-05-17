@@ -1365,19 +1365,25 @@ def _import_pptx(content: bytes):
 
             # --- Resolve shape fill ---
             shape_bg = _resolve_pptx_fill_color(shape, "transparent")
+            has_visible_fill = shape_bg != "transparent"
 
             # --- Check for text ---
             has_text = False
             if shape.has_text_frame:
                 has_text = bool(shape.text_frame.text.strip())
 
-            # --- Create elements ---
-            # Always create the shape if it has a fill or if it's a visible shape type
-            has_visible_fill = shape_bg != "transparent"
-            is_shape = hasattr(shape, "shape_type") and shape.shape_type is not None
+            # Shape types that are NOT visible boxes (text containers, placeholders)
+            # These should only produce text elements, not gray rectangles
+            invisible_shape_types = {14, 17, 6, 19}  # PLACEHOLDER, TEXT_BOX, GROUP, TABLE
+            shape_type_val = None
+            try:
+                shape_type_val = int(shape.shape_type) if shape.shape_type is not None else None
+            except (TypeError, ValueError):
+                pass
+            is_invisible_type = shape_type_val in invisible_shape_types
 
+            # --- Create shape element if it has a visible fill ---
             if has_visible_fill:
-                # Shape with fill → create shape element
                 elements.append({
                     "id": f"el_{uuid.uuid4().hex[:8]}",
                     "type": "shape",
@@ -1389,9 +1395,9 @@ def _import_pptx(content: bytes):
                     "borderWidth": 0,
                     "opacity": 100,
                 })
-            elif is_shape and not has_text:
-                # Shape without resolvable fill and no text → still create it
-                # (might be a gradient, pattern, or theme-styled shape)
+            elif not is_invisible_type and not has_text and shape_type_val is not None:
+                # Visible shape type without resolved fill and no text
+                # (e.g. AUTO_SHAPE with gradient/pattern) — keep as gray fallback
                 elements.append({
                     "id": f"el_{uuid.uuid4().hex[:8]}",
                     "type": "shape",
@@ -1404,7 +1410,7 @@ def _import_pptx(content: bytes):
                     "opacity": 100,
                 })
 
-            # Text on top (always extracted if present)
+            # --- Always extract text on top ---
             if has_text:
                 elements.append(_extract_pptx_text_element(
                     shape, left, top, width, height,
