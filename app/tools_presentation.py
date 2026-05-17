@@ -1318,8 +1318,17 @@ def _import_pptx(content: bytes):
         except Exception:
             pass
 
-        # ── Extract shapes ──
-        for shape in slide.shapes:
+        # ── Extract shapes (recursive to handle groups) ──
+        def _iter_all_shapes(shapes):
+            for shape in shapes:
+                yield shape
+                if shape.shape_type == 6:  # GROUP
+                    try:
+                        yield from _iter_all_shapes(shape.shapes)
+                    except Exception:
+                        pass
+
+        for shape in _iter_all_shapes(slide.shapes):
             left = int((shape.left or 0) * scale_x)
             top = int((shape.top or 0) * scale_y)
             width = int((shape.width or 100) * scale_x)
@@ -1372,17 +1381,7 @@ def _import_pptx(content: bytes):
             if shape.has_text_frame:
                 has_text = bool(shape.text_frame.text.strip())
 
-            # Shape types that are NOT visible boxes (text containers, placeholders)
-            # These should only produce text elements, not gray rectangles
-            invisible_shape_types = {14, 17, 6, 19}  # PLACEHOLDER, TEXT_BOX, GROUP, TABLE
-            shape_type_val = None
-            try:
-                shape_type_val = int(shape.shape_type) if shape.shape_type is not None else None
-            except (TypeError, ValueError):
-                pass
-            is_invisible_type = shape_type_val in invisible_shape_types
-
-            # --- Create shape element if it has a visible fill ---
+            # --- Create shape element only when fill is positively detected ---
             if has_visible_fill:
                 elements.append({
                     "id": f"el_{uuid.uuid4().hex[:8]}",
@@ -1391,20 +1390,6 @@ def _import_pptx(content: bytes):
                     "x": left, "y": top,
                     "width": width, "height": height,
                     "backgroundColor": shape_bg,
-                    "borderColor": "transparent",
-                    "borderWidth": 0,
-                    "opacity": 100,
-                })
-            elif not is_invisible_type and not has_text and shape_type_val is not None:
-                # Visible shape type without resolved fill and no text
-                # (e.g. AUTO_SHAPE with gradient/pattern) — keep as gray fallback
-                elements.append({
-                    "id": f"el_{uuid.uuid4().hex[:8]}",
-                    "type": "shape",
-                    "shapeType": "rect",
-                    "x": left, "y": top,
-                    "width": width, "height": height,
-                    "backgroundColor": "#cccccc",
                     "borderColor": "transparent",
                     "borderWidth": 0,
                     "opacity": 100,
