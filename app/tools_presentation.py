@@ -937,11 +937,18 @@ def _import_pdf(content: bytes):
             '\u25e6': '◦',
             '\u2013': '-',
             '\u2014': '-',
+            '\u2212': '-',
             '\u2018': "'",
             '\u2019': "'",
             '\u201c': '"',
             '\u201d': '"',
-            '\ufffd': ' ',  # Replacement character
+            '\u00d7': 'x',  # Signe multiplication
+            '\uf02b': '+',  # PUA +
+            '\uf02d': '-',  # PUA -
+            '\uf03a': ':',  # PUA :
+            '\uf078': 'x',  # PUA x
+            '\uf0b4': 'x',  # PUA x
+            '\ufffd': '?',  # Rendre visible les erreurs irrécupérables au lieu de mettre un espace
             '\x00': '',
             '\u00a0': ' ',
             '\u200b': '',
