@@ -182,6 +182,13 @@ Clawzd is a self-hosted, modular AI assistant that combines multiple LLM provide
 - **Highlight.js** — Syntax highlighting for code blocks
 - **Lucide Icons** — SVG icon library for the UI
 
+
+### BEST PERF IA MODELS
+
+- **Ollama**: gemma3:4b, mistral-small3.2:24b, gemma4:e4b, plus lourd mais ok: huggingface.co/unsloth/Qwen3-Coder-30B-A3B-Instruct-GGUF:latest et qwen3.5:9b-q8_0 
+- **vLLM** (DGX SPARK OK): google/gemma-4-26b-it, Qwen/Qwen3.6-35B-A3B, Qwen/Qwen3-Coder-Next
+
+
 ---
 
 ## 🚀 Installation
