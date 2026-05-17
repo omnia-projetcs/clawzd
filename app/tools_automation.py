@@ -1239,13 +1239,8 @@ def _patch_discord_listener():
             return
         import discord
 
-        original_on_message = None
-        for name, callback in _bot._listeners.get("on_message", []):
-            original_on_message = callback
-            break
-
-        @_bot.event
-        async def on_message(message):
+        @_bot.listen("on_message")
+        async def automation_on_message(message):
             if message.author.bot:
                 return
             # Dispatch to automation workflows
@@ -1257,10 +1252,6 @@ def _patch_discord_listener():
                 "guild_id": str(message.guild.id) if message.guild else "",
                 "timestamp": message.created_at.isoformat(),
             }))
-            # Also call original handler for chat responses
-            if original_on_message:
-                await original_on_message(message)
-            await _bot.process_commands(message)
 
         logger.info("Automation: Discord listener patched")
     except Exception as e:

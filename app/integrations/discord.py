@@ -72,6 +72,8 @@ async def start_discord_bot():
         for i in range(0, len(full), 1900):
             await message.reply(full[i:i+1900], mention_author=False)
 
+        await _bot.process_commands(message)
+
     try:
         await _bot.start(DISCORD_TOKEN)
     except Exception as e:
