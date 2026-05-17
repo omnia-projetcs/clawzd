@@ -271,7 +271,59 @@ TAVILY_API_KEY=
 OLLAMA_HOST=http://localhost:11434
 OLLAMA_MODEL=qwen3.5:9b
 OLLAMA_NUM_GPU=999
-OLLAMA_NUM_CTX=-1
+OLLAMA_NUM_CTX=-1                     # -1 = dynamic (auto-sized per request)
+```
+
+### 🚀 Ollama Performance Tuning
+
+Clawzd automatically optimizes Ollama performance with **dynamic context sizing** — the `num_ctx` and `num_predict` are calculated per request based on the actual input size, instead of always using the model's maximum. This dramatically reduces VRAM usage for short conversations.
+
+For maximum performance, also configure these **on the Ollama server** (where `ollama serve` runs):
+
+#### Systemd (default Linux install)
+
+If Ollama was installed via `curl -fsSL https://ollama.com/install.sh | sh`, it runs as a systemd service. Add the variables to the service file:
+
+```bash
+# 1. Edit the service file
+sudo nano /etc/systemd/system/ollama.service
+
+# 2. Add these lines in the [Service] section (before ExecStart=):
+#    Environment="OLLAMA_FLASH_ATTENTION=1"
+#    Environment="OLLAMA_KV_CACHE_TYPE=q8_0"
+
+# 3. Reload and restart
+sudo systemctl daemon-reload
+sudo systemctl restart ollama
+
+# 4. Verify
+systemctl show ollama | grep -i environment
+```
+
+#### Manual / macOS / Docker
+
+If you run `ollama serve` manually, export the variables in your shell profile:
+
+```bash
+# Add to ~/.bashrc or ~/.zshrc
+export OLLAMA_FLASH_ATTENTION=1
+export OLLAMA_KV_CACHE_TYPE=q8_0
+
+# Then restart Ollama
+ollama serve
+```
+
+| Variable | Where | Effect |
+|----------|-------|--------|
+| `OLLAMA_FLASH_ATTENTION=1` | Ollama server | Tiled attention computation, massive VRAM savings for long contexts |
+| `OLLAMA_KV_CACHE_TYPE=q8_0` | Ollama server | Quantizes the KV cache from f16 to q8_0, ~2x memory reduction |
+| `OLLAMA_NUM_CTX=-1` | Clawzd `.env` | Dynamic: auto-sizes context per request (default, recommended) |
+| `OLLAMA_NUM_CTX=8192` | Clawzd `.env` | Fixed ceiling: never exceed 8192 tokens |
+| `OLLAMA_NUM_GPU=999` | Clawzd `.env` | Number of GPU layers (999 = all layers on GPU) |
+
+> ⚠️ `OLLAMA_FLASH_ATTENTION` and `OLLAMA_KV_CACHE_TYPE` are **Ollama server variables** — they must be set on the machine running `ollama serve`, not in Clawzd's `.env`.
+
+```bash
 
 # --- Application Paths (defaults are relative to project root) ---
 # CHROMA_DB_PATH=

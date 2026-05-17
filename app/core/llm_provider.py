@@ -4,6 +4,7 @@ Supports Anthropic Claude, Google Gemini, Grok (xAI), Groq, HuggingFace,
 Mistral, Ollama, OpenAI, and OpenRouter.
 """
 import asyncio
+import json as _json
 import logging
 import os
 import time
@@ -92,6 +93,79 @@ def _resolve_ollama_verify() -> bool:
     _env = _dv(".env") if _os.path.exists(".env") else {}
     raw = _env.get("OLLAMA_VERIFY_SSL", _os.getenv("OLLAMA_VERIFY_SSL", "true"))
     return str(raw).lower() not in ("0", "false", "no", "off")
+
+
+def _estimate_input_tokens(messages: list[dict]) -> int:
+    """Rough token count for a list of messages (~4 chars per token)."""
+    total = 0
+    for m in messages:
+        content = m.get("content", "")
+        if isinstance(content, list):
+            for part in content:
+                if isinstance(part, dict) and part.get("type") == "text":
+                    total += len(part.get("text", ""))
+                elif isinstance(part, str):
+                    total += len(part)
+        elif isinstance(content, str):
+            total += len(content)
+        total += 10  # per-message overhead (role, separators)
+    return total // 4
+
+
+def _compute_ollama_options(
+    messages: list[dict],
+    max_ctx: int = 0,
+    num_predict_override: int = 0,
+) -> dict:
+    """Compute optimal Ollama inference options based on actual input size.
+
+    Returns a dict with ``num_ctx`` and ``num_predict`` sized to the request
+    instead of always using the model maximum, which wastes VRAM on the
+    KV cache.
+
+    Strategy:
+      - Estimate input tokens from messages.
+      - ``num_predict`` = generous response headroom (capped at 4096 for chat,
+        unless overridden).  For short prompts the model rarely needs more
+        than 2048 output tokens.
+      - ``num_ctx`` = input_tokens + num_predict, rounded up to next 2048.
+      - Clamped between a floor of 2048 and the model's max (if known).
+    """
+    from config import OLLAMA_NUM_CTX, OLLAMA_NUM_GPU
+
+    input_tokens = _estimate_input_tokens(messages)
+
+    # --- num_predict (max output tokens) ---
+    if num_predict_override > 0:
+        num_predict = num_predict_override
+    elif input_tokens < 500:
+        # Short prompt → moderate response budget
+        num_predict = 2048
+    else:
+        # Longer conversation → larger budget, capped
+        num_predict = min(4096, max(2048, int(input_tokens * 0.6)))
+
+    # --- num_ctx (total context window) ---
+    needed = input_tokens + num_predict
+    # Round up to next 2048 boundary
+    num_ctx = ((needed + 2047) // 2048) * 2048
+    # Floor
+    num_ctx = max(2048, num_ctx)
+    # Ceiling from config (OLLAMA_NUM_CTX) or model max
+    ceiling = max_ctx if max_ctx > 0 else (OLLAMA_NUM_CTX if OLLAMA_NUM_CTX > 0 else 0)
+    if ceiling > 0:
+        num_ctx = min(num_ctx, ceiling)
+
+    options = {
+        "num_ctx": num_ctx,
+        "num_predict": num_predict,
+        "num_gpu": OLLAMA_NUM_GPU,
+    }
+    logger.debug(
+        "Ollama options: input≈%d tok → num_ctx=%d, num_predict=%d",
+        input_tokens, num_ctx, num_predict,
+    )
+    return options
 
 
 async def _get_local_models() -> list[dict]:
@@ -323,7 +397,7 @@ class LLMProvider(ABC):
 
 
 class OllamaLLM(LLMProvider):
-    """Local LLM via Ollama's OpenAI-compatible API."""
+    """Local LLM via Ollama's native /api/chat with dynamic num_ctx/num_predict."""
     
     @property
     def default_model(self):
@@ -405,7 +479,12 @@ class OllamaLLM(LLMProvider):
             return "".join(parts)
 
     async def _chat_stream_inner(self, messages, model=None, **kwargs):
-        """Actual streaming logic (called under semaphore)."""
+        """Stream via Ollama native /api/chat with dynamic num_ctx/num_predict.
+
+        Uses the native API instead of the OpenAI-compatible endpoint so we
+        can pass ``options.num_ctx`` and ``options.num_predict`` per request,
+        right-sizing the KV cache to the actual input size.
+        """
         # Re-check host on every request so .env changes are picked up
         self._ensure_client()
         ollama_host = self._current_host
@@ -427,44 +506,89 @@ class OllamaLLM(LLMProvider):
                 yield token
             return
 
-        # Try the exact model name, then fall back to base:latest
-        models_to_try = [model]
-        if ":" in model and not model.endswith(":latest"):
-            models_to_try.append(model.split(":")[0] + ":latest")
-        elif ":" not in model:
-            models_to_try.append(model + ":latest")
+        # --- Build native /api/chat payload ---
+        # Convert OpenAI-style messages to Ollama format (strip multimodal wrappers)
+        ollama_messages = []
+        for m in messages:
+            content = m.get("content", "")
+            if isinstance(content, list):
+                text_parts = []
+                for part in content:
+                    if isinstance(part, dict) and part.get("type") == "text":
+                        text_parts.append(part["text"])
+                    elif isinstance(part, str):
+                        text_parts.append(part)
+                content = "\n".join(text_parts)
+            ollama_messages.append({"role": m["role"], "content": content or ""})
 
-        for try_model in models_to_try:
-            t0 = time.perf_counter()
-            tokens = 0
-            try:
-                stream = await self.client.chat.completions.create(
-                    model=try_model, messages=messages, stream=True, **kwargs
-                )
-                async for chunk in stream:
-                    delta = chunk.choices[0].delta.content
-                    if delta:
-                        tokens += 1
-                        yield delta
-                elapsed = time.perf_counter() - t0
-                logger.info("Ollama [%s]: %d tokens in %.1fs (%.0f tok/s)", try_model, tokens, elapsed, tokens / max(elapsed, 0.01))
-                return  # success, stop trying
-            except openai.NotFoundError:
-                if try_model == models_to_try[-1]:
-                    yield (
-                        f"⚠️ **Model `{model}` not found in Ollama.**\n\n"
-                        f"Install it with:\n```bash\nollama pull {model}\n```"
-                    )
-                    return
-                logger.info("Model %s not found, trying %s...", try_model, models_to_try[-1])
-                continue
-            except openai.APIConnectionError:
-                yield (
-                    "⚠️ **Cannot connect to Ollama** "
-                    f"(`{ollama_host}`).\n\n"
-                    "Make sure Ollama is running: `ollama serve`"
-                )
-                return
+        # Compute dynamic options (num_ctx, num_predict, num_gpu)
+        num_predict_override = kwargs.pop("num_predict", 0)
+        options = _compute_ollama_options(
+            messages, num_predict_override=num_predict_override,
+        )
+        # Merge any caller-supplied options (e.g. temperature)
+        if "temperature" in kwargs:
+            options["temperature"] = kwargs.pop("temperature")
+
+        api_key = _resolve_ollama_api_key()
+        headers = {"Authorization": f"Bearer {api_key}"} if api_key else {}
+
+        payload = {
+            "model": model,
+            "messages": ollama_messages,
+            "stream": True,
+            "options": options,
+        }
+
+        t0 = time.perf_counter()
+        tokens = 0
+
+        try:
+            async with httpx.AsyncClient(
+                timeout=httpx.Timeout(300.0),
+                verify=_resolve_ollama_verify(),
+            ) as client:
+                async with client.stream(
+                    "POST", f"{ollama_host}/api/chat",
+                    json=payload, headers=headers,
+                ) as resp:
+                    if resp.status_code == 404:
+                        yield (
+                            f"⚠️ **Model `{model}` not found in Ollama.**\n\n"
+                            f"Install it with:\n```bash\nollama pull {model}\n```"
+                        )
+                        return
+                    async for line in resp.aiter_lines():
+                        if not line.strip():
+                            continue
+                        try:
+                            data = _json.loads(line)
+                            chunk_text = data.get("message", {}).get("content", "")
+                            if chunk_text:
+                                tokens += 1
+                                yield chunk_text
+                            if data.get("done"):
+                                break
+                        except _json.JSONDecodeError:
+                            continue
+        except httpx.ConnectError:
+            yield (
+                "⚠️ **Cannot connect to Ollama** "
+                f"(`{ollama_host}`).\n\n"
+                "Make sure Ollama is running: `ollama serve`"
+            )
+            return
+        except Exception as e:
+            yield f"⚠️ **Ollama error:** {e}"
+            return
+
+        elapsed = time.perf_counter() - t0
+        logger.info(
+            "Ollama [%s]: %d tokens in %.1fs (%.0f tok/s) "
+            "[num_ctx=%d, num_predict=%d]",
+            model, tokens, elapsed, tokens / max(elapsed, 0.01),
+            options["num_ctx"], options["num_predict"],
+        )
 
     async def _chat_stream_vision(self, messages, model, **kwargs):
         """Stream from Ollama's native /api/chat with images support."""
@@ -500,6 +624,9 @@ class OllamaLLM(LLMProvider):
 
             ollama_messages.append(msg)
 
+        # Compute dynamic options (num_ctx, num_predict, num_gpu)
+        options = _compute_ollama_options(messages)
+
         # Use Ollama's native /api/chat endpoint for vision
         ollama_host = _resolve_ollama_host()
         api_key = _resolve_ollama_api_key()
@@ -508,6 +635,7 @@ class OllamaLLM(LLMProvider):
             "model": model,
             "messages": ollama_messages,
             "stream": True,
+            "options": options,
         }
 
         try:
@@ -520,7 +648,6 @@ class OllamaLLM(LLMProvider):
                         if not line.strip():
                             continue
                         try:
-                            import json as _json
                             data = _json.loads(line)
                             chunk_text = data.get("message", {}).get("content", "")
                             if chunk_text:
@@ -528,7 +655,7 @@ class OllamaLLM(LLMProvider):
                                 yield chunk_text
                             if data.get("done"):
                                 break
-                        except Exception:
+                        except _json.JSONDecodeError:
                             continue
         except Exception as e:
             # Add actionable hint for TLS issues
@@ -542,7 +669,10 @@ class OllamaLLM(LLMProvider):
             return
 
         elapsed = time.perf_counter() - t0
-        logger.info("Ollama Vision [%s]: %d tokens in %.1fs", model, tokens, elapsed)
+        logger.info(
+            "Ollama Vision [%s]: %d tokens in %.1fs [num_ctx=%d, num_predict=%d]",
+            model, tokens, elapsed, options["num_ctx"], options["num_predict"],
+        )
 
 
 class AnthropicLLM(LLMProvider):

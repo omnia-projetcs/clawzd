@@ -666,9 +666,14 @@ async def activate_model(req: ActivateRequest):
     # Pre-load the model with GPU settings
     try:
         from config import OLLAMA_NUM_GPU, OLLAMA_NUM_CTX
-        options = {"num_gpu": OLLAMA_NUM_GPU}
-        if OLLAMA_NUM_CTX != -1:
-            options["num_ctx"] = OLLAMA_NUM_CTX
+        # Use a moderate context for warm-up — actual requests will use
+        # dynamic sizing via _compute_ollama_options().
+        warmup_ctx = 4096 if OLLAMA_NUM_CTX <= 0 else min(OLLAMA_NUM_CTX, 4096)
+        options = {
+            "num_gpu": OLLAMA_NUM_GPU,
+            "num_ctx": warmup_ctx,
+            "num_predict": 1,       # warm-up only, no real generation
+        }
         resp = httpx.post(
             f"{OLLAMA_HOST}/api/generate",
             json={
@@ -680,7 +685,10 @@ async def activate_model(req: ActivateRequest):
             timeout=60,
         )
         if resp.status_code == 200:
-            logger.info("Model pre-loaded in Ollama: %s (num_gpu=%d, num_ctx=%d)", model_name, OLLAMA_NUM_GPU, OLLAMA_NUM_CTX)
+            logger.info(
+                "Model pre-loaded in Ollama: %s (num_gpu=%d, warmup_ctx=%d)",
+                model_name, OLLAMA_NUM_GPU, warmup_ctx,
+            )
     except Exception as e:
         logger.warning("Could not pre-load model: %s", e)
 
