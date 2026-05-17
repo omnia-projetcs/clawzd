@@ -78,7 +78,29 @@ def _extract_text(content: bytes, filename: str) -> str:
         try:
             import fitz  # PyMuPDF
             doc = fitz.open(stream=content, filetype="pdf")
-            return "\n\n".join(page.get_text() for page in doc)
+            extracted_text = "\n\n".join(page.get_text() for page in doc)
+            
+            # OCR Fallback: if very little text is found (e.g. scanned image), try OCR
+            if len(extracted_text.strip()) < 50 * len(doc):
+                try:
+                    import pytesseract
+                    from PIL import Image
+                    import io
+                    ocr_parts = []
+                    for page in doc:
+                        # Extract text first, if it's there
+                        page_text = page.get_text().strip()
+                        if len(page_text) < 50:
+                            # Render page to an image
+                            pix = page.get_pixmap(dpi=150)
+                            img = Image.open(io.BytesIO(pix.tobytes("png")))
+                            page_text = pytesseract.image_to_string(img)
+                        ocr_parts.append(page_text)
+                    extracted_text = "\n\n".join(ocr_parts)
+                except Exception as ocr_e:
+                    logger.warning("OCR fallback failed for PDF %s: %s", filename, ocr_e)
+            
+            return extracted_text
         except ImportError:
             try:
                 import pdfplumber, io

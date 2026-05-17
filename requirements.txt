@@ -60,6 +60,8 @@ pyyaml>=6.0
 # --- Document Processing ---
 PyMuPDF>=1.24.0
 pdfplumber>=0.11.0
+ebooklib>=0.18
+pytesseract>=0.3.10
 
 # --- Data Science & Utilities (for AI code execution) ---
 pandas>=2.0.0

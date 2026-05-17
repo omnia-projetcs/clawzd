@@ -171,10 +171,10 @@ echo ""
 echo "--- Installing System Dependencies ---"
 if command -v apt-get &> /dev/null; then
     if command -v sudo &> /dev/null; then
-        echo "Installing TTS and media dependencies (requires sudo)..."
-        sudo apt-get update && sudo apt-get install -y espeak espeak-ng espeak-data libespeak-dev ffmpeg
+        echo "Installing TTS, media and OCR dependencies (requires sudo)..."
+        sudo apt-get update && sudo apt-get install -y espeak espeak-ng espeak-data libespeak-dev ffmpeg tesseract-ocr tesseract-ocr-eng tesseract-ocr-fra
     else
-        echo "WARNING: sudo not available. Please install manually: apt-get install espeak espeak-ng espeak-data libespeak-dev ffmpeg"
+        echo "WARNING: sudo not available. Please install manually: apt-get install espeak espeak-ng espeak-data libespeak-dev ffmpeg tesseract-ocr tesseract-ocr-eng tesseract-ocr-fra"
     fi
 fi
 
