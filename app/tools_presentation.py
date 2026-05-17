@@ -825,35 +825,30 @@ def _import_pdf(content: bytes):
                     continue
 
                 items = draw.get("items", [])
-                # Skip complex drawings (SVGs) as they are handled in pass 4
-                if len(items) > 4:
-                    continue
+                
+                # Check if this is a simple rectangle
+                is_simple_rect = False
+                if len(items) == 1 and items[0][0] == "re":
+                    is_simple_rect = True
+                elif len(items) == 4 and all(it[0] == "l" for it in items):
+                    is_simple_rect = True
 
-                # Full-page background detection: push to front as bg
+                # Full-page background detection
                 is_bg = (w >= pdf_w * 0.9 and h >= pdf_h * 0.9)
+
+                # Skip complex vectors (SVGs); they will be handled in pass 4
+                if not is_simple_rect and not is_bg:
+                    continue
 
                 el_x = int(x0 * scale_x)
                 el_y = int(y0 * scale_y)
                 el_w = int(w * scale_x)
                 el_h = int(h * scale_y)
 
-                # Detect shape type from drawing items
-                shape_type = "rect"
-                has_curves = any(item[0] in ("c", "qu") for item in items)
-                line_count = sum(1 for item in items if item[0] == "l")
-                if has_curves and el_w > 0 and abs(el_w - el_h) < max(el_w, el_h) * 0.3:
-                    shape_type = "circle"
-                elif line_count == 3:
-                    shape_type = "triangle"
-                elif line_count == 5:
-                    shape_type = "pentagon"
-                elif line_count == 6:
-                    shape_type = "hexagon"
-
                 el = {
                     "id": f"el_{uuid.uuid4().hex[:8]}",
                     "type": "shape",
-                    "shapeType": shape_type,
+                    "shapeType": "rect",
                     "x": el_x, "y": el_y,
                     "width": el_w, "height": el_h,
                     "backgroundColor": bg_color,
@@ -1035,31 +1030,67 @@ def _import_pdf(content: bytes):
         # ── 4) Extract SVG vector graphics (non-trivial drawings) ──
         try:
             drawings = page.get_drawings()
-            # Group complex drawings (many items, not simple rects)
-            complex_draws = [
-                d for d in drawings
-                if len(d.get("items", [])) > 4
-                and d.get("rect")
+            
+            def is_simple_rect(draw):
+                items = draw.get("items", [])
+                if len(items) == 1 and items[0][0] == "re": return True
+                if len(items) == 4 and all(it[0] == "l" for it in items): return True
+                r = draw.get("rect")
+                if r:
+                    w = r[2] - r[0]
+                    h = r[3] - r[1]
+                    if w >= pdf_w * 0.9 and h >= pdf_h * 0.9: return True
+                return False
+
+            complex_rects = [
+                d["rect"] for d in drawings
+                if not is_simple_rect(d) and d.get("rect")
             ]
-            if complex_draws:
-                # Render complex vector regions as SVG images
-                for draw in complex_draws:
-                    rect = draw["rect"]
-                    x0, y0, x1, y1 = rect
+            
+            if complex_rects:
+                # Merge overlapping/adjacent rects to group SVG parts
+                margin = 5
+                merged = []
+                for r in complex_rects:
+                    x0, y0, x1, y1 = r
+                    x0 -= margin; y0 -= margin; x1 += margin; y1 += margin
+                    merged_with_existing = False
+                    for i, m in enumerate(merged):
+                        mx0, my0, mx1, my1 = m
+                        if not (x1 < mx0 or x0 > mx1 or y1 < my0 or y0 > my1):
+                            merged[i] = (min(x0, mx0), min(y0, my0), max(x1, mx1), max(y1, my1))
+                            merged_with_existing = True
+                            break
+                    if not merged_with_existing:
+                        merged.append((x0, y0, x1, y1))
+                        
+                changed = True
+                while changed:
+                    changed = False
+                    for i in range(len(merged)):
+                        for j in range(i+1, len(merged)):
+                            mx0, my0, mx1, my1 = merged[i]
+                            nx0, ny0, nx1, ny1 = merged[j]
+                            if not (mx1 < nx0 or mx0 > nx1 or my1 < ny0 or my0 > ny1):
+                                merged[i] = (min(mx0, nx0), min(my0, ny0), max(mx1, nx1), max(my1, ny1))
+                                merged.pop(j)
+                                changed = True
+                                break
+                        if changed: break
+
+                # Extract a PNG for each merged rect
+                for m in merged:
+                    x0, y0, x1, y1 = m
+                    x0 += margin; y0 += margin; x1 -= margin; y1 -= margin
                     w = x1 - x0
                     h = y1 - y0
-                    if w < 30 or h < 30:
+                    if w < 10 or h < 10:
                         continue
-                    # Already handled as shape if it was simple
-                    items = draw.get("items", [])
-                    if len(items) <= 4:
-                        continue
-
-                    # Render this region as a cropped PNG
+                        
                     clip_rect = pymupdf.Rect(x0, y0, x1, y1)
                     mat = pymupdf.Matrix(2 * scale_x, 2 * scale_y)
                     pix = page.get_pixmap(matrix=mat, clip=clip_rect, alpha=True)
-
+                    
                     img_id = f"import_svg_{uuid.uuid4().hex[:8]}"
                     img_filename = f"{img_id}.png"
                     img_path = os.path.join(images_dir, img_filename)
