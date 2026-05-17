@@ -4748,6 +4748,10 @@
           edPickerDrop.style.right = (window.innerWidth - rect.right) + 'px';
           edPickerDrop.style.left = 'auto';
           edPickerDrop.style.top = 'auto';
+          edPickerDrop.style.background = 'var(--bg-elevated, #1a1a2e)';
+          edPickerDrop.style.border = '1px solid var(--border, #2a2a4a)';
+          edPickerDrop.style.borderRadius = 'var(--radius-md, 10px)';
+          edPickerDrop.style.boxShadow = '0 16px 48px rgba(0,0,0,.7)';
         }
       });
       document.addEventListener('click', (e) => {
