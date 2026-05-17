@@ -63,6 +63,8 @@
 
 Clawzd is a self-hosted, modular AI assistant that combines multiple LLM providers with an extensible tool/skill system. Built on Agentic / Plugin architecture, it features a plugin system, tool replay engine, app builder, and a dark-themed IDE-like web interface with real-time streaming, code editing, code audit, RAG, browser automation, image generation, and more.
 
+ATTENTION! THIS PROJECT IS CURRENTLY IN ACTIVE DEVELOPMENT (ALPHA VERSION). FEATURES MAY BUG OR CHANGE OR BE REMOVED WITHOUT NOTICE. EXPECT ERRORS AND UNEXPECTED BEHAVIOR.
+
 **Key Design Principles:**
 - 🔌 **Multi-Provider** — Switch between Ollama (local), OpenRouter, Groq, Mistral, Google Gemini, Anthropic seamlessly
 - 🛠️ **Tool Orchestration** — Auto-detect and invoke the right tool for each user query
