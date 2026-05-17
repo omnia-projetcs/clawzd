@@ -35,7 +35,10 @@ const AppBuilderPanel = (() => {
     // Close any open card menu on outside click
     document.addEventListener('click', (e) => {
       if (!e.target.closest('.ab-card-menu-wrap')) {
-        document.querySelectorAll('.ab-card-dropdown.open').forEach(d => d.classList.remove('open'));
+        document.querySelectorAll('.ab-card-dropdown.open').forEach(d => {
+          d.classList.remove('open');
+          d.style.cssText = '';
+        });
       }
     });
   }
@@ -955,9 +958,22 @@ const {columns, rows} = await res.json();</code></pre>
   function toggleCardMenu(event, appId) {
     event.stopPropagation();
     // Close all other menus first
-    document.querySelectorAll('.ab-card-dropdown.open').forEach(d => d.classList.remove('open'));
+    document.querySelectorAll('.ab-card-dropdown.open').forEach(d => {
+      d.classList.remove('open');
+      d.style.cssText = '';
+    });
     const menu = document.getElementById(`ab-menu-${appId}`);
-    if (menu) menu.classList.toggle('open');
+    if (!menu) return;
+
+    // Use fixed positioning to escape overflow:hidden/auto clipping
+    const btn = event.currentTarget;
+    const rect = btn.getBoundingClientRect();
+    menu.style.position = 'fixed';
+    menu.style.top = (rect.bottom + 4) + 'px';
+    menu.style.right = 'auto';
+    menu.style.left = (rect.right - 180) + 'px'; // 180 = min-width
+    menu.style.zIndex = '9999';
+    menu.classList.toggle('open');
   }
 
   function _timeAgo(iso) {
