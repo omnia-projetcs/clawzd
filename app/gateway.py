@@ -969,7 +969,8 @@ async def _process_chat(session_id: str, data: dict) -> dict:
         _agent_max_rounds = 15
     MAX_TOOL_ROUNDS = _agent_max_rounds
     # Maximum auto-continuation rounds for truncated responses
-    MAX_CONTINUATION_ROUNDS = 2
+    # IDE mode needs more rounds for complex multi-step coding tasks
+    MAX_CONTINUATION_ROUNDS = 10 if preprompt_key in ("ide_developer", "ide_planner") else 5
     # Maximum total output characters to prevent runaway generation
     MAX_TOTAL_OUTPUT = 250_000
 
@@ -978,24 +979,11 @@ async def _process_chat(session_id: str, data: dict) -> dict:
 
         Checks for unclosed code fences (odd number of ```) which indicates
         the LLM hit its token limit while generating code.
-        Also avoids false positives when the model emitted stop tokens
-        or the response ends naturally.
+        Also detects IDE-specific truncation: unclosed <thought> tags,
+        unclosed XML tool blocks, and interrupted tool_call JSON.
         """
         stripped = text.rstrip()
         if not stripped:
-            return False
-
-        # Trailing blank lines indicate a natural end
-        if text.endswith("\n\n") or text.endswith("\n"):
-            # Only trigger on unclosed fences, not mid-sentence heuristic
-            fence_count = text.count("```")
-            return fence_count % 2 != 0
-
-        fence_count = text.count("```")
-        if fence_count % 2 != 0:
-            return True
-
-        if len(stripped) < 200:
             return False
 
         # If the response contains LLM stop tokens, it completed normally
@@ -1005,9 +993,51 @@ async def _process_chat(session_id: str, data: dict) -> dict:
         if any(marker in tail for marker in stop_markers):
             return False
 
-        # Mid-sentence check — very conservative to avoid false positives.
-        # Only trigger for very long responses that clearly end mid-word.
-        if len(stripped) > 8000:
+        # Unclosed code fences (odd ```) — always truncated
+        fence_count = text.count("```")
+        if fence_count % 2 != 0:
+            return True
+
+        # IDE-specific: unclosed <thought> or <antThinking> tags
+        import re as _trunc_re
+        for tag in ['thought', 'antThinking']:
+            opens = len(_trunc_re.findall(rf'<{tag}>', stripped, _trunc_re.IGNORECASE))
+            closes = len(_trunc_re.findall(rf'</{tag}>', stripped, _trunc_re.IGNORECASE))
+            if opens > closes:
+                return True
+
+        # IDE-specific: unclosed tool_call JSON block (opening { without closing })
+        # Pattern: ```tool_call\n{"tool":... without closing ``` 
+        tool_fence_re = _trunc_re.compile(
+            r'```(?:tool_call|tool|json)\s*\n', _trunc_re.IGNORECASE
+        )
+        tool_fences = list(tool_fence_re.finditer(stripped))
+        if tool_fences:
+            last_tool_start = tool_fences[-1].end()
+            after_last = stripped[last_tool_start:]
+            if '```' not in after_last:
+                # Unclosed tool_call fence
+                return True
+
+        # IDE-specific: unclosed XML tool blocks (e.g. <edit_file> without </edit_file>)
+        xml_tools = ['edit_file', 'write_file', 'read_file', 'run_command',
+                     'execute_python', 'grep_code', 'list_files', 'apply_patch']
+        for tool in xml_tools:
+            opens_t = stripped.count(f'<{tool}>')
+            closes_t = stripped.count(f'</{tool}>')
+            if opens_t > closes_t:
+                return True
+
+        if len(stripped) < 200:
+            return False
+
+        # Trailing blank lines with no other signals indicate natural end
+        if text.endswith("\n\n") or text.endswith("\n"):
+            return False
+
+        # Mid-sentence check — conservative to avoid false positives.
+        # Only trigger for longer responses that clearly end mid-word.
+        if len(stripped) > 4000:
             last_char = stripped[-1]
             # Allow letters, digits, punctuation, markdown, emoji, etc.
             if last_char not in '.!?\n`>)]}"\':;-—…*#|0123456789':
