@@ -27,8 +27,9 @@ _CODE_EXTENSIONS = {".py", ".js", ".ts", ".jsx", ".tsx", ".java", ".go", ".rs", 
 _OFFICE_EXTENSIONS = {".docx", ".pptx", ".xlsx"}
 _DATA_EXTENSIONS = {".csv"}
 _PDF_EXTENSIONS = {".pdf"}
+_EBOOK_EXTENSIONS = {".epub"}
 _ARCHIVE_EXTENSIONS = {".zip", ".tar", ".gz", ".tgz"}
-_ALL_SUPPORTED = _TEXT_EXTENSIONS | _CODE_EXTENSIONS | _OFFICE_EXTENSIONS | _DATA_EXTENSIONS | _PDF_EXTENSIONS | _ARCHIVE_EXTENSIONS
+_ALL_SUPPORTED = _TEXT_EXTENSIONS | _CODE_EXTENSIONS | _OFFICE_EXTENSIONS | _DATA_EXTENSIONS | _PDF_EXTENSIONS | _EBOOK_EXTENSIONS | _ARCHIVE_EXTENSIONS
 
 # Path for locally cached embedding model (avoids HuggingFace Hub calls on every startup)
 _EMBEDDING_CACHE_DIR = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "models", "embeddings")
@@ -172,6 +173,35 @@ def _extract_text(content: bytes, filename: str) -> str:
         except Exception:
             return content.decode("utf-8", errors="ignore")
 
+    # --- EPUB ---
+    if ext == ".epub":
+        try:
+            import ebooklib
+            from ebooklib import epub
+            from bs4 import BeautifulSoup
+            import tempfile
+            import os
+
+            with tempfile.NamedTemporaryFile(delete=False, suffix=".epub") as tmp:
+                tmp.write(content)
+                tmp_path = tmp.name
+
+            try:
+                book = epub.read_epub(tmp_path)
+                parts = []
+                for item in book.get_items():
+                    if item.get_type() == ebooklib.ITEM_DOCUMENT:
+                        soup = BeautifulSoup(item.get_body_content(), 'html.parser')
+                        text = soup.get_text(separator='\n', strip=True)
+                        if text:
+                            parts.append(text)
+                return "\n\n".join(parts)
+            finally:
+                os.remove(tmp_path)
+        except Exception as e:
+            logger.warning("EPUB extraction failed for %s: %s", filename, e)
+            return content.decode("utf-8", errors="ignore")
+
     # --- Code files ---
     if ext in _CODE_EXTENSIONS:
         text = content.decode("utf-8", errors="ignore")
@@ -233,6 +263,7 @@ def _get_file_type(filename: str) -> str:
     """Return human-readable file type."""
     ext = ("." + filename.rsplit(".", 1)[-1].lower()) if "." in filename else ""
     if ext in _PDF_EXTENSIONS: return "PDF"
+    if ext in _EBOOK_EXTENSIONS: return "eBook"
     if ext == ".docx": return "Word"
     if ext == ".pptx": return "PowerPoint"
     if ext == ".xlsx": return "Excel"
