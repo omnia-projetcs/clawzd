@@ -875,8 +875,18 @@ def _import_pdf(content: bytes):
         # ── 2) Extract images ──
         try:
             image_list = page.get_images(full=True)
+            smask_xrefs = {img[1] for img in image_list if len(img) > 1 and img[1] > 0}
+            
             for img_info in image_list:
                 xref = img_info[0]
+                
+                # Skip masks (SMask or ImageMask) since they shouldn't be standalone images
+                if xref in smask_xrefs:
+                    continue
+                is_imagemask = doc.xref_get_key(xref, "ImageMask")
+                if is_imagemask and is_imagemask[0] == "true":
+                    continue
+
                 try:
                     img_data = doc.extract_image(xref)
                     if not img_data or not img_data.get("image"):
@@ -943,6 +953,12 @@ def _import_pdf(content: bytes):
             '\u201c': '"',
             '\u201d': '"',
             '\u00d7': 'x',  # Signe multiplication
+            '\ue0af': '+',  # PUA +
+            '\ue08b': '-',  # PUA -
+            '\ue081': ':',  # PUA :
+            '\ue092': 'x',  # PUA x
+            '\ue0b1': '(',  # PUA (
+            '\ue09d': '&',  # PUA &
             '\uf02b': '+',  # PUA +
             '\uf02d': '-',  # PUA -
             '\uf03a': ':',  # PUA :
