@@ -728,6 +728,7 @@ class PresentationStudio {
       } else if (['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'].includes(e.key)) {
         if (isEditing) return;
         if (this.selectedElement) {
+          // Move selected element
           e.preventDefault();
           const step = e.shiftKey ? 10 : 1;
           if (e.key === 'ArrowUp') this.selectedElement.y -= step;
@@ -735,6 +736,14 @@ class PresentationStudio {
           if (e.key === 'ArrowLeft') this.selectedElement.x -= step;
           if (e.key === 'ArrowRight') this.selectedElement.x += step;
           this.renderCanvas();
+        } else if (e.key === 'ArrowLeft' || e.key === 'ArrowRight') {
+          // Navigate between slides when no element is selected
+          e.preventDefault();
+          if (e.key === 'ArrowLeft' && this.currentPage > 0) {
+            this.switchPage(this.currentPage - 1);
+          } else if (e.key === 'ArrowRight' && this.currentPage < this.pages.length - 1) {
+            this.switchPage(this.currentPage + 1);
+          }
         }
       }
     });
@@ -2376,6 +2385,13 @@ class PresentationStudio {
     const titleInput = $('#pt-pres-title');
     const name = titleInput ? titleInput.value.trim() : "My Presentation";
     this.title = name || "My Presentation";
+
+    // Don't save empty presentations
+    const totalElements = this.pages.reduce((sum, p) => sum + (p.elements ? p.elements.length : 0), 0);
+    if (totalElements === 0) {
+      if (!silent) toast('⚠️ Empty presentation — nothing to save.', 3000);
+      return;
+    }
 
     if (!silent) toast(ICONS.hourglass(14) + ' Saving presentation... (This might take a moment to generate the preview)');
     try {

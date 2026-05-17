@@ -752,84 +752,422 @@ async def import_presentation(request: Request):
 
 
 def _import_pdf(content: bytes):
-    """Convert PDF pages to image-based presentation slides."""
-    import tempfile
+    """Convert PDF pages to structured presentation slides with text, images, shapes."""
+    try:
+        import pymupdf
+    except ImportError:
+        raise ImportError(
+            "PDF import requires PyMuPDF. Install with: pip install PyMuPDF"
+        )
 
     images_dir = os.path.join(DATA_DIR, "images")
     os.makedirs(images_dir, exist_ok=True)
 
-    canvas_w, canvas_h = 960, 540
+    doc = pymupdf.open(stream=content, filetype="pdf")
+    if len(doc) == 0:
+        doc.close()
+        return [{"elements": []}], 960, 540
 
-    # Try pdf2image (poppler) first, fallback to PyMuPDF (fitz)
+    # Use first page dimensions to set canvas size
+    first_page = doc[0]
+    pdf_w = first_page.rect.width
+    pdf_h = first_page.rect.height
+
+    canvas_w = 960
+    canvas_h = int(canvas_w * pdf_h / pdf_w) if pdf_w > 0 else 540
+
+    scale_x = canvas_w / pdf_w if pdf_w > 0 else 1
+    scale_y = canvas_h / pdf_h if pdf_h > 0 else 1
+
     pages = []
-    try:
-        from pdf2image import convert_from_bytes
-        pil_images = convert_from_bytes(content, dpi=150)
-        for idx, img in enumerate(pil_images):
-            img_id = f"import_{uuid.uuid4().hex[:8]}"
-            img_filename = f"{img_id}.png"
-            img_path = os.path.join(images_dir, img_filename)
-            img.save(img_path, "PNG")
 
-            # Scale to canvas
-            iw, ih = img.size
-            scale = min(canvas_w / iw, canvas_h / ih)
-            el_w = int(iw * scale)
-            el_h = int(ih * scale)
-            el_x = (canvas_w - el_w) // 2
-            el_y = (canvas_h - el_h) // 2
+    for page_idx in range(len(doc)):
+        page = doc[page_idx]
+        elements = []
 
-            pages.append({
-                "elements": [{
+        # ── 1) Extract background / large colored rectangles (drawings) ──
+        try:
+            drawings = page.get_drawings()
+            for draw in drawings:
+                rect = draw.get("rect")
+                if not rect:
+                    continue
+                x0, y0, x1, y1 = rect
+                w = x1 - x0
+                h = y1 - y0
+                # Only import shapes that are reasonably sized (> 20px in both dimensions)
+                if w < 20 or h < 20:
+                    continue
+
+                fill_color = draw.get("fill")
+                stroke_color = draw.get("color")
+                stroke_width = draw.get("width", 0)
+
+                bg_color = "transparent"
+                if fill_color:
+                    if isinstance(fill_color, (list, tuple)) and len(fill_color) >= 3:
+                        r, g, b = int(fill_color[0] * 255), int(fill_color[1] * 255), int(fill_color[2] * 255)
+                        bg_color = f"#{r:02x}{g:02x}{b:02x}"
+                    elif isinstance(fill_color, (int, float)):
+                        v = int(fill_color * 255)
+                        bg_color = f"#{v:02x}{v:02x}{v:02x}"
+
+                border_color = "transparent"
+                if stroke_color:
+                    if isinstance(stroke_color, (list, tuple)) and len(stroke_color) >= 3:
+                        r, g, b = int(stroke_color[0] * 255), int(stroke_color[1] * 255), int(stroke_color[2] * 255)
+                        border_color = f"#{r:02x}{g:02x}{b:02x}"
+
+                # Skip fully transparent shapes
+                if bg_color == "transparent" and border_color == "transparent":
+                    continue
+
+                # Full-page background detection: push to front as bg
+                is_bg = (w >= pdf_w * 0.9 and h >= pdf_h * 0.9)
+
+                el_x = int(x0 * scale_x)
+                el_y = int(y0 * scale_y)
+                el_w = int(w * scale_x)
+                el_h = int(h * scale_y)
+
+                # Detect shape type from drawing items
+                shape_type = "rect"
+                items = draw.get("items", [])
+                has_curves = any(item[0] in ("c", "qu") for item in items)
+                line_count = sum(1 for item in items if item[0] == "l")
+                if has_curves and el_w > 0 and abs(el_w - el_h) < max(el_w, el_h) * 0.3:
+                    shape_type = "circle"
+                elif line_count == 3:
+                    shape_type = "triangle"
+                elif line_count == 5:
+                    shape_type = "pentagon"
+                elif line_count == 6:
+                    shape_type = "hexagon"
+
+                el = {
                     "id": f"el_{uuid.uuid4().hex[:8]}",
-                    "type": "image",
-                    "src": f"/data/images/{img_filename}",
+                    "type": "shape",
+                    "shapeType": shape_type,
                     "x": el_x, "y": el_y,
                     "width": el_w, "height": el_h,
+                    "backgroundColor": bg_color,
+                    "borderColor": border_color,
+                    "borderWidth": int(stroke_width * scale_x) if stroke_width else 0,
                     "opacity": 100,
-                }]
-            })
-    except ImportError:
+                }
+                if is_bg:
+                    elements.insert(0, el)  # backgrounds go to back
+                else:
+                    elements.append(el)
+        except Exception as e:
+            logger.warning(f"Failed to extract drawings from page {page_idx}: {e}")
+
+        # ── 2) Extract images ──
         try:
-            import fitz  # PyMuPDF
-            doc = fitz.open(stream=content, filetype="pdf")
-            for idx in range(len(doc)):
-                page = doc[idx]
-                mat = fitz.Matrix(2, 2)  # 2x zoom for decent quality
-                pix = page.get_pixmap(matrix=mat)
-                img_id = f"import_{uuid.uuid4().hex[:8]}"
-                img_filename = f"{img_id}.png"
-                img_path = os.path.join(images_dir, img_filename)
-                pix.save(img_path)
+            image_list = page.get_images(full=True)
+            for img_info in image_list:
+                xref = img_info[0]
+                try:
+                    img_data = doc.extract_image(xref)
+                    if not img_data or not img_data.get("image"):
+                        continue
 
-                iw, ih = pix.width, pix.height
-                scale = min(canvas_w / iw, canvas_h / ih)
-                el_w = int(iw * scale)
-                el_h = int(ih * scale)
-                el_x = (canvas_w - el_w) // 2
-                el_y = (canvas_h - el_h) // 2
+                    img_ext = img_data.get("ext", "png")
+                    if img_ext == "jpeg":
+                        img_ext = "jpg"
+                    img_id = f"import_{uuid.uuid4().hex[:8]}"
+                    img_filename = f"{img_id}.{img_ext}"
+                    img_path = os.path.join(images_dir, img_filename)
+                    with open(img_path, "wb") as f:
+                        f.write(img_data["image"])
 
-                pages.append({
-                    "elements": [{
+                    # Find the position/bbox of this image on the page
+                    rects = page.get_image_rects(xref)
+                    if rects:
+                        r = rects[0]
+                        el_x = int(r.x0 * scale_x)
+                        el_y = int(r.y0 * scale_y)
+                        el_w = int((r.x1 - r.x0) * scale_x)
+                        el_h = int((r.y1 - r.y0) * scale_y)
+                    else:
+                        # Fallback: use image native size, centered
+                        iw = img_data.get("width", 200)
+                        ih = img_data.get("height", 200)
+                        img_scale = min(canvas_w * 0.8 / iw, canvas_h * 0.8 / ih, 1)
+                        el_w = int(iw * img_scale)
+                        el_h = int(ih * img_scale)
+                        el_x = (canvas_w - el_w) // 2
+                        el_y = (canvas_h - el_h) // 2
+
+                    # Check if this image is a full-page background
+                    is_bg_img = (el_w >= canvas_w * 0.9 and el_h >= canvas_h * 0.9)
+
+                    el = {
                         "id": f"el_{uuid.uuid4().hex[:8]}",
                         "type": "image",
                         "src": f"/data/images/{img_filename}",
                         "x": el_x, "y": el_y,
                         "width": el_w, "height": el_h,
                         "opacity": 100,
-                    }]
+                    }
+                    if is_bg_img:
+                        elements.insert(0, el)
+                    else:
+                        elements.append(el)
+                except Exception as e:
+                    logger.warning(f"Failed to extract image xref {xref}: {e}")
+        except Exception as e:
+            logger.warning(f"Failed to extract images from page {page_idx}: {e}")
+
+        # ── 3) Extract text blocks with styling ──
+        try:
+            page_dict = page.get_text("dict", flags=pymupdf.TEXT_PRESERVE_WHITESPACE)
+            blocks = page_dict.get("blocks", [])
+
+            for block in blocks:
+                if block.get("type") != 0:  # type 0 = text block
+                    continue
+
+                bbox = block.get("bbox", (0, 0, 100, 50))
+                bx0, by0, bx1, by1 = bbox
+                block_x = int(bx0 * scale_x)
+                block_y = int(by0 * scale_y)
+                block_w = int((bx1 - bx0) * scale_x)
+                block_h = int((by1 - by0) * scale_y)
+
+                # Skip tiny text blocks (probably artifacts)
+                if block_w < 5 or block_h < 5:
+                    continue
+
+                lines_data = block.get("lines", [])
+                if not lines_data:
+                    continue
+
+                # Collect text content and dominant formatting
+                text_lines = []
+                all_sizes = []
+                all_colors = []
+                all_bold = []
+                all_italic = []
+                all_fonts = []
+
+                for line in lines_data:
+                    spans = line.get("spans", [])
+                    line_text = ""
+                    for span in spans:
+                        line_text += span.get("text", "")
+                        size = span.get("size", 12)
+                        all_sizes.append(size)
+                        color_int = span.get("color", 0)
+                        all_colors.append(color_int)
+                        flags = span.get("flags", 0)
+                        all_bold.append(bool(flags & 2**4))  # bit 4 = bold
+                        all_italic.append(bool(flags & 2**1))  # bit 1 = italic
+                        font_name = span.get("font", "")
+                        all_fonts.append(font_name)
+                    text_lines.append(line_text)
+
+                full_text = "\n".join(text_lines).strip()
+                if not full_text:
+                    continue
+
+                # Determine dominant formatting
+                avg_size = sum(all_sizes) / len(all_sizes) if all_sizes else 12
+                font_size = max(8, int(avg_size * scale_x * 0.85))
+
+                # Convert integer color to hex
+                if all_colors:
+                    dominant_color = max(set(all_colors), key=all_colors.count)
+                    r = (dominant_color >> 16) & 0xFF
+                    g = (dominant_color >> 8) & 0xFF
+                    b = dominant_color & 0xFF
+                    color_hex = f"#{r:02x}{g:02x}{b:02x}"
+                else:
+                    color_hex = "#000000"
+
+                is_bold = sum(all_bold) > len(all_bold) / 2 if all_bold else False
+                is_italic = sum(all_italic) > len(all_italic) / 2 if all_italic else False
+
+                # Detect font family
+                font_family = "sans-serif"
+                if all_fonts:
+                    dominant_font = max(set(all_fonts), key=all_fonts.count).lower()
+                    if any(kw in dominant_font for kw in ["mono", "courier", "consol"]):
+                        font_family = "'Courier New', monospace"
+                    elif any(kw in dominant_font for kw in ["serif", "times", "georgia"]):
+                        font_family = "'Times New Roman', serif"
+                    elif any(kw in dominant_font for kw in ["arial", "helveti", "sans"]):
+                        font_family = "'Arial', sans-serif"
+
+                # Detect alignment by horizontal positioning
+                text_align = "left"
+                page_center = pdf_w / 2
+                block_center = (bx0 + bx1) / 2
+                if abs(block_center - page_center) < pdf_w * 0.05:
+                    text_align = "center"
+                elif bx0 > pdf_w * 0.55:
+                    text_align = "right"
+
+                elements.append({
+                    "id": f"el_{uuid.uuid4().hex[:8]}",
+                    "type": "text",
+                    "content": full_text,
+                    "x": block_x, "y": block_y,
+                    "width": block_w, "height": block_h,
+                    "fontSize": font_size,
+                    "fontFamily": font_family,
+                    "color": color_hex,
+                    "backgroundColor": "transparent",
+                    "isBold": is_bold,
+                    "isItalic": is_italic,
+                    "textAlign": text_align,
+                    "opacity": 100,
                 })
-            doc.close()
-        except ImportError:
-            raise ImportError(
-                "PDF import requires either 'pdf2image' (with poppler) or 'PyMuPDF' (fitz). "
-                "Install with: pip install pdf2image  or  pip install PyMuPDF"
-            )
+        except Exception as e:
+            logger.warning(f"Failed to extract text from page {page_idx}: {e}")
+
+        # ── 4) Extract SVG vector graphics (non-trivial drawings) ──
+        try:
+            drawings = page.get_drawings()
+            # Group complex drawings (many items, not simple rects)
+            complex_draws = [
+                d for d in drawings
+                if len(d.get("items", [])) > 4
+                and d.get("rect")
+            ]
+            if complex_draws:
+                # Render complex vector regions as SVG images
+                for draw in complex_draws:
+                    rect = draw["rect"]
+                    x0, y0, x1, y1 = rect
+                    w = x1 - x0
+                    h = y1 - y0
+                    if w < 30 or h < 30:
+                        continue
+                    # Already handled as shape if it was simple
+                    items = draw.get("items", [])
+                    if len(items) <= 4:
+                        continue
+
+                    # Render this region as a cropped PNG
+                    clip_rect = pymupdf.Rect(x0, y0, x1, y1)
+                    mat = pymupdf.Matrix(2 * scale_x, 2 * scale_y)
+                    pix = page.get_pixmap(matrix=mat, clip=clip_rect, alpha=True)
+
+                    img_id = f"import_svg_{uuid.uuid4().hex[:8]}"
+                    img_filename = f"{img_id}.png"
+                    img_path = os.path.join(images_dir, img_filename)
+                    pix.save(img_path)
+
+                    el_x = int(x0 * scale_x)
+                    el_y = int(y0 * scale_y)
+                    el_w = int(w * scale_x)
+                    el_h = int(h * scale_y)
+
+                    elements.append({
+                        "id": f"el_{uuid.uuid4().hex[:8]}",
+                        "type": "image",
+                        "src": f"/data/images/{img_filename}",
+                        "x": el_x, "y": el_y,
+                        "width": el_w, "height": el_h,
+                        "opacity": 100,
+                    })
+        except Exception as e:
+            logger.warning(f"Failed to extract SVG drawings from page {page_idx}: {e}")
+
+        pages.append({"elements": elements})
+
+    doc.close()
 
     if not pages:
         pages = [{"elements": []}]
 
     return pages, canvas_w, canvas_h
+
+
+# Default PowerPoint theme/scheme color mapping (Office default theme)
+_PPTX_SCHEME_COLORS = {
+    # Dark/Light pairs
+    "dk1": "#000000",    # Dark 1 (typically black)
+    "dk2": "#44546A",    # Dark 2
+    "lt1": "#FFFFFF",    # Light 1 (typically white)
+    "lt2": "#E7E6E6",    # Light 2
+    # Accent colors (Office default palette)
+    "accent1": "#4472C4",  # Blue
+    "accent2": "#ED7D31",  # Orange
+    "accent3": "#A5A5A5",  # Gray
+    "accent4": "#FFC000",  # Gold
+    "accent5": "#5B9BD5",  # Light Blue
+    "accent6": "#70AD47",  # Green
+    # Hyperlinks
+    "hlink":   "#0563C1",  # Hyperlink blue
+    "folHlink": "#954F72", # Followed hyperlink purple
+    # Background/Text aliases
+    "bg1": "#FFFFFF",
+    "bg2": "#E7E6E6",
+    "tx1": "#000000",
+    "tx2": "#44546A",
+}
+
+
+def _resolve_pptx_color(color_obj, fallback="#000000"):
+    """Resolve a python-pptx color object to a hex string.
+
+    Handles RGB, SchemeColor, ThemeColor gracefully.
+    """
+    if color_obj is None:
+        return fallback
+    try:
+        # Direct RGB color (most reliable)
+        if color_obj.rgb is not None:
+            return f"#{color_obj.rgb}"
+    except (AttributeError, TypeError):
+        pass
+    # SchemeColor — resolve via our mapping table
+    try:
+        if hasattr(color_obj, 'theme_color') and color_obj.theme_color is not None:
+            # theme_color is an enum like MSO_THEME_COLOR.ACCENT_1
+            tc_name = str(color_obj.theme_color).split(".")[-1].split("(")[0].strip()
+            # Convert enum names like "ACCENT_1" -> "accent1", "DARK_1" -> "dk1"
+            tc_key = tc_name.lower().replace("accent_", "accent").replace("dark_", "dk").replace("light_", "lt")
+            tc_key = tc_key.replace("followed_hyperlink", "folHlink").replace("hyperlink", "hlink")
+            tc_key = tc_key.replace("text_", "tx").replace("background_", "bg")
+            if tc_key in _PPTX_SCHEME_COLORS:
+                resolved = _PPTX_SCHEME_COLORS[tc_key]
+                # Apply brightness adjustment if present
+                try:
+                    if color_obj.brightness and color_obj.brightness != 0:
+                        r, g, b = _hex_to_rgb(resolved)
+                        br = color_obj.brightness  # -1.0 to 1.0
+                        if br > 0:  # lighten
+                            r = int(r + (255 - r) * br)
+                            g = int(g + (255 - g) * br)
+                            b = int(b + (255 - b) * br)
+                        else:  # darken
+                            r = int(r * (1 + br))
+                            g = int(g * (1 + br))
+                            b = int(b * (1 + br))
+                        return f"#{max(0,min(255,r)):02x}{max(0,min(255,g)):02x}{max(0,min(255,b)):02x}"
+                except (AttributeError, TypeError):
+                    pass
+                return resolved
+    except (AttributeError, TypeError):
+        pass
+    return fallback
+
+
+def _resolve_pptx_fill_color(shape, fallback="#cccccc"):
+    """Resolve the fill color of a PPTX shape to hex."""
+    try:
+        fill = shape.fill
+        if fill is None or fill.type is None:
+            return fallback
+        # Solid fill
+        if fill.fore_color is not None:
+            return _resolve_pptx_color(fill.fore_color, fallback)
+    except (AttributeError, TypeError):
+        pass
+    return fallback
 
 
 def _import_pptx(content: bytes):
@@ -879,14 +1217,17 @@ def _import_pptx(content: bytes):
                     # Extract formatting from first run
                     if para.runs:
                         run = para.runs[0]
-                        if run.font.size:
-                            font_size = max(8, int(run.font.size / Emu(12700)))
+                        try:
+                            if run.font.size:
+                                font_size = max(8, int(run.font.size / Emu(12700)))
+                        except Exception:
+                            pass
                         if run.font.bold:
                             font_bold = True
                         if run.font.italic:
                             font_italic = True
-                        if run.font.color and run.font.color.rgb:
-                            font_color = f"#{run.font.color.rgb}"
+                        if run.font.color:
+                            font_color = _resolve_pptx_color(run.font.color, "#000000")
 
                     # Alignment
                     from pptx.enum.text import PP_ALIGN
@@ -937,12 +1278,7 @@ def _import_pptx(content: bytes):
 
             elif hasattr(shape, "shape_type"):
                 # Generic shape (rectangle, etc.)
-                bg_color = "#cccccc"
-                try:
-                    if shape.fill and shape.fill.fore_color:
-                        bg_color = f"#{shape.fill.fore_color.rgb}"
-                except Exception:
-                    pass
+                bg_color = _resolve_pptx_fill_color(shape, "#cccccc")
 
                 elements.append({
                     "id": el_id,
