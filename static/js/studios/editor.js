@@ -1316,6 +1316,8 @@ class EditorMode {
       this._extractTodos(this.editorText);
       // Auto-extract files from code blocks and save to workspace
       this._autoSaveFiles(this.editorText);
+      // Process __FILE_EDIT__ markers from tool results (edit_file, write_file, apply_patch)
+      this._processFileEdits(this.editorText);
       this.editorBubble = null;
       this.editorText = '';
       this.addActivity(icon('check'), 'AI response complete', '');
@@ -1372,17 +1374,70 @@ class EditorMode {
     return div;
   }
 
-  _formatThoughtsBeforeMd(text) {
-    if (!text) return text;
-    let result = text.replace(/<thought>([\s\S]*?)<\/thought>/gi, (match, content) => {
-      return `\n<details class="ai-thought"><summary>💭 Agent Reflections</summary>\n\n${content}\n\n</details>\n`;
-    });
-    if (result.includes('<thought>')) {
-      result = result.replace(/<thought>([\s\S]*)$/i, (match, content) => {
-        return `\n<details class="ai-thought" open><summary>💭 Agent Reflections (Thinking...)</summary>\n\n${content}\n\n</details>\n`;
-      });
+  /**
+   * Process __FILE_EDIT__ markers from AI tool results.
+   * When the AI uses edit_file, write_file, or apply_patch, the backend
+   * emits __FILE_EDIT__{json}__ markers. This method:
+   * 1. Parses those markers to extract file paths
+   * 2. Reloads file content into open tabs
+   * 3. Shows diff highlights
+   * 4. Notifies the user with a toast
+   */
+  async _processFileEdits(text) {
+    if (!text) return;
+    const regex = /__FILE_EDIT__(\{.+?\})__/g;
+    let match;
+    const edits = [];
+    while ((match = regex.exec(text)) !== null) {
+      try {
+        edits.push(JSON.parse(match[1]));
+      } catch (e) { /* invalid JSON, skip */ }
     }
-    return result;
+    if (!edits.length) return;
+
+    for (const edit of edits) {
+      const filePath = edit.path;
+      if (!filePath) continue;
+
+      try {
+        // Fetch the latest content from the workspace
+        const r = await fetch('/workspace/file?path=' + encodeURIComponent(filePath));
+        if (!r.ok) continue;
+        const d = await r.json();
+        const newContent = d.content || '';
+
+        // Update open tab if the file is already open
+        const tab = this.openTabs.find(t => t.path === filePath);
+        if (tab) {
+          const oldContent = tab.content;
+          // Record in change history for undo
+          this._recordChange(filePath, oldContent, newContent);
+          tab.content = newContent;
+          tab.original = newContent;
+          tab.modified = false;
+          // Reload into editor if this is the active tab
+          if (this.activeTab === filePath) {
+            this.loadIntoEditor(tab);
+          }
+          this.renderTabs();
+          // Show diff highlight if available
+          if (edit.diff) {
+            this.highlightDiff(filePath, edit.diff);
+          }
+        }
+
+        // Notify user
+        const fileName = filePath.split('/').pop();
+        const linesInfo = edit.lines_added ? ` (+${edit.lines_added})` : '';
+        toast(icon('save') + ' AI modified: ' + fileName + linesInfo);
+        this.addActivity(icon('save'), 'AI edited file', filePath);
+      } catch (e) {
+        // File read failed — silently continue
+      }
+    }
+
+    // Refresh file tree to show new files
+    this.loadTree();
   }
 
   // ---- Agent Mode Toggle (Build / Plan) ----

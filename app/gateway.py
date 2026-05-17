@@ -1613,6 +1613,21 @@ async def _process_chat(session_id: str, data: dict) -> dict:
                             except Exception:
                                 pass
 
+                        # write_file: emit file edit marker so the frontend IDE refreshes
+                        if (resolved or tool_name) == "write_file" and result.get("status") == "success" and result.get("file_path"):
+                            import json as _json
+                            edit_data = {
+                                "path": result.get("file_path"),
+                                "diff": "",
+                                "lines_added": result.get("lines", 0),
+                                "lines_removed": 0,
+                                "lines_changed": 0,
+                                "show_diff": False,
+                            }
+                            edit_marker = f"\n\n__FILE_EDIT__{_json.dumps(edit_data)}__\n\n"
+                            await queue.put(edit_marker)
+                            full_conversation += edit_marker
+
                         # TodoWrite: broadcast plan update to frontend in real-time.
                         # NOTE: The marker is SSE-only — do NOT add to full_conversation
                         # to prevent it from being persisted in chat history.

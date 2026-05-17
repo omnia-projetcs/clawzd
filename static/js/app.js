@@ -615,6 +615,20 @@
       return ph(`<details class="ai-thought" open><summary>💭 Agent Reflections (Thinking...)</summary><div style="padding:12px;color:var(--text-muted);font-style:italic;overflow-x:auto;">${content}</div></details>`);
     });
 
+    // Claude <antThinking> tags — wrap in collapsible agent reflections
+    // Completed antThinking blocks
+    h = h.replace(/&lt;antThinking&gt;([\s\S]*?)&lt;\/antThinking&gt;/gi, (_, content) => {
+      return ph(`<details class="ai-thought"><summary>💭 Agent Reflections</summary><div style="padding:12px;color:var(--text-muted);font-style:italic;overflow-x:auto;">${content}</div></details>`);
+    });
+    // Unclosed (streaming) antThinking blocks
+    h = h.replace(/&lt;antThinking&gt;([\s\S]*)$/i, (_, content) => {
+      return ph(`<details class="ai-thought" open><summary>💭 Agent Reflections (Thinking...)</summary><div style="padding:12px;color:var(--text-muted);font-style:italic;overflow-x:auto;">${content}</div></details>`);
+    });
+
+    // Generic <*> tags — strip any remaining Anthropic XML tags that leak through
+    h = h.replace(/&lt;antml:[^&]*&gt;/gi, '');
+    h = h.replace(/&lt;\/antml:[^&]*&gt;/gi, '');
+
     // Tables (| col | col |)
     h = h.replace(/((?:\|[^\n]+\|\s*\n){2,})/g, (table) => {
       const rows = table.trim().split('\n').filter(r => r.trim());
