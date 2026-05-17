@@ -3483,6 +3483,23 @@ async def workspace_read_file_raw(path: str):
     return FileResponse(full, media_type=mime or "application/octet-stream")
 
 
+@app.get("/preview/{path:path}")
+async def workspace_preview_file(path: str):
+    """Serve a workspace file for web preview (allows relative CSS/JS paths)."""
+    full = _safe_workspace_path(path)
+    if not _os.path.isfile(full):
+        raise HTTPException(404, "File not found")
+    import mimetypes
+    mime, _ = mimetypes.guess_type(full)
+    # Add no-cache headers for preview
+    headers = {
+        "Cache-Control": "no-cache, no-store, must-revalidate",
+        "Pragma": "no-cache",
+        "Expires": "0"
+    }
+    return FileResponse(full, media_type=mime or "application/octet-stream", headers=headers)
+
+
 @app.post("/workspace/file")
 async def workspace_write_file(request: Request):
     """Create or update a file in the workspace."""

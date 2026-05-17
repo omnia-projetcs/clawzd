@@ -2566,7 +2566,8 @@
           const urlObj = new URL(iframe.src, window.location.origin);
           const currentPath = urlObj.searchParams.get('path');
           if (!path || currentPath === path) {
-            iframe.src = '/workspace/file-raw?path=' + encodeURIComponent(currentPath) + '&_t=' + new Date().getTime();
+            const encodedPath = currentPath.split('/').map(encodeURIComponent).join('/');
+            iframe.src = '/preview/' + encodedPath + '?_t=' + new Date().getTime();
           }
         }
       }
@@ -3908,7 +3909,8 @@
 
         // Add timestamp to prevent caching
         const ts = new Date().getTime();
-        $('#preview-iframe').src = '/workspace/file-raw?path=' + encodeURIComponent(path) + '&_t=' + ts;
+        const encodedPath = path.split('/').map(encodeURIComponent).join('/');
+        $('#preview-iframe').src = '/preview/' + encodedPath + '?_t=' + ts;
         overlay.classList.add('open');
       });
     }
