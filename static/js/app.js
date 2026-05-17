@@ -1244,6 +1244,16 @@
           this.extractFiles(text);
           highlightAll(this.bubble);
         }
+        
+        if (this.requestStartTime) {
+          const duration = ((Date.now() - this.requestStartTime) / 1000).toFixed(1);
+          const tsEl = this.bubble.closest('.message').querySelector('.message-timestamp');
+          if (tsEl) {
+            const timestamp = new Date().toLocaleString([], { dateStyle: 'short', timeStyle: 'short' });
+            tsEl.innerText = `(${duration}s) ${timestamp}`;
+          }
+          this.requestStartTime = null;
+        }
         // NOTE: Tool calls are now executed server-side in the agent loop
         // (gateway.py generate()). Do NOT re-execute them client-side.
         // this.executeToolCalls(text, this.bubble);
@@ -1856,6 +1866,7 @@
       // Estimate sent tokens (~4 chars per token)
       if (window.tokenTracker) window.tokenTracker.addInput(Math.ceil(enrichedMsg.length / 4));
       this.inputEl.value = ''; this.resize(); this.sendBtn.disabled = true;
+      this.requestStartTime = Date.now();
 
       // Use action mode as primary preprompt, falling back to hidden preprompt-select
       const actionMode = ($('#action-mode-select') || {}).value || 'none';
