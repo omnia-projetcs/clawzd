@@ -800,11 +800,13 @@ def _import_pdf(content: bytes):
                     continue
 
                 fill_color = draw.get("fill")
+                fill_opacity = draw.get("fill_opacity", 1.0)
                 stroke_color = draw.get("color")
+                stroke_opacity = draw.get("stroke_opacity", 1.0)
                 stroke_width = draw.get("width", 0)
 
                 bg_color = "transparent"
-                if fill_color:
+                if fill_color and fill_opacity > 0:
                     if isinstance(fill_color, (list, tuple)) and len(fill_color) >= 3:
                         r, g, b = int(fill_color[0] * 255), int(fill_color[1] * 255), int(fill_color[2] * 255)
                         bg_color = f"#{r:02x}{g:02x}{b:02x}"
@@ -813,13 +815,18 @@ def _import_pdf(content: bytes):
                         bg_color = f"#{v:02x}{v:02x}{v:02x}"
 
                 border_color = "transparent"
-                if stroke_color:
+                if stroke_color and stroke_opacity > 0:
                     if isinstance(stroke_color, (list, tuple)) and len(stroke_color) >= 3:
                         r, g, b = int(stroke_color[0] * 255), int(stroke_color[1] * 255), int(stroke_color[2] * 255)
                         border_color = f"#{r:02x}{g:02x}{b:02x}"
 
                 # Skip fully transparent shapes
                 if bg_color == "transparent" and border_color == "transparent":
+                    continue
+
+                items = draw.get("items", [])
+                # Skip complex drawings (SVGs) as they are handled in pass 4
+                if len(items) > 4:
                     continue
 
                 # Full-page background detection: push to front as bg
@@ -832,7 +839,6 @@ def _import_pdf(content: bytes):
 
                 # Detect shape type from drawing items
                 shape_type = "rect"
-                items = draw.get("items", [])
                 has_curves = any(item[0] in ("c", "qu") for item in items)
                 line_count = sum(1 for item in items if item[0] == "l")
                 if has_curves and el_w > 0 and abs(el_w - el_h) < max(el_w, el_h) * 0.3:
