@@ -713,10 +713,29 @@ async def generate_audio(request: Request):
 
 @router.get("/gallery")
 async def audio_gallery():
-    """List all generated audio files."""
+    """List all generated audio files (deduplicated by content hash)."""
+    import hashlib
+
     files = []
+    seen_hashes: set[str] = set()
+
     for f in sorted(os.listdir(AUDIO_DIR), reverse=True):
         if f.endswith((".wav", ".mp3", ".ogg")):
+            filepath = os.path.join(AUDIO_DIR, f)
+
+            # --- Deduplicate by file content hash ---
+            try:
+                h = hashlib.md5()
+                with open(filepath, "rb") as bf:
+                    for chunk in iter(lambda: bf.read(8192), b""):
+                        h.update(chunk)
+                file_hash = h.hexdigest()
+                if file_hash in seen_hashes:
+                    continue  # skip duplicate content
+                seen_hashes.add(file_hash)
+            except Exception:
+                pass  # if hashing fails, include the file anyway
+
             meta_path = os.path.join(AUDIO_DIR, f + ".meta")
             prompt = ""
             mode = "unknown"
@@ -737,7 +756,7 @@ async def audio_gallery():
                 "prompt": prompt,
                 "mode": mode,
                 "duration": duration,
-                "size": os.path.getsize(os.path.join(AUDIO_DIR, f)),
+                "size": os.path.getsize(filepath),
             })
 
     return {"audio_files": files}
@@ -766,21 +785,60 @@ async def upload_reference(file: UploadFile = File(...)):
 
 @router.delete("/delete")
 async def delete_audio(request: Request):
-    """Delete an audio file."""
+    """Delete an audio file and all content-identical duplicates."""
+    import hashlib
     data = await request.json()
     filename = data.get("filename", "")
     if not filename:
         raise HTTPException(400, "filename required")
 
     filepath = os.path.join(AUDIO_DIR, filename)
-    meta_path = filepath + ".meta"
 
+    # Compute hash of the target file before deleting
+    target_hash = None
+    if os.path.exists(filepath):
+        try:
+            h = hashlib.md5()
+            with open(filepath, "rb") as f:
+                for chunk in iter(lambda: f.read(8192), b""):
+                    h.update(chunk)
+            target_hash = h.hexdigest()
+        except Exception:
+            pass
+
+    # Delete the target
+    deleted_names = []
     if os.path.exists(filepath):
         os.remove(filepath)
-    if os.path.exists(meta_path):
-        os.remove(meta_path)
+        meta_path = filepath + ".meta"
+        if os.path.exists(meta_path):
+            os.remove(meta_path)
+        deleted_names.append(filename)
 
-    return {"status": "ok", "deleted": filename}
+    # Delete all content-identical copies
+    if target_hash:
+        audio_exts = (".wav", ".mp3", ".ogg")
+        for f in os.listdir(AUDIO_DIR):
+            if not f.endswith(audio_exts):
+                continue
+            other = os.path.join(AUDIO_DIR, f)
+            if not os.path.isfile(other):
+                continue
+            try:
+                h = hashlib.md5()
+                with open(other, "rb") as bf:
+                    for chunk in iter(lambda: bf.read(8192), b""):
+                        h.update(chunk)
+                if h.hexdigest() == target_hash:
+                    os.remove(other)
+                    meta = other + ".meta"
+                    if os.path.exists(meta):
+                        os.remove(meta)
+                    deleted_names.append(f)
+            except Exception:
+                continue
+
+    return {"status": "ok", "deleted": deleted_names}
 
 
 @router.get("/check-model")

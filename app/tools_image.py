@@ -2288,39 +2288,181 @@ async def remove_bg_preview(request: Request):
         logger.error("Failed to generate remove bg preview for %s: %s", filename, e)
         raise HTTPException(500, str(e))
 
+def _file_md5(filepath: str) -> str:
+    """Compute MD5 hash of a file's content."""
+    import hashlib
+    h = hashlib.md5()
+    with open(filepath, "rb") as f:
+        for chunk in iter(lambda: f.read(8192), b""):
+            h.update(chunk)
+    return h.hexdigest()
+
+
+def _find_duplicates(filepath: str, directory: str) -> list[str]:
+    """Find all files in *directory* whose content is identical to *filepath*.
+
+    Returns a list of absolute paths (excluding *filepath* itself).
+    """
+    try:
+        target_hash = _file_md5(filepath)
+    except Exception:
+        return []
+    duplicates = []
+    exts = (".png", ".jpg", ".svg", ".gif", ".mp4")
+    for f in os.listdir(directory):
+        if not f.endswith(exts):
+            continue
+        other = os.path.join(directory, f)
+        if other == filepath or not os.path.isfile(other):
+            continue
+        try:
+            if _file_md5(other) == target_hash:
+                duplicates.append(other)
+        except Exception:
+            continue
+    return duplicates
+
+
+def _image_used_in_presentations(filename: str) -> bool:
+    """Check if an image filename is referenced in any saved presentation."""
+    import json as _json
+    import glob
+    pres_dir = os.path.join(os.path.dirname(IMAGES_DIR), "presentations")
+    if not os.path.isdir(pres_dir):
+        return False
+    # The image URL stored in presentations looks like /data/images/filename.png
+    search_token = f"/data/images/{filename}"
+    for pres_file in glob.glob(os.path.join(pres_dir, "*.json")):
+        try:
+            with open(pres_file, "r", encoding="utf-8") as f:
+                content = f.read()
+            if search_token in content:
+                return True
+        except Exception:
+            continue
+    return False
+
+
+def _safe_delete_image(filepath: str) -> str:
+    """Delete or hide an image file.
+
+    If the image is used in a saved presentation, it is *hidden* by creating
+    a marker file (``<name>.gallery-hidden``) next to it.  The original file
+    stays on disk so the ``/data/images/`` static route can still serve it
+    for presentation rendering.  The gallery listing skips files that have
+    a ``.gallery-hidden`` marker.
+
+    If the image is NOT used in any presentation it is truly deleted.
+
+    Returns 'deleted' or 'hidden'.
+    """
+    filename = os.path.basename(filepath)
+    if _image_used_in_presentations(filename):
+        # Create a marker file — the image remains on disk for presentations
+        marker = filepath + ".gallery-hidden"
+        with open(marker, "w") as f:
+            f.write("hidden from gallery — still used in a presentation\n")
+        logger.info("Image hidden (used in presentation): %s", filename)
+        return "hidden"
+    else:
+        os.remove(filepath)
+        txt = filepath + ".txt"
+        if os.path.exists(txt):
+            os.remove(txt)
+        # Clean up any stale marker
+        marker = filepath + ".gallery-hidden"
+        if os.path.exists(marker):
+            os.remove(marker)
+        return "deleted"
+
+
 @router.post("/upload")
 async def upload_image(request: Request):
-    """Upload an image to the media gallery."""
+    """Upload an image to the media gallery.
+
+    Rejects the upload with 409 if an identical file already exists.
+    """
     try:
         from fastapi import UploadFile, File
+        import hashlib
         form = await request.form()
         file = form.get("file")
         if not file or not getattr(file, "filename", None):
             raise HTTPException(400, "No file provided")
-            
+
         import uuid
         import shutil
         from datetime import datetime
-        
+
+        # Read file content into memory to hash before saving
+        content = await file.read()
+
+        # --- Duplicate check: hash the uploaded content ---
+        upload_hash = hashlib.md5(content).hexdigest()
+        exts = (".png", ".jpg", ".svg", ".gif", ".mp4", ".webp")
+        if os.path.exists(IMAGES_DIR):
+            for existing in os.listdir(IMAGES_DIR):
+                if not existing.endswith(exts):
+                    continue
+                existing_path = os.path.join(IMAGES_DIR, existing)
+                try:
+                    if _file_md5(existing_path) == upload_hash:
+                        raise HTTPException(
+                            409,
+                            f"This file already exists in the gallery as '{existing}'."
+                        )
+                except HTTPException:
+                    raise
+                except Exception:
+                    continue
+
         ext = file.filename.split('.')[-1] if '.' in file.filename else 'png'
         filename = f"upload_{datetime.now().strftime('%Y%m%d_%H%M%S')}_{uuid.uuid4().hex[:6]}.{ext}"
         filepath = os.path.join(IMAGES_DIR, filename)
-        
+
         with open(filepath, "wb") as buffer:
-            shutil.copyfileobj(file.file, buffer)
-            
+            buffer.write(content)
+
         return {"status": "ok", "url": f"/data/images/{filename}", "filename": filename}
+    except HTTPException:
+        raise
     except Exception as e:
         logger.error(f"Image upload failed: {e}")
         raise HTTPException(500, str(e))
 
 @router.get("/gallery")
 async def list_images():
-    """List all generated images."""
+    """List all generated images (deduplicated by content hash)."""
+    import hashlib
+
     images = []
+    seen_hashes: set[str] = set()
+
     if os.path.exists(IMAGES_DIR):
         for f in sorted(os.listdir(IMAGES_DIR), reverse=True):
+            # Skip marker/meta files
+            if f.endswith((".gallery-hidden", ".txt")):
+                continue
             if f.endswith((".png", ".jpg", ".svg", ".gif", ".mp4")):
+                filepath = os.path.join(IMAGES_DIR, f)
+
+                # Skip images hidden from gallery (still used in presentations)
+                if os.path.exists(filepath + ".gallery-hidden"):
+                    continue
+
+                # --- Deduplicate by file content hash ---
+                try:
+                    h = hashlib.md5()
+                    with open(filepath, "rb") as bf:
+                        for chunk in iter(lambda: bf.read(8192), b""):
+                            h.update(chunk)
+                    file_hash = h.hexdigest()
+                    if file_hash in seen_hashes:
+                        continue  # skip duplicate content
+                    seen_hashes.add(file_hash)
+                except Exception:
+                    pass  # if hashing fails, include the file anyway
+
                 if f.endswith(".svg"):
                     fmt = "svg"
                 elif f.endswith(".gif"):
@@ -2334,7 +2476,7 @@ async def list_images():
                 if os.path.exists(txt_path):
                     with open(txt_path, "r", encoding="utf-8") as tf:
                         prompt_text = tf.read().strip()
-                images.append({"filename": f, "path": os.path.join(IMAGES_DIR, f), "format": fmt, "prompt": prompt_text})
+                images.append({"filename": f, "path": filepath, "format": fmt, "prompt": prompt_text})
     return {"images": images[:200]}
 
 
@@ -2497,7 +2639,7 @@ async def convert_video(request: Request):
 
 @router.delete("/delete")
 async def delete_image(request: Request):
-    """Delete a single image/video from the gallery."""
+    """Delete a single image/video and all content-identical duplicates."""
     data = await request.json()
     filename = data.get("filename", "")
     if not filename:
@@ -2507,36 +2649,64 @@ async def delete_image(request: Request):
     filepath = os.path.join(IMAGES_DIR, safe_name)
     if not os.path.exists(filepath):
         raise HTTPException(404, f"File not found: {safe_name}")
-    os.remove(filepath)
-    if os.path.exists(filepath + ".txt"):
-        os.remove(filepath + ".txt")
-    logger.info("Deleted image: %s", safe_name)
-    return {"status": "ok", "deleted": safe_name}
+
+    # Find all duplicates BEFORE deleting the target
+    duplicates = _find_duplicates(filepath, IMAGES_DIR)
+
+    # Delete or hide the target file (protected if used in a presentation)
+    action = _safe_delete_image(filepath)
+    deleted_names = [safe_name]
+
+    # Delete/hide all content-identical copies
+    for dup in duplicates:
+        try:
+            _safe_delete_image(dup)
+            deleted_names.append(os.path.basename(dup))
+        except Exception:
+            pass
+
+    logger.info("Deleted/hidden image + %d duplicates: %s (action=%s)", len(duplicates), deleted_names, action)
+    return {"status": "ok", "deleted": deleted_names}
 
 
 @router.post("/delete-batch")
 async def delete_images_batch(request: Request):
-    """Delete multiple images/videos from the gallery."""
+    """Delete multiple images/videos and all their content-identical duplicates."""
     data = await request.json()
     filenames = data.get("filenames", [])
     if not filenames:
         raise HTTPException(400, "filenames list is required")
     deleted = []
     errors = []
+    already_deleted: set[str] = set()  # track to avoid double-delete
     for fname in filenames:
         safe_name = os.path.basename(fname)
+        if safe_name in already_deleted:
+            continue
         filepath = os.path.join(IMAGES_DIR, safe_name)
         try:
             if os.path.exists(filepath):
-                os.remove(filepath)
-                if os.path.exists(filepath + ".txt"):
-                    os.remove(filepath + ".txt")
+                # Find duplicates before deleting
+                duplicates = _find_duplicates(filepath, IMAGES_DIR)
+                _safe_delete_image(filepath)
                 deleted.append(safe_name)
+                already_deleted.add(safe_name)
+                # Remove/hide all duplicates
+                for dup in duplicates:
+                    dup_name = os.path.basename(dup)
+                    if dup_name in already_deleted:
+                        continue
+                    try:
+                        _safe_delete_image(dup)
+                        deleted.append(dup_name)
+                        already_deleted.add(dup_name)
+                    except Exception:
+                        pass
             else:
                 errors.append(f"Not found: {safe_name}")
         except Exception as e:
             errors.append(f"{safe_name}: {e}")
-    logger.info("Batch deleted %d files, %d errors", len(deleted), len(errors))
+    logger.info("Batch deleted %d files (incl. duplicates), %d errors", len(deleted), len(errors))
     return {"status": "ok", "deleted": deleted, "errors": errors}
 
 

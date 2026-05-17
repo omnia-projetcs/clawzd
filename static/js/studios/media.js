@@ -184,6 +184,12 @@ class MediaStudio {
             method: 'POST',
             body: formData
           });
+          if (resp.status === 409) {
+            // Duplicate file — show specific message
+            const errData = await resp.json().catch(() => ({}));
+            toast((window.icon ? window.icon('alertTriangle', 14) : '⚠️') + ' ' + (errData.detail || 'This file already exists in the gallery.'));
+            return;
+          }
           if (!resp.ok) throw new Error('Upload failed');
           const data = await resp.json();
           const format = data.filename.split('.').pop().toLowerCase();

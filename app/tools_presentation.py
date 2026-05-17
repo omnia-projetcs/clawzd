@@ -1624,6 +1624,42 @@ async def delete_presentation(pres_id: str):
                     if os.path.exists(thumb_path):
                         os.unlink(thumb_path)
             os.unlink(filepath)
+
+            # --- Clean up orphaned hidden images ---
+            # After removing this presentation, check if any images that were
+            # hidden from the gallery are now completely unused.  If so, delete
+            # them for real.
+            images_dir = os.path.join(DATA_DIR, "images")
+            if os.path.isdir(images_dir):
+                import glob as _glob
+                for marker in _glob.glob(os.path.join(images_dir, "*.gallery-hidden")):
+                    # Derive the original image filename from the marker
+                    img_path = marker.replace(".gallery-hidden", "")
+                    img_name = os.path.basename(img_path)
+                    # Check if still used in any remaining presentation
+                    still_used = False
+                    search_token = f"/data/images/{img_name}"
+                    for pf in _glob.glob(os.path.join(pres_dir, "*.json")):
+                        try:
+                            with open(pf, "r", encoding="utf-8") as pfile:
+                                if search_token in pfile.read():
+                                    still_used = True
+                                    break
+                        except Exception:
+                            continue
+                    if not still_used:
+                        # No longer needed — truly delete the image and marker
+                        try:
+                            os.unlink(marker)
+                            if os.path.exists(img_path):
+                                os.unlink(img_path)
+                            txt = img_path + ".txt"
+                            if os.path.exists(txt):
+                                os.unlink(txt)
+                            logger.info("Cleaned up orphaned hidden image: %s", img_name)
+                        except Exception:
+                            pass
+
             return {"status": "ok"}
         except Exception as e:
             logger.error(f"Error deleting presentation: {e}")

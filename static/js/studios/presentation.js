@@ -707,6 +707,17 @@ class PresentationStudio {
             this.addElement('image', data.url);
             $('#presentation-gallery-browser').style.display = 'none';
             toast(ICONS.check(14) + ' Image uploaded to gallery');
+          } else if (res.status === 409) {
+            // Image already exists — reuse it
+            const match = (data.detail || '').match(/'([^']+)'/);
+            const existingName = match ? match[1] : null;
+            if (existingName) {
+              this.addElement('image', `/data/images/${existingName}`);
+              $('#presentation-gallery-browser').style.display = 'none';
+              toast(ICONS.check(14) + ' Image already in gallery — reused');
+            } else {
+              throw new Error(data.detail);
+            }
           } else throw new Error(data.detail);
         } catch (err) {
           toast(` Upload failed: ${err.message}`, 4000);
@@ -1108,6 +1119,16 @@ class PresentationStudio {
       if (res.ok && data.url) {
         this.addElement('image', data.url);
         toast(ICONS.check(14) + ' Image pasted!');
+      } else if (res.status === 409) {
+        // Image already exists — reuse it
+        const match = (data.detail || '').match(/'([^']+)'/);
+        const existingName = match ? match[1] : null;
+        if (existingName) {
+          this.addElement('image', `/data/images/${existingName}`);
+          toast(ICONS.check(14) + ' Image already in gallery — reused');
+        } else {
+          throw new Error(data.detail || 'Upload failed');
+        }
       } else {
         throw new Error(data.detail || 'Upload failed');
       }
