@@ -557,6 +557,20 @@ class PresentationStudio {
         this.renderCanvas();
       }
     });
+    $('#pt-prop-crop')?.addEventListener('click', () => {
+      if (this.selectedElement && this.selectedElement.type === 'image') {
+        this.selectedElement.isCropped = !this.selectedElement.isCropped;
+        const btn = $('#pt-prop-crop');
+        if (btn) {
+          btn.innerText = this.selectedElement.isCropped ? 'Remove Crop' : 'Crop';
+          btn.style.background = this.selectedElement.isCropped ? 'var(--accent)' : '';
+          btn.style.color = this.selectedElement.isCropped ? '#fff' : '';
+          btn.style.borderColor = this.selectedElement.isCropped ? 'var(--accent)' : '';
+        }
+        this.renderCanvas();
+      }
+    });
+
     $('#pt-prop-bg')?.addEventListener('click', () => {
       if (this.selectedElement && this.selectedElement.type === 'image') {
         const page = this.pages[this.currentPage];
@@ -889,6 +903,7 @@ class PresentationStudio {
       el.width = 200;
       el.height = 200;
       el.opacity = 100;
+      el.isCropped = false;
     } else if (type === 'icon') {
       el.svgContent = content.svg;
       el.iconName = content.name;
@@ -1180,6 +1195,17 @@ class PresentationStudio {
       $('#pt-prop-align-group').style.display = el.type === 'text' ? 'flex' : 'none';
       if ($('#pt-prop-header-bg-group')) $('#pt-prop-header-bg-group').style.display = el.type === 'table' ? 'flex' : 'none';
       $('#pt-prop-image-group').style.display = el.type === 'image' ? 'flex' : 'none';
+
+      if (el.type === 'image') {
+        const cropBtn = $('#pt-prop-crop');
+        if (cropBtn) {
+          cropBtn.innerText = el.isCropped ? 'Remove Crop' : 'Crop';
+          cropBtn.style.background = el.isCropped ? 'var(--accent)' : '';
+          cropBtn.style.color = el.isCropped ? '#fff' : '';
+          cropBtn.style.borderColor = el.isCropped ? 'var(--accent)' : '';
+        }
+      }
+
       $('#pt-prop-text-format-group').style.display = el.type === 'text' ? 'flex' : 'none';
 
       const showThickness = el.type === 'shape' && (el.shapeType === 'cross' || el.shapeType === 'arrow');
@@ -1479,6 +1505,8 @@ class PresentationStudio {
         const inner = document.createElement('img');
         inner.className = 'canvas-image-content';
         inner.src = el.src;
+        inner.style.objectFit = el.isCropped ? 'cover' : 'fill';
+        inner.style.borderRadius = 'inherit';
         node.appendChild(inner);
       } else if (el.type === 'icon') {
         node.style.backgroundColor = 'transparent';
