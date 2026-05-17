@@ -824,6 +824,12 @@ def _import_pdf(content: bytes):
                     if isinstance(stroke_color, (list, tuple)) and len(stroke_color) >= 3:
                         r, g, b = int(stroke_color[0] * 255), int(stroke_color[1] * 255), int(stroke_color[2] * 255)
                         border_color = f"#{r:02x}{g:02x}{b:02x}"
+                    elif isinstance(stroke_color, (int, float)):
+                        v = int(stroke_color * 255)
+                        border_color = f"#{v:02x}{v:02x}{v:02x}"
+                        
+                if border_color == "#000000":
+                    border_color = "transparent"
 
                 # Skip fully transparent shapes
                 if bg_color == "transparent" and border_color == "transparent":
@@ -937,11 +943,20 @@ def _import_pdf(content: bytes):
             '\u201d': '"',
             '\ufffd': ' ',  # Replacement character
             '\x00': '',
-            '': ' ',
+            '\u00a0': ' ',
+            '\u200b': '',
+            '\x01': ' ',
+            '\x02': ' ',
+            '\x03': ' ',
+            '\x08': ' ',
+            '\x09': ' ',
+            '\uf0a7': '❖',
+            '\uf0d8': '➢',
+            '\uf0fc': '✓',
         }
 
         try:
-            page_dict = page.get_text("dict")
+            page_dict = page.get_text("dict", flags=pymupdf.TEXT_PRESERVE_WHITESPACE | pymupdf.TEXT_PRESERVE_LIGATURES | pymupdf.TEXT_DEHYPHENATE)
             blocks = page_dict.get("blocks", [])
 
             for block in blocks:
@@ -1056,7 +1071,6 @@ def _import_pdf(content: bytes):
             def is_simple_rect(draw):
                 items = draw.get("items", [])
                 if len(items) == 1 and items[0][0] == "re": return True
-                if len(items) == 4 and all(it[0] == "l" for it in items): return True
                 r = draw.get("rect")
                 if r:
                     w = r[2] - r[0]
