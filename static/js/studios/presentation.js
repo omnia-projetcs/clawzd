@@ -559,15 +559,33 @@ class PresentationStudio {
     });
     $('#pt-prop-crop')?.addEventListener('click', () => {
       if (this.selectedElement && this.selectedElement.type === 'image') {
-        this.selectedElement.isCropped = !this.selectedElement.isCropped;
-        const btn = $('#pt-prop-crop');
-        if (btn) {
-          btn.innerText = this.selectedElement.isCropped ? 'Remove Crop' : 'Crop';
-          btn.style.background = this.selectedElement.isCropped ? 'var(--accent)' : '';
-          btn.style.color = this.selectedElement.isCropped ? '#fff' : '';
-          btn.style.borderColor = this.selectedElement.isCropped ? 'var(--accent)' : '';
-        }
-        this.renderCanvas();
+        this.selectedElement.isCropMode = !this.selectedElement.isCropMode;
+        this.updatePropertiesPanel();
+      }
+    });
+
+    $('#pt-prop-reset-crop')?.addEventListener('click', () => {
+      if (this.selectedElement && this.selectedElement.type === 'image') {
+        const el = this.selectedElement;
+        const cl = el.cropLeft || 0;
+        const ct = el.cropTop || 0;
+        const cr = el.cropRight || 0;
+        const cb = el.cropBottom || 0;
+        const origImgW = el.width / (1 - cl - cr);
+        const origImgH = el.height / (1 - ct - cb);
+        
+        el.x = el.x - (cl * origImgW);
+        el.y = el.y - (ct * origImgH);
+        el.width = origImgW;
+        el.height = origImgH;
+        
+        el.cropLeft = 0;
+        el.cropTop = 0;
+        el.cropRight = 0;
+        el.cropBottom = 0;
+        el.isCropMode = false;
+        
+        this.updatePropertiesPanel();
       }
     });
 
@@ -903,7 +921,7 @@ class PresentationStudio {
       el.width = 200;
       el.height = 200;
       el.opacity = 100;
-      el.isCropped = false;
+      el.isCropMode = false;
     } else if (type === 'icon') {
       el.svgContent = content.svg;
       el.iconName = content.name;
@@ -1199,10 +1217,10 @@ class PresentationStudio {
       if (el.type === 'image') {
         const cropBtn = $('#pt-prop-crop');
         if (cropBtn) {
-          cropBtn.innerText = el.isCropped ? 'Remove Crop' : 'Crop';
-          cropBtn.style.background = el.isCropped ? 'var(--accent)' : '';
-          cropBtn.style.color = el.isCropped ? '#fff' : '';
-          cropBtn.style.borderColor = el.isCropped ? 'var(--accent)' : '';
+          cropBtn.innerText = el.isCropMode ? 'Exit Crop' : 'Crop Mode';
+          cropBtn.style.background = el.isCropMode ? 'var(--accent)' : '';
+          cropBtn.style.color = el.isCropMode ? '#fff' : '';
+          cropBtn.style.borderColor = el.isCropMode ? 'var(--accent)' : '';
         }
       }
 
@@ -1252,7 +1270,15 @@ class PresentationStudio {
     if (action === 'drag') {
       this.dragItem = el;
     } else if (action === 'resize') {
-      this.resizeItem = { el, handle, origX: el.x, origY: el.y, origW: el.width, origH: el.height };
+      this.resizeItem = { 
+         el, handle, 
+         origX: el.x, origY: el.y, 
+         origW: el.width, origH: el.height,
+         origCl: el.cropLeft || 0,
+         origCt: el.cropTop || 0,
+         origCr: el.cropRight || 0,
+         origCb: el.cropBottom || 0
+      };
     }
     this.dragStartX = e.clientX;
     this.dragStartY = e.clientY;
@@ -1274,24 +1300,79 @@ class PresentationStudio {
     } else if (this.resizeItem) {
       const dx = (e.clientX - this.dragStartX) / scale;
       const dy = (e.clientY - this.dragStartY) / scale;
-      const { el, handle, origX, origY, origW, origH } = this.resizeItem;
+      const { el, handle, origX, origY, origW, origH, origCl, origCt, origCr, origCb } = this.resizeItem;
 
-      if (handle === 'br') {
-        el.width = Math.max(20, origW + dx);
-        el.height = Math.max(20, origH + dy);
-      } else if (handle === 'bl') {
-        el.width = Math.max(20, origW - dx);
-        el.height = Math.max(20, origH + dy);
-        el.x = origX + (origW - el.width);
-      } else if (handle === 'tr') {
-        el.width = Math.max(20, origW + dx);
-        el.height = Math.max(20, origH - dy);
-        el.y = origY + (origH - el.height);
-      } else if (handle === 'tl') {
-        el.width = Math.max(20, origW - dx);
-        el.height = Math.max(20, origH - dy);
-        el.x = origX + (origW - el.width);
-        el.y = origY + (origH - el.height);
+      if (el.isCropMode && el.type === 'image') {
+         const cl = origCl || 0;
+         const ct = origCt || 0;
+         const cr = origCr || 0;
+         const cb = origCb || 0;
+         const origImgW = origW / (1 - cl - cr);
+         const origImgH = origH / (1 - ct - cb);
+
+         let newW = origW;
+         let newH = origH;
+         let newX = origX;
+         let newY = origY;
+
+         if (handle === 'br') {
+            newW = Math.max(20, origW + dx);
+            newH = Math.max(20, origH + dy);
+         } else if (handle === 'bl') {
+            newW = Math.max(20, origW - dx);
+            newH = Math.max(20, origH + dy);
+            newX = origX + (origW - newW);
+         } else if (handle === 'tr') {
+            newW = Math.max(20, origW + dx);
+            newH = Math.max(20, origH - dy);
+            newY = origY + (origH - newH);
+         } else if (handle === 'tl') {
+            newW = Math.max(20, origW - dx);
+            newH = Math.max(20, origH - dy);
+            newX = origX + (origW - newW);
+            newY = origY + (origH - newH);
+         }
+
+         let newCl = cl + (newX - origX) / origImgW;
+         let newCt = ct + (newY - origY) / origImgH;
+         let newCr = cr + (origX + origW - (newX + newW)) / origImgW;
+         let newCb = cb + (origY + origH - (newY + newH)) / origImgH;
+
+         if (newCl < 0) { const diff = -newCl * origImgW; newX += diff; newW -= diff; newCl = 0; }
+         if (newCt < 0) { const diff = -newCt * origImgH; newY += diff; newH -= diff; newCt = 0; }
+         if (newCr < 0) { const diff = -newCr * origImgW; newW -= diff; newCr = 0; }
+         if (newCb < 0) { const diff = -newCb * origImgH; newH -= diff; newCb = 0; }
+
+         if (newCl + newCr >= 0.95) { newW = origW; newX = origX; newCl = cl; newCr = cr; }
+         if (newCt + newCb >= 0.95) { newH = origH; newY = origY; newCt = ct; newCb = cb; }
+
+         el.x = newX;
+         el.y = newY;
+         el.width = newW;
+         el.height = newH;
+         el.cropLeft = newCl;
+         el.cropTop = newCt;
+         el.cropRight = newCr;
+         el.cropBottom = newCb;
+
+      } else {
+        if (handle === 'br') {
+          el.width = Math.max(20, origW + dx);
+          el.height = Math.max(20, origH + dy);
+        } else if (handle === 'bl') {
+          el.width = Math.max(20, origW - dx);
+          el.height = Math.max(20, origH + dy);
+          el.x = origX + (origW - el.width);
+        } else if (handle === 'tr') {
+          el.width = Math.max(20, origW + dx);
+          el.height = Math.max(20, origH - dy);
+          el.y = origY + (origH - el.height);
+        } else if (handle === 'tl') {
+          el.width = Math.max(20, origW - dx);
+          el.height = Math.max(20, origH - dy);
+          el.x = origX + (origW - el.width);
+          el.y = origY + (origH - el.height);
+        }
       }
       this.renderCanvas();
     }
@@ -1303,10 +1384,12 @@ class PresentationStudio {
 
     if (this.resizeItem) {
       const el = this.resizeItem.el;
-      el.x = snap(el.x);
-      el.y = snap(el.y);
-      el.width = Math.max(20, snap(el.width));
-      el.height = Math.max(20, snap(el.height));
+      if (!(el.isCropMode && el.type === 'image')) {
+        el.x = snap(el.x);
+        el.y = snap(el.y);
+        el.width = Math.max(20, snap(el.width));
+        el.height = Math.max(20, snap(el.height));
+      }
       this.resizeItem = null;
       needsRender = true;
     }
@@ -1417,6 +1500,10 @@ class PresentationStudio {
     page.elements.forEach((el, index) => {
       const node = document.createElement('div');
       node.className = 'canvas-element' + (this.selectedElement === el ? ' selected' : '');
+      if (this.selectedElement === el && el.isCropMode) {
+          node.style.outline = '3px dashed var(--accent)';
+          node.style.boxShadow = '0 0 20px rgba(0,0,0,0.5)';
+      }
       node.style.left = el.x + 'px';
       node.style.top = el.y + 'px';
       node.style.width = el.width + 'px';
@@ -1502,11 +1589,26 @@ class PresentationStudio {
         inner.innerHTML = thtml;
         node.appendChild(inner);
       } else if (el.type === 'image') {
+        node.style.overflow = 'hidden';
         const inner = document.createElement('img');
         inner.className = 'canvas-image-content';
         inner.src = el.src;
-        inner.style.objectFit = el.isCropped ? 'cover' : 'fill';
+        
+        const cl = el.cropLeft || 0;
+        const ct = el.cropTop || 0;
+        const cr = el.cropRight || 0;
+        const cb = el.cropBottom || 0;
+        const cw = 1 - cl - cr;
+        const ch = 1 - ct - cb;
+        
+        inner.style.position = 'absolute';
+        inner.style.width = (100 / cw) + '%';
+        inner.style.height = (100 / ch) + '%';
+        inner.style.left = -(cl / cw * 100) + '%';
+        inner.style.top = -(ct / ch * 100) + '%';
+        inner.style.objectFit = 'fill';
         inner.style.borderRadius = 'inherit';
+        
         node.appendChild(inner);
       } else if (el.type === 'icon') {
         node.style.backgroundColor = 'transparent';

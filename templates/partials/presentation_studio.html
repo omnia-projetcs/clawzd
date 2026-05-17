@@ -1309,9 +1309,12 @@
                style="width:100%">
       </div>
       <div class="pt-prop-group" id="pt-prop-image-group" style="display:none;">
-        <button class="btn btn-secondary btn-block"
-                id="pt-prop-crop"
-                style="margin-top: 10px">Crop</button>
+        <div style="display:flex; gap:10px; margin-top:10px;">
+          <button class="btn btn-secondary btn-block" id="pt-prop-crop" style="flex:1;">Crop Mode</button>
+          <button class="btn btn-secondary btn-block" id="pt-prop-reset-crop" style="flex:0 0 40px;" title="Reset Crop">
+            <svg class="ic" width="16" height="16"><use href="#icon-refresh-cw"></use></svg>
+          </button>
+        </div>
         <button class="btn btn-secondary btn-block"
                 id="pt-prop-bg"
                 style="margin-top: 10px">Set as Background</button>
