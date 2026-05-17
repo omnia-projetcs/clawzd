@@ -5385,7 +5385,7 @@
         let groupName = KEY_GROUP_OVERRIDES[key] || null;
         if (!groupName) {
           groupName = 'System / Other';
-          const prefixes = ['GOOGLE', 'GROQ', 'OPENAI', 'ANTHROPIC', 'HUGGINGFACE', 'MISTRAL', 'OPENROUTER', 'GROK', 'TAVILY', 'APP', 'OLLAMA', 'TELEGRAM', 'DISCORD', 'TWITTER', 'LINKEDIN', 'MEDIUM', 'SMTP'];
+          const prefixes = ['GOOGLE', 'GROQ', 'OPENAI', 'ANTHROPIC', 'HUGGINGFACE', 'MISTRAL', 'OPENROUTER', 'GROK', 'TAVILY', 'APP', 'OLLAMA', 'VLLM', 'TELEGRAM', 'DISCORD', 'TWITTER', 'LINKEDIN', 'MEDIUM', 'SMTP'];
           for (const prefix of prefixes) {
             if (key.startsWith(prefix + '_')) {
               groupName = prefix;
@@ -5405,6 +5405,7 @@
         'TWITTER': ['TWITTER_API_KEY', 'TWITTER_API_SECRET', 'TWITTER_ACCESS_TOKEN', 'TWITTER_ACCESS_SECRET'],
         'LINKEDIN': ['LINKEDIN_ACCESS_TOKEN', 'LINKEDIN_AUTHOR_ID'],
         'MEDIUM': ['MEDIUM_INTEGRATION_TOKEN', 'MEDIUM_AUTHOR_ID'],
+        'VLLM': ['VLLM_HOST', 'VLLM_API_KEY'],
       };
       for (const [group, requiredKeys] of Object.entries(REQUIRED_CONNECTOR_KEYS)) {
         if (!groups[group]) groups[group] = [];
@@ -5468,6 +5469,16 @@
           url: 'https://platform.openai.com/api-keys',
           subscription: 'Pay-as-you-go. Free $5 trial credit for new accounts.',
           keyFormat: 'sk-...'
+        },
+        VLLM: {
+          name: 'vLLM (Local / Remote)',
+          url: 'https://docs.vllm.ai/',
+          subscription: '✅ Free & self-hosted. Highly optimized OpenAI-compatible backend.',
+          keyFormat: '',
+          fields: [
+            { key: 'VLLM_HOST', label: 'vLLM API Host', hint: 'e.g. http://localhost:8000' },
+            { key: 'VLLM_API_KEY', label: 'API Key', hint: 'Default is often vllm or empty' }
+          ]
         },
         OPENROUTER: {
           name: 'OpenRouter',
@@ -5628,6 +5639,7 @@
       // Populate cloud providers in the performance dashboard
       const providers = [
         { id: 'OLLAMA', name: 'Ollama', keyField: 'OLLAMA_HOST', keyPlaceholder: 'http://localhost:11434', defRate: '1000', rateUnit: 'RPM' },
+        { id: 'VLLM', name: 'vLLM', keyField: 'VLLM_HOST', keyPlaceholder: 'http://localhost:8000', defRate: '1000', rateUnit: 'RPM' },
         { id: 'OPENAI', name: 'OpenAI', keyField: 'OPENAI_API_KEY', keyPlaceholder: 'sk-...', defRate: '500', rateUnit: 'RPM' },
         { id: 'GOOGLE', name: 'Google (Gemini)', keyField: 'GOOGLE_API_KEY', keyPlaceholder: 'AIzaSy...', defRate: '15', rateUnit: 'RPM' },
         { id: 'ANTHROPIC', name: 'Anthropic', keyField: 'ANTHROPIC_API_KEY', keyPlaceholder: 'sk-ant-...', defRate: '5', rateUnit: 'RPM' },

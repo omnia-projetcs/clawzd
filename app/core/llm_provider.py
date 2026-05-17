@@ -28,6 +28,8 @@ from config import (
     MISTRAL_API_KEY,
     OPENAI_API_KEY,
     OPENROUTER_API_KEY,
+    VLLM_HOST,
+    VLLM_API_KEY,
 )
 
 logger = logging.getLogger("clawzd.llm")
@@ -216,6 +218,38 @@ async def _get_local_models() -> list[dict]:
     return [{"id": OLLAMA_MODEL, "label": f"{OLLAMA_MODEL} (Ollama)"}]
 
 
+async def _get_vllm_models() -> list[dict]:
+    """Build local model list dynamically from vLLM."""
+    import os as _os
+    from dotenv import dotenv_values as _dv
+    _env = _dv(".env") if _os.path.exists(".env") else {}
+    vllm_host = _env.get("VLLM_HOST", _os.getenv("VLLM_HOST", "http://localhost:8000"))
+    vllm_api_key = _env.get("VLLM_API_KEY", _os.getenv("VLLM_API_KEY", "vllm"))
+    
+    base_url = vllm_host
+    if not base_url.endswith("/v1"):
+        base_url = base_url.rstrip("/") + "/v1"
+        
+    try:
+        headers = {"Authorization": f"Bearer {vllm_api_key}"} if vllm_api_key else {}
+        async with httpx.AsyncClient() as client:
+            resp = await client.get(f"{base_url}/models", timeout=5, headers=headers)
+        if resp.status_code == 200:
+            data = resp.json()
+            models = []
+            for m in data.get("data", []):
+                raw_name = m.get("id", "unknown")
+                models.append({"id": raw_name, "label": f"{raw_name} (vLLM)"})
+            if models:
+                models.sort(key=lambda x: x["label"].lower())
+                return models
+    except Exception as e:
+        logger.warning("Failed to fetch local models from vLLM at %s: %s", vllm_host, e)
+    
+    return [{"id": "vllm-model", "label": "vLLM Active Model"}]
+
+
+
 async def _get_provider_models() -> dict:
     """Return provider models dict with dynamic local model list.
 
@@ -235,9 +269,13 @@ async def _get_provider_models() -> dict:
     cloud_enabled = str(_raw).lower() not in ("0", "false", "no", "off")
 
     local_models = await _get_local_models()
+    vllm_models = await _get_vllm_models()
 
-    # Ollama is always available (local, no API key required)
-    result = {"ollama": local_models}
+    # Ollama and vLLM are always available (local)
+    result = {
+        "ollama": local_models,
+        "vllm": vllm_models,
+    }
 
     if cloud_enabled:
         result.update({
@@ -1074,6 +1112,74 @@ class OpenRouterLLM(LLMProvider):
         logger.info("OpenRouter [%s]: %d tokens in %.1fs", model, tokens, time.perf_counter() - t0)
 
 
+class VllmLLM(LLMProvider):
+    """Local or remote vLLM instance (OpenAI compatible)."""
+    default_model = "vllm-model"
+
+    def __init__(self):
+        import os as _os
+        from dotenv import dotenv_values as _dv
+        _env = _dv(".env") if _os.path.exists(".env") else {}
+        self._current_host = _env.get("VLLM_HOST", _os.getenv("VLLM_HOST", "http://localhost:8000"))
+        self._current_api_key = _env.get("VLLM_API_KEY", _os.getenv("VLLM_API_KEY", "vllm"))
+        
+        base_url = self._current_host
+        if not base_url.endswith("/v1"):
+            base_url = base_url.rstrip("/") + "/v1"
+            
+        self.client = openai.AsyncOpenAI(
+            base_url=base_url,
+            api_key=self._current_api_key,
+        )
+
+    async def chat_stream(self, messages, model="vllm-model", **kwargs):
+        import os as _os
+        from dotenv import dotenv_values as _dv
+        _env = _dv(".env") if _os.path.exists(".env") else {}
+        host = _env.get("VLLM_HOST", _os.getenv("VLLM_HOST", "http://localhost:8000"))
+        api_key = _env.get("VLLM_API_KEY", _os.getenv("VLLM_API_KEY", "vllm"))
+        
+        if host != self._current_host or api_key != self._current_api_key:
+            self._current_host = host
+            self._current_api_key = api_key
+            base_url = host
+            if not base_url.endswith("/v1"):
+                base_url = base_url.rstrip("/") + "/v1"
+            self.client = openai.AsyncOpenAI(
+                base_url=base_url,
+                api_key=api_key,
+            )
+
+        t0 = time.perf_counter()
+        tokens = 0
+        
+        # Resolve model dynamically if using the placeholder
+        if model == "vllm-model":
+            try:
+                models_response = await self.client.models.list()
+                if models_response.data:
+                    model = models_response.data[0].id
+            except Exception as e:
+                logger.warning(f"Failed to fetch vLLM models: {e}")
+
+        try:
+            stream = await self.client.chat.completions.create(
+                model=model, messages=messages, stream=True, **kwargs
+            )
+            async for chunk in stream:
+                if chunk.choices and len(chunk.choices) > 0:
+                    delta = chunk.choices[0].delta.content
+                    if delta:
+                        tokens += 1
+                        yield delta
+        except Exception as e:
+            yield f"⚠️ **vLLM error:** {e}\n\nMake sure vLLM is running at `{self._current_host}`."
+            return
+
+        logger.info("vLLM [%s]: %d tokens in %.1fs", model, tokens, time.perf_counter() - t0)
+
+
+
 # --- Provider registry (cached singletons) ---
 _provider_cache: dict[str, LLMProvider] = {}
 
@@ -1088,6 +1194,7 @@ PROVIDER_CLASSES = {
     "ollama": OllamaLLM,
     "openai": OpenAILLM,
     "openrouter": OpenRouterLLM,
+    "vllm": VllmLLM,
 }
 
 
