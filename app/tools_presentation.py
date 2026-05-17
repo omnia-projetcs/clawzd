@@ -1356,20 +1356,55 @@ def _import_pptx(content: bytes):
             pass
 
         # ── Extract shapes (recursive to handle groups) ──
-        def _iter_all_shapes(shapes):
+        def _iter_all_shapes(shapes, parent_tx=(0, 0, 1.0, 1.0)):
+            px, py, sx, sy = parent_tx
             for shape in shapes:
-                yield shape
+                try:
+                    raw_x = shape.left if shape.left is not None else 0
+                    raw_y = shape.top if shape.top is not None else 0
+                    raw_w = shape.width if shape.width is not None else int(Emu(1000000))
+                    raw_h = shape.height if shape.height is not None else int(Emu(500000))
+                except Exception:
+                    continue
+
+                abs_x = px + raw_x * sx
+                abs_y = py + raw_y * sy
+                abs_w = raw_w * sx
+                abs_h = raw_h * sy
+
+                yield shape, abs_x, abs_y, abs_w, abs_h
+
                 if shape.shape_type == 6:  # GROUP
                     try:
-                        yield from _iter_all_shapes(shape.shapes)
-                    except Exception:
+                        elem = shape.element
+                        ns = {'a': 'http://schemas.openxmlformats.org/drawingml/2006/main'}
+                        chOff_list = elem.xpath('.//a:chOff', namespaces=ns)
+                        chExt_list = elem.xpath('.//a:chExt', namespaces=ns)
+                        
+                        if chOff_list and chExt_list:
+                            cx = int(chOff_list[0].get('x', 0))
+                            cy = int(chOff_list[0].get('y', 0))
+                            cw = int(chExt_list[0].get('cx', 1))
+                            ch = int(chExt_list[0].get('cy', 1))
+                            
+                            new_sx = abs_w / cw if cw else 1.0
+                            new_sy = abs_h / ch if ch else 1.0
+                            new_px = abs_x - cx * new_sx
+                            new_py = abs_y - cy * new_sy
+                            
+                            child_tx = (new_px, new_py, new_sx, new_sy)
+                        else:
+                            child_tx = (abs_x, abs_y, sx, sy)
+                            
+                        yield from _iter_all_shapes(shape.shapes, child_tx)
+                    except Exception as e:
                         pass
 
-        for shape in _iter_all_shapes(slide.shapes):
-            left = int((shape.left or 0) * scale_x)
-            top = int((shape.top or 0) * scale_y)
-            width = int((shape.width or 100) * scale_x)
-            height = int((shape.height or 50) * scale_y)
+        for shape, abs_x, abs_y, abs_w, abs_h in _iter_all_shapes(slide.shapes):
+            left = int(abs_x * scale_x)
+            top = int(abs_y * scale_y)
+            width = int(abs_w * scale_x)
+            height = int(abs_h * scale_y)
 
             # Skip very tiny shapes (artifacts, invisible connectors)
             if width < 3 and height < 3:
