@@ -1,7 +1,7 @@
 """
 Clawzd — LLM Provider abstraction layer.
 Supports Anthropic Claude, Google Gemini, Grok (xAI), Groq, HuggingFace,
-Mistral, Ollama, OpenAI, and OpenRouter.
+Mistral, Ollama, OpenAI, OpenRouter, and vLLM.
 """
 import asyncio
 import json as _json
@@ -30,6 +30,7 @@ from config import (
     OPENROUTER_API_KEY,
     VLLM_HOST,
     VLLM_API_KEY,
+    VLLM_MODEL,
 )
 
 logger = logging.getLogger("clawzd.llm")
@@ -245,7 +246,11 @@ async def _get_vllm_models() -> list[dict]:
                 return models
     except Exception as e:
         logger.warning("Failed to fetch local models from vLLM at %s: %s", vllm_host, e)
-    
+
+    # Fallback: use configured model or generic placeholder
+    configured = _env.get("VLLM_MODEL", _os.getenv("VLLM_MODEL", ""))
+    if configured:
+        return [{"id": configured, "label": f"{configured} (vLLM)"}]
     return [{"id": "vllm-model", "label": "vLLM Active Model"}]
 
 
@@ -1114,7 +1119,11 @@ class OpenRouterLLM(LLMProvider):
 
 class VllmLLM(LLMProvider):
     """Local or remote vLLM instance (OpenAI compatible)."""
-    default_model = "vllm-model"
+
+    @property
+    def default_model(self):
+        from config import VLLM_MODEL
+        return VLLM_MODEL or "vllm-model"
 
     def __init__(self):
         import os as _os
@@ -1132,7 +1141,7 @@ class VllmLLM(LLMProvider):
             api_key=self._current_api_key,
         )
 
-    async def chat_stream(self, messages, model="vllm-model", **kwargs):
+    async def chat_stream(self, messages, model=None, **kwargs):
         import os as _os
         from dotenv import dotenv_values as _dv
         _env = _dv(".env") if _os.path.exists(".env") else {}
@@ -1152,15 +1161,23 @@ class VllmLLM(LLMProvider):
 
         t0 = time.perf_counter()
         tokens = 0
-        
-        # Resolve model dynamically if using the placeholder
-        if model == "vllm-model":
-            try:
-                models_response = await self.client.models.list()
-                if models_response.data:
-                    model = models_response.data[0].id
-            except Exception as e:
-                logger.warning(f"Failed to fetch vLLM models: {e}")
+
+        # Resolve model: use explicit config, then dynamic detection
+        if not model or model == "vllm-model":
+            import os as _os2
+            from dotenv import dotenv_values as _dv2
+            _env2 = _dv2(".env") if _os2.path.exists(".env") else {}
+            configured = _env2.get("VLLM_MODEL", _os2.getenv("VLLM_MODEL", ""))
+            if configured:
+                model = configured
+            else:
+                try:
+                    models_response = await self.client.models.list()
+                    if models_response.data:
+                        model = models_response.data[0].id
+                except Exception as e:
+                    logger.warning(f"Failed to fetch vLLM models: {e}")
+                    model = "vllm-model"
 
         try:
             stream = await self.client.chat.completions.create(

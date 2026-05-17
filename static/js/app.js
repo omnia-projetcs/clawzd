@@ -2240,7 +2240,7 @@
       } else if (prov === 'ollama' && window._activeLocalModel) {
         lbl.textContent = window._activeLocalModel;
       } else {
-        const PNAMES = { google: 'Gemini', grok: 'Grok', groq: 'Groq', huggingface: 'HuggingFace', mistral: 'Mistral', ollama: 'Ollama', openai: 'OpenAI', openrouter: 'OpenRouter' };
+        const PNAMES = { anthropic: 'Claude', google: 'Gemini', grok: 'Grok', groq: 'Groq', huggingface: 'HuggingFace', mistral: 'Mistral', ollama: 'Ollama', vllm: 'vLLM', openai: 'OpenAI', openrouter: 'OpenRouter' };
         lbl.textContent = PNAMES[prov] || prov;
       }
     }
@@ -4527,7 +4527,7 @@
     const PROVIDER_NAMES = {
       anthropic: 'Claude', google: 'Gemini', grok: 'Grok', groq: 'Groq',
       huggingface: 'HuggingFace', mistral: 'Mistral', ollama: 'Ollama',
-      openai: 'OpenAI', openrouter: 'OpenRouter'
+      vllm: 'vLLM', openai: 'OpenAI', openrouter: 'OpenRouter'
     };
 
     function renderModelPicker() {
@@ -4538,7 +4538,7 @@
 
       // Providers
       provList.innerHTML = '';
-      ['anthropic', 'google', 'grok', 'groq', 'huggingface', 'mistral', 'ollama', 'openai', 'openrouter'].forEach(p => {
+      ['anthropic', 'google', 'grok', 'groq', 'huggingface', 'mistral', 'ollama', 'vllm', 'openai', 'openrouter'].forEach(p => {
         const opt = el('div', {
           class: 'mpd-option' + (currentProv === p ? ' active' : ''),
           onclick: () => {
@@ -4663,7 +4663,7 @@
 
       // Providers
       provList.innerHTML = '';
-      ['anthropic', 'google', 'grok', 'groq', 'huggingface', 'mistral', 'ollama', 'openai', 'openrouter'].forEach(p => {
+      ['anthropic', 'google', 'grok', 'groq', 'huggingface', 'mistral', 'ollama', 'vllm', 'openai', 'openrouter'].forEach(p => {
         const opt = el('div', {
           class: 'mpd-option' + (currentProv === p ? ' active' : ''),
           onclick: () => {
@@ -5320,20 +5320,37 @@
       
       if (!defaultSel || !enhanceSel || !codeSel) return;
       
-      // Fetch available models
+      // Fetch available models (includes both ollama and vllm)
       const rProv = await fetch('/api/providers');
       const dProv = await rProv.json();
       const ollamaModels = dProv.providers?.ollama || [];
+      const vllmModels = (dProv.providers?.vllm || []).filter(m => m.id !== 'vllm-model');
       
       // Fetch current .env settings
       const rEnv = await fetch('/api/env');
       const env = await rEnv.json();
       
+      // Combine all local models
+      const allLocalModels = [
+        ...ollamaModels,
+        ...vllmModels
+      ];
+      
       // Populate dropdowns
       const populateDropdown = (sel, currentVal, emptyLabel) => {
-        sel.innerHTML = `<option value="">${emptyLabel}</option>` + 
-          ollamaModels.map(m => `<option value="${m.id}">${escHtml(m.label || m.id)}</option>`).join('');
-        if (currentVal && ollamaModels.some(m => m.id === currentVal)) {
+        let optionsHtml = `<option value="">${emptyLabel}</option>`;
+        if (ollamaModels.length > 0) {
+          optionsHtml += `<optgroup label="Ollama">`;
+          optionsHtml += ollamaModels.map(m => `<option value="${m.id}">${escHtml(m.label || m.id)}</option>`).join('');
+          optionsHtml += `</optgroup>`;
+        }
+        if (vllmModels.length > 0) {
+          optionsHtml += `<optgroup label="vLLM">`;
+          optionsHtml += vllmModels.map(m => `<option value="${m.id}">${escHtml(m.label || m.id)}</option>`).join('');
+          optionsHtml += `</optgroup>`;
+        }
+        sel.innerHTML = optionsHtml;
+        if (currentVal && allLocalModels.some(m => m.id === currentVal)) {
           sel.value = currentVal;
         } else if (currentVal) {
           // If the model exists in .env but not in the list, add it as a custom option
@@ -5405,7 +5422,7 @@
         'TWITTER': ['TWITTER_API_KEY', 'TWITTER_API_SECRET', 'TWITTER_ACCESS_TOKEN', 'TWITTER_ACCESS_SECRET'],
         'LINKEDIN': ['LINKEDIN_ACCESS_TOKEN', 'LINKEDIN_AUTHOR_ID'],
         'MEDIUM': ['MEDIUM_INTEGRATION_TOKEN', 'MEDIUM_AUTHOR_ID'],
-        'VLLM': ['VLLM_HOST', 'VLLM_API_KEY'],
+        'VLLM': ['VLLM_HOST', 'VLLM_API_KEY', 'VLLM_MODEL'],
       };
       for (const [group, requiredKeys] of Object.entries(REQUIRED_CONNECTOR_KEYS)) {
         if (!groups[group]) groups[group] = [];
@@ -5477,7 +5494,8 @@
           keyFormat: '',
           fields: [
             { key: 'VLLM_HOST', label: 'vLLM API Host', hint: 'e.g. http://localhost:8000' },
-            { key: 'VLLM_API_KEY', label: 'API Key', hint: 'Default is often vllm or empty' }
+            { key: 'VLLM_API_KEY', label: 'API Key', hint: 'Default is often vllm or empty' },
+            { key: 'VLLM_MODEL', label: 'Default Model', hint: 'Leave empty to auto-detect from vLLM server' }
           ]
         },
         OPENROUTER: {

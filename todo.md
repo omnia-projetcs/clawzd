@@ -43,6 +43,7 @@ Can be used to rebuild from scratch the project with AI assistance.
 - [x] Real-time input/output token counter in the header
 - [x] app/llm_provider.py with abstract LLMProvider class:
     - [x] LocalLLM / OllamaLLM via Ollama (OpenAI-compatible)
+    - [x] VllmLLM via vLLM (OpenAI-compatible, configurable VLLM_HOST/VLLM_MODEL)
     - [x] OpenRouterLLM
     - [x] GroqLLM
     - [x] MistralLLM

@@ -256,7 +256,7 @@ All configuration is done via the `.env` file at the project root.
 # ============================================================
 
 # --- LLM Providers ---
-# Available: ollama | google | grok | groq | huggingface | mistral | openai | openrouter
+# Available: ollama | vllm | anthropic | google | grok | groq | huggingface | mistral | openai | openrouter
 LLM_PROVIDER=ollama
 GOOGLE_API_KEY=
 GROK_API_KEY=
@@ -272,6 +272,11 @@ OLLAMA_HOST=http://localhost:11434
 OLLAMA_MODEL=qwen3.5:9b
 OLLAMA_NUM_GPU=999
 OLLAMA_NUM_CTX=-1                     # -1 = dynamic (auto-sized per request)
+
+# --- vLLM (optional local/remote backend) ---
+VLLM_HOST=http://localhost:8000
+VLLM_API_KEY=
+VLLM_MODEL=                           # leave empty to auto-detect
 ```
 
 ### 🚀 Ollama Performance Tuning
@@ -376,6 +381,7 @@ DEBUG=false
 | Provider | API Key Env Var | Free Tier | Context Window |
 |----------|----------------|-----------|----------------|
 | **Local (Ollama)** | — | ✅ (self-hosted) | Model-dependent |
+| **Local (vLLM)** | `VLLM_API_KEY` | ✅ (self-hosted) | Model-dependent |
 | **OpenRouter** | `OPENROUTER_API_KEY` | Limited | Model-dependent |
 | **Groq** | `GROQ_API_KEY` | ✅ | 8K–128K |
 | **Mistral** | `MISTRAL_API_KEY` | Limited | 8K–32K |

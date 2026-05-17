@@ -86,7 +86,7 @@
       <div class="settings-group">
         <label class="settings-label">Default Chat Model</label>
         <div style="font-size:10px; color:var(--text-muted); margin-bottom:4px;">
-          Model used for chat conversations. Saved in <code>.env</code> as <code>OLLAMA_MODEL</code>.
+          Model used for chat conversations. Shows models from Ollama and vLLM. Saved as <code>OLLAMA_MODEL</code> or <code>VLLM_MODEL</code>.
         </div>
         <select id="settings-default-model" class="settings-input">
           <option value="">Loading models…</option>
@@ -230,7 +230,7 @@
           </label>
         </div>
         <div style="font-size: 11px; color: var(--text-muted); line-height: 1.5;">
-          When disabled, only <strong>Ollama (local)</strong> is available — fully offline mode.
+        When disabled, only <strong>Ollama</strong> and <strong>vLLM</strong> (local) are available — fully offline mode.
           Requires a page reload to update the model list.
         </div>
       </div>

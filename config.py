@@ -51,6 +51,7 @@ OPENROUTER_API_KEY = os.getenv("OPENROUTER_API_KEY", "")
 TAVILY_API_KEY = os.getenv("TAVILY_API_KEY", "")
 VLLM_HOST = os.getenv("VLLM_HOST", "http://localhost:8000")
 VLLM_API_KEY = os.getenv("VLLM_API_KEY", "vllm")
+VLLM_MODEL = os.getenv("VLLM_MODEL", "")
 
 # Master toggle for cloud AI providers (OpenAI, Anthropic, Google, Grok, Groq, Mistral, etc.)
 # Set to "false" in .env to run fully offline/local (Ollama only).
