@@ -378,7 +378,7 @@ Can be used to rebuild from scratch the project with AI assistance.
 - [x] **Real-time Feedback**: Server-Sent Events (SSE) provide live logs, multi-pass generation progress, and token streaming directly to the offline frontend.
 - [x] **Persistent State & Memory**: Complete persistence across sessions via SQLite (conversations), ChromaDB (RAG embeddings), and structured Markdown (AI profiles, configurations, and artifacts).
 
-## 16. Inspiring Projects
+## 16. Inspiring Projects & Transparency
 
 Projects and tools that served as inspiration for Clawzd's architecture, features, and design:
 
