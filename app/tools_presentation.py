@@ -799,6 +799,7 @@ def _import_pdf(content: bytes):
                 if w < 20 or h < 20:
                     continue
 
+                draw_type = draw.get("type", "fs")
                 fill_color = draw.get("fill")
                 fill_opacity = draw.get("fill_opacity", 1.0)
                 stroke_color = draw.get("color")
@@ -806,7 +807,7 @@ def _import_pdf(content: bytes):
                 stroke_width = draw.get("width", 0)
 
                 bg_color = "transparent"
-                if fill_color and fill_opacity > 0:
+                if "f" in draw_type and fill_color and fill_opacity > 0:
                     if isinstance(fill_color, (list, tuple)) and len(fill_color) >= 3:
                         r, g, b = int(fill_color[0] * 255), int(fill_color[1] * 255), int(fill_color[2] * 255)
                         bg_color = f"#{r:02x}{g:02x}{b:02x}"
@@ -815,7 +816,7 @@ def _import_pdf(content: bytes):
                         bg_color = f"#{v:02x}{v:02x}{v:02x}"
 
                 border_color = "transparent"
-                if stroke_color and stroke_opacity > 0:
+                if "s" in draw_type and stroke_color and stroke_opacity > 0:
                     if isinstance(stroke_color, (list, tuple)) and len(stroke_color) >= 3:
                         r, g, b = int(stroke_color[0] * 255), int(stroke_color[1] * 255), int(stroke_color[2] * 255)
                         border_color = f"#{r:02x}{g:02x}{b:02x}"
@@ -829,8 +830,6 @@ def _import_pdf(content: bytes):
                 # Check if this is a simple rectangle
                 is_simple_rect = False
                 if len(items) == 1 and items[0][0] == "re":
-                    is_simple_rect = True
-                elif len(items) == 4 and all(it[0] == "l" for it in items):
                     is_simple_rect = True
 
                 # Full-page background detection
@@ -922,7 +921,7 @@ def _import_pdf(content: bytes):
 
         # ── 3) Extract text blocks with styling ──
         try:
-            page_dict = page.get_text("dict", flags=pymupdf.TEXT_PRESERVE_WHITESPACE)
+            page_dict = page.get_text("dict")
             blocks = page_dict.get("blocks", [])
 
             for block in blocks:
@@ -1365,7 +1364,7 @@ def _import_pptx(content: bytes):
                     raw_w = shape.width if shape.width is not None else int(Emu(1000000))
                     raw_h = shape.height if shape.height is not None else int(Emu(500000))
                 except Exception:
-                    continue
+                    raw_x, raw_y, raw_w, raw_h = 0, 0, int(Emu(1000000)), int(Emu(500000))
 
                 abs_x = px + raw_x * sx
                 abs_y = py + raw_y * sy
@@ -1375,11 +1374,15 @@ def _import_pptx(content: bytes):
                 yield shape, abs_x, abs_y, abs_w, abs_h
 
                 if shape.shape_type == 6:  # GROUP
+                    child_tx = (abs_x, abs_y, sx, sy)
                     try:
                         elem = shape.element
-                        ns = {'a': 'http://schemas.openxmlformats.org/drawingml/2006/main'}
-                        chOff_list = elem.xpath('.//a:chOff', namespaces=ns)
-                        chExt_list = elem.xpath('.//a:chExt', namespaces=ns)
+                        ns = {'a': 'http://schemas.openxmlformats.org/drawingml/2006/main',
+                              'p': 'http://schemas.openxmlformats.org/presentationml/2006/main'}
+                        
+                        # Only look at the immediate group properties
+                        chOff_list = elem.xpath('./p:grpSpPr/a:xfrm/a:chOff', namespaces=ns)
+                        chExt_list = elem.xpath('./p:grpSpPr/a:xfrm/a:chExt', namespaces=ns)
                         
                         if chOff_list and chExt_list:
                             cx = int(chOff_list[0].get('x', 0))
@@ -1393,11 +1396,12 @@ def _import_pptx(content: bytes):
                             new_py = abs_y - cy * new_sy
                             
                             child_tx = (new_px, new_py, new_sx, new_sy)
-                        else:
-                            child_tx = (abs_x, abs_y, sx, sy)
-                            
+                    except Exception:
+                        pass
+                        
+                    try:
                         yield from _iter_all_shapes(shape.shapes, child_tx)
-                    except Exception as e:
+                    except Exception:
                         pass
 
         for shape, abs_x, abs_y, abs_w, abs_h in _iter_all_shapes(slide.shapes):
