@@ -815,6 +815,10 @@ def _import_pdf(content: bytes):
                         v = int(fill_color * 255)
                         bg_color = f"#{v:02x}{v:02x}{v:02x}"
 
+                # Mettre par défaut la transparence s'il n'y a pas de couleur (ce qui se traduit souvent par #000000 par défaut dans PyMuPDF)
+                if bg_color == "#000000":
+                    bg_color = "transparent"
+
                 border_color = "transparent"
                 if "s" in draw_type and stroke_color and stroke_opacity > 0:
                     if isinstance(stroke_color, (list, tuple)) and len(stroke_color) >= 3:
@@ -920,6 +924,22 @@ def _import_pdf(content: bytes):
             logger.warning(f"Failed to extract images from page {page_idx}: {e}")
 
         # ── 3) Extract text blocks with styling ──
+        # Table de correspondance pour les caractères inconnus
+        CHAR_MAP = {
+            '\uf0b7': '•',
+            '\u2022': '•',
+            '\u25e6': '◦',
+            '\u2013': '-',
+            '\u2014': '-',
+            '\u2018': "'",
+            '\u2019': "'",
+            '\u201c': '"',
+            '\u201d': '"',
+            '\ufffd': ' ',  # Replacement character
+            '\x00': '',
+            '': ' ',
+        }
+
         try:
             page_dict = page.get_text("dict")
             blocks = page_dict.get("blocks", [])
@@ -955,7 +975,10 @@ def _import_pdf(content: bytes):
                     spans = line.get("spans", [])
                     line_text = ""
                     for span in spans:
-                        line_text += span.get("text", "")
+                        span_text = span.get("text", "")
+                        for k, v in CHAR_MAP.items():
+                            span_text = span_text.replace(k, v)
+                        line_text += span_text
                         size = span.get("size", 12)
                         all_sizes.append(size)
                         color_int = span.get("color", 0)
