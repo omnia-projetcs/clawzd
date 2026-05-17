@@ -225,7 +225,7 @@ async def _get_vllm_models() -> list[dict]:
     from dotenv import dotenv_values as _dv
     _env = _dv(".env") if _os.path.exists(".env") else {}
     vllm_host = _env.get("VLLM_HOST", _os.getenv("VLLM_HOST", "http://localhost:8000"))
-    vllm_api_key = _env.get("VLLM_API_KEY", _os.getenv("VLLM_API_KEY", "vllm"))
+    vllm_api_key = _env.get("VLLM_API_KEY", _os.getenv("VLLM_API_KEY", "")) or ""
     
     base_url = vllm_host
     if not base_url.endswith("/v1"):
@@ -1130,7 +1130,11 @@ class VllmLLM(LLMProvider):
         from dotenv import dotenv_values as _dv
         _env = _dv(".env") if _os.path.exists(".env") else {}
         self._current_host = _env.get("VLLM_HOST", _os.getenv("VLLM_HOST", "http://localhost:8000"))
-        self._current_api_key = _env.get("VLLM_API_KEY", _os.getenv("VLLM_API_KEY", "vllm"))
+        # The openai SDK raises "Missing credentials" if api_key is empty.
+        # vLLM servers typically don't require auth, so use "EMPTY" as a
+        # safe placeholder when no key is configured.
+        raw_key = _env.get("VLLM_API_KEY", _os.getenv("VLLM_API_KEY", ""))
+        self._current_api_key = raw_key or "EMPTY"
         
         base_url = self._current_host
         if not base_url.endswith("/v1"):
@@ -1146,7 +1150,8 @@ class VllmLLM(LLMProvider):
         from dotenv import dotenv_values as _dv
         _env = _dv(".env") if _os.path.exists(".env") else {}
         host = _env.get("VLLM_HOST", _os.getenv("VLLM_HOST", "http://localhost:8000"))
-        api_key = _env.get("VLLM_API_KEY", _os.getenv("VLLM_API_KEY", "vllm"))
+        raw_key = _env.get("VLLM_API_KEY", _os.getenv("VLLM_API_KEY", ""))
+        api_key = raw_key or "EMPTY"
         
         if host != self._current_host or api_key != self._current_api_key:
             self._current_host = host
