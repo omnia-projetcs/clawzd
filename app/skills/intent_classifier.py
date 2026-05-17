@@ -74,16 +74,22 @@ _TEMPERATURE    = 0.0  # deterministic
 def _get_classifier_models() -> list[str]:
     """Return ordered list of models to try for classification.
 
-    Primary = OLLAMA_MODEL from config (guaranteed installed).
-    Fallback = mistral-nemo (fast instruction model, also installed).
+    Primary = ENHANCE_MODEL from config (fast, non-reasoning — e.g. gemma3:4b).
+    Fallback = OLLAMA_MODEL (guaranteed installed).
     """
     try:
-        from config import OLLAMA_MODEL
-        primary = OLLAMA_MODEL
+        from config import ENHANCE_MODEL
+        primary = ENHANCE_MODEL
     except Exception:
         primary = _FALLBACK_MODEL
     models = [primary]
-    if primary != _FALLBACK_MODEL:
+    try:
+        from config import OLLAMA_MODEL
+        if OLLAMA_MODEL != primary:
+            models.append(OLLAMA_MODEL)
+    except Exception:
+        pass
+    if _FALLBACK_MODEL not in models:
         models.append(_FALLBACK_MODEL)
     return models
 
@@ -165,7 +171,7 @@ async def classify_intent(message: str) -> list[str]:
             raw = await llm.chat(
                 messages,
                 model=model,
-                max_tokens=_MAX_TOKENS,
+                num_predict=_MAX_TOKENS,
                 temperature=_TEMPERATURE,
             )
             if raw and raw.strip():

@@ -839,12 +839,14 @@ async def _process_chat(session_id: str, data: dict) -> dict:
         # regardless of the user's language. This replaces brittle keyword lists.
         try:
             from app.skills.intent_classifier import classify_intent
-            semantic_tools = await classify_intent(user_msg)
+            semantic_tools = await asyncio.wait_for(classify_intent(user_msg), timeout=3.0)
             detected_names = {d["skill"] for d in detected}
             for tool_name in semantic_tools:
                 if tool_name not in detected_names:
                     detected.insert(0, {"skill": tool_name, "confidence": 0.95, "source": "semantic"})
                     detected_names.add(tool_name)
+        except asyncio.TimeoutError:
+            logger.warning("Intent classifier timed out (3s) — skipping semantic routing")
         except Exception as _ic_err:
             logger.debug("Intent classifier unavailable: %s", _ic_err)
 

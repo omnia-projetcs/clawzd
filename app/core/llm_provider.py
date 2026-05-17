@@ -9,6 +9,7 @@ import logging
 import os
 import time
 from abc import ABC, abstractmethod
+import re as _re
 from collections.abc import AsyncGenerator
 
 import httpx
@@ -542,6 +543,9 @@ class OllamaLLM(LLMProvider):
 
         t0 = time.perf_counter()
         tokens = 0
+        # --- <think> block filter for reasoning models (Qwen3, DeepSeek-R1…) ---
+        _in_think = False
+        _think_buf = ""
 
         try:
             async with httpx.AsyncClient(
@@ -565,8 +569,31 @@ class OllamaLLM(LLMProvider):
                             data = _json.loads(line)
                             chunk_text = data.get("message", {}).get("content", "")
                             if chunk_text:
-                                tokens += 1
-                                yield chunk_text
+                                # Filter <think>…</think> reasoning blocks
+                                if _in_think:
+                                    if "</think>" in chunk_text:
+                                        _in_think = False
+                                        after = chunk_text.split("</think>", 1)[1]
+                                        if after:
+                                            tokens += 1
+                                            yield after
+                                    # else: still inside <think>, discard
+                                elif "<think>" in chunk_text:
+                                    before = chunk_text.split("<think>", 1)[0]
+                                    if before:
+                                        tokens += 1
+                                        yield before
+                                    remainder = chunk_text.split("<think>", 1)[1]
+                                    if "</think>" in remainder:
+                                        after = remainder.split("</think>", 1)[1]
+                                        if after:
+                                            tokens += 1
+                                            yield after
+                                    else:
+                                        _in_think = True
+                                else:
+                                    tokens += 1
+                                    yield chunk_text
                             if data.get("done"):
                                 break
                         except _json.JSONDecodeError:
@@ -638,6 +665,9 @@ class OllamaLLM(LLMProvider):
             "options": options,
         }
 
+        # --- <think> block filter for reasoning models (Qwen3, DeepSeek-R1…) ---
+        _in_think = False
+
         try:
             async with httpx.AsyncClient(timeout=httpx.Timeout(120.0), verify=_resolve_ollama_verify()) as client:
                 async with client.stream(
@@ -651,8 +681,30 @@ class OllamaLLM(LLMProvider):
                             data = _json.loads(line)
                             chunk_text = data.get("message", {}).get("content", "")
                             if chunk_text:
-                                tokens += 1
-                                yield chunk_text
+                                # Filter <think>…</think> reasoning blocks
+                                if _in_think:
+                                    if "</think>" in chunk_text:
+                                        _in_think = False
+                                        after = chunk_text.split("</think>", 1)[1]
+                                        if after:
+                                            tokens += 1
+                                            yield after
+                                elif "<think>" in chunk_text:
+                                    before = chunk_text.split("<think>", 1)[0]
+                                    if before:
+                                        tokens += 1
+                                        yield before
+                                    remainder = chunk_text.split("<think>", 1)[1]
+                                    if "</think>" in remainder:
+                                        after = remainder.split("</think>", 1)[1]
+                                        if after:
+                                            tokens += 1
+                                            yield after
+                                    else:
+                                        _in_think = True
+                                else:
+                                    tokens += 1
+                                    yield chunk_text
                             if data.get("done"):
                                 break
                         except _json.JSONDecodeError:

@@ -646,10 +646,11 @@ def auto_rag_context(user_message: str, threshold: float = 0.3, k: int = 3) -> s
     Only triggers if the knowledge base is initialized and non-empty.
     """
     try:
-        if _collection is None or _collection.count() == 0:
+        # Initialize ChromaDB first, THEN check count
+        collection, encoder = _get_rag()
+        if collection.count() == 0:
             return None
 
-        collection, encoder = _get_rag()
         query_embedding = encoder.encode(user_message).tolist()
         results = collection.query(
             query_embeddings=[query_embedding],
@@ -694,10 +695,11 @@ def explicit_rag_search(query: str, k: int = 5) -> str | None:
     Returns formatted context string or None.
     """
     try:
-        if _collection is None or _collection.count() == 0:
+        # Initialize ChromaDB first, THEN check count
+        collection, encoder = _get_rag()
+        if collection.count() == 0:
             return "📚 **Knowledge base is empty.** Upload documents in Settings → Knowledge Base, or place files in the `data/rag/` folder."
 
-        collection, encoder = _get_rag()
         query_embedding = encoder.encode(query).tolist()
         results = collection.query(
             query_embeddings=[query_embedding],
