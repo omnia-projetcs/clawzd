@@ -1188,12 +1188,35 @@ class VllmLLM(LLMProvider):
             stream = await self.client.chat.completions.create(
                 model=model, messages=messages, stream=True, **kwargs
             )
+            _in_think = False
             async for chunk in stream:
                 if chunk.choices and len(chunk.choices) > 0:
-                    delta = chunk.choices[0].delta.content
-                    if delta:
-                        tokens += 1
-                        yield delta
+                    chunk_text = chunk.choices[0].delta.content
+                    if chunk_text:
+                        # Filter <think>…</think> reasoning blocks
+                        if _in_think:
+                            if "</think>" in chunk_text:
+                                _in_think = False
+                                after = chunk_text.split("</think>", 1)[1]
+                                if after:
+                                    tokens += 1
+                                    yield after
+                        elif "<think>" in chunk_text:
+                            before = chunk_text.split("<think>", 1)[0]
+                            if before:
+                                tokens += 1
+                                yield before
+                            remainder = chunk_text.split("<think>", 1)[1]
+                            if "</think>" in remainder:
+                                after = remainder.split("</think>", 1)[1]
+                                if after:
+                                    tokens += 1
+                                    yield after
+                            else:
+                                _in_think = True
+                        else:
+                            tokens += 1
+                            yield chunk_text
         except Exception as e:
             yield f"⚠️ **vLLM error:** {e}\n\nMake sure vLLM is running at `{self._current_host}`."
             return
