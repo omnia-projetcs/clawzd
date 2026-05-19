@@ -77,10 +77,13 @@ class SkillCatalog {
       });
     }
 
-    // Refresh button
-    const btnRefresh = document.getElementById('skills-catalog-refresh');
-    if (btnRefresh) {
-      btnRefresh.addEventListener('click', () => this.refresh());
+    // Refresh button — dynamically rendered inside ab-body by AppBuilderPanel,
+    // so we use event delegation on the overlay instead of a direct bind.
+    if (this._overlay) {
+      this._overlay.addEventListener('click', (e) => {
+        const btn = e.target.closest('#skills-catalog-refresh');
+        if (btn) this.refresh();
+      });
     }
   }
 

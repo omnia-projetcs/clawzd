@@ -94,7 +94,10 @@ const AppBuilderPanel = (() => {
         <div class="ab-empty">
           <div class="ab-empty-icon">${ICONS.box(48)}</div>
           <p>No apps yet. Create your first mini-app!</p>
-          <button class="ab-btn ab-btn-primary" onclick="AppBuilderPanel.showCreate()">${ICONS.plus(14)} Create App</button>
+          <div style="display:flex; gap:8px; align-items:center;">
+            <button class="ab-btn" id="skills-catalog-refresh" title="Refresh list" style="padding:6px 10px; display:flex; align-items:center;">${ICONS.refresh ? ICONS.refresh(14) : '↻'}</button>
+            <button class="ab-btn ab-btn-primary" onclick="AppBuilderPanel.showCreate()">${ICONS.plus(14)} Create App</button>
+          </div>
         </div>
       `;
       return;
@@ -103,7 +106,10 @@ const AppBuilderPanel = (() => {
     body.innerHTML = `
       <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:16px;">
         <h3 style="margin:0; font-size:16px; display:flex; align-items:center; gap:6px;">${ICONS.box(16)} Your Apps</h3>
-        <button class="ab-btn ab-btn-primary" onclick="AppBuilderPanel.showCreate()">${ICONS.plus(14)} Create App</button>
+        <div style="display:flex; gap:8px; align-items:center;">
+          <button class="ab-btn" id="skills-catalog-refresh" title="Refresh list" style="padding:6px 10px; display:flex; align-items:center;">${ICONS.refresh ? ICONS.refresh(14) : '↻'}</button>
+          <button class="ab-btn ab-btn-primary" onclick="AppBuilderPanel.showCreate()">${ICONS.plus(14)} Create App</button>
+        </div>
       </div>
       <div class="ab-grid">
         ${_apps.map(a => _renderAppCard(a)).join('')}
