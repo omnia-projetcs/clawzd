@@ -5084,6 +5084,7 @@
       toast(ICONS.check(14) + ' Settings saved'); $('#settings-overlay').classList.remove('open');
       // Reload providers immediately to reflect cloud toggle change
       loadProviders();
+      loadEnvSettings();
     });
 
     // --- Tool Permissions Grid (HITL) ---
@@ -5392,6 +5393,7 @@
     try {
       const r = await fetch('/api/env');
       const d = await r.json();
+      window._envData = d;
 
       const container = $('#env-modal-table-container');
       const perfProvidersContainer = $('#perf-providers-container');
@@ -5776,6 +5778,7 @@
             await fetch('/api/env', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(envData) });
             toast(ICONS.check(14) + ' Environment variables saved');
             closeEnvModal();
+            loadEnvSettings();
           } catch (e) {
             toast(ICONS.x(14) + ' Save failed');
           } finally {

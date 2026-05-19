@@ -685,6 +685,7 @@ class EditorMode {
     this._cmAcAbort = controller;
     this._cmGhostCursorPos = cursor;
 
+    const { provider, model } = this._getCodeProviderAndModel();
     try {
       const r = await fetch('/api/autocomplete', {
         method: 'POST',
@@ -693,8 +694,8 @@ class EditorMode {
           prefix, suffix, intent,
           language: this._currentLang || 'plaintext',
           file_path: this.activeTab || '',
-          provider: $('#provider-select').value,
-          model: $('#model-select').value,
+          provider,
+          model,
           max_tokens: maxTokens
         }),
         signal: controller.signal
@@ -1085,6 +1086,7 @@ class EditorMode {
     this._acAbort = controller;
     this._acCursorPos = cursor;
 
+    const { provider, model } = this._getCodeProviderAndModel();
     try {
       const r = await fetch('/api/autocomplete', {
         method: 'POST',
@@ -1095,8 +1097,8 @@ class EditorMode {
           intent,
           language: this._currentLang || 'plaintext',
           file_path: this.activeTab || '',
-          provider: $('#provider-select').value,
-          model: $('#model-select').value,
+          provider,
+          model,
           max_tokens: maxTokens
         }),
         signal: controller.signal
@@ -1211,6 +1213,44 @@ class EditorMode {
     body.scrollTop = body.scrollHeight;
   }
 
+  _getCodeProviderAndModel() {
+    let model = '';
+    let provider = '';
+
+    // 1. Get model from window._envData['CODE_MODEL'] or config fallback
+    if (window._envData && window._envData['CODE_MODEL']) {
+      model = window._envData['CODE_MODEL'];
+    }
+
+    // 2. Fall back to current selected model in the main chat model picker
+    if (!model) {
+      model = $('#model-select')?.value || '';
+    }
+
+    // 3. Find the provider that has this model in window._providers
+    if (model) {
+      for (const [p, models] of Object.entries(window._providers || {})) {
+        if (models.some(m => m.id === model)) {
+          provider = p;
+          break;
+        }
+      }
+    }
+
+    // 4. If no provider could be determined, fallback to settings default provider or active provider
+    if (!provider) {
+      if (window._envData && window._envData['LLM_PROVIDER']) {
+        provider = window._envData['LLM_PROVIDER'];
+      } else if (window.settings && window.settings.default_provider) {
+        provider = window.settings.default_provider;
+      } else {
+        provider = $('#provider-select')?.value || 'ollama';
+      }
+    }
+
+    return { provider, model };
+  }
+
   // ---- Editor Chat (AI) ----
   async sendEditorChat() {
     const input = $('#editor-chat-input');
@@ -1220,13 +1260,15 @@ class EditorMode {
     // Hide any open popups
     this.hideFileRefPopup();
 
+    const { provider, model } = this._getCodeProviderAndModel();
+
     if (!this.editorSessionId) {
       try {
-        let model = $('#model-select').value;
-        if (!model && window._envData && window._envData['CODE_MODEL']) {
-          model = window._envData['CODE_MODEL'];
-        }
-        const r = await fetch('/chat/new', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ provider: $('#provider-select').value, model: model, preprompt: this._getAgentPreprompt() }) });
+        const r = await fetch('/chat/new', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ provider, model, preprompt: this._getAgentPreprompt() })
+        });
         const d = await r.json();
         this.editorSessionId = d.id;
         this.connectEditorSSE();
@@ -1281,7 +1323,7 @@ class EditorMode {
     try {
       await fetch('/send/' + this.editorSessionId, {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ message: enrichedMsg, provider: $('#provider-select').value, model: $('#model-select').value, preprompt: this._getAgentPreprompt(), active_project: this.projectPath, active_file: this.activeTab })
+        body: JSON.stringify({ message: enrichedMsg, provider, model, preprompt: this._getAgentPreprompt(), active_project: this.projectPath, active_file: this.activeTab })
       });
     } catch (e) { toast(ICONS.x(14) + ' Send error'); }
   }
@@ -1554,9 +1596,14 @@ class EditorMode {
     this.addEditorMsg('assistant', ' Analyzing project structure to generate context...');
     // Send a special message to AI to generate the context
     const msg = '/init — Please analyze the entire workspace file tree, identify the project type, main frameworks, dependencies, and architecture. Generate a comprehensive clawzd.md context file that describes this project for future AI interactions. Include: project overview, tech stack, directory structure, key files, and coding conventions.';
+    const { provider, model } = this._getCodeProviderAndModel();
     if (!this.editorSessionId) {
       try {
-        const r = await fetch('/chat/new', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ provider: $('#provider-select').value, model: $('#model-select').value, preprompt: this._getAgentPreprompt() }) });
+        const r = await fetch('/chat/new', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ provider, model, preprompt: this._getAgentPreprompt() })
+        });
         const d = await r.json();
         this.editorSessionId = d.id;
         this.connectEditorSSE();
@@ -1565,7 +1612,7 @@ class EditorMode {
     try {
       await fetch('/send/' + this.editorSessionId, {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ message: msg, provider: $('#provider-select').value, model: $('#model-select').value, preprompt: 'ide_developer', active_project: this.projectPath })
+        body: JSON.stringify({ message: msg, provider, model, preprompt: 'ide_developer', active_project: this.projectPath })
       });
     } catch (e) { toast(ICONS.x(14) + ' Send error'); }
   }
