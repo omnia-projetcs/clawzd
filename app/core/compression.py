@@ -391,12 +391,12 @@ async def _generate_structured_summary(
     # Call the LLM for summarization
     summary_parts = []
     try:
-        from app.core.llm_provider import get_llm_provider
+        from app.core.llm_provider import get_llm_provider, FINISH_STOP_SENTINEL
         llm = get_llm_provider(provider_key)
 
         async for chunk in llm.chat_stream([{"role": "user", "content": prompt}]):
             # chat_stream yields str tokens, not dicts
-            if chunk:
+            if chunk and chunk != FINISH_STOP_SENTINEL:
                 summary_parts.append(chunk)
     except Exception as e:
         logger.error("Failed to generate structured summary: %s", e)

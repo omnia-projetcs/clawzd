@@ -681,10 +681,11 @@ pre code .ln::before {
 .model-picker-dropdown {
   position: absolute; bottom: calc(100% + 6px); left: 0;
   min-width: 240px; max-height: 360px; overflow-y: auto;
-  background: var(--bg-elevated); border: 1px solid var(--border);
+  background: var(--bg-elevated) !important; border: 1px solid var(--border);
   border-radius: var(--radius-md); box-shadow: 0 16px 48px rgba(0,0,0,.7);
-  z-index: 9999; display: none; flex-direction: column;
+  z-index: 99999 !important; display: none; flex-direction: column;
   animation: dropUp .15s ease;
+  opacity: 1 !important;
 }
 .model-picker-dropdown.open { display: flex; }
 @keyframes dropUp { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: translateY(0); } }
@@ -2128,6 +2129,8 @@ pre code .ln::before {
 .editor-chat-hints {
   display: flex; align-items: center; gap: 4px;
   padding: 3px 8px 0; font-size: 10px; color: var(--text-muted);
+}
+.editor-chat-hints > div:first-child {
   opacity: .6;
 }
 .chat-hint-key {

@@ -476,6 +476,7 @@ _sse_queues: dict[str, asyncio.Queue] = {}
 _arena_queues: dict[str, asyncio.Queue] = {}
 _active_generations: dict[str, str] = {}
 _cancelled_sessions: set[str] = set()
+_generation_tasks: dict[str, asyncio.Task] = {}
 
 
 # --- Main page ---
@@ -1822,8 +1823,10 @@ async def _process_chat(session_id: str, data: dict) -> dict:
 
             _active_generations.pop(session_id, None)
             _sse_queues.pop(session_id, None)
+            _generation_tasks.pop(session_id, None)
 
-    asyncio.create_task(generate())
+    task = asyncio.create_task(generate())
+    _generation_tasks[session_id] = task
     return {"status": "processing", "session_id": session_id}
 
 
