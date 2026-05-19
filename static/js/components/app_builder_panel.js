@@ -34,11 +34,26 @@ const AppBuilderPanel = (() => {
   function init() {
     // Close any open card menu on outside click
     document.addEventListener('click', (e) => {
-      if (!e.target.closest('.ab-card-menu-wrap')) {
-        document.querySelectorAll('.ab-card-dropdown.open').forEach(d => {
-          d.classList.remove('open');
-          d.style.cssText = '';
-        });
+      if (!e.target.closest('.ab-card-menu-wrap') && !e.target.closest('.ab-card-dropdown')) {
+        _closeAllMenus();
+      }
+      // Close menu when a dropdown item is clicked (portaled to body)
+      if (e.target.closest('.ab-dd-item')) {
+        _closeAllMenus();
+      }
+    });
+  }
+
+  /** Close all portaled dropdown menus and return them to their original parent. */
+  function _closeAllMenus() {
+    document.querySelectorAll('.ab-card-dropdown.open').forEach(d => {
+      d.classList.remove('open');
+      d.style.cssText = '';
+      // Return portaled dropdown back to its original wrapper
+      const parentId = d.dataset.parentWrap;
+      if (parentId) {
+        const wrap = document.getElementById(parentId);
+        if (wrap) wrap.appendChild(d);
       }
     });
   }
@@ -116,9 +131,9 @@ const AppBuilderPanel = (() => {
         <div class="ab-card-body">
           <div class="ab-card-name" style="display:flex; justify-content:space-between; align-items:center;">
             <span>${esc(app.name || 'Untitled')}</span>
-            <div class="ab-card-menu-wrap">
+            <div class="ab-card-menu-wrap" id="ab-wrap-${app.id}">
               <button class="ab-card-menu-btn" onclick="AppBuilderPanel.toggleCardMenu(event, '${app.id}')" title="Actions">⋮</button>
-              <div class="ab-card-dropdown" id="ab-menu-${app.id}">
+              <div class="ab-card-dropdown" id="ab-menu-${app.id}" data-parent-wrap="ab-wrap-${app.id}">
                 <button class="ab-dd-item" onclick="AppBuilderPanel.preview('${app.id}')">${ICONS.eye(14)} <span>Preview</span></button>
                 <button class="ab-dd-item" onclick="AppBuilderPanel.showCode('${app.id}')">${ICONS.code(14)} <span>Edit Code</span></button>
                 <button class="ab-dd-item" onclick="AppBuilderPanel.showServices('${app.id}')">${ICONS.shield(14)} <span>Services</span></button>
@@ -957,15 +972,24 @@ const {columns, rows} = await res.json();</code></pre>
 
   function toggleCardMenu(event, appId) {
     event.stopPropagation();
-    // Close all other menus first
-    document.querySelectorAll('.ab-card-dropdown.open').forEach(d => {
-      d.classList.remove('open');
-      d.style.cssText = '';
-    });
+
     const menu = document.getElementById(`ab-menu-${appId}`);
     if (!menu) return;
 
-    // Use fixed positioning to escape overflow:hidden/auto clipping
+    // If the menu is already open, close it and return
+    if (menu.classList.contains('open')) {
+      _closeAllMenus();
+      return;
+    }
+
+    // Close all other menus first
+    _closeAllMenus();
+
+    // Portal the dropdown to document.body to escape overflow:hidden/auto
+    // on parent containers (skills-catalog-modal, #ab-body).
+    document.body.appendChild(menu);
+
+    // Position with fixed positioning relative to the button
     const btn = event.currentTarget;
     const rect = btn.getBoundingClientRect();
     const menuHeight = 320; // approximate height of the dropdown
@@ -979,16 +1003,14 @@ const {columns, rows} = await res.json();</code></pre>
     menu.style.zIndex = '9999';
 
     if (openUpward) {
-      // Open above the button
       menu.style.top = 'auto';
       menu.style.bottom = (viewportH - rect.top + 4) + 'px';
     } else {
-      // Open below the button (default)
       menu.style.top = (rect.bottom + 4) + 'px';
       menu.style.bottom = 'auto';
     }
 
-    menu.classList.toggle('open');
+    menu.classList.add('open');
   }
 
   function _timeAgo(iso) {

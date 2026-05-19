@@ -76,6 +76,12 @@ class SkillCatalog {
         }
       });
     }
+
+    // Refresh button
+    const btnRefresh = document.getElementById('skills-catalog-refresh');
+    if (btnRefresh) {
+      btnRefresh.addEventListener('click', () => this.refresh());
+    }
   }
 
   async open() {
@@ -246,6 +252,23 @@ class SkillCatalog {
     }
     if (countEl) {
       countEl.textContent = count;
+    }
+  }
+
+  async refresh() {
+    const btn = document.getElementById('skills-catalog-refresh');
+    if (btn) btn.classList.add('spin');
+    try {
+      if (this._activeFilter === 'application' && window.AppBuilderPanel) {
+        await window.AppBuilderPanel.open();
+      } else {
+        await this._loadSkills();
+      }
+      toast(`${ICONS.refresh ? ICONS.refresh(14) : ICONS.bolt(14)} Catalog refreshed`);
+    } catch (e) {
+      toast(ICONS.x(14) + ' Refresh failed');
+    } finally {
+      if (btn) btn.classList.remove('spin');
     }
   }
 

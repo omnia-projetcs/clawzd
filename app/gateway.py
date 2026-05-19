@@ -1068,8 +1068,12 @@ async def _process_chat(session_id: str, data: dict) -> dict:
             while round_num < MAX_TOOL_ROUNDS:
                 round_num += 1
                 round_response = ""
+                _finished_normally = False  # True when provider signals finish_reason=stop
 
                 t0_llm = time.perf_counter()
+
+                # Import the sentinel from the provider module
+                from app.core.llm_provider import FINISH_STOP_SENTINEL
 
                 # Stream the LLM response for this round
                 async for token in provider.chat_stream(current_messages, **kwargs):
@@ -1080,6 +1084,10 @@ async def _process_chat(session_id: str, data: dict) -> dict:
                         full_conversation += "\n\n*⏹️ Generation stopped by user.*"
                         await queue.put(None)
                         return
+                    # Intercept the finish sentinel (not a real token)
+                    if token == FINISH_STOP_SENTINEL:
+                        _finished_normally = True
+                        continue
                     # Filter out LLM stop/control tokens
                     if any(m in token for m in ["<|endoftext|>", "<|im_start|>", "<|im_end|>",
                                                  "<|eot_id|>", "</s>", "<|end|>"]):
@@ -1107,8 +1115,15 @@ async def _process_chat(session_id: str, data: dict) -> dict:
                 _active_generations[session_id] = full_conversation
 
                 # Check for truncation REGARDLESS of tool calls
+                # BUT skip if the provider explicitly signaled finish_reason=stop
+                if _finished_normally and _is_truncated(round_response):
+                    logger.debug(
+                        "Skipping continuation: _is_truncated=True but provider "
+                        "signaled finish_reason=stop (model completed normally)"
+                    )
                 continuation_round = 0
-                while _is_truncated(round_response) and continuation_round < MAX_CONTINUATION_ROUNDS:
+                while (not _finished_normally and _is_truncated(round_response)
+                       and continuation_round < MAX_CONTINUATION_ROUNDS):
                     continuation_round += 1
                     logger.info("Response truncated, auto-continuing (round %d)...", continuation_round)
 
@@ -1205,6 +1220,10 @@ async def _process_chat(session_id: str, data: dict) -> dict:
                             full_conversation += "\n\n*\u23f9\ufe0f Generation stopped by user.*"
                             await queue.put(None)
                             return
+                        # Intercept the finish sentinel
+                        if token == FINISH_STOP_SENTINEL:
+                            _finished_normally = True
+                            continue
                         # Filter out LLM stop/control tokens
                         if any(m in token for m in ["<|endoftext|>", "<|im_start|>", "<|im_end|>",
                                                      "<|eot_id|>", "</s>", "<|end|>"]):

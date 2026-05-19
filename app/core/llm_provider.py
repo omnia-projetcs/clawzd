@@ -420,6 +420,12 @@ def _messages_to_text_only(messages: list[dict]) -> list[dict]:
     return result
 
 
+# Sentinel token yielded at end of stream when the model finished normally
+# (finish_reason=stop / done=true).  The gateway uses this to skip the
+# _is_truncated heuristic and avoid spurious continuation rounds.
+FINISH_STOP_SENTINEL = "__FINISH_STOP__"
+
+
 class LLMProvider(ABC):
     """Abstract base class for all LLM providers."""
 
@@ -638,6 +644,7 @@ class OllamaLLM(LLMProvider):
                                     tokens += 1
                                     yield chunk_text
                             if data.get("done"):
+                                yield FINISH_STOP_SENTINEL
                                 break
                         except _json.JSONDecodeError:
                             continue
@@ -749,6 +756,7 @@ class OllamaLLM(LLMProvider):
                                     tokens += 1
                                     yield chunk_text
                             if data.get("done"):
+                                yield FINISH_STOP_SENTINEL
                                 break
                         except _json.JSONDecodeError:
                             continue
@@ -838,6 +846,8 @@ class AnthropicLLM(LLMProvider):
             async for text in stream.text_stream:
                 tokens += 1
                 yield text
+        # Anthropic streams always end with end_turn when complete
+        yield FINISH_STOP_SENTINEL
         logger.info("Anthropic [%s]: %d tokens in %.1fs", model, tokens, time.perf_counter() - t0)
 
 
@@ -928,6 +938,7 @@ class GoogleLLM(LLMProvider):
             if chunk.text:
                 tokens += 1
                 yield chunk.text
+        yield FINISH_STOP_SENTINEL
         logger.info("Google [%s]: %d tokens in %.1fs", model, tokens, time.perf_counter() - t0)
 
 
@@ -954,11 +965,16 @@ class GrokLLM(LLMProvider):
         stream = await self.client.chat.completions.create(
             model=model, messages=messages, stream=True, **kwargs
         )
+        _finish_reason = None
         async for chunk in stream:
             delta = chunk.choices[0].delta.content
             if delta:
                 tokens += 1
                 yield delta
+            if chunk.choices[0].finish_reason:
+                _finish_reason = chunk.choices[0].finish_reason
+        if _finish_reason == "stop":
+            yield FINISH_STOP_SENTINEL
         logger.info("Grok [%s]: %d tokens in %.1fs", model, tokens, time.perf_counter() - t0)
 
 
@@ -985,11 +1001,16 @@ class GroqLLM(LLMProvider):
         stream = await self.client.chat.completions.create(
             model=model, messages=messages, stream=True, **kwargs
         )
+        _finish_reason = None
         async for chunk in stream:
             delta = chunk.choices[0].delta.content
             if delta:
                 tokens += 1
                 yield delta
+            if chunk.choices[0].finish_reason:
+                _finish_reason = chunk.choices[0].finish_reason
+        if _finish_reason == "stop":
+            yield FINISH_STOP_SENTINEL
         logger.info("Groq [%s]: %d tokens in %.1fs", model, tokens, time.perf_counter() - t0)
 
 
@@ -1016,11 +1037,16 @@ class HuggingFaceLLM(LLMProvider):
         stream = await self.client.chat.completions.create(
             model=model, messages=messages, stream=True, **kwargs
         )
+        _finish_reason = None
         async for chunk in stream:
             delta = chunk.choices[0].delta.content
             if delta:
                 tokens += 1
                 yield delta
+            if chunk.choices[0].finish_reason:
+                _finish_reason = chunk.choices[0].finish_reason
+        if _finish_reason == "stop":
+            yield FINISH_STOP_SENTINEL
         logger.info("HuggingFace [%s]: %d tokens in %.1fs", model, tokens, time.perf_counter() - t0)
 
 
@@ -1047,11 +1073,16 @@ class MistralLLM(LLMProvider):
         stream = await self.client.chat.completions.create(
             model=model, messages=messages, stream=True, **kwargs
         )
+        _finish_reason = None
         async for chunk in stream:
             delta = chunk.choices[0].delta.content
             if delta:
                 tokens += 1
                 yield delta
+            if chunk.choices[0].finish_reason:
+                _finish_reason = chunk.choices[0].finish_reason
+        if _finish_reason == "stop":
+            yield FINISH_STOP_SENTINEL
         logger.info("Mistral [%s]: %d tokens in %.1fs", model, tokens, time.perf_counter() - t0)
 
 
@@ -1077,11 +1108,16 @@ class OpenAILLM(LLMProvider):
         stream = await self.client.chat.completions.create(
             model=model, messages=messages, stream=True, **kwargs
         )
+        _finish_reason = None
         async for chunk in stream:
             delta = chunk.choices[0].delta.content
             if delta:
                 tokens += 1
                 yield delta
+            if chunk.choices[0].finish_reason:
+                _finish_reason = chunk.choices[0].finish_reason
+        if _finish_reason == "stop":
+            yield FINISH_STOP_SENTINEL
         logger.info("OpenAI [%s]: %d tokens in %.1fs", model, tokens, time.perf_counter() - t0)
 
 
@@ -1109,11 +1145,16 @@ class OpenRouterLLM(LLMProvider):
         stream = await self.client.chat.completions.create(
             model=model, messages=messages, stream=True, **kwargs
         )
+        _finish_reason = None
         async for chunk in stream:
             delta = chunk.choices[0].delta.content
             if delta:
                 tokens += 1
                 yield delta
+            if chunk.choices[0].finish_reason:
+                _finish_reason = chunk.choices[0].finish_reason
+        if _finish_reason == "stop":
+            yield FINISH_STOP_SENTINEL
         logger.info("OpenRouter [%s]: %d tokens in %.1fs", model, tokens, time.perf_counter() - t0)
 
 
@@ -1189,9 +1230,12 @@ class VllmLLM(LLMProvider):
                 model=model, messages=messages, stream=True, **kwargs
             )
             _in_think = False
+            _finish_reason = None
             async for chunk in stream:
                 if chunk.choices and len(chunk.choices) > 0:
                     chunk_text = chunk.choices[0].delta.content
+                    if chunk.choices[0].finish_reason:
+                        _finish_reason = chunk.choices[0].finish_reason
                     if chunk_text:
                         # Filter <think>…</think> reasoning blocks
                         if _in_think:
@@ -1217,6 +1261,8 @@ class VllmLLM(LLMProvider):
                         else:
                             tokens += 1
                             yield chunk_text
+            if _finish_reason == "stop":
+                yield FINISH_STOP_SENTINEL
         except Exception as e:
             yield f"⚠️ **vLLM error:** {e}\n\nMake sure vLLM is running at `{self._current_host}`."
             return

@@ -1182,6 +1182,8 @@ pre code .ln::before {
 .skills-catalog-header-left { display: flex; flex-direction: column; gap: 2px; }
 .skills-catalog-header h2 { font-size: 18px; font-weight: 700; margin: 0; }
 .skills-catalog-subtitle { font-size: 11px; color: var(--text-muted); }
+#skills-catalog-refresh.spin .ic { animation: catalogSpin .6s linear infinite; }
+@keyframes catalogSpin { to { transform: rotate(360deg); } }
 
 /* Category tabs */
 .skills-catalog-tabs {
