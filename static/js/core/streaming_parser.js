@@ -35,6 +35,24 @@
     const blocks = [];
     function ph(html) { const k = '\x00BLK' + blocks.length + '\x00'; blocks.push(html); return k; }
 
+    // Format tool execution markers nicely
+    h = h.replace(/✅ \*Approved — executing `([^`]+)`\.\.\.\*/g, (_, tool) => {
+      return ph('<div class="tool-call-status success" style="margin:8px 0;padding:8px 12px;background:var(--bg-secondary);border-radius:6px;font-size:13px;display:flex;align-items:center;gap:8px;color:var(--success);border:1px solid var(--border);"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="color:var(--success);"><polyline points="20 6 9 17 4 12"></polyline></svg> Approved — executing <strong>' + escHtml(tool) + '</strong>...</div>');
+    });
+
+    h = h.replace(/⚡ \*Executing `([^`]+)`\.\.\.\*/g, (_, tool) => {
+      return ph('<div class="tool-call-status" style="margin:8px 0;padding:8px 12px;background:var(--bg-secondary);border-radius:6px;font-size:13px;display:flex;align-items:center;gap:8px;color:var(--text-secondary);border:1px solid var(--border);"><span class="tool-spinner" style="display:inline-block;width:12px;height:12px;border:2px solid var(--accent);border-right-color:transparent;border-radius:50%;animation:spin 1s linear infinite;"></span> Executing <strong>' + escHtml(tool) + '</strong>...</div>');
+    });
+
+    h = h.replace(/⚡ \*`([^`]+)` → `([^`]+)`\* —/g, (_, tool, dest) => {
+      return ph('<div class="tool-call-status" style="margin:8px 0;padding:8px 12px;background:var(--bg-secondary);border-radius:6px;font-size:13px;display:flex;align-items:center;gap:8px;color:var(--text-secondary);border:1px solid var(--border);"><span class="tool-spinner" style="display:inline-block;width:12px;height:12px;border:2px solid var(--accent);border-right-color:transparent;border-radius:50%;animation:spin 1s linear infinite;"></span> Routing <strong>' + escHtml(tool) + '</strong> → <strong>' + escHtml(dest) + '</strong>...</div>');
+    });
+
+    h = h.replace(/✅ \*Done\.\*/g, () => {
+      return ph('<div class="tool-call-status success" style="margin:4px 0 12px 0;color:var(--success);font-size:12px;display:flex;align-items:center;gap:6px;"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="20 6 9 17 4 12"></polyline></svg> Done.</div>');
+    });
+
+
     // Tool/thinking blocks → simple collapsible (no complex JSON parsing)
     const toolFenceRe = /```(tool_call|tool|json|execute_python|search_web|screenshot_remote|screenshot_local|generate_image|run_command|browse_web|audit_code|rag_search|create_app|update_app|analyze_data|fetch_market_data)\s*\n([\s\S]*?)(?:```|$)/g;
     h = h.replace(toolFenceRe, (match, toolLabel, content) => {
@@ -163,10 +181,7 @@
     h = h.replace(/<br>\s*(<\/?(?:ul|ol|li|h[2-4]|hr|blockquote|div|pre|details|summary))/g, '$1');
     h = h.replace(/(<\/(?:ul|ol|li|h[2-4]|blockquote|div|pre|details|summary)>)\s*<br>/g, '$1');
 
-    // Format tool execution markers nicely
-    h = h.replace(/⚡ \*Executing <code>([^<]+)<\/code>\.\.\.\*/g, '<div class="tool-call-status" style="margin:8px 0;padding:8px 12px;background:var(--bg-secondary);border-radius:6px;font-size:13px;display:flex;align-items:center;gap:8px;color:var(--text-secondary);border:1px solid var(--border);"><span class="tool-spinner" style="display:inline-block;width:12px;height:12px;border:2px solid var(--accent);border-right-color:transparent;border-radius:50%;animation:spin 1s linear infinite;"></span> Executing <strong>$1</strong>...</div>');
-    h = h.replace(/⚡ \*<code>([^<]+)<\/code> → <code>([^<]+)<\/code>\* —/g, '<div class="tool-call-status" style="margin:8px 0;padding:8px 12px;background:var(--bg-secondary);border-radius:6px;font-size:13px;display:flex;align-items:center;gap:8px;color:var(--text-secondary);border:1px solid var(--border);"><span class="tool-spinner" style="display:inline-block;width:12px;height:12px;border:2px solid var(--accent);border-right-color:transparent;border-radius:50%;animation:spin 1s linear infinite;"></span> Routing <strong>$1</strong> → <strong>$2</strong>...</div>');
-    h = h.replace(/✅ \*Done\.\*/g, '<div class="tool-call-status success" style="margin:4px 0 12px 0;color:var(--success);font-size:12px;display:flex;align-items:center;gap:6px;"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="20 6 9 17 4 12"></polyline></svg> Done.</div>');
+
 
     // Render basic IMG/SVG tags during streaming
     h = h.replace(/__IMG__([^|]+)\|([^|]+)\|(.+?)__IMG__/g, (_, url, label) => {
