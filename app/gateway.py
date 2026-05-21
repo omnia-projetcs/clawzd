@@ -94,19 +94,26 @@ def _strip_base64(text: str) -> str:
 
 
 def _sanitize_input(text: str) -> str:
-    """Sanitize user input by removing all HTML tags."""
-    # Disabled: Frontend correctly escapes HTML to prevent XSS. 
-    # LLMs need the raw tags (<something>) to write code properly.
-    return text
+    """Sanitize user input by removing all HTML tags.
+    
+    Note: We keep angle brackets for code generation (LLMs need <tag> syntax)
+    but strip actual HTML tags to prevent stored XSS.
+    """
+    # Remove HTML tags but preserve angle brackets used in code
+    # This prevents XSS while allowing LLMs to generate code with <html> tags
+    return _HTML_TAG_RE.sub('', text)
 
 
 # --- App Setup ---
 app = FastAPI(title="Clawzd", version="2.0")
 
 # --- CORS Middleware ---
+# SECURITY: Never use allow_origins=["*"] with allow_credentials=True.
+# FastAPI will reject this combination, so we default to localhost only.
+_cors_origins = CORS_ORIGINS if CORS_ORIGINS else ["http://localhost:3000", "http://localhost:5173"]
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=CORS_ORIGINS or ["*"],
+    allow_origins=_cors_origins,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],

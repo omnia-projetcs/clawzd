@@ -124,7 +124,7 @@ def _do_search(query: str, max_results: int) -> list:
         try:
             from app.web_lightpanda import lightpanda_search
             logger.info("DDG empty → trying Lightpanda headless fallback for '%s'", query[:60])
-            lp_results = asyncio.run(lightpanda_search(query, max_results))
+            lp_results = await lightpanda_search(query, max_results)
             _add_unique(lp_results)
             logger.info("Lightpanda returned %d results", len(lp_results))
         except Exception as e:

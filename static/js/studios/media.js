@@ -220,6 +220,7 @@ class MediaStudio {
           case 'convert_webm': this.convertVideo('webm'); break;
           case 'remove_bg': this.removeBgSelected(); break;
           case 'make_coloring': this.makeColoringSelected(); break;
+          case 'add_subtitles': this.openSubtitlesModal(); break;
           case 'download_zip': this.downloadZip(); break;
         }
       });
@@ -340,6 +341,15 @@ class MediaStudio {
     });
 
     if (rmbgApply) rmbgApply.addEventListener('click', () => this._applyRembg());
+
+    // Subtitles Modal Events
+    const subsClose = $('#media-subtitles-close');
+    const subsCancel = $('#media-subtitles-cancel-btn');
+    const subsApply = $('#media-subtitles-apply-btn');
+
+    if (subsClose) subsClose.addEventListener('click', () => this.closeSubtitlesModal());
+    if (subsCancel) subsCancel.addEventListener('click', () => this.closeSubtitlesModal());
+    if (subsApply) subsApply.addEventListener('click', () => this.applySubtitles());
   }
 
   _updateFormVisibility() {
@@ -735,7 +745,7 @@ class MediaStudio {
         format: img.format,
         prompt: img.prompt || '',
         url: `/data/images/${img.filename}`,
-        isVideo: ['gif', 'mp4'].includes(img.format),
+        isVideo: ['gif', 'mp4', 'webm'].includes(img.format),
         isSvg: img.format === 'svg',
         isAudio: false,
       }));
@@ -895,7 +905,7 @@ class MediaStudio {
             playBtn.classList.remove('playing');
           });
         }
-      } else if (item.isVideo && item.format === 'mp4') {
+      } else if (item.isVideo && (item.format === 'mp4' || item.format === 'webm')) {
         const vid = el('video', { src: item.url, muted: 'true', loop: 'true', preload: 'metadata' });
         vid.addEventListener('mouseenter', () => vid.play());
         vid.addEventListener('mouseleave', () => { vid.pause(); vid.currentTime = 0; });
@@ -913,7 +923,7 @@ class MediaStudio {
       }
 
       // Badge for special formats (Images/Video only — audio has its own badges)
-      if (!item.isAudio && ['gif', 'mp4', 'svg'].includes(item.format)) {
+      if (!item.isAudio && ['gif', 'mp4', 'webm', 'svg'].includes(item.format)) {
         card.insertAdjacentHTML('beforeend', `<div class="media-card-badge ${item.format}">${item.format.toUpperCase()}</div>`);
       }
 
@@ -1653,6 +1663,85 @@ class MediaStudio {
     }
   }
 
+  openSubtitlesModal() {
+    const files = [...this.selected].filter(f => {
+      const l = f.toLowerCase();
+      return l.endsWith('.mp4') || l.endsWith('.webm');
+    });
+    if (!files.length) {
+      toast((window.icon ? window.icon('circle', 14) : '⚪') + ' Please select a video (.mp4 or .webm) first');
+      return;
+    }
+    const videoFile = files[0];
+    this._currentSubtitleFile = videoFile;
+
+    const modal = $('#media-subtitles-modal');
+    const video = $('#media-subtitles-preview-video');
+    if (video) {
+      video.src = `/data/images/${videoFile}`;
+      video.load();
+    }
+    if (modal) modal.classList.add('open');
+  }
+
+  closeSubtitlesModal() {
+    const modal = $('#media-subtitles-modal');
+    if (modal) modal.classList.remove('open');
+    const video = $('#media-subtitles-preview-video');
+    if (video) {
+      video.pause();
+      video.removeAttribute('src');
+      video.load();
+    }
+    this._currentSubtitleFile = null;
+  }
+
+  async applySubtitles() {
+    if (!this._currentSubtitleFile) return;
+    const btn = $('#media-subtitles-apply-btn');
+    const cancelBtn = $('#media-subtitles-cancel-btn');
+    const loading = $('#media-subtitles-loading');
+
+    btn.disabled = true;
+    cancelBtn.disabled = true;
+    if (loading) loading.style.display = 'block';
+
+    const style = $('#subtitles-style')?.value || 'classic';
+    const language = $('#subtitles-language')?.value || 'auto';
+    const font_size = $('#subtitles-font-size')?.value || 24;
+    const position = $('#subtitles-position')?.value || 'bottom';
+
+    try {
+      const r = await fetch('/image/add-subtitles', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          filename: this._currentSubtitleFile,
+          style,
+          language,
+          font_size,
+          position
+        })
+      });
+
+      if (!r.ok) {
+        const err = await r.json();
+        throw new Error(err.detail || 'Erreur de génération');
+      }
+
+      toast((window.icon ? window.icon('check', 14) : '✅') + ' Sous-titres ajoutés avec succès !');
+      this.selected.clear();
+      this.closeSubtitlesModal();
+      await this.loadGallery();
+    } catch (e) {
+      toast((window.icon ? window.icon('x', 14) : '❌') + ' Erreur : ' + e.message);
+    } finally {
+      btn.disabled = false;
+      cancelBtn.disabled = false;
+      if (loading) loading.style.display = 'none';
+    }
+  }
+
   async convertVideo(targetFormat) {
     const files = [...this.selected];
     if (files.length === 0) {
@@ -1743,7 +1832,7 @@ class MediaStudio {
           <div class="media-lb-audio-name">${escHtml(item.filename)}</div>
           <audio controls autoplay src="${item.url}" style="width:100%;max-width:500px;margin-top:16px;"></audio>
         </div>`;
-    } else if (item.isVideo && item.format === 'mp4') {
+    } else if (item.isVideo && (item.format === 'mp4' || item.format === 'webm')) {
       const vid = el('video', { src: item.url, controls: 'true', autoplay: 'true', loop: 'true' });
       content.appendChild(vid);
     } else {

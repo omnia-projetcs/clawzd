@@ -26,6 +26,7 @@ logger = logging.getLogger("clawzd.browser")
 
 _browser = None
 _page = None
+_playwright_instance = None  # Track Playwright instance for proper cleanup
 
 # Maximum text size returned per action to avoid LLM context overflow
 _MAX_TEXT = 8_000
@@ -39,12 +40,14 @@ _MAX_ACTIONS = 20
 
 async def _ensure_browser():
     """Lazy-initialize a persistent Playwright browser + page."""
-    global _browser, _page
+    global _browser, _page, _playwright_instance
     if _browser is not None and _page is not None:
         return _page
     try:
         from playwright.async_api import async_playwright
-        pw = await async_playwright().start()
+        if _playwright_instance is None:
+            _playwright_instance = await async_playwright().start()
+        pw = _playwright_instance
         _browser = await pw.chromium.launch(headless=True)
         context = await _browser.new_context(
             user_agent=(
@@ -67,14 +70,25 @@ async def _ensure_browser():
 
 async def close_browser_instance():
     """Close the browser instance and free resources."""
-    global _browser, _page
+    global _browser, _page, _playwright_instance
+    if _page:
+        try:
+            await _page.close()
+        except Exception:
+            pass
+        _page = None
     if _browser:
         try:
             await _browser.close()
         except Exception:
             pass
         _browser = None
-        _page = None
+    if _playwright_instance:
+        try:
+            await _playwright_instance.stop()
+        except Exception:
+            pass
+        _playwright_instance = None
 
 
 # ---------------------------------------------------------------------------

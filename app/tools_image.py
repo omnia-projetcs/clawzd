@@ -2308,7 +2308,7 @@ def _find_duplicates(filepath: str, directory: str) -> list[str]:
     except Exception:
         return []
     duplicates = []
-    exts = (".png", ".jpg", ".svg", ".gif", ".mp4")
+    exts = (".png", ".jpg", ".webp", ".svg", ".gif", ".mp4", ".webm")
     for f in os.listdir(directory):
         if not f.endswith(exts):
             continue
@@ -2321,6 +2321,7 @@ def _find_duplicates(filepath: str, directory: str) -> list[str]:
         except Exception:
             continue
     return duplicates
+
 
 
 def _image_used_in_presentations(filename: str) -> bool:
@@ -2399,7 +2400,7 @@ async def upload_image(request: Request):
 
         # --- Duplicate check: hash the uploaded content ---
         upload_hash = hashlib.md5(content).hexdigest()
-        exts = (".png", ".jpg", ".svg", ".gif", ".mp4", ".webp")
+        exts = (".png", ".jpg", ".svg", ".gif", ".mp4", ".webp", ".webm")
         if os.path.exists(IMAGES_DIR):
             for existing in os.listdir(IMAGES_DIR):
                 if not existing.endswith(exts):
@@ -2443,7 +2444,7 @@ async def list_images():
             # Skip marker/meta files
             if f.endswith((".gallery-hidden", ".txt")):
                 continue
-            if f.endswith((".png", ".jpg", ".svg", ".gif", ".mp4")):
+            if f.endswith((".png", ".jpg", ".webp", ".svg", ".gif", ".mp4", ".webm")):
                 filepath = os.path.join(IMAGES_DIR, f)
 
                 # Skip images hidden from gallery (still used in presentations)
@@ -2469,6 +2470,8 @@ async def list_images():
                     fmt = "gif"
                 elif f.endswith(".mp4"):
                     fmt = "mp4"
+                elif f.endswith(".webm"):
+                    fmt = "webm"
                 else:
                     fmt = "png"
                 prompt_text = ""
@@ -2636,6 +2639,185 @@ async def convert_video(request: Request):
         raise HTTPException(500, f"Video conversion failed: {e}")
 
 
+def format_ass_timestamp(seconds: float) -> str:
+    """Format seconds into ASS subtitle format: h:mm:ss.cs (where cs is centiseconds)."""
+    h = int(seconds // 3600)
+    m = int((seconds % 3600) // 60)
+    s = int(seconds % 60)
+    cs = int(round((seconds % 1) * 100))
+    if cs == 100:
+        s += 1
+        cs = 0
+        if s == 60:
+            m += 1
+            s = 0
+            if m == 60:
+                h += 1
+                m = 0
+    return f"{h}:{m:02d}:{s:02d}.{cs:02d}"
+
+
+@router.post("/add-subtitles")
+async def add_subtitles(request: Request):
+    """Transcribe video audio using local Whisper model and burn subtitles with visual styles using FFmpeg."""
+    data = await request.json()
+    filename = data.get("filename", "")
+    style = data.get("style", "classic").lower()
+    language = data.get("language", "auto").lower()
+    font_size = int(data.get("font_size", 24))
+    position = data.get("position", "bottom").lower()
+
+    if not filename:
+        raise HTTPException(400, "filename is required")
+
+    input_path = os.path.join(IMAGES_DIR, os.path.basename(filename))
+    if not os.path.exists(input_path):
+        raise HTTPException(404, f"File not found: {filename}")
+
+    import tempfile
+    import whisper
+    import subprocess
+    import asyncio
+
+    base_name, ext = os.path.splitext(os.path.basename(filename))
+    ext = ext.lower()
+    if ext not in (".mp4", ".webm", ".gif"):
+        raise HTTPException(400, "Only video formats (.mp4, .webm, .gif) are supported")
+
+    out_ext = ".mp4" if ext == ".gif" else ext
+    out_filename = f"{base_name}_subbed{out_ext}"
+    out_filepath = os.path.join(IMAGES_DIR, out_filename)
+
+    # 1. Transcribe using Whisper
+    global _whisper_model
+    try:
+        from app.gateway import _whisper_model as gateway_whisper
+    except ImportError:
+        gateway_whisper = None
+
+    if gateway_whisper is not None:
+        _whisper_model = gateway_whisper
+
+    if _whisper_model is None:
+        try:
+            logger.info("Loading local Whisper model (base) for subtitles...")
+            _whisper_model = whisper.load_model("base")
+        except Exception as e:
+            logger.error("Failed to load Whisper model: %s", e)
+            raise HTTPException(500, f"Failed to load Whisper model: {e}")
+
+    try:
+        kwargs = {}
+        if language != "auto":
+            kwargs["language"] = language
+
+        logger.info("Starting Whisper transcription of %s (lang=%s)", filename, language)
+        result = await asyncio.to_thread(_whisper_model.transcribe, input_path, **kwargs)
+        segments = result.get("segments", [])
+        if not segments:
+            raise HTTPException(400, "Aucune parole détectée dans la vidéo pour y ajouter des sous-titres.")
+
+        logger.info("Transcription complete. Found %d segments.", len(segments))
+
+        # Map position to ASS alignment (numpad-style: 2 = bottom, 5 = middle, 8 = top)
+        align_map = {"bottom": 2, "middle": 5, "top": 8}
+        default_align = 5 if style == "tiktok" else 2
+        align_val = align_map.get(position, default_align)
+
+        # 2. Build Advanced SubStation Alpha (.ass) subtitle file
+        styles_definition = ""
+        if style == "karaoke":
+            # Bold yellow text with black outline at bottom
+            styles_definition = f"Style: Default,Trebuchet MS,{font_size},&H0000FFFF,&H000000FF,&H00000000,&H00000000,-1,0,0,0,100,100,0,0,1,3,1,{align_val},10,10,15,1"
+        elif style == "boxed":
+            # Boxed: white text on semi-transparent background box at bottom
+            styles_definition = f"Style: Default,Arial,{font_size},&H00FFFFFF,&H000000FF,&H00000000,&H80000000,0,0,0,0,100,100,0,0,3,0,0,{align_val},10,10,10,1"
+        elif style == "neon":
+            # Neon: Neon green text with neon purple/magenta outline
+            styles_definition = f"Style: Default,Arial Black,{font_size},&H0000FF00,&H000000FF,&H00FF00FF,&H00000000,-1,0,0,0,100,100,0,0,1,3,0,{align_val},10,10,12,1"
+        elif style == "tiktok":
+            # Large bold yellow text centered in the middle of screen
+            styles_definition = f"Style: Default,Arial,{int(font_size * 1.5)},&H0000FFFF,&H000000FF,&H00000000,&H00000000,-1,0,0,0,100,100,0,0,1,4,2,{align_val},10,10,10,1"
+        else: # classic
+            # Bold white text, black outline, bottom
+            styles_definition = f"Style: Default,Arial,{font_size},&H00FFFFFF,&H000000FF,&H00000000,&H00000000,-1,0,0,0,100,100,0,0,1,2,1,{align_val},10,10,10,1"
+
+        ass_header = f"""[Script Info]
+Title: Subtitles
+ScriptType: v4.00+
+WrapStyle: 0
+PlayResX: 1280
+PlayResY: 720
+
+[V4+ Styles]
+Format: Name, Fontname, Fontsize, PrimaryColour, SecondaryColour, OutlineColour, BackColour, Bold, Italic, Underline, StrikeOut, ScaleX, ScaleY, Spacing, Angle, BorderStyle, Outline, Shadow, Alignment, MarginL, MarginR, MarginV, Encoding
+{styles_definition}
+
+[Events]
+Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
+"""
+        
+        dialogue_lines = []
+        for seg in segments:
+            start_str = format_ass_timestamp(seg["start"])
+            end_str = format_ass_timestamp(seg["end"])
+            text = seg["text"].strip().replace("\n", " ")
+            dialogue_lines.append(f"Dialogue: 0,{start_str},{end_str},Default,,0,0,0,,{text}")
+
+        ass_content = ass_header + "\n".join(dialogue_lines) + "\n"
+
+        with tempfile.NamedTemporaryFile(mode="w", suffix=".ass", delete=False, encoding="utf-8") as temp_ass:
+            temp_ass.write(ass_content)
+            temp_ass_path = temp_ass.name
+
+        logger.info("Temporary ASS subtitle file written to %s", temp_ass_path)
+
+        # 3. Use FFmpeg to hardcode the subtitles into the video
+        escaped_ass = temp_ass_path.replace("'", "'\\\\''").replace(":", "\\:")
+        
+        cmd = [
+            "ffmpeg", "-y", "-i", input_path,
+            "-vf", f"subtitles='{escaped_ass}'",
+            "-c:a", "copy",
+            out_filepath
+        ]
+
+        logger.info("Executing FFmpeg subtitling command: %s", " ".join(cmd))
+        result_sp = await asyncio.to_thread(
+            subprocess.run, cmd, capture_output=True, text=True
+        )
+
+        if os.path.exists(temp_ass_path):
+            os.remove(temp_ass_path)
+
+        if result_sp.returncode != 0:
+            logger.error("FFmpeg subtitles injection failed: %s", result_sp.stderr)
+            raise RuntimeError(f"FFmpeg subtitles injection failed: {result_sp.stderr}")
+
+        logger.info("Subtitled video successfully generated at %s", out_filepath)
+
+        txt_path = input_path + ".txt"
+        prompt_text = "Vidéo avec sous-titres"
+        if os.path.exists(txt_path):
+            with open(txt_path, "r", encoding="utf-8") as f:
+                prompt_text = f.read().strip()
+        with open(out_filepath + ".txt", "w", encoding="utf-8") as f:
+            f.write(f"{prompt_text} (Sous-titres style: {style})")
+
+        return {
+            "status": "ok",
+            "filename": out_filename,
+            "url": f"/data/images/{out_filename}",
+            "format": out_ext.replace(".", ""),
+            "prompt": f"{prompt_text} (Sous-titres style: {style})"
+        }
+
+    except Exception as e:
+        logger.error("Failed to generate subtitles: %s", e, exc_info=True)
+        raise HTTPException(500, f"Génération des sous-titres échouée: {e}")
+
+
+
 
 @router.delete("/delete")
 async def delete_image(request: Request):
@@ -2729,7 +2911,7 @@ async def download_gallery_zip(request: Request):
         requested = []
         if os.path.exists(IMAGES_DIR):
             for f in sorted(os.listdir(IMAGES_DIR)):
-                if f.endswith((".png", ".jpg", ".webp", ".svg", ".gif", ".mp4")):
+                if f.endswith((".png", ".jpg", ".webp", ".svg", ".gif", ".mp4", ".webm")):
                     requested.append(f)
 
     if not requested:

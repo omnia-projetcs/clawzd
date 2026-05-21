@@ -54,14 +54,17 @@ def _resolve_ollama_max_concurrent() -> int:
         return 1
 
 _ollama_inference_semaphore: asyncio.Semaphore | None = None
+_ollama_semaphore_lock = asyncio.Lock()
 
-def _get_ollama_semaphore() -> asyncio.Semaphore:
+async def _get_ollama_semaphore() -> asyncio.Semaphore:
     """Lazy-init the semaphore (must be created inside a running event loop)."""
     global _ollama_inference_semaphore
     if _ollama_inference_semaphore is None:
-        _ollama_inference_semaphore = asyncio.Semaphore(_resolve_ollama_max_concurrent())
-        logger.info("Ollama concurrency guard initialized (max_concurrent=%d)",
-                    _resolve_ollama_max_concurrent())
+        async with _ollama_semaphore_lock:
+            if _ollama_inference_semaphore is None:
+                _ollama_inference_semaphore = asyncio.Semaphore(_resolve_ollama_max_concurrent())
+                logger.info("Ollama concurrency guard initialized (max_concurrent=%d)",
+                            _resolve_ollama_max_concurrent())
     return _ollama_inference_semaphore
 
 # --- Available models per provider ---
@@ -510,7 +513,7 @@ class OllamaLLM(LLMProvider):
     async def chat_stream(self, messages, model=None, **kwargs):
         # Acquire the global semaphore to prevent concurrent Ollama inferences
         # that crash remote servers by saturating VRAM.
-        sem = _get_ollama_semaphore()
+        sem = await _get_ollama_semaphore()
         if sem.locked():
             logger.info("Ollama semaphore busy — queuing request (model=%s)", model or OLLAMA_MODEL)
         async with sem:
@@ -519,7 +522,7 @@ class OllamaLLM(LLMProvider):
 
     async def chat(self, messages: list[dict], **kwargs) -> str:
         """Non-streaming wrapper with semaphore guard."""
-        sem = _get_ollama_semaphore()
+        sem = await _get_ollama_semaphore()
         if sem.locked():
             logger.info("Ollama semaphore busy — queuing chat request")
         async with sem:

@@ -182,6 +182,32 @@ _pending_approvals: dict[str, PendingApproval] = {}
 APPROVAL_TIMEOUT = 120
 
 
+async def _cleanup_expired_approvals():
+    """Periodically clean up expired approvals to prevent memory leaks."""
+    while True:
+        await asyncio.sleep(60)  # Check every minute
+        now = time.time()
+        expired_ids = [
+            aid for aid, approval in _pending_approvals.items()
+            if (now - approval.created_at) > APPROVAL_TIMEOUT
+        ]
+        for aid in expired_ids:
+            approval = _pending_approvals.pop(aid, None)
+            if approval and not approval.event.is_set():
+                approval.approved = False
+                approval.event.set()
+                logger.warning("Cleaned up expired approval: %s", aid)
+
+
+def start_approval_cleanup():
+    """Start the background task to clean up expired approvals."""
+    try:
+        loop = asyncio.get_running_loop()
+        loop.create_task(_cleanup_expired_approvals())
+    except RuntimeError:
+        pass  # No running loop yet — will be started later
+
+
 async def request_approval(
     session_id: str,
     tool_name: str,

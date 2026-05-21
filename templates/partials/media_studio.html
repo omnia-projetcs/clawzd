@@ -541,6 +541,7 @@
           <optgroup label="Actions">
             <option value="remove_bg">🎨 Remove BG</option>
             <option value="make_coloring">🖍️ Crayons</option>
+            <option value="add_subtitles">💬 Add Subtitles</option>
             <option value="download_zip">📦 Download ZIP</option>
           </optgroup>
         </select>
@@ -726,6 +727,124 @@
     .media-rembg-btn.apply:hover {
         background: var(--accent-hover);
     }
+
+    .media-subtitles-modal {
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        background: rgba(0, 0, 0, 0.85);
+        z-index: 10000;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        opacity: 0;
+        pointer-events: none;
+        transition: opacity var(--transition);
+        backdrop-filter: blur(8px);
+        -webkit-backdrop-filter: blur(8px);
+    }
+
+    .media-subtitles-modal.open {
+        opacity: 1;
+        pointer-events: auto;
+    }
+
+    .media-subtitles-content {
+        background: var(--bg-primary);
+        border: 1px solid var(--border);
+        border-radius: var(--radius-lg);
+        width: 900px;
+        max-width: 95vw;
+        height: 600px;
+        max-height: 90vh;
+        display: flex;
+        overflow: hidden;
+        box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5);
+    }
+
+    .media-subtitles-preview-area {
+        flex: 1;
+        background: #111;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        position: relative;
+        padding: 20px;
+        border-right: 1px solid var(--border);
+    }
+
+    .media-subtitles-preview-area video {
+        max-width: 100%;
+        max-height: 100%;
+        object-fit: contain;
+    }
+
+    .media-subtitles-controls {
+        width: 320px;
+        display: flex;
+        flex-direction: column;
+        background: var(--bg-secondary);
+    }
+
+    .media-subtitles-header {
+        padding: 16px 20px;
+        border-bottom: 1px solid var(--border);
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+    }
+
+    .media-subtitles-header h3 {
+        margin: 0;
+        font-size: 16px;
+        color: var(--text-primary);
+    }
+
+    .media-subtitles-body {
+        padding: 20px;
+        flex: 1;
+        overflow-y: auto;
+        display: flex;
+        flex-direction: column;
+        gap: 16px;
+    }
+
+    .media-subtitles-footer {
+        padding: 16px 20px;
+        border-top: 1px solid var(--border);
+        display: flex;
+        gap: 12px;
+    }
+
+    .media-subtitles-btn {
+        flex: 1;
+        padding: 10px;
+        border: none;
+        border-radius: var(--radius-sm);
+        cursor: pointer;
+        font-weight: 500;
+        transition: background 0.2s;
+    }
+
+    .media-subtitles-btn.cancel {
+        background: var(--bg-tertiary);
+        color: var(--text-primary);
+    }
+
+    .media-subtitles-btn.cancel:hover {
+        background: var(--border);
+    }
+
+    .media-subtitles-btn.apply {
+        background: var(--accent);
+        color: white;
+    }
+
+    .media-subtitles-btn.apply:hover {
+        background: var(--accent-hover);
+    }
 </style>
 <!-- Remove BG Modal -->
 <div class="media-rembg-modal" id="media-rembg-modal">
@@ -841,3 +960,92 @@
     </div>
   </div>
 </div>
+
+<!-- Subtitles Modal -->
+<div class="media-subtitles-modal" id="media-subtitles-modal">
+  <div class="media-subtitles-content">
+    <div class="media-subtitles-preview-area">
+      <video id="media-subtitles-preview-video" src="" controls muted></video>
+      <div id="media-subtitles-loading"
+           style="display:none;
+                  position:absolute;
+                  top:50%;
+                  left:50%;
+                  transform:translate(-50%,-50%);
+                  background:rgba(0,0,0,0.85);
+                  color:white;
+                  padding:16px 28px;
+                  border-radius:12px;
+                  font-weight:bold;
+                  text-align:center;
+                  backdrop-filter:blur(8px);
+                  border:1px solid rgba(255,255,255,0.1);
+                  box-shadow: 0 10px 25px rgba(0,0,0,0.5);
+                  z-index: 10;">
+        <div style="font-size:16px; margin-bottom:8px;">🎙️ Détection & Transcription...</div>
+        <div style="font-size:12px; color:var(--accent); font-weight:normal;">Cela peut prendre de 10 à 30 secondes selon la durée de la vidéo.</div>
+      </div>
+    </div>
+    <div class="media-subtitles-controls">
+      <div class="media-subtitles-header">
+        <h3>💬 Sous-titres Automatiques</h3>
+        <button class="media-lightbox-close"
+                id="media-subtitles-close"
+                style="position:static;
+                       width:32px;
+                       height:32px">
+          <span class="media-icon" data-icon="x" style="margin:0;"></span>
+        </button>
+      </div>
+      <div class="media-subtitles-body">
+        <div class="media-form-group">
+          <label class="media-form-label">Style de sous-titres</label>
+          <select class="media-form-select" id="subtitles-style">
+            <option value="classic" selected>Classique (Texte blanc bordure noire)</option>
+            <option value="karaoke">Karaoké (Texte jaune gras impactant)</option>
+            <option value="boxed">Encadré (Texte sur fond noir translucide)</option>
+            <option value="neon">Cyberpunk (Vert fluo avec contours roses)</option>
+            <option value="tiktok">Reels / TikTok (Grand texte jaune centré)</option>
+          </select>
+        </div>
+        <div class="media-form-group">
+          <label class="media-form-label">Position des sous-titres</label>
+          <select class="media-form-select" id="subtitles-position">
+            <option value="bottom" selected>En bas (Recommandé)</option>
+            <option value="middle">Au milieu (Style TikTok)</option>
+            <option value="top">En haut</option>
+          </select>
+        </div>
+        <div class="media-form-group">
+          <label class="media-form-label">Langue de l'audio</label>
+          <select class="media-form-select" id="subtitles-language">
+            <option value="auto" selected>Auto-détection (Whisper)</option>
+            <option value="fr">Français</option>
+            <option value="en">Anglais</option>
+            <option value="es">Espagnol</option>
+            <option value="de">Allemand</option>
+            <option value="it">Italien</option>
+          </select>
+        </div>
+        <div class="media-form-group">
+          <div style="display:flex;justify-content:space-between;margin-bottom:4px;">
+            <label class="media-form-label" style="margin:0">Taille de police</label>
+            <span id="subtitles-font-size-val" style="font-size:12px;color:var(--accent)">24px</span>
+          </div>
+          <input type="range"
+                 class="media-form-range"
+                 id="subtitles-font-size"
+                 min="12"
+                 max="48"
+                 value="24"
+                 oninput="document.getElementById('subtitles-font-size-val').textContent = this.value + 'px'">
+        </div>
+      </div>
+      <div class="media-subtitles-footer">
+        <button class="media-subtitles-btn cancel" id="media-subtitles-cancel-btn">Annuler</button>
+        <button class="media-subtitles-btn apply" id="media-subtitles-apply-btn">Générer</button>
+      </div>
+    </div>
+  </div>
+</div>
+

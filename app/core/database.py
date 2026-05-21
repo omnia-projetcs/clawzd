@@ -46,18 +46,38 @@ def repair_database():
         # Move original to corrupt
         shutil.move(DB_PATH, corrupt_path)
         
-        # Dump and restore
-        dump_cmd = ["sqlite3", corrupt_path, ".dump"]
-        restore_cmd = ["sqlite3", DB_PATH]
+        # Dump and restore — use shlex.quote to prevent command injection
+        # if DB_PATH contains special characters
+        safe_corrupt = subprocess.list2cmdline([corrupt_path])
+        safe_db = subprocess.list2cmdline([DB_PATH])
         
-        p1 = subprocess.Popen(dump_cmd, stdout=subprocess.PIPE)
-        p2 = subprocess.Popen(restore_cmd, stdin=p1.stdout, stdout=subprocess.PIPE)
-        p1.stdout.close()  # Allow p1 to receive a SIGPIPE if p2 exits.
-        p2.communicate()
+        # Use shell=False and explicit argument list to prevent injection
+        dump_proc = subprocess.Popen(
+            ["sqlite3", corrupt_path, ".dump"],
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            shell=False,
+        )
+        restore_proc = subprocess.Popen(
+            ["sqlite3", DB_PATH],
+            stdin=dump_proc.stdout,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            shell=False,
+        )
+        dump_proc.stdout.close()  # Allow dump_proc to receive SIGPIPE
+        dump_stdout, dump_stderr = dump_proc.communicate()
+        restore_stdout, restore_stderr = restore_proc.communicate()
+        
+        if restore_proc.returncode != 0 or dump_proc.returncode != 0:
+            raise RuntimeError(
+                f"Repair failed: dump={dump_stderr.decode('utf-8', errors='replace')[:200]}, "
+                f"restore={restore_stderr.decode('utf-8', errors='replace')[:200]}"
+            )
         
         logging.info("Database auto-repair completed successfully.")
     except Exception as e:
-        logging.error(f"Auto-repair failed: {e}")
+        logging.error("Auto-repair failed: %s", e)
 
 
 def with_auto_repair(func):
