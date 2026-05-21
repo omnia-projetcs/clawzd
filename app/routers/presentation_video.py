@@ -287,93 +287,20 @@ async def generate_slide_narration_script(slide_elements: List[dict], target_lan
             return "Voici la diapositive suivante de notre présentation, résumant les points et objectifs clés."
 
 async def synthesize_speech(text: str, voice: str, output_path: str):
-    """Synthesizes high-quality audio narration for a slide using edge-tts with premium denoising and high-fidelity 192k MP3 re-encoding."""
+    """Synthesizes high-quality audio narration for a slide using edge-tts with pristine, crystal-clear natural quality."""
     import edge_tts
-    import numpy as np
-    import scipy.io.wavfile as wav
-    import tempfile
+    
+    # 1. Clean the narration text to wipe LLM control marks, double arrows, and stage directions
+    cleaned_text = clean_narration_text(text)
     
     try:
-        # Create temp files for intermediate high-quality processing
-        with tempfile.NamedTemporaryFile(suffix=".mp3", delete=False) as tmp:
-            tmp_mp3 = tmp.name
-        tmp_wav = tmp_mp3.replace(".mp3", ".wav")
-        
-        try:
-            # 1. Direct Edge-TTS synthesis
-            communicate = edge_tts.Communicate(text, voice)
-            await communicate.save(tmp_mp3)
-            
-            if not os.path.exists(tmp_mp3) or os.path.getsize(tmp_mp3) == 0:
-                raise RuntimeError("Edge-TTS generated empty audio stream.")
-                
-            # 2. Convert to pristine 24kHz mono WAV
-            subprocess.run(
-                ["ffmpeg", "-y", "-i", tmp_mp3, "-ar", "24000", "-ac", "1", tmp_wav],
-                capture_output=True, timeout=30, check=True
-            )
-            
-            sample_rate, audio = wav.read(tmp_wav)
-            if len(audio.shape) > 1:
-                audio = audio.mean(axis=1)
-                
-            # Convert audio amplitude array to float32 [0.0, 1.0]
-            if audio.dtype == np.int16:
-                audio = audio.astype(np.float32) / 32767.0
-            elif audio.dtype == np.int32:
-                audio = audio.astype(np.float32) / 2147483648.0
-                
-            # 3. Premium Denoising & Multi-Stage Cleanup Filter
-            # (High-pass 80Hz, Low-pass 8000Hz, noise-gate 0.03, peak normalize -3dBFS)
-            from scipy.signal import butter, sosfilt
-            try:
-                # High-pass at 80 Hz
-                sos_hp = butter(2, 80, btype="high", fs=sample_rate, output="sos")
-                audio = sosfilt(sos_hp, audio).astype(np.float32)
-                
-                # Low-pass at 8000 Hz
-                sos_lp = butter(3, 8000, btype="low", fs=sample_rate, output="sos")
-                audio = sosfilt(sos_lp, audio).astype(np.float32)
-            except Exception as fe:
-                logger.warning(f"Denoise Butterworth filter failed: {fe}")
-                
-            # Soft Noise-Gate: zero out hiss in pauses
-            gate = np.abs(audio) > 0.03
-            audio = audio * gate
-            
-            # Peak-Normalize to -3 dBFS (~0.707) to avoid clipping/saturation
-            peak = np.max(np.abs(audio))
-            if peak > 0.01:
-                audio = audio / peak * 0.707
-                
-            # 4. Save clean wav
-            audio_int16 = (audio * 32767).astype(np.int16)
-            wav.write(tmp_wav, sample_rate, audio_int16)
-            
-            # 5. Compress wav back to MP3 with high-fidelity 192k bitrate
-            subprocess.run(
-                ["ffmpeg", "-y", "-i", tmp_wav, "-b:a", "192k", output_path],
-                capture_output=True, timeout=30, check=True
-            )
-            
-        finally:
-            # Cleanup temp files
-            for p in (tmp_mp3, tmp_wav):
-                if os.path.exists(p):
-                    try:
-                        os.remove(p)
-                    except Exception:
-                        pass
-                        
+        # 2. Synthesize directly to the target output MP3 path
+        communicate = edge_tts.Communicate(cleaned_text, voice)
+        await communicate.save(output_path)
+        logger.info(f"Successfully generated crystal-clear voice narration to {output_path}")
     except Exception as e:
-        logger.error(f"High-quality speech synthesis failed: {e}")
-        # Fallback to direct edge-tts communicating if denoising chain fails
-        try:
-            communicate = edge_tts.Communicate(text, voice)
-            await communicate.save(output_path)
-        except Exception as e2:
-            logger.error(f"Fallback edge-tts synthesis failed: {e2}")
-            raise RuntimeError(f"La synthèse vocale a échoué : {e2}")
+        logger.error(f"Speech synthesis failed: {e}")
+        raise RuntimeError(f"La synthèse vocale a échoué : {e}")
 
 def get_audio_duration(file_path: str) -> float:
     """Extracts MP3 file duration using ffmpeg/ffprobe via subprocess."""

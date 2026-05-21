@@ -417,8 +417,10 @@ async def _generate_tts_edge(text, voice_style="female_soft", language="auto", d
             audio = audio[:max_samples]
 
         logger.info("Edge TTS: generated %d samples @ %dHz with voice %s", len(audio), sample_rate, voice_name)
-        # Apply premium multi-stage denoising, noise-gating, and normalization
-        audio = _denoise_audio(audio, sample_rate, strength=0.03)
+        # Peak normalize slightly if needed to prevent clipping, keeping the voice 100% crystal clear
+        peak = np.max(np.abs(audio))
+        if peak > 0.95:
+            audio = audio / peak * 0.95
         return audio, sample_rate
 
     finally:
