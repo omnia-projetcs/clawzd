@@ -35,33 +35,165 @@ class VideoExportRequest(BaseModel):
     avatar: str = "sophie"  # thomas, sophie, lucas, none
     avatar_position: str = "bottom-right"  # bottom-right, bottom-left, top-right, top-left
     auto_narrate: bool = False
+    subtitles: bool = False
+    subtitles_language: str = "none"
+def clean_narration_text(text: str) -> str:
+    """Cleans up narration text to ensure high-fidelity spoken quality without punctuation or formatting artifacts being spoken."""
+    if not text:
+        return ""
+    # 0. Strip stage directions, placeholders, and bracketed notes (e.g. [Start], [End], [Finish], (laughing))
+    text = re.sub(r'\[[^\]]*\]', ' ', text)
+    text = re.sub(r'\([^)]*\)', ' ', text)
+    
+    # 1. Replace common bullet characters, stars, and underscores
+    text = text.replace("_", " ")
+    text = text.replace("*", " ")
+    text = text.replace("•", " ")
+    
+    # 2. Replace hyphens used for bullet points or lists (e.g. at the start of a sentence or surrounded by spaces)
+    text = re.sub(r'(?:^|\s)-\s+', ' ', text) # removes "- " at start or after space
+    text = re.sub(r'\s+-\s+', ' ', text)       # removes " - " between words
+    
+    # 3. Clean up double/multiple spaces
+    text = re.sub(r'\s+', ' ', text).strip()
+    return text
 
-async def generate_slide_narration_script(slide_elements: List[dict]) -> str:
+def format_ass_timestamp(seconds: float) -> str:
+    """Format seconds into ASS subtitle format: h:mm:ss.cs (where cs is centiseconds)."""
+    h = int(seconds // 3600)
+    m = int((seconds % 3600) // 60)
+    s = int(seconds % 60)
+    cs = int(round((seconds % 1) * 100))
+    if cs == 100:
+        s += 1
+        cs = 0
+        if s == 60:
+            m += 1
+            s = 0
+            if m == 60:
+                h += 1
+                m = 0
+    return f"{h}:{m:02d}:{s:02d}.{cs:02d}"
+
+async def translate_narration_text(text: str, target_lang: str) -> str:
+    """Translates narration text into the requested subtitle language using the default LLM provider."""
+    if not text or not target_lang or target_lang == "none":
+        return text
+    
+    lang_names = {
+        "fr": "French (Français)",
+        "en": "English (Anglais)",
+        "es": "Spanish (Español)",
+        "de": "German (Deutsch)",
+        "it": "Italian (Italiano)"
+    }
+    target_lang_name = lang_names.get(target_lang.lower(), target_lang)
+    
+    prompt = (
+        f"Translate the following text into fluent, natural {target_lang_name}. "
+        "Do NOT add any notes, introductory text, explanations, or quotes. "
+        "Return ONLY the clean translation text itself.\n\n"
+        f"Text to translate:\n{text}"
+    )
+    
+    try:
+        from config import LLM_PROVIDER, OLLAMA_MODEL, VLLM_MODEL, GOOGLE_API_KEY, OPENAI_API_KEY, ANTHROPIC_API_KEY
+        from app.core.llm_provider import get_llm_provider, _get_local_models, _get_vllm_models
+        
+        provider_key = LLM_PROVIDER
+        model_key = None
+        
+        # Self-healing local model scanning
+        if provider_key == "ollama":
+            try:
+                local_models = await _get_local_models()
+            except Exception:
+                local_models = []
+            downloaded_ids = [m["id"] for m in local_models if m.get("id")]
+            if downloaded_ids:
+                if OLLAMA_MODEL in downloaded_ids:
+                    model_key = OLLAMA_MODEL
+                elif OLLAMA_MODEL + ":latest" in downloaded_ids:
+                    model_key = OLLAMA_MODEL + ":latest"
+                else:
+                    model_key = downloaded_ids[0]
+            else:
+                if GOOGLE_API_KEY: provider_key = "google"
+                elif OPENAI_API_KEY: provider_key = "openai"
+                elif ANTHROPIC_API_KEY: provider_key = "anthropic"
+        elif provider_key == "vllm":
+            try:
+                vllm_models = await _get_vllm_models()
+            except Exception:
+                vllm_models = []
+            active_ids = [m["id"] for m in vllm_models if m.get("id")]
+            if active_ids:
+                if VLLM_MODEL in active_ids:
+                    model_key = VLLM_MODEL
+                else:
+                    model_key = active_ids[0]
+            else:
+                if GOOGLE_API_KEY: provider_key = "google"
+                elif OPENAI_API_KEY: provider_key = "openai"
+                elif ANTHROPIC_API_KEY: provider_key = "anthropic"
+
+        if provider_key in ("google", "openai", "anthropic"):
+            if provider_key == "google" and not GOOGLE_API_KEY:
+                provider_key = "openai" if OPENAI_API_KEY else ("anthropic" if ANTHROPIC_API_KEY else "ollama")
+            elif provider_key == "openai" and not OPENAI_API_KEY:
+                provider_key = "google" if GOOGLE_API_KEY else ("anthropic" if ANTHROPIC_API_KEY else "ollama")
+            elif provider_key == "anthropic" and not ANTHROPIC_API_KEY:
+                provider_key = "google" if GOOGLE_API_KEY else ("openai" if OPENAI_API_KEY else "ollama")
+
+        provider = get_llm_provider(provider_key)
+        kwargs = {}
+        if model_key:
+            kwargs["model"] = model_key
+            
+        messages = [{"role": "user", "content": prompt}]
+        translated = await provider.chat(messages, **kwargs)
+        return clean_narration_text(translated.strip())
+    except Exception as e:
+        logger.error(f"Failed to translate narration script: {e}")
+        return text
+
+async def generate_slide_narration_script(slide_elements: List[dict], target_lang: str = "fr") -> str:
     """Uses the default LLM provider to write an engaging script for a slide based on its content."""
     texts = []
     for el in slide_elements:
         if el.get("type") in ("text", "table"):
             content = el.get("content", "").strip()
             if content:
-                texts.append(content)
+                # Clean up punctuation artifacts from the raw slide texts
+                cleaned = clean_narration_text(content)
+                if cleaned:
+                    texts.append(cleaned)
                 
-    # Premium fallbacks in slide's language
+    # Premium fallbacks in target language
     slide_summary = " | ".join(texts[:5]) if texts else ""
-    is_english = any(any(c in "abcdefghijklmnopqrstuvwxyz" for c in word.lower()) and word.lower() in ("the", "welcome", "slide", "presentation", "business", "data", "results") for word in slide_summary.split())
     
     if not texts:
-        if is_english:
+        if target_lang == "en":
             return "On this slide, we present the key visual highlights and overview of our current topics."
         else:
             return "Sur cette diapositive, nous vous présentons les informations clés et les éléments visuels de notre présentation."
         
-    prompt = (
-        "Write a short, engaging, and professional presentation narration script (2 to 3 sentences) for a virtual AI presenter presenting this slide. "
-        "The tone must be natural and fluent. Do NOT write any stage directions, presenter notes, or introductory text. "
-        "Write the narration in the same language as the slide content (e.g. if the slide is in French, write the narration in French; if in English, write in English). "
-        "Return ONLY the spoken text itself.\n\n"
-        f"Slide Content:\n{slide_summary}"
-    )
+    if target_lang == "fr":
+        prompt = (
+            "Rédige un script de narration court, engageant et professionnel (2 à 3 phrases maximum) pour un présentateur virtuel présentant cette diapositive. "
+            "Le ton doit être naturel et fluide. Ne mets AUCUNE note de présentation, direction scénique ou texte d'introduction. "
+            "Rédige impérativement le script en français. "
+            "Renvoie uniquement le texte parlé lui-même.\n\n"
+            f"Contenu de la diapositive:\n{slide_summary}"
+        )
+    else:
+        prompt = (
+            "Write a short, engaging, and professional presentation narration script (2 to 3 sentences maximum) for a virtual presenter presenting this slide. "
+            "The tone must be natural and fluent. Do NOT write any stage directions, presenter notes, or introductory text. "
+            "You must write the script in English. "
+            "Return ONLY the spoken text itself.\n\n"
+            f"Slide Content:\n{slide_summary}"
+        )
     
     try:
         from config import LLM_PROVIDER, OLLAMA_MODEL, VLLM_MODEL, GOOGLE_API_KEY, OPENAI_API_KEY, ANTHROPIC_API_KEY
@@ -141,20 +273,99 @@ async def generate_slide_narration_script(slide_elements: List[dict]) -> str:
         return script
     except Exception as e:
         logger.error(f"Failed to auto-generate narration script: {e}")
-        if is_english:
+        if target_lang == "en":
             return "Here is the next slide summarizing our primary points and key deliverables."
         else:
             return "Voici la diapositive suivante de notre présentation, résumant les points et objectifs clés."
 
 async def synthesize_speech(text: str, voice: str, output_path: str):
-    """Synthesizes high-quality audio narration for a slide using edge-tts."""
+    """Synthesizes high-quality audio narration for a slide using edge-tts with premium denoising and high-fidelity 192k MP3 re-encoding."""
     import edge_tts
+    import numpy as np
+    import scipy.io.wavfile as wav
+    import tempfile
+    
     try:
-        communicate = edge_tts.Communicate(text, voice)
-        await communicate.save(output_path)
+        # Create temp files for intermediate high-quality processing
+        with tempfile.NamedTemporaryFile(suffix=".mp3", delete=False) as tmp:
+            tmp_mp3 = tmp.name
+        tmp_wav = tmp_mp3.replace(".mp3", ".wav")
+        
+        try:
+            # 1. Direct Edge-TTS synthesis
+            communicate = edge_tts.Communicate(text, voice)
+            await communicate.save(tmp_mp3)
+            
+            if not os.path.exists(tmp_mp3) or os.path.getsize(tmp_mp3) == 0:
+                raise RuntimeError("Edge-TTS generated empty audio stream.")
+                
+            # 2. Convert to pristine 24kHz mono WAV
+            subprocess.run(
+                ["ffmpeg", "-y", "-i", tmp_mp3, "-ar", "24000", "-ac", "1", tmp_wav],
+                capture_output=True, timeout=30, check=True
+            )
+            
+            sample_rate, audio = wav.read(tmp_wav)
+            if len(audio.shape) > 1:
+                audio = audio.mean(axis=1)
+                
+            # Convert audio amplitude array to float32 [0.0, 1.0]
+            if audio.dtype == np.int16:
+                audio = audio.astype(np.float32) / 32767.0
+            elif audio.dtype == np.int32:
+                audio = audio.astype(np.float32) / 2147483648.0
+                
+            # 3. Premium Denoising & Multi-Stage Cleanup Filter
+            # (High-pass 80Hz, Low-pass 8000Hz, noise-gate 0.03, peak normalize -3dBFS)
+            from scipy.signal import butter, sosfilt
+            try:
+                # High-pass at 80 Hz
+                sos_hp = butter(2, 80, btype="high", fs=sample_rate, output="sos")
+                audio = sosfilt(sos_hp, audio).astype(np.float32)
+                
+                # Low-pass at 8000 Hz
+                sos_lp = butter(3, 8000, btype="low", fs=sample_rate, output="sos")
+                audio = sosfilt(sos_lp, audio).astype(np.float32)
+            except Exception as fe:
+                logger.warning(f"Denoise Butterworth filter failed: {fe}")
+                
+            # Soft Noise-Gate: zero out hiss in pauses
+            gate = np.abs(audio) > 0.03
+            audio = audio * gate
+            
+            # Peak-Normalize to -3 dBFS (~0.707) to avoid clipping/saturation
+            peak = np.max(np.abs(audio))
+            if peak > 0.01:
+                audio = audio / peak * 0.707
+                
+            # 4. Save clean wav
+            audio_int16 = (audio * 32767).astype(np.int16)
+            wav.write(tmp_wav, sample_rate, audio_int16)
+            
+            # 5. Compress wav back to MP3 with high-fidelity 192k bitrate
+            subprocess.run(
+                ["ffmpeg", "-y", "-i", tmp_wav, "-b:a", "192k", output_path],
+                capture_output=True, timeout=30, check=True
+            )
+            
+        finally:
+            # Cleanup temp files
+            for p in (tmp_mp3, tmp_wav):
+                if os.path.exists(p):
+                    try:
+                        os.remove(p)
+                    except Exception:
+                        pass
+                        
     except Exception as e:
-        logger.error(f"edge-tts synthesis failed: {e}")
-        raise RuntimeError(f"Faux pas lors de la synthèse vocale : {e}")
+        logger.error(f"High-quality speech synthesis failed: {e}")
+        # Fallback to direct edge-tts communicating if denoising chain fails
+        try:
+            communicate = edge_tts.Communicate(text, voice)
+            await communicate.save(output_path)
+        except Exception as e2:
+            logger.error(f"Fallback edge-tts synthesis failed: {e2}")
+            raise RuntimeError(f"La synthèse vocale a échoué : {e2}")
 
 def get_audio_duration(file_path: str) -> float:
     """Extracts MP3 file duration using ffmpeg/ffprobe via subprocess."""
@@ -337,11 +548,15 @@ async def export_presentation_video(payload: VideoExportRequest):
     logger.info("Step 1: Analyzing and synthesizing slide narration scripts in parallel...")
     narration_tasks = []
     page_indices = []
+    
+    # Resolve target language strictly from the selected neural voice prefix
+    target_lang = "en" if payload.voice.lower().startswith("en") else "fr"
+    
     for idx, page in enumerate(pages):
         narration = page.get("narration", "").strip()
         if not narration and payload.auto_narrate:
             page_indices.append(idx)
-            narration_tasks.append(generate_slide_narration_script(page.get("elements", [])))
+            narration_tasks.append(generate_slide_narration_script(page.get("elements", []), target_lang=target_lang))
             
     if narration_tasks:
         logger.info(f"Generating auto-narrations for {len(narration_tasks)} slides in parallel...")
@@ -352,7 +567,7 @@ async def export_presentation_video(payload: VideoExportRequest):
                 logger.error(f"Narration generation failed for slide {idx+1}: {script}")
                 pages[idx]["narration"] = ""
             else:
-                pages[idx]["narration"] = script
+                pages[idx]["narration"] = clean_narration_text(script)
                 
     # Step 2: Render slides and synthesize voiceover audios in a temp directory
     logger.info("Step 2: Rendering slide PNGs and generating neural Edge-TTS voiceovers...")
@@ -364,6 +579,28 @@ async def export_presentation_video(payload: VideoExportRequest):
     if payload.avatar != "none":
         avatar_sprite = create_circular_avatar(payload.avatar, size=160)
         
+    # Pre-process subtitle translations in parallel if subtitles and translation are enabled
+    if payload.subtitles and payload.subtitles_language != "none":
+        voice_lang = "en" if payload.voice.lower().startswith("en") else "fr"
+        sub_lang = payload.subtitles_language.lower()
+        if voice_lang != sub_lang:
+            logger.info("Pre-translating subtitles in parallel...")
+            translation_tasks = []
+            translation_indices = []
+            for idx, page in enumerate(pages):
+                n_text = clean_narration_text(page.get("narration", "").strip())
+                if n_text:
+                    translation_indices.append(idx)
+                    translation_tasks.append(translate_narration_text(n_text, sub_lang))
+            if translation_tasks:
+                translated_texts = await asyncio.gather(*translation_tasks, return_exceptions=True)
+                for i, trans_res in enumerate(translated_texts):
+                    idx = translation_indices[i]
+                    if isinstance(trans_res, Exception):
+                        logger.error(f"Subtitle translation failed for slide {idx+1}: {trans_res}")
+                    else:
+                        pages[idx]["translated_subtitle"] = trans_res
+                        
     with tempfile.TemporaryDirectory() as temp_work_dir:
         # Generate slide PNG images
         try:
@@ -372,11 +609,13 @@ async def export_presentation_video(payload: VideoExportRequest):
             logger.error(f"Slide PNG rendering failed: {e}")
             raise HTTPException(500, f"Impossible de générer les images des diapositives : {e}")
             
+
+                
         # Parallel synthesis of neural speech tracks
         tts_tasks = []
         tts_indices = []
         for idx, page in enumerate(pages):
-            narration_text = page.get("narration", "").strip()
+            narration_text = clean_narration_text(page.get("narration", "").strip())
             if narration_text:
                 audio_path = os.path.join(temp_work_dir, f"audio_{idx}.mp3")
                 tts_indices.append((idx, audio_path))
@@ -394,6 +633,8 @@ async def export_presentation_video(payload: VideoExportRequest):
                     synthesized_audios[idx] = audio_path
                     
         # Process each slide's assets and build frame buffers
+        dialogue_lines = []
+        current_time = 0.0
         for idx, page in enumerate(pages):
             slide_img_path = slide_paths[idx]
             audio_path = os.path.join(temp_work_dir, f"audio_{idx}.mp3")
@@ -415,6 +656,25 @@ async def export_presentation_video(payload: VideoExportRequest):
                 subprocess.run(cmd, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
                 temp_audios.append(silent_audio_path)
                 
+            # Segment and timing subtitle text for this slide if requested
+            if payload.subtitles:
+                narration_text = clean_narration_text(page.get("narration", "").strip())
+                if narration_text:
+                    subtitle_text = page.get("translated_subtitle", narration_text) if payload.subtitles_language != "none" else narration_text
+                    sentences = [s.strip() for s in re.split(r'(?<=[.!?])\s+', subtitle_text) if s.strip()]
+                    if sentences:
+                        chunk_duration = duration / len(sentences)
+                        for s_idx, sentence in enumerate(sentences):
+                            c_start = current_time + s_idx * chunk_duration
+                            c_end = c_start + chunk_duration
+                            start_str = format_ass_timestamp(c_start)
+                            end_str = format_ass_timestamp(c_end)
+                            sentence_escaped = sentence.replace("{", "").replace("}", "")
+                            dialogue_lines.append(f"Dialogue: 0,{start_str},{end_str},Default,,0,0,0,,{sentence_escaped}")
+            
+            # Increment timing tracking
+            current_time += duration
+            
             total_slide_frames = int(duration * fps)
             base_slide_img = Image.open(slide_img_path).convert("RGBA")
             
@@ -469,15 +729,56 @@ async def export_presentation_video(payload: VideoExportRequest):
         video_filename = f"presentation_{uuid.uuid4().hex[:8]}.mp4"
         final_video_path = os.path.join(video_dir, video_filename)
         
-        mux_cmd = [
-            "ffmpeg", "-y",
-            "-i", silent_video_path,
-            "-i", combined_audio_path,
-            "-c:v", "copy",
-            "-c:a", "aac",
-            "-shortest",
-            final_video_path
-        ]
+        # Write ASS subtitles file if requested
+        temp_ass_path = None
+        if payload.subtitles and dialogue_lines:
+            temp_ass_path = os.path.join(temp_work_dir, "subtitles.ass")
+            font_size = 20
+            styles_definition = f"Style: Default,Arial,{font_size},&H00FFFFFF,&H000000FF,&H00000000,&H80000000,0,0,0,0,100,100,0,0,3,1,1,2,10,10,20,1"
+            
+            ass_header = f"""[Script Info]
+Title: Subtitles
+ScriptType: v4.00+
+WrapStyle: 0
+PlayResX: {payload.canvas_width}
+PlayResY: {payload.canvas_height}
+
+[V4+ Styles]
+Format: Name, Fontname, Fontsize, PrimaryColour, SecondaryColour, OutlineColour, BackColour, Bold, Italic, Underline, StrikeOut, ScaleX, ScaleY, Spacing, Angle, BorderStyle, Outline, Shadow, Alignment, MarginL, MarginR, MarginV, Encoding
+{styles_definition}
+
+[Events]
+Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
+"""
+            ass_content = ass_header + "\n".join(dialogue_lines) + "\n"
+            with open(temp_ass_path, "w", encoding="utf-8") as f:
+                f.write(ass_content)
+            logger.info(f"Subtitles written to {temp_ass_path}")
+
+        if temp_ass_path and os.path.exists(temp_ass_path):
+            logger.info("Subtitles enabled. Burning subtitles into the video container...")
+            escaped_ass = temp_ass_path.replace("'", "'\\\\''").replace(":", "\\:")
+            mux_cmd = [
+                "ffmpeg", "-y",
+                "-i", silent_video_path,
+                "-i", combined_audio_path,
+                "-vf", f"subtitles='{escaped_ass}'",
+                "-c:v", "libx264",
+                "-pix_fmt", "yuv420p",
+                "-c:a", "aac",
+                "-shortest",
+                final_video_path
+            ]
+        else:
+            mux_cmd = [
+                "ffmpeg", "-y",
+                "-i", silent_video_path,
+                "-i", combined_audio_path,
+                "-c:v", "copy",
+                "-c:a", "aac",
+                "-shortest",
+                final_video_path
+            ]
         
         result = subprocess.run(mux_cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
         if result.returncode != 0:
@@ -495,6 +796,14 @@ async def export_presentation_video(payload: VideoExportRequest):
 async def auto_narrate_slide(payload: dict):
     """Generates an engaging spoken script for a slide based on its components."""
     elements = payload.get("elements", [])
-    script = await generate_slide_narration_script(elements)
-    return {"script": script}
+    voice = payload.get("voice", "fr-FR-DeniseNeural")
+    
+    # Resolve target language strictly from the selected voice prefix
+    target_lang = "en" if voice.lower().startswith("en") else "fr"
+    
+    script = await generate_slide_narration_script(elements, target_lang=target_lang)
+    cleaned_script = clean_narration_text(script)
+    return {"script": cleaned_script}
+
+
 

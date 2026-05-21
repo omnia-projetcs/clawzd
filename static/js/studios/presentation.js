@@ -314,6 +314,11 @@ class PresentationStudio {
       if (opts) opts.style.display = e.target.value === 'mp4' ? 'block' : 'none';
     });
 
+    $('#pt-video-subtitles')?.addEventListener('change', (e) => {
+      const langGrp = $('#pt-video-subtitles-lang-group');
+      if (langGrp) langGrp.style.display = e.target.checked ? 'block' : 'none';
+    });
+
     $('#pt-video-lang')?.addEventListener('change', (e) => {
       const lang = e.target.value;
       const voiceSelect = $('#pt-video-voice');
@@ -387,13 +392,18 @@ class PresentationStudio {
       btn.disabled = true;
       btn.innerHTML = '<span class="pt-ai-gen-spinner" style="display:inline-block"></span> Generating...';
       try {
+        const voice = $('#pt-video-voice')?.value || 'fr-FR-DeniseNeural';
         const res = await fetch('/presentation/auto-narrate', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ elements: page.elements || [] })
+          body: JSON.stringify({
+            elements: page.elements || [],
+            voice: voice
+          })
         });
         const data = await res.json();
         if (!res.ok) throw new Error(data.detail || 'Script generation failed');
+
         
         page.narration = data.script || '';
         const textEl = $('#pt-slide-narration');
@@ -2907,6 +2917,8 @@ class PresentationStudio {
       const avatar = $('#pt-video-avatar')?.value || 'sophie';
       const avatar_position = $('#pt-video-avatar-pos')?.value || 'bottom-right';
       const auto_narrate = $('#pt-video-auto-narrate')?.checked || false;
+      const subtitles = $('#pt-video-subtitles')?.checked || false;
+      const subtitles_lang = $('#pt-video-subtitles-lang')?.value || 'none';
       
       toast(ICONS.hourglass(14) + ' Generating video presentation... Synthesizing neural voices and compiling frames. This might take up to a minute.', 45000);
       try {
@@ -2920,7 +2932,9 @@ class PresentationStudio {
             voice: voice,
             avatar: avatar,
             avatar_position: avatar_position,
-            auto_narrate: auto_narrate
+            auto_narrate: auto_narrate,
+            subtitles: subtitles,
+            subtitles_language: subtitles_lang
           })
         });
 

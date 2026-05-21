@@ -326,40 +326,62 @@ async def _generate_tts_edge(text, voice_style="female_soft", language="auto", d
     import numpy as np
     import scipy.io.wavfile as wav
 
-    preset = VOICE_PRESETS.get(voice_style, VOICE_PRESETS["female_soft"])
-    lang_code = "fr" if language == "auto" else language
-
-    # Pick the right Edge voice for the language
-    if lang_code in ("fr", "fr-fr", "fr-be", "fr-ch"):
-        voice_name = preset.get("edge_fr", "fr-FR-DeniseNeural")
-    elif lang_code in ("en", "en-us", "en-gb"):
-        voice_name = preset.get("edge_en", "en-US-JennyNeural")
+    # 1. Handle direct Edge neural voice passed as voice_style
+    if "-" in voice_style and ("Neural" in voice_style or "Multilingual" in voice_style):
+        voice_name = voice_style
     else:
-        # For other languages, try to find a matching locale
-        locale = _EDGE_LANG_MAP.get(lang_code, f"{lang_code}-{lang_code.upper()}")
-        # Use Multilingual voices for best coverage
-        if "female" in voice_style or "child" in voice_style:
-            voice_name = preset.get("edge_fr", "fr-FR-VivienneMultilingualNeural")
+        preset = VOICE_PRESETS.get(voice_style, VOICE_PRESETS["female_soft"])
+        lang_code = "fr" if language == "auto" else language
+
+        # Pick the right Edge voice for the language
+        if lang_code in ("fr", "fr-fr", "fr-be", "fr-ch"):
+            voice_name = preset.get("edge_fr", "fr-FR-DeniseNeural")
+        elif lang_code in ("en", "en-us", "en-gb"):
+            voice_name = preset.get("edge_en", "en-US-JennyNeural")
         else:
-            voice_name = preset.get("edge_en", "en-US-AndrewMultilingualNeural")
-        # Override with locale-specific if possible
-        try:
-            voices = await edge_tts.list_voices()
-            for v in voices:
-                if v["Locale"].startswith(lang_code):
-                    wanted_gender = "Female" if ("female" in voice_style or "child" in voice_style) else "Male"
-                    if v["Gender"] == wanted_gender:
-                        voice_name = v["ShortName"]
-                        break
-        except Exception:
-            pass  # Keep default voice
+            # For other languages, try to find a matching locale
+            locale = _EDGE_LANG_MAP.get(lang_code, f"{lang_code}-{lang_code.upper()}")
+            # Use Multilingual voices for best coverage
+            if "female" in voice_style or "child" in voice_style:
+                voice_name = preset.get("edge_fr", "fr-FR-VivienneMultilingualNeural")
+            else:
+                voice_name = preset.get("edge_en", "en-US-AndrewMultilingualNeural")
+            # Override with locale-specific if possible
+            try:
+                voices = await edge_tts.list_voices()
+                for v in voices:
+                    if v["Locale"].startswith(lang_code):
+                        wanted_gender = "Female" if ("female" in voice_style or "child" in voice_style) else "Male"
+                        if v["Gender"] == wanted_gender:
+                            voice_name = v["ShortName"]
+                            break
+            except Exception:
+                pass  # Keep default voice
+
+    # 2. Dynamic Text Cleaning to strip stage directions, list hyphens, and formatting marks
+    import re
+    # Strip stage directions and bracketed / parenthesized text
+    cleaned_text = re.sub(r'\[[^\]]*\]', ' ', text)
+    cleaned_text = re.sub(r'\([^)]*\)', ' ', cleaned_text)
+    
+    # Strip underscores, asterisks, bullet points
+    cleaned_text = cleaned_text.replace("_", " ")
+    cleaned_text = cleaned_text.replace("*", " ")
+    cleaned_text = cleaned_text.replace("•", " ")
+    
+    # Strip bullet hyphens
+    cleaned_text = re.sub(r'(?:^|\s)-\s+', ' ', cleaned_text)
+    cleaned_text = re.sub(r'\s+-\s+', ' ', cleaned_text)
+    
+    # Clean up spacing
+    cleaned_text = re.sub(r'\s+', ' ', cleaned_text).strip()
 
     with tempfile.NamedTemporaryFile(suffix=".mp3", delete=False) as tmp:
         tmp_mp3 = tmp.name
     tmp_wav = tmp_mp3.replace(".mp3", ".wav")
 
     try:
-        communicate = edge_tts.Communicate(text, voice_name)
+        communicate = edge_tts.Communicate(cleaned_text, voice_name)
         await communicate.save(tmp_mp3)
 
         if not os.path.exists(tmp_mp3) or os.path.getsize(tmp_mp3) == 0:
@@ -387,6 +409,8 @@ async def _generate_tts_edge(text, voice_style="female_soft", language="auto", d
             audio = audio[:max_samples]
 
         logger.info("Edge TTS: generated %d samples @ %dHz with voice %s", len(audio), sample_rate, voice_name)
+        # Apply premium multi-stage denoising, noise-gating, and normalization
+        audio = _denoise_audio(audio, sample_rate, strength=0.03)
         return audio, sample_rate
 
     finally:

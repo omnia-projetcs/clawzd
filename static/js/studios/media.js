@@ -120,6 +120,47 @@ class MediaStudio {
       ttsEngineEl.addEventListener('change', () => this._debouncedEstimate());
     }
 
+    // Dynamic language-specific voice dropdown updater
+    const mediaLangEl = $('#media-language');
+    const mediaVoiceEl = $('#media-voice-style');
+    if (mediaLangEl && mediaVoiceEl) {
+      const updateMediaVoices = () => {
+        const lang = mediaLangEl.value;
+        mediaVoiceEl.innerHTML = '';
+        if (lang === 'fr' || lang === 'auto') {
+          mediaVoiceEl.innerHTML = `
+            <option value="fr-FR-EloiseNeural" selected>Eloise (Voix Premium Féminine)</option>
+            <option value="fr-FR-RemyMultilingualNeural">Remy (Voix Premium Masculine)</option>
+            <option value="fr-FR-VivienneMultilingualNeural">Vivienne (Voix Claire Féminine)</option>
+            <option value="fr-FR-DeniseNeural">Denise (Standard Féminine)</option>
+            <option value="fr-FR-HenriNeural">Henri (Standard Masculine)</option>
+          `;
+        } else if (lang === 'en') {
+          mediaVoiceEl.innerHTML = `
+            <option value="en-US-AvaMultilingualNeural" selected>Ava (Premium Conversational Female)</option>
+            <option value="en-US-AndrewMultilingualNeural">Andrew (Premium Warm Male)</option>
+            <option value="en-US-AriaNeural">Aria (Professional Female)</option>
+            <option value="en-US-BrianMultilingualNeural">Brian (Sincere Male)</option>
+            <option value="en-US-GuyNeural">Guy (Standard Male)</option>
+          `;
+        } else {
+          // Fallback basic voices for other languages
+          mediaVoiceEl.innerHTML = `
+            <option value="female_soft" selected>👩 Woman (soft)</option>
+            <option value="female_pro">👩 Woman (pro)</option>
+            <option value="male_deep">🧑 Man (deep)</option>
+            <option value="male_medium">🧑 Man (medium)</option>
+            <option value="child">👶 Child</option>
+            <option value="robot">🤖 Robot</option>
+            <option value="narrator">📻 Narrator</option>
+          `;
+        }
+      };
+      mediaLangEl.addEventListener('change', updateMediaVoices);
+      // Run once at initialization to set options
+      updateMediaVoices();
+    }
+
     // Reference audio upload (voice cloning)
     const audioRefBtn = $('#media-audio-ref-btn');
     const audioRefInput = $('#media-audio-ref-input');

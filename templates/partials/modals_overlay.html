@@ -726,11 +726,30 @@
           </select>
         </div>
 
-        <div style="margin-top:10px;">
+        <div style="margin-top:10px; margin-bottom:10px;">
           <label style="display:flex; align-items:center; gap:8px; font-size:11px; cursor:pointer; color:var(--text-muted)">
             <input type="checkbox" id="pt-video-auto-narrate" checked style="accent-color:var(--accent);">
             Auto-generate scripts for empty slides
           </label>
+        </div>
+
+        <div style="margin-top:10px; margin-bottom:10px; border-top:1px solid var(--border); padding-top:10px;">
+          <label style="display:flex; align-items:center; gap:8px; font-size:11px; cursor:pointer; color:var(--text-muted)">
+            <input type="checkbox" id="pt-video-subtitles" style="accent-color:var(--accent);">
+            💬 Add Automatic Subtitles / Sous-titres
+          </label>
+        </div>
+
+        <div id="pt-video-subtitles-lang-group" style="display:none; margin-bottom:10px;">
+          <label class="settings-label" style="font-size:11px; margin-bottom:4px; display:block;">Subtitle Translation / Traduction</label>
+          <select id="pt-video-subtitles-lang" class="settings-input" style="font-size:12px; height:32px; padding:4px 8px;">
+            <option value="none">Same as Voice (No Translation)</option>
+            <option value="fr">French (Français)</option>
+            <option value="en">English (Anglais)</option>
+            <option value="es">Spanish (Español)</option>
+            <option value="de">German (Deutsch)</option>
+            <option value="it">Italian (Italiano)</option>
+          </select>
         </div>
       </div>
       <div class="settings-group">
