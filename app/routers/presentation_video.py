@@ -64,10 +64,74 @@ async def generate_slide_narration_script(slide_elements: List[dict]) -> str:
     )
     
     try:
-        from config import LLM_PROVIDER
-        provider = get_llm_provider(LLM_PROVIDER)
+        from config import LLM_PROVIDER, OLLAMA_MODEL, VLLM_MODEL, GOOGLE_API_KEY, OPENAI_API_KEY, ANTHROPIC_API_KEY
+        from app.core.llm_provider import get_llm_provider, _get_local_models, _get_vllm_models
+        
+        provider_key = LLM_PROVIDER
+        model_key = None
+        
+        # Self-healing local model scanning
+        if provider_key == "ollama":
+            try:
+                local_models = await _get_local_models()
+            except Exception:
+                local_models = []
+            downloaded_ids = [m["id"] for m in local_models if m.get("id")]
+            if downloaded_ids:
+                if OLLAMA_MODEL in downloaded_ids:
+                    model_key = OLLAMA_MODEL
+                elif OLLAMA_MODEL + ":latest" in downloaded_ids:
+                    model_key = OLLAMA_MODEL + ":latest"
+                else:
+                    model_key = downloaded_ids[0]
+                    logger.info(f"Ollama model '{OLLAMA_MODEL}' not found. Falling back to downloaded model '{model_key}'")
+            else:
+                # No local model found in Ollama, try cloud fallbacks
+                if GOOGLE_API_KEY:
+                    provider_key = "google"
+                elif OPENAI_API_KEY:
+                    provider_key = "openai"
+                elif ANTHROPIC_API_KEY:
+                    provider_key = "anthropic"
+                    
+        elif provider_key == "vllm":
+            try:
+                vllm_models = await _get_vllm_models()
+            except Exception:
+                vllm_models = []
+            active_ids = [m["id"] for m in vllm_models if m.get("id")]
+            if active_ids:
+                if VLLM_MODEL in active_ids:
+                    model_key = VLLM_MODEL
+                else:
+                    model_key = active_ids[0]
+                    logger.info(f"vLLM model '{VLLM_MODEL}' not found. Falling back to active model '{model_key}'")
+            else:
+                # No active vLLM model found, try cloud fallbacks
+                if GOOGLE_API_KEY:
+                    provider_key = "google"
+                elif OPENAI_API_KEY:
+                    provider_key = "openai"
+                elif ANTHROPIC_API_KEY:
+                    provider_key = "anthropic"
+
+        # Check cloud keys and fallbacks
+        if provider_key in ("google", "openai", "anthropic"):
+            if provider_key == "google" and not GOOGLE_API_KEY:
+                provider_key = "openai" if OPENAI_API_KEY else ("anthropic" if ANTHROPIC_API_KEY else "ollama")
+            elif provider_key == "openai" and not OPENAI_API_KEY:
+                provider_key = "google" if GOOGLE_API_KEY else ("anthropic" if ANTHROPIC_API_KEY else "ollama")
+            elif provider_key == "anthropic" and not ANTHROPIC_API_KEY:
+                provider_key = "google" if GOOGLE_API_KEY else ("openai" if OPENAI_API_KEY else "ollama")
+
+        # Instantiate resolved provider
+        provider = get_llm_provider(provider_key)
+        kwargs = {}
+        if model_key:
+            kwargs["model"] = model_key
+            
         messages = [{"role": "user", "content": prompt}]
-        script = await provider.chat(messages)
+        script = await provider.chat(messages, **kwargs)
         script = script.strip()
         
         # Robust semantic safety check: prevent speaking raw LLM error messages
