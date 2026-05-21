@@ -45,10 +45,16 @@ async def generate_slide_narration_script(slide_elements: List[dict]) -> str:
             if content:
                 texts.append(content)
                 
+    # Premium fallbacks in slide's language
+    slide_summary = " | ".join(texts[:5]) if texts else ""
+    is_english = any(any(c in "abcdefghijklmnopqrstuvwxyz" for c in word.lower()) and word.lower() in ("the", "welcome", "slide", "presentation", "business", "data", "results") for word in slide_summary.split())
+    
     if not texts:
-        return "Sur cette diapositive, nous présentons les informations visuelles affichées à l'écran."
+        if is_english:
+            return "On this slide, we present the key visual highlights and overview of our current topics."
+        else:
+            return "Sur cette diapositive, nous vous présentons les informations clés et les éléments visuels de notre présentation."
         
-    slide_summary = " | ".join(texts[:5]) # limit to first 5 items to keep it concise
     prompt = (
         "Write a short, engaging, and professional presentation narration script (2 to 3 sentences) for a virtual AI presenter presenting this slide. "
         "The tone must be natural and fluent. Do NOT write any stage directions, presenter notes, or introductory text. "
@@ -58,13 +64,23 @@ async def generate_slide_narration_script(slide_elements: List[dict]) -> str:
     )
     
     try:
-        provider = get_llm_provider(None)
+        from config import LLM_PROVIDER
+        provider = get_llm_provider(LLM_PROVIDER)
         messages = [{"role": "user", "content": prompt}]
         script = await provider.chat(messages)
-        return script.strip()
+        script = script.strip()
+        
+        # Robust semantic safety check: prevent speaking raw LLM error messages
+        lower_s = script.lower()
+        if "ollama" in lower_s or "error" in lower_s or "failed" in lower_s or "connection" in lower_s or len(script) < 5:
+            raise ValueError("LLM returned model connection or error message: " + script)
+        return script
     except Exception as e:
         logger.error(f"Failed to auto-generate narration script: {e}")
-        return "Voici la diapositive suivante de notre présentation, résumant les points clés."
+        if is_english:
+            return "Here is the next slide summarizing our primary points and key deliverables."
+        else:
+            return "Voici la diapositive suivante de notre présentation, résumant les points et objectifs clés."
 
 async def synthesize_speech(text: str, voice: str, output_path: str):
     """Synthesizes high-quality audio narration for a slide using edge-tts."""
@@ -139,19 +155,39 @@ def overlay_animated_avatar(
     else: # bottom-right
         x, y = w - av_size - margin, h - av_size - margin
         
-    # Animated breathing / talking mouth movement (subtle Y scaling)
-    scale_y = 1.0
-    if speech_active:
-        scale_y = 1.0 + 0.03 * math.sin(frame_idx * 0.8) # oscillation frequency
-        
-    scaled_h = int(av_size * scale_y)
-    offset_y = (av_size - scaled_h) // 2
+    # Dynamic organic human presentation movement (swaying, bobbing, and scaling)
+    angle = 0.0
+    dy = 0.0
+    scale = 1.0
     
-    # Scale avatar vertically slightly to simulate jaw moving / breathing
-    if scale_y != 1.0:
-        active_avatar = avatar_img.resize((av_size, scaled_h), Image.Resampling.BILINEAR)
+    if speech_active:
+        # Human swaying / head tilt (sine wave)
+        angle = 3.5 * math.sin(frame_idx * 0.15) 
+        # Conversational bobbing (up and down)
+        dy = 4.0 * math.sin(frame_idx * 0.3)
+        # Breathing / talking projection zoom
+        scale = 1.0 + 0.03 * math.sin(frame_idx * 0.4)
     else:
-        active_avatar = avatar_img
+        # Subtle breathing sway when not speaking
+        angle = 1.0 * math.sin(frame_idx * 0.08)
+        dy = 1.5 * math.sin(frame_idx * 0.1)
+        scale = 1.0 + 0.01 * math.sin(frame_idx * 0.1)
+        
+    # Scale avatar proportionally to simulate head bobbing / breathing projection
+    new_w = max(10, int(av_size * scale))
+    new_h = max(10, int(av_size * scale))
+    active_avatar = avatar_img.resize((new_w, new_h), Image.Resampling.LANCZOS)
+    
+    # Rotate slightly to simulate head tilting/swaying naturally
+    if angle != 0.0:
+        active_avatar = active_avatar.rotate(angle, resample=Image.Resampling.BICUBIC, expand=False)
+        
+    # Calculate offset to paste at centered zoom anchor
+    offset_x = (av_size - new_w) // 2
+    offset_y = (av_size - new_h) // 2 + int(dy)
+    
+    paste_x = x + offset_x
+    paste_y = y + offset_y
         
     # Create overlay drawing context for visualizer HUD
     hud_layer = Image.new("RGBA", slide_image.size, (0, 0, 0, 0))
@@ -192,7 +228,7 @@ def overlay_animated_avatar(
             )
             
     # Paste circular avatar frame
-    slide_image.paste(active_avatar, (x, y + offset_y), active_avatar)
+    slide_image.paste(active_avatar, (paste_x, paste_y), active_avatar)
     
     # Composite HUD glow on top of slides
     slide_image.alpha_composite(hud_layer)
@@ -307,7 +343,8 @@ async def export_presentation_video(payload: VideoExportRequest):
                 fps=fps,
                 codec='libx264',
                 pixelformat='yuv420p',
-                quality=8
+                quality=8,
+                macro_block_size=1
             )
         except Exception as e:
             logger.error(f"Imageio silent video encoding failed: {e}")
