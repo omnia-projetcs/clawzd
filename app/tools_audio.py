@@ -364,6 +364,14 @@ async def _generate_tts_edge(text, voice_style="female_soft", language="auto", d
     cleaned_text = re.sub(r'\[[^\]]*\]', ' ', text)
     cleaned_text = re.sub(r'\([^)]*\)', ' ', cleaned_text)
     
+    # Strip angle brackets and double-angles (e.g. <<FINISH>>, <|im_end|>, <<STOP>>)
+    cleaned_text = re.sub(r'<<[^>]*>>', ' ', cleaned_text)
+    cleaned_text = re.sub(r'<[^>]*>', ' ', cleaned_text)
+    cleaned_text = cleaned_text.replace("<<", " ").replace(">>", " ").replace("<", " ").replace(">", " ")
+    
+    # Strip standalone technical control keywords case-insensitively (e.g. FINISH, STOP, START, END)
+    cleaned_text = re.sub(r'\b(FINISH|STOP|START|END)\b', ' ', cleaned_text, flags=re.IGNORECASE)
+    
     # Strip underscores, asterisks, bullet points
     cleaned_text = cleaned_text.replace("_", " ")
     cleaned_text = cleaned_text.replace("*", " ")

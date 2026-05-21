@@ -45,6 +45,14 @@ def clean_narration_text(text: str) -> str:
     text = re.sub(r'\[[^\]]*\]', ' ', text)
     text = re.sub(r'\([^)]*\)', ' ', text)
     
+    # 0.1 Strip angle brackets and double-angles (e.g. <<FINISH>>, <|im_end|>, <<STOP>>)
+    text = re.sub(r'<<[^>]*>>', ' ', text)
+    text = re.sub(r'<[^>]*>', ' ', text)
+    text = text.replace("<<", " ").replace(">>", " ").replace("<", " ").replace(">", " ")
+    
+    # 0.2 Strip standalone technical control keywords case-insensitively (e.g. FINISH, STOP, START, END)
+    text = re.sub(r'\b(FINISH|STOP|START|END)\b', ' ', text, flags=re.IGNORECASE)
+    
     # 1. Replace common bullet characters, stars, and underscores
     text = text.replace("_", " ")
     text = text.replace("*", " ")
