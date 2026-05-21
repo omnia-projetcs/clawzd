@@ -8,6 +8,7 @@ import json
 import logging
 from datetime import datetime, timezone
 from typing import Optional
+from pydantic import BaseModel
 
 from config import AGENTS_DIR, DATA_DIR
 
@@ -68,6 +69,9 @@ def _parse_agent_md(filepath: str) -> Optional[AgentProfile]:
                 continue
             elif in_prompt:
                 system_prompt += line.rstrip() + "\n"
+            else:
+                if stripped and not any(stripped.startswith(prefix) for prefix in ["role:", "model:", "skills:"]):
+                    system_prompt += line.rstrip() + "\n"
 
         if not name:
             return None
@@ -335,3 +339,61 @@ async def reload_agents():
     global _agents
     _agents = _load_agents()
     return {"status": "reloaded", "agents": len(_agents)}
+
+
+@router.get("/detail")
+async def get_agent_detail(key: str):
+    """Get full details of an agent including system_prompt."""
+    agents = get_agents()
+    agent = agents.get(key)
+    if not agent:
+        return {"error": "Agent not found"}
+    return {
+        "name": agent.name,
+        "role": agent.role,
+        "model": agent.model,
+        "skills": agent.skills,
+        "system_prompt": agent.system_prompt,
+    }
+
+
+class SaveAgentRequest(BaseModel):
+    key: str
+    name: str
+    role: str
+    model: str
+    skills: str
+    system_prompt: str
+
+
+@router.post("/save")
+async def save_agent_endpoint(req: SaveAgentRequest):
+    """Save or create a new agent profile."""
+    key = "".join(c for c in req.key.lower() if c.isalnum() or c in "_-").strip()
+    if not key:
+        return {"error": "Invalid agent key"}
+    
+    filepath = os.path.join(AGENTS_DIR, f"{key}.md")
+    
+    content = (
+        f"# {req.name}\n"
+        f"role: {req.role}\n"
+        f"model: {req.model}\n"
+        f"skills: {req.skills}\n"
+        f"system_prompt:\n"
+        f"{req.system_prompt}\n"
+    )
+    
+    try:
+        os.makedirs(AGENTS_DIR, exist_ok=True)
+        with open(filepath, "w", encoding="utf-8") as f:
+            f.write(content)
+        
+        # Hot-reload agents registry
+        global _agents
+        _agents = _load_agents()
+        
+        return {"status": "saved", "key": key}
+    except Exception as e:
+        logger.error("Failed to save agent profile: %s", e)
+        return {"error": str(e)}

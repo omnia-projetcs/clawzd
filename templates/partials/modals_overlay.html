@@ -1159,3 +1159,95 @@
     </div>
   </div>
 </div>
+
+<!-- ======== Agent Preprompt Editor Modal ======== -->
+<div class="settings-overlay"
+     id="agent-editor-overlay"
+     style="display:none;
+            z-index:10003;
+            justify-content:center;
+            align-items:center">
+  <div class="settings-drawer"
+       style="width:700px;
+              max-width:95vw;
+              height:85vh;
+              max-height:900px;
+              display:flex;
+              flex-direction:column;
+              border-radius:12px;
+              box-shadow:var(--shadow-xl);
+              border:1px solid var(--border)">
+    <div class="settings-header" style="flex:0 0 auto;">
+      <div style="display:flex; align-items:center; gap:8px;">
+        <h2 id="agent-editor-title">Edit Agent Preprompt</h2>
+      </div>
+      <button class="icon-btn" id="agent-editor-close">
+        <svg class="ic" width="14" height="14">
+          <use href="#icon-x"></use>
+        </svg>
+      </button>
+    </div>
+    <div class="settings-body"
+         style="flex:1 1 auto;
+                padding:24px;
+                display:flex;
+                flex-direction:column;
+                gap:16px;
+                background:var(--bg-default);
+                overflow-y:auto">
+      <div style="display:flex; gap:16px;">
+        <div style="flex:1;">
+          <label class="settings-label" style="font-weight:600; margin-bottom:4px; display:block;">Agent Identifier / Key</label>
+          <input type="text" id="agent-editor-key" class="settings-input" placeholder="e.g. developer, writer" style="font-family:var(--font-mono)">
+        </div>
+        <div style="flex:1;">
+          <label class="settings-label" style="font-weight:600; margin-bottom:4px; display:block;">Agent Display Name</label>
+          <input type="text" id="agent-editor-name" class="settings-input" placeholder="e.g. Codex">
+        </div>
+      </div>
+      <div style="display:flex; gap:16px;">
+        <div style="flex:1;">
+          <label class="settings-label" style="font-weight:600; margin-bottom:4px; display:block;">Role Description</label>
+          <input type="text" id="agent-editor-role" class="settings-input" placeholder="e.g. expert in software development">
+        </div>
+        <div style="flex:1;">
+          <label class="settings-label" style="font-weight:600; margin-bottom:4px; display:block;">Target LLM Model (optional)</label>
+          <input type="text" id="agent-editor-model" class="settings-input" placeholder="e.g. code_model, qwen3.5:9b">
+        </div>
+      </div>
+      <div>
+        <label class="settings-label" style="font-weight:600; margin-bottom:4px; display:block;">Associated Skills / Tools Description</label>
+        <input type="text" id="agent-editor-skills" class="settings-input" placeholder="e.g. execute_python, audit_code, run_command">
+      </div>
+      <div style="flex:1; display:flex; flex-direction:column;">
+        <label class="settings-label" style="font-weight:600; margin-bottom:4px; display:block;">System Preprompt</label>
+        <textarea id="agent-editor-system-prompt"
+                  style="flex:1 1 auto;
+                         width:100%;
+                         min-height:200px;
+                         border:1px solid var(--border);
+                         border-radius:6px;
+                         padding:12px;
+                         font-family:var(--font-mono);
+                         font-size:13px;
+                         background:var(--bg-elevated);
+                         color:var(--text-primary);
+                         resize:none"
+                  placeholder="System prompt instructions..."></textarea>
+      </div>
+      <div style="flex:0 0 auto;
+                  display:flex;
+                  justify-content:flex-end;
+                  gap:8px;
+                  margin-top:16px">
+        <button class="btn btn-secondary" id="agent-editor-cancel">Cancel</button>
+        <button class="btn btn-primary" id="agent-editor-save">
+          <svg class="ic" width="14" height="14" style="margin-right: 6px;">
+            <use href="#icon-save"></use>
+          </svg>
+          Save Preprompt
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
