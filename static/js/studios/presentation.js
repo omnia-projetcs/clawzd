@@ -309,6 +309,104 @@ class PresentationStudio {
       });
     });
 
+    $('#pt-export-format')?.addEventListener('change', (e) => {
+      const opts = $('#pt-video-options');
+      if (opts) opts.style.display = e.target.value === 'mp4' ? 'block' : 'none';
+    });
+
+    $('#pt-video-lang')?.addEventListener('change', (e) => {
+      const lang = e.target.value;
+      const voiceSelect = $('#pt-video-voice');
+      if (voiceSelect) {
+        voiceSelect.innerHTML = '';
+        if (lang === 'fr') {
+          const opt1 = document.createElement('option');
+          opt1.value = 'fr-FR-EloiseNeural';
+          opt1.textContent = 'Eloise (Voix Premium Féminine)';
+          voiceSelect.appendChild(opt1);
+          
+          const opt2 = document.createElement('option');
+          opt2.value = 'fr-FR-RemyMultilingualNeural';
+          opt2.textContent = 'Remy (Voix Premium Masculine)';
+          voiceSelect.appendChild(opt2);
+
+          const opt3 = document.createElement('option');
+          opt3.value = 'fr-FR-VivienneMultilingualNeural';
+          opt3.textContent = 'Vivienne (Voix Claire Féminine)';
+          voiceSelect.appendChild(opt3);
+
+          const opt4 = document.createElement('option');
+          opt4.value = 'fr-FR-DeniseNeural';
+          opt4.textContent = 'Denise (Standard Féminine)';
+          voiceSelect.appendChild(opt4);
+
+          const opt5 = document.createElement('option');
+          opt5.value = 'fr-FR-HenriNeural';
+          opt5.textContent = 'Henri (Standard Masculine)';
+          voiceSelect.appendChild(opt5);
+        } else if (lang === 'en') {
+          const opt1 = document.createElement('option');
+          opt1.value = 'en-US-AvaMultilingualNeural';
+          opt1.textContent = 'Ava (Premium Conversational Female)';
+          voiceSelect.appendChild(opt1);
+          
+          const opt2 = document.createElement('option');
+          opt2.value = 'en-US-AndrewMultilingualNeural';
+          opt2.textContent = 'Andrew (Premium Warm Male)';
+          voiceSelect.appendChild(opt2);
+
+          const opt3 = document.createElement('option');
+          opt3.value = 'en-US-AriaNeural';
+          opt3.textContent = 'Aria (Professional Female)';
+          voiceSelect.appendChild(opt3);
+
+          const opt4 = document.createElement('option');
+          opt4.value = 'en-US-BrianMultilingualNeural';
+          opt4.textContent = 'Brian (Sincere Male)';
+          voiceSelect.appendChild(opt4);
+
+          const opt5 = document.createElement('option');
+          opt5.value = 'en-US-GuyNeural';
+          opt5.textContent = 'Guy (Standard Male)';
+          voiceSelect.appendChild(opt5);
+        }
+      }
+    });
+
+    $('#pt-slide-narration')?.addEventListener('input', (e) => {
+      if (this.pages[this.currentPage]) {
+        this.pages[this.currentPage].narration = e.target.value;
+      }
+    });
+
+    $('#pt-slide-narrate-ai')?.addEventListener('click', async () => {
+      const page = this.pages[this.currentPage];
+      if (!page) return;
+      const btn = $('#pt-slide-narrate-ai');
+      const originalText = btn.innerHTML;
+      btn.disabled = true;
+      btn.innerHTML = '<span class="pt-ai-gen-spinner" style="display:inline-block"></span> Generating...';
+      try {
+        const res = await fetch('/presentation/auto-narrate', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ elements: page.elements || [] })
+        });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.detail || 'Script generation failed');
+        
+        page.narration = data.script || '';
+        const textEl = $('#pt-slide-narration');
+        if (textEl) textEl.value = page.narration;
+        toast('✨ Narration script written by AI!');
+      } catch (e) {
+        toast(`⚠️ AI Error: ${e.message}`, 4000);
+      } finally {
+        btn.disabled = false;
+        btn.innerHTML = originalText;
+      }
+    });
+
     $('#pt-export-confirm')?.addEventListener('click', () => {
       if (exportModal) exportModal.style.display = 'none';
       const format = $('#pt-export-format')?.value || 'pptx';
@@ -1272,8 +1370,14 @@ class PresentationStudio {
         updateBtnState('#pt-prop-list', 'isList');
       }
     } else {
-      if ($('#pt-no-selection')) $('#pt-no-selection').style.display = 'block';
-      if ($('#presentation-sidebar-right')) $('#presentation-sidebar-right').style.display = 'none';
+      if ($('#pt-no-selection')) {
+        $('#pt-no-selection').style.display = 'block';
+        const txtEl = $('#pt-slide-narration');
+        if (txtEl) {
+          txtEl.value = (this.pages[this.currentPage] && this.pages[this.currentPage].narration) || '';
+        }
+      }
+      if ($('#presentation-sidebar-right')) $('#presentation-sidebar-right').style.display = 'flex';
       $('#pt-properties-panel').style.display = 'none';
     }
     this.renderCanvas(); // updates outlines
@@ -2796,6 +2900,46 @@ class PresentationStudio {
           }
         }
       }
+    }
+
+    if (format === 'mp4') {
+      const voice = $('#pt-video-voice')?.value || 'fr-FR-DeniseNeural';
+      const avatar = $('#pt-video-avatar')?.value || 'sophie';
+      const avatar_position = $('#pt-video-avatar-pos')?.value || 'bottom-right';
+      const auto_narrate = $('#pt-video-auto-narrate')?.checked || false;
+      
+      toast(ICONS.hourglass(14) + ' Generating video presentation... Synthesizing neural voices and compiling frames. This might take up to a minute.', 45000);
+      try {
+        const res = await fetch('/presentation/export-video', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            pages: pagesToExport,
+            canvas_width: this.canvasW,
+            canvas_height: this.canvasH,
+            voice: voice,
+            avatar: avatar,
+            avatar_position: avatar_position,
+            auto_narrate: auto_narrate
+          })
+        });
+
+        if (!res.ok) {
+          const err = await res.json();
+          throw new Error(err.detail || 'Video compilation crashed.');
+        }
+
+        const data = await res.json();
+        toast(' Successfully compiled video! Downloading presentation...', 5000);
+
+        const a = document.createElement('a');
+        a.href = data.url;
+        a.download = data.filename;
+        a.click();
+      } catch (e) {
+        toast(`⚠️ Video compilation failed: ${e.message}`, 6000);
+      }
+      return;
     }
 
     try {

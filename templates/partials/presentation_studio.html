@@ -1328,8 +1328,37 @@
       </div>
     </div>
     <div id="pt-no-selection"
-         style="padding: 20px;
-                text-align: center;
-                color: var(--text-muted)">Select an element to edit properties.</div>
+         style="padding: 16px;
+                display: block;">
+      <h3 style="font-size: 13px; font-weight: 600; margin-bottom: 12px; color: var(--text-primary); display: flex; align-items: center; gap: 8px;">
+        <svg class="ic" width="14" height="14" style="color: var(--accent);">
+          <use href="#icon-settings"></use>
+        </svg>
+        Slide Settings
+      </h3>
+      
+      <div class="pt-prop-group" style="margin-bottom: 12px;">
+        <label class="settings-label" style="display: block; font-size: 11px; color: var(--text-muted); margin-bottom: 6px;">Narration Script (AI Presenter Speech)</label>
+        <textarea id="pt-slide-narration" 
+                  class="settings-input" 
+                  style="width: 100%; height: 120px; resize: vertical; font-size: 12px; font-family: inherit; padding: 8px; border: 1px solid var(--border); border-radius: 4px; background: var(--bg-elevated); color: var(--text-primary);"
+                  placeholder="Type what the AI presenter should say for this slide..."></textarea>
+      </div>
+
+      <div class="pt-prop-group" style="margin-bottom: 16px;">
+        <button class="btn btn-accent btn-block" id="pt-slide-narrate-ai" style="display: flex; align-items: center; justify-content: center; gap: 6px; font-size: 12px; width: 100%;">
+          <svg class="ic" width="12" height="12">
+            <use href="#icon-sparkles"></use>
+          </svg>
+          AI Script Generator
+        </button>
+      </div>
+      
+      <div class="settings-divider" style="margin: 16px 0; border-top: 1px solid var(--border);"></div>
+      
+      <div style="font-size: 11px; text-align: center; color: var(--text-muted);">
+        No elements selected. Click on an element to customize its styling.
+      </div>
+    </div>
   </div>
 </div>

@@ -680,7 +680,58 @@
           <option value="pdf-cmyk">PDF High Quality CMYK (.pdf)</option>
           <option value="docx">Word Document (.docx)</option>
           <option value="png">Images (.png / .zip)</option>
+          <option value="mp4">AI Presenter Video (.mp4)</option>
         </select>
+      </div>
+      <!-- AI Video Presenter settings (shown only when mp4 is selected) -->
+      <div class="settings-group" id="pt-video-options" style="display:none; border:1px solid var(--border); border-radius:6px; padding:12px; margin-bottom:15px; background:var(--bg-elevated);">
+        <h4 style="margin:0 0 10px 0; font-size:11px; font-weight:600; text-transform:uppercase; letter-spacing:0.05em; color:var(--accent);">Video & Presenter Settings</h4>
+        
+        <div style="margin-bottom:10px;">
+          <label class="settings-label" style="font-size:11px; margin-bottom:4px; display:block;">AI Presenter Avatar</label>
+          <select id="pt-video-avatar" class="settings-input" style="font-size:12px; height:32px; padding:4px 8px;">
+            <option value="sophie">Sophie (Corporate Expert)</option>
+            <option value="thomas">Thomas (Technical Presenter)</option>
+            <option value="lucas">Lucas (Creative Designer)</option>
+            <option value="none">Audio Only (No Avatar PIP)</option>
+          </select>
+        </div>
+
+        <div style="margin-bottom:10px;">
+          <label class="settings-label" style="font-size:11px; margin-bottom:4px; display:block;">Language / Langue</label>
+          <select id="pt-video-lang" class="settings-input" style="font-size:12px; height:32px; padding:4px 8px;">
+            <option value="fr">French (Français)</option>
+            <option value="en">English (Anglais)</option>
+          </select>
+        </div>
+
+        <div style="margin-bottom:10px;">
+          <label class="settings-label" style="font-size:11px; margin-bottom:4px; display:block;">Presenter Voice</label>
+          <select id="pt-video-voice" class="settings-input" style="font-size:12px; height:32px; padding:4px 8px;">
+            <option value="fr-FR-EloiseNeural">Eloise (Voix Premium Féminine)</option>
+            <option value="fr-FR-RemyMultilingualNeural">Remy (Voix Premium Masculine)</option>
+            <option value="fr-FR-VivienneMultilingualNeural">Vivienne (Voix Claire Féminine)</option>
+            <option value="fr-FR-DeniseNeural">Denise (Standard Féminine)</option>
+            <option value="fr-FR-HenriNeural">Henri (Standard Masculine)</option>
+          </select>
+        </div>
+
+        <div style="margin-bottom:10px;">
+          <label class="settings-label" style="font-size:11px; margin-bottom:4px; display:block;">Avatar Position</label>
+          <select id="pt-video-avatar-pos" class="settings-input" style="font-size:12px; height:32px; padding:4px 8px;">
+            <option value="bottom-right">Bottom-Right (Standard)</option>
+            <option value="bottom-left">Bottom-Left</option>
+            <option value="top-right">Top-Right</option>
+            <option value="top-left">Top-Left</option>
+          </select>
+        </div>
+
+        <div style="margin-top:10px;">
+          <label style="display:flex; align-items:center; gap:8px; font-size:11px; cursor:pointer; color:var(--text-muted)">
+            <input type="checkbox" id="pt-video-auto-narrate" checked style="accent-color:var(--accent);">
+            Auto-generate scripts for empty slides
+          </label>
+        </div>
       </div>
       <div class="settings-group">
         <label class="settings-label">Pages to Export</label>
