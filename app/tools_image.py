@@ -2657,6 +2657,9 @@ def format_ass_timestamp(seconds: float) -> str:
     return f"{h}:{m:02d}:{s:02d}.{cs:02d}"
 
 
+_whisper_model = None
+
+
 @router.post("/add-subtitles")
 async def add_subtitles(request: Request):
     """Transcribe video audio using local Whisper model and burn subtitles with visual styles using FFmpeg."""
