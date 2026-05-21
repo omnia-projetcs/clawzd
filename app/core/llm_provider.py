@@ -445,7 +445,8 @@ class LLMProvider(ABC):
         """Non-streaming wrapper: collects all tokens from chat_stream."""
         parts = []
         async for token in self.chat_stream(messages, **kwargs):
-            parts.append(token)
+            if token != FINISH_STOP_SENTINEL:
+                parts.append(token)
         return "".join(parts)
 
 
@@ -528,7 +529,8 @@ class OllamaLLM(LLMProvider):
         async with sem:
             parts = []
             async for token in self._chat_stream_inner(messages, **kwargs):
-                parts.append(token)
+                if token != FINISH_STOP_SENTINEL:
+                    parts.append(token)
             return "".join(parts)
 
     async def _chat_stream_inner(self, messages, model=None, **kwargs):

@@ -41,7 +41,9 @@ def clean_narration_text(text: str) -> str:
     """Cleans up narration text to ensure high-fidelity spoken quality without punctuation or formatting artifacts being spoken."""
     if not text:
         return ""
-    # 0. Strip stage directions, placeholders, and bracketed notes (e.g. [Start], [End], [Finish], (laughing))
+    # 0. Strip technical double-underscored tokens (e.g. __FINISH_STOP__) and stage directions
+    text = text.replace("__FINISH_STOP__", " ")
+    text = re.sub(r'__\w+__', ' ', text)
     text = re.sub(r'\[[^\]]*\]', ' ', text)
     text = re.sub(r'\([^)]*\)', ' ', text)
     

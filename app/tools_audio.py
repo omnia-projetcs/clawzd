@@ -360,8 +360,10 @@ async def _generate_tts_edge(text, voice_style="female_soft", language="auto", d
 
     # 2. Dynamic Text Cleaning to strip stage directions, list hyphens, and formatting marks
     import re
-    # Strip stage directions and bracketed / parenthesized text
-    cleaned_text = re.sub(r'\[[^\]]*\]', ' ', text)
+    # Strip technical double-underscored tokens (e.g. __FINISH_STOP__) and stage directions
+    cleaned_text = text.replace("__FINISH_STOP__", " ")
+    cleaned_text = re.sub(r'__\w+__', ' ', cleaned_text)
+    cleaned_text = re.sub(r'\[[^\]]*\]', ' ', cleaned_text)
     cleaned_text = re.sub(r'\([^)]*\)', ' ', cleaned_text)
     
     # Strip angle brackets and double-angles (e.g. <<FINISH>>, <|im_end|>, <<STOP>>)
