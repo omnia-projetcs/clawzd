@@ -173,7 +173,7 @@ def get_audio_duration(file_path: str) -> float:
     return 4.0 # fallback
 
 def create_circular_avatar(avatar_name: str, size: int = 160) -> Optional[Image.Image]:
-    """Loads a presenter portrait, resizes and masks it into a high-quality circle with alpha."""
+    """Loads a presenter portrait, resizes it to square with alpha (dynamic masking is done per frame)."""
     avatar_file = f"{avatar_name}.png"
     avatar_path = os.path.join(STATIC_DIR, "img", "avatars", avatar_file)
     if not os.path.exists(avatar_path):
@@ -182,19 +182,9 @@ def create_circular_avatar(avatar_name: str, size: int = 160) -> Optional[Image.
         
     try:
         avatar_img = Image.open(avatar_path).convert("RGBA")
-        avatar_img = avatar_img.resize((size, size), Image.Resampling.LANCZOS)
-        
-        # Build circular transparency mask
-        mask = Image.new("L", (size, size), 0)
-        draw_mask = ImageDraw.Draw(mask)
-        draw_mask.ellipse((0, 0, size, size), fill=255)
-        
-        circular = Image.new("RGBA", (size, size), (0, 0, 0, 0))
-        circular.paste(avatar_img, (0, 0))
-        circular.putalpha(mask)
-        return circular
+        return avatar_img.resize((size, size), Image.Resampling.LANCZOS)
     except Exception as e:
-        logger.error(f"Error creating circular avatar: {e}")
+        logger.error(f"Error loading avatar: {e}")
         return None
 
 def overlay_animated_avatar(
@@ -204,7 +194,7 @@ def overlay_animated_avatar(
     frame_idx: int,
     speech_active: bool
 ):
-    """Draws the talking avatar circle and an organic pulsing sound visualizer HUD."""
+    """Draws the talking avatar circle with dynamic Synthesia-style mouth lipsync and an organic HUD."""
     w, h = slide_image.size
     av_size = avatar_img.size[0]
     
@@ -237,18 +227,54 @@ def overlay_animated_avatar(
         dy = 1.5 * math.sin(frame_idx * 0.1)
         scale = 1.0 + 0.01 * math.sin(frame_idx * 0.1)
         
+    # 1. Slice avatar to animate jaw dropping (talking mouth cavity)
+    split_y = int(av_size * 0.73)
+    top_half = avatar_img.crop((0, 0, av_size, split_y))
+    bottom_half = avatar_img.crop((0, split_y, av_size, av_size))
+    
+    jaw_drop = 0
+    if speech_active:
+        jaw_drop = int(4 * abs(math.sin(frame_idx * 0.75)))
+        
+    animated = Image.new("RGBA", (av_size, av_size + jaw_drop), (0, 0, 0, 0))
+    
+    # Draw open mouth oral cavity behind the lips
+    if jaw_drop > 0:
+        draw_cavity = ImageDraw.Draw(animated)
+        cavity_x1 = int(av_size * 0.44)
+        cavity_x2 = int(av_size * 0.56)
+        cavity_y1 = split_y - 2
+        cavity_y2 = split_y + jaw_drop + 2
+        # Deep burgundy mouth interior
+        draw_cavity.ellipse((cavity_x1, cavity_y1, cavity_x2, cavity_y2), fill=(90, 15, 25, 255))
+        # Shiny white teeth line
+        draw_cavity.rectangle((cavity_x1 + 3, cavity_y1, cavity_x2 - 3, cavity_y1 + 2), fill=(255, 255, 255, 255))
+        
+    # Paste face parts
+    animated.paste(top_half, (0, 0))
+    animated.paste(bottom_half, (0, split_y + jaw_drop))
+    
+    # 2. Build circular transparency mask for the animated frame
+    mask = Image.new("L", animated.size, 0)
+    draw_mask = ImageDraw.Draw(mask)
+    draw_mask.ellipse((0, 0, animated.size[0], animated.size[1]), fill=255)
+    
+    active_avatar = Image.new("RGBA", animated.size, (0, 0, 0, 0))
+    active_avatar.paste(animated, (0, 0))
+    active_avatar.putalpha(mask)
+        
     # Scale avatar proportionally to simulate head bobbing / breathing projection
     new_w = max(10, int(av_size * scale))
-    new_h = max(10, int(av_size * scale))
-    active_avatar = avatar_img.resize((new_w, new_h), Image.Resampling.LANCZOS)
+    new_h = max(10, int(active_avatar.size[1] * scale))
+    active_avatar = active_avatar.resize((new_w, new_h), Image.Resampling.LANCZOS)
     
     # Rotate slightly to simulate head tilting/swaying naturally
     if angle != 0.0:
         active_avatar = active_avatar.rotate(angle, resample=Image.Resampling.BICUBIC, expand=False)
         
-    # Calculate offset to paste at centered zoom anchor
+    # Calculate offset to paste at centered zoom anchor (anchor top face stable, chin drops)
     offset_x = (av_size - new_w) // 2
-    offset_y = (av_size - new_h) // 2 + int(dy)
+    offset_y = (av_size - int(av_size * scale)) // 2 + int(dy)
     
     paste_x = x + offset_x
     paste_y = y + offset_y
@@ -307,18 +333,27 @@ async def export_presentation_video(payload: VideoExportRequest):
     video_dir = os.path.join(DATA_DIR, "media", "video")
     os.makedirs(video_dir, exist_ok=True)
     
-    # Step 1: Pre-process narration scripts (AI synthesis if empty and auto_narrate enabled)
-    logger.info("Step 1: Analyzing and synthesizing slide narration scripts...")
+    # Step 1: Pre-process narration scripts in parallel
+    logger.info("Step 1: Analyzing and synthesizing slide narration scripts in parallel...")
+    narration_tasks = []
+    page_indices = []
     for idx, page in enumerate(pages):
         narration = page.get("narration", "").strip()
-        if not narration:
-            if payload.auto_narrate:
-                logger.info(f"Generating auto-narration for slide {idx+1} using LLM...")
-                generated = await generate_slide_narration_script(page.get("elements", []))
-                page["narration"] = generated
+        if not narration and payload.auto_narrate:
+            page_indices.append(idx)
+            narration_tasks.append(generate_slide_narration_script(page.get("elements", [])))
+            
+    if narration_tasks:
+        logger.info(f"Generating auto-narrations for {len(narration_tasks)} slides in parallel...")
+        generated_scripts = await asyncio.gather(*narration_tasks, return_exceptions=True)
+        for i, script in enumerate(generated_scripts):
+            idx = page_indices[i]
+            if isinstance(script, Exception):
+                logger.error(f"Narration generation failed for slide {idx+1}: {script}")
+                pages[idx]["narration"] = ""
             else:
-                page["narration"] = ""
-
+                pages[idx]["narration"] = script
+                
     # Step 2: Render slides and synthesize voiceover audios in a temp directory
     logger.info("Step 2: Rendering slide PNGs and generating neural Edge-TTS voiceovers...")
     fps = 15
@@ -337,43 +372,60 @@ async def export_presentation_video(payload: VideoExportRequest):
             logger.error(f"Slide PNG rendering failed: {e}")
             raise HTTPException(500, f"Impossible de générer les images des diapositives : {e}")
             
-        # Process each slide's assets
+        # Parallel synthesis of neural speech tracks
+        tts_tasks = []
+        tts_indices = []
+        for idx, page in enumerate(pages):
+            narration_text = page.get("narration", "").strip()
+            if narration_text:
+                audio_path = os.path.join(temp_work_dir, f"audio_{idx}.mp3")
+                tts_indices.append((idx, audio_path))
+                tts_tasks.append(synthesize_speech(narration_text, payload.voice, audio_path))
+                
+        synthesized_audios = {}
+        if tts_tasks:
+            logger.info(f"Synthesizing speech for {len(tts_tasks)} narration tracks in parallel...")
+            tts_results = await asyncio.gather(*tts_tasks, return_exceptions=True)
+            for i, res in enumerate(tts_results):
+                idx, audio_path = tts_indices[i]
+                if isinstance(res, Exception):
+                    logger.error(f"TTS synthesis failed for slide {idx+1}: {res}")
+                else:
+                    synthesized_audios[idx] = audio_path
+                    
+        # Process each slide's assets and build frame buffers
         for idx, page in enumerate(pages):
             slide_img_path = slide_paths[idx]
-            narration_text = page.get("narration", "").strip()
-            
             audio_path = os.path.join(temp_work_dir, f"audio_{idx}.mp3")
-            duration = 4.0 # default duration if no narration
+            duration = 4.0
             has_speech = False
             
-            if narration_text:
+            if idx in synthesized_audios:
                 try:
-                    await synthesize_speech(narration_text, payload.voice, audio_path)
                     duration = get_audio_duration(audio_path)
                     temp_audios.append(audio_path)
                     has_speech = True
                 except Exception as e:
-                    logger.error(f"TTS synthesis failed for slide {idx}: {e}")
-                    # fallback to silent slide
+                    logger.error(f"Failed to load audio metadata for slide {idx+1}: {e}")
                     has_speech = False
-            
-            # If a slide has no speech, generate a silent MP3 file for alignment
+                    
             if not has_speech:
                 silent_audio_path = os.path.join(temp_work_dir, f"silent_{idx}.mp3")
                 cmd = ["ffmpeg", "-y", "-f", "lavfi", "-i", "anullsrc=r=24000:c=mono", "-t", str(duration), "-c:a", "libmp3lame", silent_audio_path]
                 subprocess.run(cmd, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
                 temp_audios.append(silent_audio_path)
                 
-            # Compile frames for this slide's duration
             total_slide_frames = int(duration * fps)
             base_slide_img = Image.open(slide_img_path).convert("RGBA")
             
-            for f in range(total_slide_frames):
-                # Copy canvas to avoid dirty mutations
-                frame_img = base_slide_img.copy()
-                
-                # Apply speaking avatar layers if active
-                if avatar_sprite:
+            # Performance optimization: static array expansion when no PIP presenter overlay is used
+            if not avatar_sprite:
+                rgb_frame = base_slide_img.convert("RGB")
+                frame_arr = np.array(rgb_frame)
+                frames.extend([frame_arr] * total_slide_frames)
+            else:
+                for f in range(total_slide_frames):
+                    frame_img = base_slide_img.copy()
                     overlay_animated_avatar(
                         frame_img,
                         avatar_sprite,
@@ -381,11 +433,9 @@ async def export_presentation_video(payload: VideoExportRequest):
                         frame_idx=len(frames),
                         speech_active=has_speech
                     )
+                    rgb_frame = frame_img.convert("RGB")
+                    frames.append(np.array(rgb_frame))
                     
-                # Convert back to standard RGB numpy array for imageio writer
-                rgb_frame = frame_img.convert("RGB")
-                frames.append(np.array(rgb_frame))
-                
         # Step 3: Lossless Audio Concatenation using ffmpeg
         logger.info("Step 3: Losslessly concatenating voice tracks...")
         concat_list_path = os.path.join(temp_work_dir, "concat.txt")
