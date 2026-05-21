@@ -2657,6 +2657,31 @@ def format_ass_timestamp(seconds: float) -> str:
     return f"{h}:{m:02d}:{s:02d}.{cs:02d}"
 
 
+def get_video_info(file_path: str) -> tuple[int, int, bool]:
+    """Returns (width, height, has_audio) for a video file using ffmpeg."""
+    width, height = 1280, 720
+    has_audio = False
+    try:
+        import subprocess
+        import re
+        cmd = ["ffmpeg", "-i", file_path]
+        result = subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, timeout=5)
+        output = result.stderr
+        
+        # Parse resolution (e.g. 1920x1080 or 1280x720 or 720x1280)
+        res_match = re.search(r"Video:.*?\b(\d{3,5})x(\d{3,5})\b", output)
+        if res_match:
+            width = int(res_match.group(1))
+            height = int(res_match.group(2))
+            
+        # Parse audio stream presence
+        if "Audio:" in output:
+            has_audio = True
+    except Exception as e:
+        logger.error(f"Error parsing video info: {e}")
+    return width, height, has_audio
+
+
 _whisper_model = None
 
 
@@ -2722,6 +2747,10 @@ async def add_subtitles(request: Request):
 
         logger.info("Transcription complete. Found %d segments.", len(segments))
 
+        # Query actual video details (dimensions, audio availability)
+        width, height, has_audio = get_video_info(input_path)
+        logger.info("Input video resolution: %dx%d, has_audio=%s", width, height, has_audio)
+
         # Map position to ASS alignment (numpad-style: 2 = bottom, 5 = middle, 8 = top)
         align_map = {"bottom": 2, "middle": 5, "top": 8}
         default_align = 5 if style == "tiktok" else 2
@@ -2749,8 +2778,8 @@ async def add_subtitles(request: Request):
 Title: Subtitles
 ScriptType: v4.00+
 WrapStyle: 0
-PlayResX: 1280
-PlayResY: 720
+PlayResX: {width}
+PlayResY: {height}
 
 [V4+ Styles]
 Format: Name, Fontname, Fontsize, PrimaryColour, SecondaryColour, OutlineColour, BackColour, Bold, Italic, Underline, StrikeOut, ScaleX, ScaleY, Spacing, Angle, BorderStyle, Outline, Shadow, Alignment, MarginL, MarginR, MarginV, Encoding
@@ -2764,7 +2793,8 @@ Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
         for seg in segments:
             start_str = format_ass_timestamp(seg["start"])
             end_str = format_ass_timestamp(seg["end"])
-            text = seg["text"].strip().replace("\n", " ")
+            # Escape curly braces from Whisper output to prevent formatting overrides
+            text = seg["text"].strip().replace("\n", " ").replace("{", "").replace("}", "")
             dialogue_lines.append(f"Dialogue: 0,{start_str},{end_str},Default,,0,0,0,,{text}")
 
         ass_content = ass_header + "\n".join(dialogue_lines) + "\n"
@@ -2775,15 +2805,19 @@ Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
 
         logger.info("Temporary ASS subtitle file written to %s", temp_ass_path)
 
-        # 3. Use FFmpeg to hardcode the subtitles into the video
+        # 3. Use FFmpeg to hardcode the subtitles into the video with high-compatibility formats
         escaped_ass = temp_ass_path.replace("'", "'\\\\''").replace(":", "\\:")
         
         cmd = [
             "ffmpeg", "-y", "-i", input_path,
             "-vf", f"subtitles='{escaped_ass}'",
-            "-c:a", "copy",
-            out_filepath
+            "-c:v", "libx264",
+            "-pix_fmt", "yuv420p",
         ]
+        if has_audio:
+            cmd.extend(["-c:a", "copy"])
+
+        cmd.append(out_filepath)
 
         logger.info("Executing FFmpeg subtitling command: %s", " ".join(cmd))
         result_sp = await asyncio.to_thread(
