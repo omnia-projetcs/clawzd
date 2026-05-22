@@ -97,10 +97,13 @@
 }
 .rs-dash-gauge-wrap {
   flex-shrink: 0;
-}
-.rs-dash-gauge {
   width: 100px;
   height: 100px;
+}
+.rs-dash-gauge {
+  width: 100% !important;
+  height: 100% !important;
+  display: block;
 }
 .rs-dash-cards {
   display: flex;

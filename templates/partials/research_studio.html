@@ -244,8 +244,62 @@
                 title="Export Markdown">.md</button>
         <button class="btn btn-sm btn-block" id="rs-export-docx" title="Export Word">.docx</button>
         <button class="btn btn-sm btn-block" id="rs-export-pdf" title="Export PDF">.pdf</button>
+        <button class="btn btn-sm btn-block" id="rs-export-pptx" title="Export PowerPoint">.pptx</button>
       </div>
+      
+      <!-- Presentation Options panel -->
+      <div class="rs-pres-export-panel" style="margin-top: 10px; margin-bottom: 8px; padding: 10px; background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.06); border-radius: var(--radius-sm);">
+        <span style="font-size: 11px; font-weight: 600; color: var(--text-muted); margin-bottom: 6px; display: block; text-transform: uppercase; letter-spacing: 0.05em;">Presentation Style</span>
+        <label class="rs-setting-label" style="margin-bottom: 6px; font-size: 11px;">
+          Theme
+          <select id="rs-pres-theme" class="rs-provider-select" style="width: 100%; height: 28px; font-size: 11px; padding: 0 8px; border-radius: 4px; background: var(--bg-primary); border-color: var(--border);">
+            <option value="corporate" selected>Corporate Indigo</option>
+            <option value="midnight">Midnight Dark</option>
+            <option value="ocean">Ocean Deep</option>
+            <option value="sunset">Sunset Glow</option>
+            <option value="forest">Forest Green</option>
+            <option value="minimal_light">Minimal Light</option>
+            <option value="pastel_blue">Pastel Blue</option>
+            <option value="warm_light">Warm Light</option>
+            <option value="cyberpunk">Cyberpunk Neon</option>
+            <option value="nordic">Nordic Frost</option>
+            <option value="dracula">Dracula Dark</option>
+            <option value="monochrome">Monochrome</option>
+            <option value="solarized_dark">Solarized Dark</option>
+            <option value="ruby">Ruby Red</option>
+            <option value="emerald">Emerald Breeze</option>
+            <option value="sapphire">Sapphire Sky</option>
+            <option value="golden">Golden Luxury</option>
+            <option value="lavender">Lavender Dream</option>
+            <option value="desert">Desert Sand</option>
+            <option value="hacker">Hacker Terminal</option>
+          </select>
+        </label>
+        <div style="display: flex; gap: 8px;">
+          <label class="rs-setting-label" style="flex: 1; margin-bottom: 0; font-size: 11px;">
+            Slides
+            <input type="number" id="rs-pres-slides" class="rs-setting-input" value="8" min="3" max="15" style="width: 100%; height: 28px; font-size: 11px; padding: 0 8px; border-radius: 4px; background: var(--bg-primary); border-color: var(--border);">
+          </label>
+          <label class="rs-setting-label" style="flex: 1; margin-bottom: 0; font-size: 11px;">
+            Font
+            <select id="rs-pres-font" class="rs-provider-select" style="width: 100%; height: 28px; font-size: 11px; padding: 0 8px; border-radius: 4px; background: var(--bg-primary); border-color: var(--border);">
+              <option value="Sans-Serif" selected>Sans-Serif</option>
+              <option value="Serif">Serif</option>
+              <option value="Monospace">Monospace</option>
+            </select>
+          </label>
+        </div>
+      </div>
+
       <button class="btn btn-accent btn-sm btn-block"
+              id="rs-export-presentation"
+              style="margin-top:6px">
+        <svg class="ic" width="14" height="14">
+          <use href="#icon-monitor"></use>
+        </svg>
+        To Presentation Studio
+      </button>
+      <button class="btn btn-sm btn-block"
               id="rs-export-zip"
               style="margin-top:6px">
         <svg class="ic" width="14" height="14">

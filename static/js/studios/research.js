@@ -136,7 +136,9 @@ class ResearchStudioV2 {
     bindExport('rs-export-md', 'md');
     bindExport('rs-export-docx', 'docx');
     bindExport('rs-export-pdf', 'pdf');
+    bindExport('rs-export-pptx', 'pptx');
     document.getElementById('rs-export-zip')?.addEventListener('click', () => this.exportZip());
+    document.getElementById('rs-export-presentation')?.addEventListener('click', () => this.exportToPresentationStudio());
 
     // Search filter
     if (this.ui.searchInput) {
@@ -434,6 +436,58 @@ class ResearchStudioV2 {
       URL.revokeObjectURL(url);
       if (window.toast) toast(ICONS.download(14) + ' ZIP exported');
     } catch(e) { if (window.toast) toast(ICONS.x(14) + ' ZIP export failed'); }
+  }
+
+  async exportToPresentationStudio() {
+    if (!this.currentProject) return;
+    const btn = document.getElementById('rs-export-presentation');
+    if (!btn) return;
+    
+    const themeSelect = document.getElementById('rs-pres-theme');
+    const slidesInput = document.getElementById('rs-pres-slides');
+    const fontSelect = document.getElementById('rs-pres-font');
+    
+    const theme = themeSelect ? themeSelect.value : 'corporate';
+    const slideCount = slidesInput ? parseInt(slidesInput.value) || 8 : 8;
+    const font = fontSelect ? fontSelect.value : 'Sans-Serif';
+    
+    const originalText = btn.innerHTML;
+    btn.disabled = true;
+    btn.innerHTML = `<span class="pt-ai-gen-spinner" style="display:inline-block;width:12px;height:12px;border:2px solid rgba(255,255,255,0.3);border-radius:50%;border-top-color:#fff;animation:spin 1s ease-in-out infinite;margin-right:6px;vertical-align:middle"></span> Generating...`;
+    
+    if (window.toast) toast(ICONS.sparkles(14) + " Transforming report into slides...", 5000);
+    
+    try {
+      const res = await fetch(`/research/projects/${this.currentProject.id}/to-presentation-studio`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ theme, slide_count: slideCount, font })
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.detail || 'Failed to convert report to presentation');
+      
+      if (window.toast) toast(ICONS.check(14) + " Slide deck created! Switching to Presentation Studio...", 3000);
+      
+      if (window.presentationStudio) {
+        window.presentationStudio.presId = data.id;
+        localStorage.setItem('pt-last-id', data.id);
+        await window.presentationStudio.loadRecent();
+        
+        // Refresh saved list in presentation studio
+        await window.presentationStudio.loadSavedPresentations();
+      }
+      
+      const presBtn = document.querySelector('.mode-btn[data-mode="presentation"]');
+      if (presBtn) {
+        presBtn.click();
+      }
+    } catch (e) {
+      if (window.toast) toast(ICONS.x(14) + " Translation failed: " + e.message, 5000);
+      console.error(e);
+    } finally {
+      btn.disabled = false;
+      btn.innerHTML = originalText;
+    }
   }
 
   _connectSSE(pid) {

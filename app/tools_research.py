@@ -2113,6 +2113,206 @@ async def research_to_presentation(pid: str, request: Request):
     pdir = _proj_dir(pid)
     return await _export_research_pptx(proj, pdir)
 
+@router.post("/projects/{pid}/to-presentation-studio")
+async def research_to_presentation_studio(pid: str, request: Request):
+    """Convert research report to an interactive Presentation Studio slide deck."""
+    import re, json, uuid
+    from app.tools_presentation import _build_slide_layout, _THEMES, get_presentations_dir, _SVG_ILLUSTRATIONS
+    
+    proj = _load(pid)
+    if not proj:
+        raise HTTPException(404, "Project not found")
+    report = proj.get("report_md", "")
+    if not report:
+        raise HTTPException(400, "No report available — run research first")
+
+    # Read presentation customization options from request payload
+    try:
+        data = await request.json()
+    except Exception:
+        data = {}
+    
+    req_theme_name = data.get("theme", "corporate")
+    slide_count = data.get("slide_count", 8)
+    font_name = data.get("font", "Sans-Serif")
+
+    # Prompt LLM to create presentation JSON content plan from the report content
+    svg_names = ", ".join(sorted(_SVG_ILLUSTRATIONS.keys()))
+    system_prompt = f"""You are a top-tier presentation designer. Your task is to transform a detailed, professional research report into a structured presentation content plan in JSON format.
+Your output must be ONLY valid JSON. No markdown backticks, no explanations, no conversational filler.
+
+The JSON structure must be:
+{{
+  "title": "Presentation Title (compelling and derived from the report)",
+  "header_text": "Optional header text for slides",
+  "footer_text": "Optional footer text for slides",
+  "page_number_position": "bottom-right|bottom-center|top-right|none",
+  "theme": {{
+    "bg": "#0f0f1a",
+    "surface": "#1a1a2e",
+    "accent": "#7c5cfc",
+    "accent2": "#f472b6",
+    "text": "#ffffff",
+    "muted": "#a0a0b8",
+    "shape1": "#7c5cfc",
+    "shape2": "#f472b6",
+    "shapeType": "circle|diamond|hexagon|rounded-rect|star|cloud|parallelogram|pentagon"
+  }},
+  "font": "{font_name}",
+  "slides": [
+    {{"type": "title", "title": "...", "subtitle": "..."}},
+    {{"type": "section", "section_num": "01", "title": "...", "subtitle": "..."}},
+    {{"type": "bullets", "title": "...", "points": ["point 1", "point 2", "point 3"]}},
+    {{"type": "two_column", "title": "...", "left_title": "...", "left_body": "...", "right_title": "...", "right_body": "..."}},
+    {{"type": "three_column", "title": "...", "col1_icon": "activity", "col1_title": "...", "col1_body": "...", "col2_icon": "shield", "col2_title": "...", "col2_body": "...", "col3_icon": "sparkles", "col3_title": "...", "col3_body": "..."}},
+    {{"type": "comparison", "title": "...", "left_title": "...", "left_points": ["..."], "right_title": "...", "right_points": ["..."]}},
+    {{"type": "big_number", "title": "...", "number": "95%", "description": "...", "icon": "bar-chart"}},
+    {{"type": "image_focus", "title": "...", "caption": "...", "illustration": "rocket"}},
+    {{"type": "illustrated", "title": "...", "body": "...", "illustration": "growth", "illustration_position": "right"}},
+    {{"type": "quote", "quote": "...", "author": "..."}},
+    {{"type": "mermaid", "title": "Diagram Title", "mermaid_code": "graph TD;\\nA-->B;"}},
+    {{"type": "closing", "title": "Thank You", "subtitle": "contact info or next steps"}}
+  ]
+}}
+
+SLIDE TYPES:
+- "title": Opening slide
+- "section": Section divider
+- "bullets": Bullet points
+- "two_column": Two side-by-side cards with shadow effects
+- "three_column": Three side-by-side columns/steps
+- "comparison": Side-by-side comparison/pros-cons
+- "big_number": A single giant metric/number with description
+- "image_focus": Text + large SVG illustration.
+- "illustrated": Text + SVG illustration (left or right).
+- "mermaid": Mermaid.js diagram (generate actual mermaid code)
+- "quote": Highlighted quote
+- "closing": Final thank-you
+
+AVAILABLE SVG ILLUSTRATIONS for "illustrated" and "image_focus":
+{svg_names}
+
+RULES:
+1. Always start with "title", end with "closing".
+2. Create exactly {slide_count} slides summarizing the key parts of the report.
+3. Align colors closely with the style/spirit of the theme: "{req_theme_name}".
+4. Keep the text concise and visually organized.
+5. If the report contains tables, statistics, comparisons, or diagrams, USE the matching slide type ("comparison", "big_number", "three_column", or "mermaid").
+"""
+
+    messages = [
+        {"role": "system", "content": system_prompt},
+        {"role": "user", "content": f"Here is the research report:\n\n{report}"}
+    ]
+
+    try:
+        # Call the LLM to get the structured content plan
+        raw = await _llm_call(messages, proj.get("provider", ""), proj.get("model", ""), pid=pid)
+        
+        # Clean the output
+        if "<think>" in raw and "</think>" not in raw:
+            raw += "</think>"
+        raw = re.sub(r"<think>.*?</think>", "", raw, flags=re.DOTALL).strip()
+        
+        json_str = None
+        md_match = re.search(r"```(?:json)?\s*(\{.*?\})\s*```", raw, flags=re.DOTALL)
+        if md_match:
+            json_str = md_match.group(1)
+        else:
+            start_idx = raw.find('{')
+            if start_idx != -1:
+                brace_count = 0
+                end_idx = -1
+                in_string = False
+                escape = False
+                for i in range(start_idx, len(raw)):
+                    char = raw[i]
+                    if escape:
+                        escape = False
+                    elif char == '\\':
+                        escape = True
+                    elif char == '"':
+                        in_string = not in_string
+                    elif not in_string:
+                        if char == '{':
+                            brace_count += 1
+                        elif char == '}':
+                            brace_count -= 1
+                            if brace_count == 0:
+                                end_idx = i
+                                break
+                if end_idx != -1:
+                    json_str = raw[start_idx:end_idx+1]
+
+        if not json_str:
+            logger.error(f"Failed to find JSON block in LLM response:\n{raw[:1000]}")
+            raise HTTPException(500, "AI did not produce a valid JSON presentation plan")
+        
+        content_plan = json.loads(json_str)
+        
+        # Get themes and dimensions
+        title = content_plan.get("title", f"Presentation: {proj.get('title', 'Research')}")
+        theme_input = content_plan.get("theme")
+        
+        # Resolve slide theme with fallback hierarchy:
+        # 1. Force the theme requested by the user if valid.
+        # 2. Use the custom theme dict returned by LLM.
+        # 3. Look up theme name returned by LLM.
+        # 4. Fall back to standard "corporate".
+        if req_theme_name in _THEMES:
+            theme = _THEMES[req_theme_name]
+        elif isinstance(theme_input, dict):
+            theme = theme_input
+        else:
+            theme_name_to_use = theme_input if isinstance(theme_input, str) else "corporate"
+            theme = _THEMES.get(theme_name_to_use, _THEMES["corporate"])
+            
+        # Ensure default themes keys are present
+        default_theme = _THEMES["corporate"]
+        for k, v in default_theme.items():
+            if k not in theme:
+                theme[k] = v
+                
+        font = content_plan.get("font", font_name)
+        header_text = content_plan.get("header_text", "")
+        footer_text = content_plan.get("footer_text", "")
+        page_number_position = content_plan.get("page_number_position", "bottom-right")
+        slides = content_plan.get("slides", [])
+        
+        if not slides:
+            raise HTTPException(500, "AI generated empty slide plan")
+            
+        canvas_width = 960
+        canvas_height = 540
+        pages = []
+        for i, slide in enumerate(slides):
+            slide["page_num"] = i + 1
+            page = _build_slide_layout(slide, canvas_width, canvas_height, theme, font, header_text, footer_text, page_number_position)
+            pages.append(page)
+            
+        # Save presentation in Presentations directory
+        pres_id = f"pres_{uuid.uuid4().hex[:8]}"
+        pres_data = {
+            "id": pres_id,
+            "title": title,
+            "canvas_width": canvas_width,
+            "canvas_height": canvas_height,
+            "pages": pages,
+            "thumbnail": None
+        }
+        
+        pres_dir = get_presentations_dir()
+        filepath = os.path.join(pres_dir, f"{pres_id}.json")
+        with open(filepath, "w", encoding="utf-8") as f:
+            json.dump(pres_data, f, indent=2, ensure_ascii=False)
+            
+        logger.info(f"Successfully generated presentation '{title}' with ID {pres_id} from research report {pid}")
+        return {"status": "ok", "id": pres_id, "title": title}
+        
+    except Exception as e:
+        logger.error(f"Error building presentation from research: {e}")
+        raise HTTPException(500, f"Error building presentation: {str(e)}")
+
 @router.get("/projects/{pid}/export-zip")
 async def export_zip(pid: str):
     proj = _load(pid)
