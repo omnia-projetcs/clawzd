@@ -2136,6 +2136,17 @@ async def research_to_presentation_studio(pid: str, request: Request):
     slide_count = data.get("slide_count", 8)
     font_name = data.get("font", "Sans-Serif")
 
+    # Load active user settings to determine current default provider and model.
+    # This prevents using offline/outdated models from older projects.
+    from app.settings import load_settings
+    settings = load_settings()
+    active_provider = settings.get("default_provider") or proj.get("provider", "") or "ollama"
+    active_model = settings.get("default_model") or proj.get("model", "")
+    
+    if not active_model:
+        from config import OLLAMA_MODEL
+        active_model = OLLAMA_MODEL
+
     # Prompt LLM to create presentation JSON content plan from the report content
     svg_names = ", ".join(sorted(_SVG_ILLUSTRATIONS.keys()))
     system_prompt = f"""You are a top-tier presentation designer. Your task is to transform a detailed, professional research report into a structured presentation content plan in JSON format.
@@ -2206,8 +2217,8 @@ RULES:
     ]
 
     try:
-        # Call the LLM to get the structured content plan
-        raw = await _llm_call(messages, proj.get("provider", ""), proj.get("model", ""), pid=pid)
+        # Call the LLM with the active provider and model
+        raw = await _llm_call(messages, active_provider, active_model, pid=pid)
         
         # Clean the output
         if "<think>" in raw and "</think>" not in raw:
@@ -2247,6 +2258,10 @@ RULES:
         if not json_str:
             logger.error(f"Failed to find JSON block in LLM response:\n{raw[:1000]}")
             raise HTTPException(500, "AI did not produce a valid JSON presentation plan")
+        
+        # Repair the JSON robustly using Clawzd JSON repair tools before parsing
+        from app.tools.repair import repair_tool_call_arguments
+        json_str = repair_tool_call_arguments(json_str, "to-presentation-studio")
         
         content_plan = json.loads(json_str)
         
