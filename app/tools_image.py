@@ -86,6 +86,8 @@ _IMAGE_STYLE_MODELS = {
     # Unsloth-curated models (using original HF repos via diffusers)
     "z_image_turbo": {"repo": "Tongyi-MAI/Z-Image-Turbo", "is_lora": False, "pipeline": "zimage"},
     "z_image": {"repo": "Tongyi-MAI/Z-Image", "is_lora": False, "pipeline": "zimage"},
+    "hidream_o1": {"repo": "HiDream-ai/HiDream-O1-Image", "is_lora": False},
+    "flux2_klein_4b": {"repo": "black-forest-labs/FLUX.2-klein-4B", "is_lora": False},
 }
 
 
@@ -201,10 +203,11 @@ def _get_pipeline(repo_id: str, is_lora: bool = False):
             _pipe_type = _cfg.get("pipeline", "")
             break
 
-    # Z-Image / Qwen-Image / FLUX / SD3.5 all need bfloat16
+    # Z-Image / Qwen-Image / FLUX / SD3.5 / HiDream all need bfloat16
     is_bf16_model = (
         "flux" in repo_id.lower()
         or "stable-diffusion-3" in repo_id.lower()
+        or "hidream" in repo_id.lower()
         or _pipe_type == "zimage"
     )
     if is_bf16_model:
@@ -228,6 +231,14 @@ def _get_pipeline(repo_id: str, is_lora: bool = False):
                 local_files_only=_should_use_local_files(base_model), token=hf_token,
             )
             _pipeline.load_lora_weights(repo_id, token=hf_token)
+
+        elif "hidream" in repo_id.lower():
+            # HiDream family (UiT pixel-space generation) — uses DiffusionPipeline
+            from diffusers import DiffusionPipeline
+            _pipeline = DiffusionPipeline.from_pretrained(
+                repo_id, torch_dtype=dtype,
+                local_files_only=_should_use_local_files(repo_id), token=hf_token,
+            )
 
         elif _pipe_type == "zimage":
             # Z-Image family (Turbo & Base) — uses ZImagePipeline
@@ -273,6 +284,12 @@ def _get_pipeline(repo_id: str, is_lora: bool = False):
                     local_files_only=_should_use_local_files(base_model), token=hf_token,
                 )
                 _pipeline.load_lora_weights(repo_id, token=hf_token)
+            elif "hidream" in repo_id.lower():
+                from diffusers import DiffusionPipeline
+                _pipeline = DiffusionPipeline.from_pretrained(
+                    repo_id, torch_dtype=dtype, variant=None,
+                    local_files_only=_should_use_local_files(repo_id), token=hf_token,
+                )
             elif repo_id.endswith(".gguf") or repo_id.endswith(".safetensors") or repo_id.startswith("http") or repo_id.startswith("hf://"):
                 clean_url = repo_id.split("?")[0] if repo_id.startswith("http") else repo_id
                 if "huggingface.co" in clean_url and "/resolve/main/" in clean_url:
@@ -1519,7 +1536,7 @@ async def generate_image_core(
 
             import asyncio
             # Distilled / flow-matching models don't support negative_prompt
-            _no_neg = "flux" in repo_id.lower()  # FLUX.1, FLUX.2 family
+            _no_neg = "flux" in repo_id.lower() or "hidream" in repo_id.lower()  # FLUX family & HiDream
             # Z-Image-Turbo is distilled — no negative prompt
             if _pipe_type == "zimage" and "turbo" in repo_id.lower():
                 _no_neg = True

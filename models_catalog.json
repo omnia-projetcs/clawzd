@@ -436,5 +436,41 @@
       "audio"
     ],
     "backend": "hf"
+  },
+  {
+    "id": "HiDream-ai/HiDream-O1-Image",
+    "vendor": "Image",
+    "name": "HiDream O1 Image",
+    "ollama_id": "HiDream-ai/HiDream-O1-Image",
+    "size_gb": 17.5,
+    "params": "8B",
+    "quant": "BF16",
+    "vram_min_gb": 16,
+    "description": "Natively unified Pixel-level Unified Transformer (UiT). Supports high-fidelity generation, text rendering, and instruction-based editing. FP8 variants are also supported and run on ~10GB VRAM.",
+    "recommended": true,
+    "token_limit": "N/A",
+    "release_date": "2026-04",
+    "capabilities": [
+      "image"
+    ],
+    "backend": "hf"
+  },
+  {
+    "id": "black-forest-labs/FLUX.2-klein-4B",
+    "vendor": "Image",
+    "name": "FLUX.2 Klein 4B",
+    "ollama_id": "black-forest-labs/FLUX.2-klein-4B",
+    "size_gb": 8.0,
+    "params": "4B",
+    "quant": "BF16",
+    "vram_min_gb": 8,
+    "description": "Highly distilled, lightweight FLUX.2 model optimized for fast sub-second inference on consumer GPUs.",
+    "recommended": true,
+    "token_limit": "N/A",
+    "release_date": "2026-03",
+    "capabilities": [
+      "image"
+    ],
+    "backend": "hf"
   }
 ]
