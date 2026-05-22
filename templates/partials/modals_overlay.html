@@ -688,6 +688,16 @@
         <h4 style="margin:0 0 10px 0; font-size:11px; font-weight:600; text-transform:uppercase; letter-spacing:0.05em; color:var(--accent);">Video & Presenter Settings</h4>
         
         <div style="margin-bottom:10px;">
+          <label class="settings-label" style="font-size:11px; margin-bottom:4px; display:block;">Video Resolution / Qualité de sortie</label>
+          <select id="pt-video-quality" class="settings-input" style="font-size:12px; height:32px; padding:4px 8px;">
+            <option value="720p">HD (720p)</option>
+            <option value="1080p" selected>Full HD (1080p)</option>
+            <option value="2160p">4K Ultra HD (2160p)</option>
+            <option value="original">Original (Canvas Size)</option>
+          </select>
+        </div>
+
+        <div style="margin-bottom:10px;">
           <label class="settings-label" style="font-size:11px; margin-bottom:4px; display:block;">AI Presenter Avatar</label>
           <select id="pt-video-avatar" class="settings-input" style="font-size:12px; height:32px; padding:4px 8px;">
             <option value="sophie">Sophie (Corporate Expert)</option>

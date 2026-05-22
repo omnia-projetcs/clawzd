@@ -470,6 +470,10 @@ def _generate_pngs(pages: list, base_filepath: str, canvas_width: int, canvas_he
     # Apply scale factor for high-DPI export
     render_w = int(canvas_width * scale_factor)
     render_h = int(canvas_height * scale_factor)
+    if render_w % 2 != 0:
+        render_w += 1
+    if render_h % 2 != 0:
+        render_h += 1
     sf = scale_factor
     
     # Try to load a generic TrueType font, otherwise fallback to default

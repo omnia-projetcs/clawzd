@@ -71,3 +71,37 @@ def test_research_to_presentation_endpoints():
         import shutil
         if os.path.exists(pdir):
             shutil.rmtree(pdir)
+
+def test_video_export_resolution():
+    from PIL import Image
+    dummy_img = Image.new('RGBA', (960, 540), color='white')
+    
+    with patch("app.routers.presentation_video._generate_pngs") as mock_pngs, \
+         patch("app.routers.presentation_video.synthesize_speech") as mock_tts, \
+         patch("app.routers.presentation_video.imageio.mimwrite") as mock_mimwrite, \
+         patch("app.routers.presentation_video.subprocess.run") as mock_run, \
+         patch("app.routers.presentation_video.Image.open") as mock_image_open:
+         
+        mock_pngs.return_value = ["/tmp/slide_1.png"]
+        mock_image_open.return_value = dummy_img
+        mock_run.return_value.returncode = 0
+        mock_run.return_value.stderr = "Duration: 00:00:04.00"
+        
+        payload = {
+            "pages": [{"elements": [{"type": "text", "content": "Hello World"}], "narration": "Hello"}],
+            "canvas_width": 960,
+            "canvas_height": 540,
+            "quality": "720p",
+            "avatar": "none",
+            "voice": "fr-FR-DeniseNeural"
+        }
+        
+        resp = client.post("/presentation/export-video", json=payload)
+        assert resp.status_code == 200
+        data = resp.json()
+        assert data["status"] == "ok"
+        
+        # Verify scale_factor was passed to _generate_pngs
+        args, kwargs = mock_pngs.call_args
+        assert "scale_factor" in kwargs
+        assert abs(kwargs["scale_factor"] - 1.333333) < 0.001

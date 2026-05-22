@@ -37,6 +37,7 @@ class VideoExportRequest(BaseModel):
     auto_narrate: bool = False
     subtitles: bool = False
     subtitles_language: str = "none"
+    quality: str = "1080p"  # original, 720p, 1080p, 2160p
 def clean_narration_text(text: str) -> str:
     """Cleans up narration text to ensure high-fidelity spoken quality without punctuation or formatting artifacts being spoken."""
     if not text:
@@ -481,6 +482,23 @@ async def export_presentation_video(payload: VideoExportRequest):
     video_dir = os.path.join(DATA_DIR, "media", "video")
     os.makedirs(video_dir, exist_ok=True)
     
+    # Calculate scale factor based on the chosen output quality
+    quality = payload.quality.lower()
+    min_side = min(payload.canvas_width, payload.canvas_height)
+    if quality == "720p":
+        scale_factor = 720.0 / min_side if min_side > 0 else 1.3333
+    elif quality == "1080p":
+        scale_factor = 1080.0 / min_side if min_side > 0 else 2.0
+    elif quality == "2160p":
+        scale_factor = 2160.0 / min_side if min_side > 0 else 4.0
+    else:
+        scale_factor = 1.0
+
+    render_w = int(payload.canvas_width * scale_factor)
+    render_h = int(payload.canvas_height * scale_factor)
+    if render_w % 2 != 0: render_w += 1
+    if render_h % 2 != 0: render_h += 1
+    
     # Step 1: Pre-process narration scripts in parallel
     logger.info("Step 1: Analyzing and synthesizing slide narration scripts in parallel...")
     narration_tasks = []
@@ -514,7 +532,7 @@ async def export_presentation_video(payload: VideoExportRequest):
     
     avatar_sprite = None
     if payload.avatar != "none":
-        avatar_sprite = create_circular_avatar(payload.avatar, size=160)
+        avatar_sprite = create_circular_avatar(payload.avatar, size=int(160 * scale_factor))
         
     # Pre-process subtitle translations in parallel if subtitles and translation are enabled
     if payload.subtitles and payload.subtitles_language != "none":
@@ -541,7 +559,7 @@ async def export_presentation_video(payload: VideoExportRequest):
     with tempfile.TemporaryDirectory() as temp_work_dir:
         # Generate slide PNG images
         try:
-            slide_paths = _generate_pngs(pages, os.path.join(temp_work_dir, "slide.png"), payload.canvas_width, payload.canvas_height)
+            slide_paths = _generate_pngs(pages, os.path.join(temp_work_dir, "slide.png"), payload.canvas_width, payload.canvas_height, scale_factor=scale_factor)
         except Exception as e:
             logger.error(f"Slide PNG rendering failed: {e}")
             raise HTTPException(500, f"Impossible de générer les images des diapositives : {e}")
@@ -670,15 +688,15 @@ async def export_presentation_video(payload: VideoExportRequest):
         temp_ass_path = None
         if payload.subtitles and dialogue_lines:
             temp_ass_path = os.path.join(temp_work_dir, "subtitles.ass")
-            font_size = 20
+            font_size = int(20 * scale_factor)
             styles_definition = f"Style: Default,Arial,{font_size},&H00FFFFFF,&H000000FF,&H00000000,&H80000000,0,0,0,0,100,100,0,0,3,1,1,2,10,10,20,1"
             
             ass_header = f"""[Script Info]
 Title: Subtitles
 ScriptType: v4.00+
 WrapStyle: 0
-PlayResX: {payload.canvas_width}
-PlayResY: {payload.canvas_height}
+PlayResX: {render_w}
+PlayResY: {render_h}
 
 [V4+ Styles]
 Format: Name, Fontname, Fontsize, PrimaryColour, SecondaryColour, OutlineColour, BackColour, Bold, Italic, Underline, StrikeOut, ScaleX, ScaleY, Spacing, Angle, BorderStyle, Outline, Shadow, Alignment, MarginL, MarginR, MarginV, Encoding

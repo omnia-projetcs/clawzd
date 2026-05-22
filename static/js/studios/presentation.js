@@ -2919,6 +2919,7 @@ class PresentationStudio {
       const auto_narrate = $('#pt-video-auto-narrate')?.checked || false;
       const subtitles = $('#pt-video-subtitles')?.checked || false;
       const subtitles_lang = $('#pt-video-subtitles-lang')?.value || 'none';
+      const quality = $('#pt-video-quality')?.value || '1080p';
       
       toast(ICONS.hourglass(14) + ' Generating video presentation... Synthesizing neural voices and compiling frames. This might take up to a minute.', 45000);
       try {
@@ -2934,7 +2935,8 @@ class PresentationStudio {
             avatar_position: avatar_position,
             auto_narrate: auto_narrate,
             subtitles: subtitles,
-            subtitles_language: subtitles_lang
+            subtitles_language: subtitles_lang,
+            quality: quality
           })
         });
 
