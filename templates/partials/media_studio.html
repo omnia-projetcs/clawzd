@@ -548,6 +548,9 @@
             <option value="download_zip">📦 Download ZIP</option>
           </optgroup>
         </select>
+        <button class="media-toolbar-btn accent-btn" id="media-studio-editor-btn" title="Premiere Studio Editor" style="background: linear-gradient(135deg, var(--accent), #4f46e5); color: white; border: none; padding: 6px 12px; font-weight: 500;">
+          <span class="media-icon" data-icon="timeline"></span> Studio Editor
+        </button>
         <button class="media-toolbar-btn" id="media-refresh" title="Refresh gallery">
           <span class="media-icon" data-icon="refresh"></span>
         </button>
@@ -1053,4 +1056,6 @@
     </div>
   </div>
 </div>
+
+{% include 'partials/studio_editor.html' %}
 

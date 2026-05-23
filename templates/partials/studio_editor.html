@@ -1,0 +1,297 @@
+<!-- Premiere-style Advanced Studio Editor Full-Screen Modal -->
+<div id="media-studio-editor-modal" class="studio-editor-overlay">
+  <div class="studio-editor-container">
+    
+    <!-- Top Global Header Control Bar -->
+    <header class="studio-editor-header">
+      <div class="header-left">
+        <div class="studio-logo">
+          <span class="media-icon neon-accent" data-icon="timeline"></span>
+          <h1>Premiere Studio Editor</h1>
+        </div>
+        <div class="status-indicator">
+          <span class="pulse-dot"></span> <span id="editor-status-text">Idle</span>
+        </div>
+      </div>
+      
+      <!-- Export / Render Actions -->
+      <div class="header-right">
+        <div class="export-settings-group">
+          <select id="export-format" class="editor-select" title="Output format">
+            <option value="mp4" selected>MP4 (Video)</option>
+            <option value="webm">WEBM (Web Video)</option>
+            <option value="mp3">MP3 (Audio Mix)</option>
+            <option value="wav">WAV (Raw Audio)</option>
+          </select>
+          <select id="export-res" class="editor-select" title="Resolution">
+            <option value="1280x720" selected>720p (1280x720)</option>
+            <option value="1920x1080">1080p (1920x1080)</option>
+            <option value="640x360">360p (640x360)</option>
+          </select>
+          <select id="export-fps" class="editor-select" title="Frame rate">
+            <option value="30" selected>30 FPS</option>
+            <option value="60">60 FPS</option>
+            <option value="24">24 FPS</option>
+          </select>
+        </div>
+        
+        <button id="editor-render-btn" class="editor-btn primary">
+          <span class="media-icon" data-icon="save"></span> Render / Export
+        </button>
+        
+        <button id="editor-close-btn" class="editor-btn close" title="Exit Editor">
+          <span class="media-icon" data-icon="x"></span>
+        </button>
+      </div>
+    </header>
+
+    <!-- Render Progress Bar Overlay -->
+    <div id="editor-progress-container" style="display:none;">
+      <div class="progress-bar-wrapper">
+        <div class="progress-bar-label">
+          <span>Compiling Timeline Assets...</span>
+          <span id="editor-progress-pct">0%</span>
+        </div>
+        <div class="progress-track">
+          <div id="editor-progress-bar" style="width: 0%;"></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Main Workspace Area -->
+    <div class="studio-editor-main">
+      
+      <!-- Left Column: Resource Bin / Properties Inspector -->
+      <aside class="editor-sidebar">
+        <!-- Tabs Header -->
+        <div class="sidebar-tabs">
+          <button class="sidebar-tab active" data-tab="media-bin">
+            <span class="media-icon" data-icon="folder"></span> Resource Bin
+          </button>
+          <button class="sidebar-tab" data-tab="inspector">
+            <span class="media-icon" data-icon="sliders"></span> Properties
+          </button>
+        </div>
+        
+        <!-- Tab Content 1: Media Bin -->
+        <div class="tab-content active" id="tab-media-bin">
+          <div class="search-box">
+            <input type="text" id="bin-search" placeholder="Search media bin..." class="editor-input">
+          </div>
+          <div class="bin-list" id="bin-list-container">
+            <!-- Dynamically populated from gallery items -->
+          </div>
+        </div>
+        
+        <!-- Tab Content 2: Properties Inspector -->
+        <div class="tab-content" id="tab-inspector">
+          <div id="inspector-placeholder" class="empty-inspector">
+            <span class="media-icon" data-icon="info"></span>
+            <p>Select a clip on the timeline to edit properties</p>
+          </div>
+          
+          <div id="inspector-controls" class="inspector-controls-form" style="display:none;">
+            <h3 class="inspector-section-title">Clip: <span id="inspector-clip-name">ClipName</span></h3>
+            
+            <div class="property-group">
+              <label class="property-label">Start in Timeline (s)</label>
+              <input type="number" id="prop-start" step="0.1" min="0" class="editor-input">
+            </div>
+            
+            <div class="property-group">
+              <label class="property-label">Duration (s)</label>
+              <input type="number" id="prop-duration" step="0.1" min="0.1" class="editor-input">
+            </div>
+            
+            <div class="property-group">
+              <label class="property-label">Source Trim Start (s)</label>
+              <input type="number" id="prop-trim-start" step="0.1" min="0" class="editor-input">
+            </div>
+            
+            <div class="property-group inspector-video-only">
+              <label class="property-label">Color Grade / Filter</label>
+              <select id="prop-filter" class="editor-select">
+                <option value="none">Normal (Standard)</option>
+                <option value="grayscale">Grayscale (Noir)</option>
+                <option value="sepia">Sepia (Retro)</option>
+                <option value="cinematic">Cinematic (High Contrast)</option>
+                <option value="cyberpunk">Cyberpunk (Neon Glow)</option>
+                <option value="vignette">Vignette (Chamber)</option>
+                <option value="vintage">Vintage (80s Fade)</option>
+              </select>
+            </div>
+            
+            <div class="property-group inspector-audio-only">
+              <label class="property-label">Volume Multiplier (<span id="prop-vol-val">1.0</span>x)</label>
+              <input type="range" id="prop-volume" min="0.0" max="2.0" step="0.05" class="editor-range">
+            </div>
+            
+            <div class="property-group">
+              <label class="property-label">Playback Speed (<span id="prop-speed-val">1.0</span>x)</label>
+              <input type="range" id="prop-speed" min="0.5" max="2.0" step="0.05" class="editor-range">
+            </div>
+
+            <!-- Text Overlay specific properties -->
+            <div class="property-group inspector-text-only" style="display:none;">
+              <h3 class="inspector-section-title" style="margin-top:15px; border-top:1px solid #222; padding-top:15px;">Text Configuration</h3>
+              <div class="property-group">
+                <label class="property-label">Text string</label>
+                <input type="text" id="prop-text-str" class="editor-input" placeholder="Enter caption...">
+              </div>
+              <div class="property-group">
+                <label class="property-label">Text Color</label>
+                <select id="prop-text-color" class="editor-select">
+                  <option value="white">White</option>
+                  <option value="yellow">Yellow</option>
+                  <option value="red">Red</option>
+                  <option value="cyan">Cyan</option>
+                  <option value="green">Neon Green</option>
+                </select>
+              </div>
+              <div class="property-group">
+                <label class="property-label">Font Size</label>
+                <input type="number" id="prop-text-size" min="12" max="72" value="28" class="editor-input">
+              </div>
+              <div class="property-group">
+                <label class="property-label">Position Alignment</label>
+                <select id="prop-text-position" class="editor-select">
+                  <option value="bottom">Bottom (Standard)</option>
+                  <option value="middle">Middle (Centered)</option>
+                  <option value="top">Top Header</option>
+                </select>
+              </div>
+            </div>
+
+            <button id="prop-delete-btn" class="editor-btn danger" style="width:100%;margin-top:20px;">
+              <span class="media-icon" data-icon="trash"></span> Delete Clip
+            </button>
+          </div>
+        </div>
+      </aside>
+
+      <!-- Right Column: Live Composition Preview Screen -->
+      <section class="editor-preview-panel">
+        <div class="preview-monitor-wrapper">
+          <div class="monitor-screen" id="preview-screen-container">
+            <!-- Dynamic video preview rendering or loading placeholder -->
+            <div class="preview-placeholder" id="preview-placeholder-msg">
+              <span class="media-icon pulse-effect" data-icon="play"></span>
+              <p>Import clips into tracks to begin preview</p>
+            </div>
+            <!-- Dynamic video element -->
+            <video id="editor-preview-video" style="display:none;" playsinline muted></video>
+            <audio id="editor-preview-audio" style="display:none;"></audio>
+            
+            <!-- Burned Text live preview -->
+            <div id="live-text-overlay" class="live-text-container" style="display:none;">Caption</div>
+          </div>
+          
+          <!-- Transport & Playback controls -->
+          <div class="monitor-controls">
+            <div class="playback-timer" id="timecode-display">
+              00:00:00.00
+            </div>
+            
+            <div class="transport-buttons">
+              <button class="transport-btn" id="btn-seek-start" title="Seek to start">
+                <span class="media-icon" data-icon="chevronLeft"></span>
+              </button>
+              <button class="transport-btn main-play-btn" id="btn-play-pause" title="Play / Pause">
+                <span class="media-icon" data-icon="play"></span>
+              </button>
+              <button class="transport-btn" id="btn-stop" title="Stop preview">
+                <span class="media-icon" data-icon="square"></span>
+              </button>
+              <button class="transport-btn" id="btn-seek-end" title="Seek to end">
+                <span class="media-icon" data-icon="chevronRight"></span>
+              </button>
+            </div>
+            
+            <div class="playback-vol-group">
+              <span class="media-icon" data-icon="volume2"></span>
+              <input type="range" id="preview-volume" min="0" max="1" step="0.1" value="0.8" class="editor-range" style="width: 80px;">
+            </div>
+          </div>
+        </div>
+      </section>
+
+    </div>
+
+    <!-- Bottom Timeline Track Panel -->
+    <footer class="studio-editor-timeline">
+      
+      <!-- Timeline Action controls bar -->
+      <div class="timeline-action-bar">
+        <div class="timeline-tools">
+          <button class="timeline-btn active" id="tool-select" title="Selection tool">
+            <span class="media-icon" data-icon="copy"></span> Select
+          </button>
+          <button class="timeline-btn" id="tool-split" title="Split clip at Playhead (Scissors)">
+            <span class="media-icon" data-icon="wand"></span> Split Clip
+          </button>
+          <button class="timeline-btn danger" id="tool-clear" title="Clear all tracks">
+            <span class="media-icon" data-icon="refresh"></span> Clear Canvas
+          </button>
+        </div>
+        
+        <div class="timeline-zoom-controls">
+          <span class="media-icon" data-icon="clock"></span>
+          <label for="timeline-zoom">Zoom:</label>
+          <input type="range" id="timeline-zoom" min="10" max="100" value="30" class="editor-range">
+        </div>
+      </div>
+      
+      <!-- Scrollable tracks editor container -->
+      <div class="tracks-scroll-viewport" id="timeline-scroll-container">
+        
+        <!-- Interactive Playhead vertical line -->
+        <div id="timeline-playhead-line" class="playhead-needle">
+          <div class="playhead-head"></div>
+        </div>
+
+        <div class="timeline-tracks-grid" id="timeline-tracks-grid-el">
+          
+          <!-- RULER TIMELINE TICK MARKS -->
+          <div class="timeline-ruler" id="timeline-time-ruler">
+            <!-- Populated via Javascript -->
+          </div>
+
+          <!-- Video Track Lane -->
+          <div class="track-row" data-track="video">
+            <div class="track-info">
+              <span class="media-icon" data-icon="film"></span>
+              <span>Video Track</span>
+            </div>
+            <div class="track-lane" id="video-track-lane">
+              <!-- ABSOLUTE CLIPS CONTAINER -->
+            </div>
+          </div>
+
+          <!-- Audio Track Lane -->
+          <div class="track-row" data-track="audio">
+            <div class="track-info">
+              <span class="media-icon" data-icon="music"></span>
+              <span>Audio Track</span>
+            </div>
+            <div class="track-lane" id="audio-track-lane">
+              <!-- ABSOLUTE CLIPS CONTAINER -->
+            </div>
+          </div>
+
+          <!-- Text Track Lane -->
+          <div class="track-row" data-track="text">
+            <div class="track-info">
+              <span class="media-icon" data-icon="chat"></span>
+              <span>Text Track</span>
+            </div>
+            <div class="track-lane" id="text-track-lane">
+              <!-- ABSOLUTE CLIPS CONTAINER -->
+            </div>
+          </div>
+
+        </div>
+      </div>
+    </footer>
+
+  </div>
+</div>

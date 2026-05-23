@@ -53,6 +53,7 @@ export default defineConfig({
         project_studio: resolve(__dirname, 'static/js/project_studio.js'),
         spec_studio: resolve(__dirname, 'static/js/studios/spec.js'),
         research_studio: resolve(__dirname, 'static/js/studios/research.js'),
+        studio_editor: resolve(__dirname, 'static/js/studios/studio_editor.js'),
       },
       output: {
         // Keep predictable filenames (no hash) for Jinja2 templates

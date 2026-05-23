@@ -53,6 +53,7 @@ from app.routers.presentation_video import router as presentation_video_router
 from app.tools_automation import router as automation_router
 from app.tools_clone import router as clone_router
 from app.tools_document_gen import router as docgen_router
+from app.tools_studio_editor import router as studio_editor_router
 from app.tool_executor import parse_tool_calls, execute_tool, format_tool_result, resolve_tool_name
 from app.core.tool_permissions import (
     get_tool_permission, set_tool_permission, load_permissions,
@@ -284,6 +285,7 @@ app.include_router(presentation_video_router, prefix="/presentation")
 app.include_router(automation_router, prefix="/automation")
 app.include_router(clone_router, prefix="/clone")
 app.include_router(docgen_router, prefix="/docgen")
+app.include_router(studio_editor_router, prefix="/studio")
 
 from app.tools_research import router as research_router
 app.include_router(research_router, prefix="/research")

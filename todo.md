@@ -366,6 +366,7 @@ Can be used to rebuild from scratch the project with AI assistance.
         - [x] Research-to-Blog drafting workflow with tone enforcement and internal model knowledge base querying.
     - [x] **Media Studio**: Generation of images, videos (SVD, Wan2.1), and audio/lyrics with live streaming progress.
         - [x] Strict power-of-32 resolution constraints and aspect ratio preservation for seamless image-to-video processing.
+        - [x] **Premiere-style Studio Editor**: Non-linear multi-track editing workspace featuring seekable timeline, interactive playhead sync, scissors split tool, property inspector (filters, trim, speed, audio volume, subtitles), and FFmpeg-backed timeline compiler.
     - [x] **Automation Studio**: Multi-channel connector management (Email, Discord, Telegram, Signal, WhatsApp) and scheduled tasks.
     - [x] **My Clone Studio**: Autonomous AI twin configuration, utilizing automation connectors for profile-driven, cross-channel responses and knowledge base management.
     - [x] **Presentation Studio**: AI-enriched slideshow generation, code autocompletion, and document translation.
