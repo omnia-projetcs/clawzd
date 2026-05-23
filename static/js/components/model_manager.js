@@ -104,7 +104,14 @@ class ModelManager {
     }
 
     const vramTotal = this.hardware.vram_total_mib || 0;
-    const CAP_ICONS = { txt: '', image: '🖼️', video: '🎬', audio: '🎵', mcp: '', code: ICONS.monitor ? ICONS.monitor(14) : '💻' };
+    const CAP_ICONS = {
+      txt: '',
+      image: window.icon ? window.icon('imageIcon', 14) : '🖼️',
+      video: window.icon ? window.icon('video', 14) : '🎬',
+      audio: window.icon ? window.icon('music', 14) : '🎵',
+      mcp: '',
+      code: window.icon ? window.icon('code', 14) : '💻'
+    };
 
     this.grid.innerHTML = filtered.map(m => {
       const canFit = vramTotal > 0 ? (m.vram_min_gb * 1024) <= vramTotal : true;

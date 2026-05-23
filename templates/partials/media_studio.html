@@ -289,9 +289,9 @@
            style="display:none">
         <label class="media-form-label">Audio Mode</label>
         <div class="media-type-toggle" id="media-audio-submode-toggle">
-          <button class="media-type-btn active" data-submode="tts">🗣️ TTS</button>
-          <button class="media-type-btn" data-submode="voice_clone">🎭 Clone</button>
-          <button class="media-type-btn" data-submode="music">🎵 Music</button>
+          <button class="media-type-btn active" data-submode="tts"><svg class="ic" width="14" height="14"><use href="#icon-volume-2"></use></svg> TTS</button>
+          <button class="media-type-btn" data-submode="voice_clone"><svg class="ic" width="14" height="14"><use href="#icon-user"></use></svg> Clone</button>
+          <button class="media-type-btn" data-submode="music"><svg class="ic" width="14" height="14"><use href="#icon-music"></use></svg> Music</button>
         </div>
       </div>
       <!-- Audio Text (TTS / Clone / Song) -->
@@ -984,13 +984,13 @@
                   border:1px solid rgba(255,255,255,0.1);
                   box-shadow: 0 10px 25px rgba(0,0,0,0.5);
                   z-index: 10;">
-        <div style="font-size:16px; margin-bottom:8px;">🎙️ Détection & Transcription...</div>
+        <div style="font-size:16px; margin-bottom:8px; display:flex; align-items:center; justify-content:center; gap:6px;"><svg class="ic" width="16" height="16"><use href="#icon-mic"></use></svg> Détection & Transcription...</div>
         <div style="font-size:12px; color:var(--accent); font-weight:normal;">Cela peut prendre de 10 à 30 secondes selon la durée de la vidéo.</div>
       </div>
     </div>
     <div class="media-subtitles-controls">
       <div class="media-subtitles-header">
-        <h3>💬 Sous-titres Automatiques</h3>
+        <h3 style="display:flex; align-items:center; gap:6px;"><svg class="ic" width="16" height="16"><use href="#icon-chat"></use></svg> Sous-titres Automatiques</h3>
         <button class="media-lightbox-close"
                 id="media-subtitles-close"
                 style="position:static;

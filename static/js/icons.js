@@ -133,7 +133,12 @@ const ICONS = {
   // ---- New additions for Media/Automation ----
   play: (s = 16) => `<svg class="ic" width="${s}" height="${s}"><use href="#icon-play"></use></svg>`,
   pause: (s = 16) => `<svg width="${s}" height="${s}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="6" y="4" width="4" height="16"/><rect x="14" y="4" width="4" height="16"/></svg>`,
-  music: (s = 16) => `<svg width="${s}" height="${s}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/></svg>`,
+  music: (s = 16) => `<svg class="ic" width="${s}" height="${s}"><use href="#icon-music"></use></svg>`,
+  dna: (s = 16) => `<svg class="ic" width="${s}" height="${s}"><use href="#icon-dna"></use></svg>`,
+  brain: (s = 16) => `<svg class="ic" width="${s}" height="${s}"><use href="#icon-brain"></use></svg>`,
+  alertTriangle: (s = 16) => `<svg class="ic" width="${s}" height="${s}"><use href="#icon-alert-triangle"></use></svg>`,
+  volume2: (s = 16) => `<svg class="ic" width="${s}" height="${s}"><use href="#icon-volume-2"></use></svg>`,
+  user: (s = 16) => `<svg class="ic" width="${s}" height="${s}"><use href="#icon-user"></use></svg>`,
   sparkles: (s = 16) => `<svg class="ic" width="${s}" height="${s}"><use href="#icon-sparkles"></use></svg>`,
   image: (s = 16) => `<svg class="ic" width="${s}" height="${s}"><use href="#icon-image"></use></svg>`,
   video: (s = 16) => `<svg class="ic" width="${s}" height="${s}"><use href="#icon-video"></use></svg>`,
