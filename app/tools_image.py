@@ -2700,11 +2700,9 @@ async def convert_video(request: Request):
 
 @router.post("/convert-ascii")
 async def convert_ascii(request: Request):
-    """Convert a gallery image or video into a terminal-style ASCII asset (image or video)."""
+    """Convert a gallery image or video into a terminal-style ASCII asset (image or video) keeping original dimensions."""
     data = await request.json()
     filename = data.get("filename", "")
-    width = int(data.get("width", 1280))
-    height = int(data.get("height", 720))
     duration = float(data.get("duration", 5.0))
     fps = int(data.get("fps", 30))
     ascii_width = int(data.get("ascii_width", 160))
@@ -2726,16 +2724,17 @@ async def convert_ascii(request: Request):
     out_filename = f"{base_name}_ascii.{out_format}"
     out_filepath = os.path.join(IMAGES_DIR, out_filename)
 
-    logger.info("Starting ASCII art compilation for %s (image=%s, res=%dx%d)...", filename, is_image, width, height)
-
     try:
-        from app.tools_studio_editor import convert_frame_to_ascii_image, convert_video_to_ascii
+        from app.tools_studio_editor import convert_frame_to_ascii_image, convert_video_to_ascii, get_media_info
         from PIL import Image
         import asyncio
 
         if is_image:
             # Handle image-to-image ASCII conversion
             img = Image.open(input_path)
+            width, height = img.width, img.height  # PRESERVE INITIAL DIMENSIONS
+            logger.info("Starting ASCII image compilation for %s (res=%dx%d)...", filename, width, height)
+            
             ascii_img = await asyncio.to_thread(
                 convert_frame_to_ascii_image,
                 img, width, height,
@@ -2747,14 +2746,20 @@ async def convert_ascii(request: Request):
             ascii_img.save(out_filepath, format="PNG")
         else:
             # Handle video-to-video ASCII conversion
-            # For videos, fetch actual duration if not provided
+            info = get_media_info(input_path)
+            width = info.get("width", 1280)
+            height = info.get("height", 720)
+            
+            # Ensure even dimensions for FFmpeg video encoder
+            if width % 2 != 0:
+                width += 1
+            if height % 2 != 0:
+                height += 1
+
             if "duration" not in data:
-                try:
-                    from app.tools_studio_editor import get_media_info
-                    info = get_media_info(input_path)
-                    duration = info.get("duration", 5.0)
-                except Exception:
-                    pass
+                duration = info.get("duration", 5.0)
+
+            logger.info("Starting ASCII video compilation for %s (res=%dx%d, dur=%.2f)...", filename, width, height, duration)
 
             await asyncio.to_thread(
                 convert_video_to_ascii,
@@ -2836,6 +2841,18 @@ async def convert_ascii_preview(request: Request):
             finally:
                 if reader:
                     reader.close()
+
+        # Determine aspect-ratio matching target preview dimensions (max 800px)
+        orig_w = img.width
+        orig_h = img.height
+        
+        preview_max = 800
+        if orig_w > orig_h:
+            width = preview_max
+            height = int(preview_max * orig_h / orig_w)
+        else:
+            height = preview_max
+            width = int(preview_max * orig_w / orig_h)
 
         # Convert to ASCII frame
         ascii_img = await asyncio.to_thread(
