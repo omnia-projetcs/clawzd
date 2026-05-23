@@ -25,6 +25,7 @@
     _show(data) {
       const { id, tool_name } = data;
       if (this._active.has(id)) return;
+      if (document.getElementById(`ta-${id}`)) return; // Prevent duplicate cards from showing up on re-renders
       this._active.set(id, data);
 
       const card = document.createElement('div');
@@ -41,7 +42,13 @@
         `</div>`;
 
       let chat = document.getElementById('editor-chat-messages');
-      if (!chat) chat = document.getElementById('chat-messages');
+      // If the editor chat container is hidden, fallback to the main chat messages container
+      if (!chat || chat.offsetParent === null) {
+        chat = document.getElementById('chat-messages');
+      }
+      if (!chat) {
+        chat = document.getElementById('editor-chat-messages');
+      }
       if (chat) { chat.appendChild(card); chat.scrollTop = chat.scrollHeight; }
 
       this._timer(id, 120);
