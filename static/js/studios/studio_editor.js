@@ -45,6 +45,7 @@ window.StudioEditor = {
       inspectorControls: document.getElementById("inspector-controls"),
       liveText: document.getElementById("live-text-overlay"),
       videoPreview: document.getElementById("editor-preview-video"),
+      asciiPreview: document.getElementById("editor-preview-ascii"),
       audioPreview: document.getElementById("editor-preview-audio"),
       previewPlaceholder: document.getElementById("preview-placeholder-msg"),
       toolSelect: document.getElementById("tool-select"),
@@ -618,7 +619,6 @@ window.StudioEditor = {
     // 1. VIDEO PREVIEW SYNC
     if (activeVideo) {
       placeholder.style.display = "none";
-      vEl.style.display = "block";
       
       const videoSrc = `/data/images/${activeVideo.filename}`;
       if (vEl.dataset.currentSrc !== videoSrc) {
@@ -647,9 +647,20 @@ window.StudioEditor = {
       } else {
         vEl.pause();
       }
+
+      // Handle ASCII Art preview versus standard video display
+      if (activeVideo.filter === 'ascii_art') {
+        vEl.style.display = "none";
+        this.elements.asciiPreview.style.display = "flex";
+        this.updateAsciiPreview(vEl);
+      } else {
+        this.elements.asciiPreview.style.display = "none";
+        vEl.style.display = "block";
+      }
     } else {
       vEl.style.display = "none";
       vEl.pause();
+      this.elements.asciiPreview.style.display = "none";
       placeholder.style.display = "flex";
     }
 
@@ -694,6 +705,61 @@ window.StudioEditor = {
     } else {
       textOverlay.style.display = "none";
     }
+  },
+
+  updateAsciiPreview(videoEl) {
+    const asciiEl = this.elements.asciiPreview;
+    if (!videoEl || videoEl.readyState < 2) {
+      return;
+    }
+
+    // Lazy load temporary canvas
+    if (!this.asciiCanvas) {
+      this.asciiCanvas = document.createElement("canvas");
+      this.asciiCtx = this.asciiCanvas.getContext("2d");
+    }
+
+    const canvas = this.asciiCanvas;
+    const ctx = this.asciiCtx;
+
+    // Grid size for the monospace layout preview
+    const cols = 120;
+    const rows = 52;
+
+    canvas.width = cols;
+    canvas.height = rows;
+
+    // Draw the active frame to canvas
+    ctx.drawImage(videoEl, 0, 0, cols, rows);
+
+    let imgData;
+    try {
+      imgData = ctx.getImageData(0, 0, cols, rows).data;
+    } catch (e) {
+      return;
+    }
+
+    const CHARS = " .:-=+*#%@";
+    const numChars = CHARS.length;
+    let asciiStr = "";
+
+    for (let y = 0; y < rows; y++) {
+      let line = "";
+      for (let x = 0; x < cols; x++) {
+        const offset = (y * cols + x) * 4;
+        const r = imgData[offset];
+        const g = imgData[offset + 1];
+        const b = imgData[offset + 2];
+
+        // Luma formula for grayscale mapping
+        const brightness = 0.299 * r + 0.587 * g + 0.114 * b;
+        const charIdx = Math.min(Math.floor(brightness / 256 * numChars), numChars - 1);
+        line += CHARS[charIdx];
+      }
+      asciiStr += line + "\n";
+    }
+
+    asciiEl.textContent = asciiStr;
   },
 
   togglePlay() {

@@ -12,6 +12,9 @@ import asyncio
 import tempfile
 from datetime import datetime
 from fastapi import APIRouter, Request, HTTPException
+from PIL import Image, ImageDraw, ImageFont
+import numpy as np
+import imageio
 from config import DATA_DIR
 
 logger = logging.getLogger("clawzd.studio_editor")
@@ -31,7 +34,8 @@ COLOR_FILTERS = {
     "cinematic": "eq=contrast=1.1:brightness=-0.05:saturation=1.2",
     "cyberpunk": "eq=contrast=1.2:saturation=1.5,hue=h=180",
     "vignette": "vignette=angle=0.5",
-    "vintage": "eq=contrast=0.9:brightness=0.05:saturation=0.8,hue=h=-10"
+    "vintage": "eq=contrast=0.9:brightness=0.05:saturation=0.8,hue=h=-10",
+    "ascii_art": "ascii_art"
 }
 
 def get_media_info(filepath: str) -> dict:
@@ -60,6 +64,118 @@ def get_media_info(filepath: str) -> dict:
     except Exception as e:
         logger.error(f"Error parsing media details for {filepath}: {e}")
     return info
+
+def convert_frame_to_ascii_image(frame_img, target_width: int, target_height: int) -> Image.Image:
+    
+    # 1. Convert frame to grayscale
+    gray_img = frame_img.convert("L")
+    
+    # 2. Determine ASCII grid size
+    ascii_width = 160
+    ascii_height = 80
+    
+    small_img = gray_img.resize((ascii_width, ascii_height), Image.Resampling.BILINEAR)
+    pixels = small_img.load()
+    
+    # 3. Create black background image
+    out_img = Image.new("RGB", (target_width, target_height), color="black")
+    draw = ImageDraw.Draw(out_img)
+    
+    # Locate a monospace font
+    font = None
+    try:
+        font_paths = [
+            "/usr/share/fonts/truetype/dejavu/DejaVuSansMono-Bold.ttf",
+            "/usr/share/fonts/truetype/dejavu/DejaVuSansMono.ttf",
+            "/usr/share/fonts/truetype/freefont/FreeMonoBold.ttf",
+            "/usr/share/fonts/truetype/freefont/FreeMono.ttf",
+            "/usr/share/fonts/truetype/liberation/LiberationMono-Bold.ttf",
+            "/usr/share/fonts/truetype/liberation/LiberationMono-Regular.ttf"
+        ]
+        for path in font_paths:
+            if os.path.exists(path):
+                font = ImageFont.truetype(path, int(target_height / ascii_height) + 1)
+                break
+    except Exception:
+        pass
+        
+    if font is None:
+        font = ImageFont.load_default()
+        
+    CHARS = " .:-=+*#%@"
+    num_chars = len(CHARS)
+    
+    char_w = target_width / ascii_width
+    char_h = target_height / ascii_height
+    
+    for y in range(ascii_height):
+        for x in range(ascii_width):
+            val = pixels[x, y]
+            char_idx = int(val / 256 * num_chars)
+            char_idx = min(char_idx, num_chars - 1)
+            char = CHARS[char_idx]
+            
+            # Matrix green terminal color
+            color = (57, 255, 20)
+            
+            pos_x = x * char_w
+            pos_y = y * char_h
+            draw.text((pos_x, pos_y), char, font=font, fill=color)
+            
+    return out_img
+
+def convert_video_to_ascii(input_path: str, output_path: str, target_width: int, target_height: int, duration: float, fps: int = 30):
+    
+    reader = None
+    writer = None
+    try:
+        reader = imageio.get_reader(input_path)
+        meta = reader.get_meta_data()
+        orig_fps = meta.get("fps", fps)
+        if not orig_fps or orig_fps <= 0:
+            orig_fps = fps
+            
+        writer = imageio.get_writer(output_path, fps=orig_fps, codec="libx264")
+        
+        for frame in reader:
+            pil_img = Image.fromarray(frame)
+            ascii_img = convert_frame_to_ascii_image(pil_img, target_width, target_height)
+            out_frame = np.array(ascii_img)
+            writer.append_data(out_frame)
+    except Exception as e:
+        logger.error(f"Error in video ascii conversion: {e}", exc_info=True)
+    finally:
+        if reader:
+            try:
+                reader.close()
+            except Exception:
+                pass
+        if writer:
+            try:
+                writer.close()
+            except Exception:
+                pass
+
+def convert_image_to_ascii_video(input_path: str, output_path: str, target_width: int, target_height: int, duration: float, fps: int = 30):
+    
+    writer = None
+    try:
+        writer = imageio.get_writer(output_path, fps=fps, codec="libx264")
+        pil_img = Image.open(input_path)
+        ascii_img = convert_frame_to_ascii_image(pil_img, target_width, target_height)
+        out_frame = np.array(ascii_img)
+        
+        num_frames = int(duration * fps)
+        for _ in range(num_frames):
+            writer.append_data(out_frame)
+    except Exception as e:
+        logger.error(f"Error in image ascii video conversion: {e}", exc_info=True)
+    finally:
+        if writer:
+            try:
+                writer.close()
+            except Exception:
+                pass
 
 @router.post("/export")
 async def export_timeline(request: Request):
@@ -126,37 +242,68 @@ async def export_timeline(request: Request):
                 is_image = filename.lower().endswith((".png", ".jpg", ".jpeg", ".webp", ".svg"))
 
                 if is_image:
-                    # Convert image to loop video slide
-                    cmd = [
-                        "ffmpeg", "-y", "-loop", "1", "-i", filepath,
-                        "-t", str(duration),
-                        "-vf", f"scale={width}:{height},format=yuv420p",
-                        "-c:v", "libx264", "-r", str(fps),
-                        temp_clip_path
-                    ]
+                    if color_filter == "ascii_art":
+                        logger.info(f"Rendering static image to ASCII Art: {filepath} -> {temp_clip_path}")
+                        convert_image_to_ascii_video(filepath, temp_clip_path, width, height, duration, fps)
+                        res_code = 0
+                    else:
+                        cmd = [
+                            "ffmpeg", "-y", "-loop", "1", "-i", filepath,
+                            "-t", str(duration),
+                            "-vf", f"scale={width}:{height},format=yuv420p",
+                            "-c:v", "libx264", "-r", str(fps),
+                            temp_clip_path
+                        ]
+                        logger.info("Preprocessing video clip %d: %s", idx, " ".join(cmd))
+                        res = subprocess.run(cmd, capture_output=True, text=True)
+                        res_code = res.returncode
                 else:
-                    # Preprocess video with trimming, speed, scaling and filters
-                    vf_filters = [f"scale={width}:{height}"]
-                    if speed != 1.0:
-                        vf_filters.append(f"setpts=(1/{speed})*PTS")
-                    
-                    filter_fx = COLOR_FILTERS.get(color_filter, "")
-                    if filter_fx:
-                        vf_filters.append(filter_fx)
+                    if color_filter == "ascii_art":
+                        temp_trimmed = os.path.join(temp_dir, f"trimmed_{idx}.mp4")
+                        vf_filters = [f"scale={width}:{height}"]
+                        if speed != 1.0:
+                            vf_filters.append(f"setpts=(1/{speed})*PTS")
+                        
+                        cmd = [
+                            "ffmpeg", "-y",
+                            "-ss", str(trim_start),
+                            "-t", str(duration),
+                            "-i", filepath,
+                            "-vf", ",".join(vf_filters),
+                            "-c:v", "libx264", "-an", "-r", str(fps), "-pix_fmt", "yuv420p",
+                            temp_trimmed
+                        ]
+                        logger.info("Preprocessing video clip for ASCII %d: %s", idx, " ".join(cmd))
+                        res = subprocess.run(cmd, capture_output=True)
+                        if res.returncode == 0 and os.path.exists(temp_trimmed):
+                            logger.info(f"Converting video clip {idx} to ASCII Art: {temp_trimmed} -> {temp_clip_path}")
+                            convert_video_to_ascii(temp_trimmed, temp_clip_path, width, height, duration, fps)
+                            res_code = 0
+                        else:
+                            res_code = res.returncode
+                    else:
+                        vf_filters = [f"scale={width}:{height}"]
+                        if speed != 1.0:
+                            vf_filters.append(f"setpts=(1/{speed})*PTS")
+                        
+                        filter_fx = COLOR_FILTERS.get(color_filter, "")
+                        if filter_fx:
+                            vf_filters.append(filter_fx)
 
-                    cmd = [
-                        "ffmpeg", "-y",
-                        "-ss", str(trim_start),
-                        "-t", str(duration),
-                        "-i", filepath,
-                        "-vf", ",".join(vf_filters),
-                        "-c:v", "libx264", "-an", "-r", str(fps), "-pix_fmt", "yuv420p",
-                        temp_clip_path
-                    ]
+                        cmd = [
+                            "ffmpeg", "-y",
+                            "-ss", str(trim_start),
+                            "-t", str(duration),
+                            "-i", filepath,
+                            "-vf", ",".join(vf_filters),
+                            "-c:v", "libx264", "-an", "-r", str(fps), "-pix_fmt", "yuv420p",
+                            temp_clip_path
+                        ]
+                        logger.info("Preprocessing video clip %d: %s", idx, " ".join(cmd))
+                        res = subprocess.run(cmd, capture_output=True, text=True)
+                        res_code = res.returncode
 
-                logger.info("Preprocessing video clip %d: %s", idx, " ".join(cmd))
-                res = subprocess.run(cmd, capture_output=True, text=True)
-                if res.returncode == 0 and os.path.exists(temp_clip_path):
+                if res_code == 0 and os.path.exists(temp_clip_path):
                     preprocessed_video_clips.append({
                         "path": temp_clip_path,
                         "start": start,

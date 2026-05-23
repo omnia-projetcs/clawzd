@@ -851,3 +851,36 @@
     box-shadow: 0 0 16px rgba(255, 255, 255, 0.4), inset 0 0 8px rgba(255, 255, 255, 0.1);
   }
 }
+
+/* Live Video Preview Color Grading Filters */
+.filter-grayscale { filter: grayscale(100%) !important; }
+.filter-sepia { filter: sepia(100%) !important; }
+.filter-cinematic { filter: contrast(1.25) brightness(0.9) saturate(1.25) !important; }
+.filter-cyberpunk { filter: contrast(1.3) saturate(1.7) hue-rotate(180deg) !important; }
+.filter-vignette { filter: contrast(1.15) brightness(0.9) !important; }
+.filter-vintage { filter: contrast(0.9) saturate(0.7) sepia(20%) !important; }
+
+/* Live ASCII Art Monitor Screen style */
+.preview-ascii-screen {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background: #000000 !important;
+  color: #39ff14 !important; /* Matrix Terminal Green */
+  font-family: 'Courier New', Courier, monospace !important;
+  font-size: 7px !important;
+  font-weight: 700 !important;
+  line-height: 5.5px !important;
+  letter-spacing: -0.5px !important;
+  overflow: hidden !important;
+  margin: 0 !important;
+  padding: 0 !important;
+  white-space: pre !important;
+  display: flex !important;
+  justify-content: center !important;
+  align-items: center !important;
+  box-sizing: border-box !important;
+  text-shadow: 0 0 3px rgba(57, 255, 20, 0.5);
+}
