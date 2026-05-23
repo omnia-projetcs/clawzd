@@ -85,18 +85,30 @@ def get_media_info(filepath: str) -> dict:
         logger.error(f"Error parsing media details for {filepath}: {e}")
     return info
 
-def convert_frame_to_ascii_image(frame_img, target_width: int, target_height: int) -> Image.Image:
-    
+def convert_frame_to_ascii_image(
+    frame_img, 
+    target_width: int, 
+    target_height: int, 
+    ascii_width: int = 160, 
+    ascii_height: int = 80, 
+    text_color: str = "green", 
+    chars_set: str = "standard"
+) -> Image.Image:
     # 1. Convert frame to grayscale
     gray_img = frame_img.convert("L")
-    
-    # 2. Determine ASCII grid size
-    ascii_width = 160
-    ascii_height = 80
     
     small_img = gray_img.resize((ascii_width, ascii_height), Image.Resampling.BILINEAR)
     pixels = small_img.load()
     
+    # Color small image to read original colors if color theme is source
+    color_pixels = None
+    if text_color == "source":
+        try:
+            color_small = frame_img.resize((ascii_width, ascii_height), Image.Resampling.BILINEAR).convert("RGB")
+            color_pixels = color_small.load()
+        except Exception:
+            pass
+
     # 3. Create black background image
     out_img = Image.new("RGB", (target_width, target_height), color="black")
     draw = ImageDraw.Draw(out_img)
@@ -122,11 +134,26 @@ def convert_frame_to_ascii_image(frame_img, target_width: int, target_height: in
     if font is None:
         font = ImageFont.load_default()
         
-    CHARS = " .:-=+*#%@"
+    # Char sets mapping
+    chars_map = {
+        "standard": " .:-=+*#%@",
+        "binary": " 01",
+        "blocks": " ░▒▓█",
+        "matrix": " ｦｧｨｩｪｫｬｭｮｯｰｱｲｳｴｵｶｷｸｹｺｻｼｽｾｿﾀﾁﾂﾃﾄﾅﾆﾇﾈﾉﾊﾋﾌﾍﾎﾏﾐﾑﾒﾓﾔﾕﾖﾗﾘﾙﾚﾛﾜﾝ10"
+    }
+    CHARS = chars_map.get(chars_set, " .:-=+*#@")
     num_chars = len(CHARS)
     
     char_w = target_width / ascii_width
     char_h = target_height / ascii_height
+    
+    # Color themes mapping
+    color_map = {
+        "green": (57, 255, 20),
+        "amber": (255, 176, 0),
+        "cyan": (0, 255, 255),
+        "white": (255, 255, 255)
+    }
     
     for y in range(ascii_height):
         for x in range(ascii_width):
@@ -135,8 +162,10 @@ def convert_frame_to_ascii_image(frame_img, target_width: int, target_height: in
             char_idx = min(char_idx, num_chars - 1)
             char = CHARS[char_idx]
             
-            # Matrix green terminal color
-            color = (57, 255, 20)
+            if text_color == "source" and color_pixels:
+                color = color_pixels[x, y]
+            else:
+                color = color_map.get(text_color, (57, 255, 20))
             
             pos_x = x * char_w
             pos_y = y * char_h
@@ -144,7 +173,18 @@ def convert_frame_to_ascii_image(frame_img, target_width: int, target_height: in
             
     return out_img
 
-def convert_video_to_ascii(input_path: str, output_path: str, target_width: int, target_height: int, duration: float, fps: int = 30):
+def convert_video_to_ascii(
+    input_path: str, 
+    output_path: str, 
+    target_width: int, 
+    target_height: int, 
+    duration: float, 
+    fps: int = 30,
+    ascii_width: int = 160,
+    ascii_height: int = 80,
+    text_color: str = "green",
+    chars_set: str = "standard"
+):
     
     reader = None
     writer = None
@@ -159,7 +199,11 @@ def convert_video_to_ascii(input_path: str, output_path: str, target_width: int,
         
         for frame in reader:
             pil_img = Image.fromarray(frame)
-            ascii_img = convert_frame_to_ascii_image(pil_img, target_width, target_height)
+            ascii_img = convert_frame_to_ascii_image(
+                pil_img, target_width, target_height,
+                ascii_width=ascii_width, ascii_height=ascii_height,
+                text_color=text_color, chars_set=chars_set
+            )
             out_frame = np.array(ascii_img)
             writer.append_data(out_frame)
     except Exception as e:

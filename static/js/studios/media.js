@@ -262,7 +262,7 @@ class MediaStudio {
           case 'remove_bg': this.removeBgSelected(); break;
           case 'make_coloring': this.makeColoringSelected(); break;
           case 'add_subtitles': this.openSubtitlesModal(); break;
-          case 'convert_ascii': this.convertASCIISelected(); break;
+          case 'convert_ascii': this.openASCIIModal(); break;
           case 'download_zip': this.downloadZip(); break;
         }
       });
@@ -392,6 +392,30 @@ class MediaStudio {
     if (subsClose) subsClose.addEventListener('click', () => this.closeSubtitlesModal());
     if (subsCancel) subsCancel.addEventListener('click', () => this.closeSubtitlesModal());
     if (subsApply) subsApply.addEventListener('click', () => this.applySubtitles());
+
+    // ASCII Modal Events
+    this._asciiDebounce = null;
+    const asciiClose = $('#media-ascii-close');
+    const asciiCancel = $('#media-ascii-cancel-btn');
+    const asciiApply = $('#media-ascii-apply-btn');
+
+    const updateASCIIPreview = () => {
+      if (this._asciiDebounce) clearTimeout(this._asciiDebounce);
+      this._asciiDebounce = setTimeout(() => this._refreshASCIIPreview(), 400);
+    };
+
+    if (asciiClose) asciiClose.addEventListener('click', () => this.closeASCIIModal());
+    if (asciiCancel) asciiCancel.addEventListener('click', () => this.closeASCIIModal());
+    if (asciiApply) asciiApply.addEventListener('click', () => this.applyASCII());
+
+    // Listen for changes on all ascii controls to trigger preview
+    ['ascii-chars-set', 'ascii-text-color', 'ascii-width', 'ascii-height'].forEach(id => {
+      const el = $(`#${id}`);
+      if (el) {
+        el.addEventListener('change', updateASCIIPreview);
+        el.addEventListener('input', updateASCIIPreview);
+      }
+    });
   }
 
   _updateFormVisibility() {
@@ -1604,7 +1628,7 @@ class MediaStudio {
     } catch (e) { toast(' Crayons conversion failed: ' + e.message); }
   }
 
-  async convertASCIISelected() {
+  openASCIIModal() {
     const files = [...this.selected];
     if (files.length === 0) {
       toast((window.icon ? window.icon('circle', 14) : '⚪') + ' Select an image or video to convert to ASCII');
@@ -1614,6 +1638,7 @@ class MediaStudio {
       toast((window.icon ? window.icon('circle', 14) : '⚪') + ' Please select a single file to convert');
       return;
     }
+    
     const filename = files[0];
     const isImage = filename.toLowerCase().match(/\.(png|jpg|jpeg|webp|svg)$/i);
     const isVideo = filename.toLowerCase().match(/\.(mp4|webm|gif)$/i);
@@ -1623,21 +1648,124 @@ class MediaStudio {
       return;
     }
 
-    toast((window.icon ? window.icon('hourglass', 14) : '⏳') + ` Converting ${filename} to ASCII Video...`);
+    this._currentASCIIFile = filename;
+    
+    // Set up form values & visibility based on media type
+    const modal = $('#media-ascii-modal');
+    const previewImg = $('#media-ascii-preview-img');
+    const fpsGroup = $('#ascii-fps-group');
+    
+    if (fpsGroup) {
+      fpsGroup.style.display = isVideo ? 'block' : 'none';
+    }
+    
+    // Set initial values
+    if ($('#ascii-chars-set')) $('#ascii-chars-set').value = 'standard';
+    if ($('#ascii-text-color')) $('#ascii-text-color').value = 'green';
+    if ($('#ascii-width')) {
+      $('#ascii-width').value = '160';
+      if ($('#ascii-cols-val')) $('#ascii-cols-val').textContent = '160';
+    }
+    if ($('#ascii-height')) {
+      $('#ascii-height').value = '80';
+      if ($('#ascii-rows-val')) $('#ascii-rows-val').textContent = '80';
+    }
+    if ($('#ascii-fps')) {
+      $('#ascii-fps').value = '30';
+      if ($('#ascii-fps-val')) $('#ascii-fps-val').textContent = '30';
+    }
+
+    // Reset preview placeholder
+    if (previewImg) {
+      previewImg.src = isImage ? `/data/images/${filename}` : `/data/images/${filename}`;
+    }
+
+    if (modal) modal.classList.add('open');
+
+    // Trigger initial preview simulation
+    this._refreshASCIIPreview();
+  }
+
+  closeASCIIModal() {
+    const modal = $('#media-ascii-modal');
+    if (modal) modal.classList.remove('open');
+    this._currentASCIIFile = null;
+    if (this._asciiDebounce) clearTimeout(this._asciiDebounce);
+  }
+
+  _getASCIISettings() {
+    return {
+      filename: this._currentASCIIFile,
+      chars_set: $('#ascii-chars-set')?.value || 'standard',
+      text_color: $('#ascii-text-color')?.value || 'green',
+      ascii_width: parseInt($('#ascii-width')?.value || 160, 10),
+      ascii_height: parseInt($('#ascii-height')?.value || 80, 10),
+      fps: parseInt($('#ascii-fps')?.value || 30, 10)
+    };
+  }
+
+  async _refreshASCIIPreview() {
+    if (!this._currentASCIIFile) return;
+    const loading = $('#media-ascii-loading');
+    if (loading) loading.style.display = 'block';
+
     try {
+      const settings = this._getASCIISettings();
+      const r = await fetch('/image/convert-ascii-preview', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(settings)
+      });
+
+      if (!r.ok) throw new Error('Preview simulation failed');
+      const data = await r.json();
+
+      const img = $('#media-ascii-preview-img');
+      if (img) {
+        img.src = 'data:image/png;base64,' + data.image_base64;
+      }
+    } catch (e) {
+      console.error(e);
+      toast((window.icon ? window.icon('x', 14) : '❌') + ' Preview simulation failed');
+    } finally {
+      if (loading) loading.style.display = 'none';
+    }
+  }
+
+  async applyASCII() {
+    if (!this._currentASCIIFile) return;
+    const btn = $('#media-ascii-apply-btn');
+    const cancelBtn = $('#media-ascii-cancel-btn');
+    const loading = $('#media-ascii-loading');
+
+    const oldText = btn.textContent;
+    btn.textContent = 'Compiling Retro Art...';
+    btn.disabled = true;
+    if (cancelBtn) cancelBtn.disabled = true;
+    if (loading) loading.style.display = 'block';
+
+    try {
+      const settings = this._getASCIISettings();
       const r = await fetch('/image/convert-ascii', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ filename })
+        body: JSON.stringify(settings)
       });
+      
       const d = await r.json();
       if (!r.ok) throw new Error(d.detail || 'Server error');
 
-      toast((window.icon ? window.icon('check', 14) : '✅') + ' ASCII Art conversion successful !');
+      toast((window.icon ? window.icon('check', 14) : '✅') + ` ASCII compilation successful! Saved as ${d.filename}`);
       this.selected.clear();
+      this.closeASCIIModal();
       await this.loadGallery();
     } catch (e) {
-      toast((window.icon ? window.icon('x', 14) : '❌') + ' Conversion failed: ' + e.message);
+      toast((window.icon ? window.icon('x', 14) : '❌') + ` Conversion failed: ${e.message}`);
+    } finally {
+      btn.textContent = oldText;
+      btn.disabled = false;
+      if (cancelBtn) cancelBtn.disabled = false;
+      if (loading) loading.style.display = 'none';
     }
   }
 

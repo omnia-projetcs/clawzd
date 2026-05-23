@@ -2700,13 +2700,17 @@ async def convert_video(request: Request):
 
 @router.post("/convert-ascii")
 async def convert_ascii(request: Request):
-    """Convert a gallery image or video into a Green Phosphor terminal-style ASCII video asset."""
+    """Convert a gallery image or video into a terminal-style ASCII asset (image or video)."""
     data = await request.json()
     filename = data.get("filename", "")
     width = int(data.get("width", 1280))
     height = int(data.get("height", 720))
     duration = float(data.get("duration", 5.0))
     fps = int(data.get("fps", 30))
+    ascii_width = int(data.get("ascii_width", 160))
+    ascii_height = int(data.get("ascii_height", 80))
+    text_color = data.get("text_color", "green")
+    chars_set = data.get("chars_set", "standard")
 
     if not filename:
         raise HTTPException(400, "filename is required")
@@ -2718,31 +2722,47 @@ async def convert_ascii(request: Request):
     is_image = filename.lower().endswith((".png", ".jpg", ".jpeg", ".webp", ".svg"))
     
     base_name = os.path.splitext(os.path.basename(filename))[0]
-    out_filename = f"{base_name}_ascii.mp4"
+    out_format = "png" if is_image else "mp4"
+    out_filename = f"{base_name}_ascii.{out_format}"
     out_filepath = os.path.join(IMAGES_DIR, out_filename)
 
     logger.info("Starting ASCII art compilation for %s (image=%s, res=%dx%d)...", filename, is_image, width, height)
 
     try:
-        from app.tools_studio_editor import convert_image_to_ascii_video, convert_video_to_ascii
+        from app.tools_studio_editor import convert_frame_to_ascii_image, convert_video_to_ascii
+        from PIL import Image
         import asyncio
 
-        # For videos, fetch actual duration if not provided
-        if not is_image and "duration" not in data:
-            try:
-                from app.tools_studio_editor import get_media_info
-                info = get_media_info(input_path)
-                duration = info.get("duration", 5.0)
-            except Exception:
-                pass
-
         if is_image:
-            await asyncio.to_thread(
-                convert_image_to_ascii_video, input_path, out_filepath, width, height, duration, fps
+            # Handle image-to-image ASCII conversion
+            img = Image.open(input_path)
+            ascii_img = await asyncio.to_thread(
+                convert_frame_to_ascii_image,
+                img, width, height,
+                ascii_width=ascii_width,
+                ascii_height=ascii_height,
+                text_color=text_color,
+                chars_set=chars_set
             )
+            ascii_img.save(out_filepath, format="PNG")
         else:
+            # Handle video-to-video ASCII conversion
+            # For videos, fetch actual duration if not provided
+            if "duration" not in data:
+                try:
+                    from app.tools_studio_editor import get_media_info
+                    info = get_media_info(input_path)
+                    duration = info.get("duration", 5.0)
+                except Exception:
+                    pass
+
             await asyncio.to_thread(
-                convert_video_to_ascii, input_path, out_filepath, width, height, duration, fps
+                convert_video_to_ascii,
+                input_path, out_filepath, width, height, duration, fps,
+                ascii_width=ascii_width,
+                ascii_height=ascii_height,
+                text_color=text_color,
+                chars_set=chars_set
             )
 
         # Write prompt description
@@ -2766,13 +2786,80 @@ async def convert_ascii(request: Request):
             "status": "ok",
             "filename": out_filename,
             "url": f"/data/images/{out_filename}",
-            "format": "mp4",
-            "duration": duration
+            "format": out_format,
+            "duration": duration if not is_image else 0
         }
 
     except Exception as e:
         logger.error("ASCII Art conversion tool failed: %s", e, exc_info=True)
         raise HTTPException(500, f"ASCII conversion failed: {e}")
+
+@router.post("/convert-ascii-preview")
+async def convert_ascii_preview(request: Request):
+    """Simulate/preview a single frame of ASCII art conversion with given parameters."""
+    data = await request.json()
+    filename = data.get("filename", "")
+    width = int(data.get("width", 800)) # limit preview dimensions for speed
+    height = int(data.get("height", 450))
+    ascii_width = int(data.get("ascii_width", 160))
+    ascii_height = int(data.get("ascii_height", 80))
+    text_color = data.get("text_color", "green")
+    chars_set = data.get("chars_set", "standard")
+
+    if not filename:
+        raise HTTPException(400, "filename is required")
+
+    input_path = os.path.join(IMAGES_DIR, os.path.basename(filename))
+    if not os.path.exists(input_path):
+        raise HTTPException(404, f"File not found: {filename}")
+
+    is_image = filename.lower().endswith((".png", ".jpg", ".jpeg", ".webp", ".svg"))
+
+    import io
+    import base64
+    from PIL import Image
+    from app.tools_studio_editor import convert_frame_to_ascii_image
+    import asyncio
+
+    try:
+        # Load the preview frame
+        if is_image:
+            img = Image.open(input_path)
+        else:
+            # Read first frame of the video
+            import imageio
+            reader = None
+            try:
+                reader = imageio.get_reader(input_path)
+                frame = next(iter(reader))
+                img = Image.fromarray(frame)
+            finally:
+                if reader:
+                    reader.close()
+
+        # Convert to ASCII frame
+        ascii_img = await asyncio.to_thread(
+            convert_frame_to_ascii_image,
+            img, width, height,
+            ascii_width=ascii_width,
+            ascii_height=ascii_height,
+            text_color=text_color,
+            chars_set=chars_set
+        )
+
+        # Encode PIL image to Base64
+        buf = io.BytesIO()
+        ascii_img.save(buf, format="PNG")
+        b64_str = base64.b64encode(buf.getvalue()).decode("utf-8")
+
+        return {
+            "status": "ok",
+            "image_base64": b64_str
+        }
+
+    except Exception as e:
+        logger.error(f"ASCII preview failed: {e}", exc_info=True)
+        raise HTTPException(500, f"Preview failed: {e}")
 
 
 def format_ass_timestamp(seconds: float) -> str:
