@@ -222,6 +222,23 @@
               </button>
             </div>
 
+            <!-- Lossless Fast Cut & Stream Info Section -->
+            <div class="property-group inspector-media-only" id="prop-lossless-section" style="border-top: 1px solid var(--border); padding-top: 15px; margin-top: 15px; display: none;">
+              <h3 class="inspector-section-title" style="display: flex; align-items: center; gap: 6px; margin-bottom: 12px; color: var(--accent);">
+                <span class="media-icon neon-accent" data-icon="zap"></span> Lossless Fast Cut
+              </h3>
+              <p style="font-size:11px; color:var(--text-secondary); margin-bottom:10px;">Trim and extract the selected clip instantly without re-encoding (Direct Stream Copy).</p>
+              
+              <button id="prop-lossless-trim-btn" class="editor-btn primary" style="width:100%; background: linear-gradient(135deg, #10b981, #059669); color:white; border:none; padding:8px 12px; border-radius:var(--radius-sm); margin-bottom:12px;">
+                ⚡ Fast Lossless Trim
+              </button>
+              
+              <div style="padding: 8px; background: rgba(0,0,0,0.2); border-radius: var(--radius-xs); font-size:11px;" id="stream-info-widget">
+                <div style="color:var(--text-secondary); font-weight:bold; margin-bottom: 4px;">Stream Info:</div>
+                <div id="stream-info-details" style="color:var(--text-primary); font-family: monospace;">Loading stream info...</div>
+              </div>
+            </div>
+
             <!-- Text Overlay specific properties -->
             <div class="property-group inspector-text-only" style="display:none;">
               <h3 class="inspector-section-title" style="margin-top:15px; border-top:1px solid #222; padding-top:15px;">Text Configuration</h3>
@@ -294,6 +311,9 @@
               </button>
               <button class="transport-btn" id="btn-stop" title="Stop preview">
                 <span class="media-icon" data-icon="square"></span>
+              </button>
+              <button class="transport-btn" id="btn-snapshot" title="Take HD Snapshot Frame">
+                <span class="media-icon" data-icon="camera"></span>
               </button>
               <button class="transport-btn" id="btn-seek-end" title="Seek to end">
                 <span class="media-icon" data-icon="chevronRight"></span>

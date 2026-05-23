@@ -1083,3 +1083,183 @@ async def download_stock(request: Request):
         logger.error(f"Failed to download stock asset: {e}", exc_info=True)
         raise HTTPException(500, f"Download failed: {str(e)}")
 
+# ==========================================
+# LOSSLESS-CUT OPTIMIZED API ROUTES
+# ==========================================
+
+@router.post("/lossless_trim")
+async def lossless_trim(request: Request):
+    """
+    Découpe ultra-rapide d'un clip sans réencodage (Direct Stream Copy).
+    Utile pour le nettoyage instantané de fichiers volumineux.
+    """
+    try:
+        data = await request.json()
+        filename = os.path.basename(data.get("filename", ""))
+        start = float(data.get("start", 0.0))
+        duration = float(data.get("duration", 5.0))
+        
+        if not filename:
+            raise HTTPException(400, "Le nom du fichier est requis")
+            
+        src_path = os.path.join(IMAGES_DIR, filename)
+        if not os.path.exists(src_path):
+            src_path = os.path.join(AUDIO_DIR, filename)
+            
+        if not os.path.exists(src_path):
+            raise HTTPException(404, "Fichier source introuvable")
+            
+        # Génération du nom de sortie
+        ext = os.path.splitext(filename)[1]
+        out_filename = f"trimmed_{uuid.uuid4().hex[:6]}{ext}"
+        dest_path = os.path.join(IMAGES_DIR, out_filename) if ext.lower() in [".mp4", ".webm"] else os.path.join(AUDIO_DIR, out_filename)
+        
+        # Commande FFmpeg de copie directe de flux (lossless)
+        cmd = [
+            "ffmpeg", "-y",
+            "-ss", str(start),
+            "-t", str(duration),
+            "-i", src_path,
+            "-c", "copy",  # Direct Stream Copy (sans réencodage)
+            "-map_metadata", "0",
+            dest_path
+        ]
+        
+        logger.info(f"Execution Lossless Trim: {' '.join(cmd)}")
+        proc = await asyncio.create_subprocess_exec(
+            *cmd, stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE
+        )
+        stdout, stderr = await proc.communicate()
+        
+        if proc.returncode != 0:
+            err_msg = stderr.decode("utf-8")
+            logger.error(f"FFmpeg trim error: {err_msg}")
+            raise HTTPException(500, f"Erreur FFmpeg : {err_msg}")
+            
+        return {
+            "status": "ok",
+            "filename": out_filename,
+            "url": f"/data/images/{out_filename}" if ext.lower() in [".mp4", ".webm"] else f"/data/audio/{out_filename}",
+            "duration": duration
+        }
+    except Exception as e:
+        logger.error(f"Lossless trim failed: {e}")
+        raise HTTPException(500, str(e))
+
+
+@router.post("/lossless_merge")
+async def lossless_merge(request: Request):
+    """
+    Fusionne instantanément plusieurs fichiers audio/vidéo ayant les mêmes codecs.
+    """
+    try:
+        data = await request.json()
+        filenames = data.get("filenames", [])
+        
+        if len(filenames) < 2:
+            raise HTTPException(400, "Au moins deux fichiers sont requis pour la fusion.")
+            
+        temp_list_path = os.path.join(tempfile.gettempdir(), f"merge_list_{uuid.uuid4().hex[:6]}.txt")
+        
+        # Vérification et écriture de la liste des fichiers
+        first_ext = os.path.splitext(filenames[0])[1].lower()
+        with open(temp_list_path, "w", encoding="utf-8") as f:
+            for fname in filenames:
+                path = os.path.join(IMAGES_DIR, fname) if first_ext in [".mp4", ".webm"] else os.path.join(AUDIO_DIR, fname)
+                if os.path.exists(path):
+                    f.write(f"file '{path}'\n")
+                    
+        out_filename = f"merged_{uuid.uuid4().hex[:6]}{first_ext}"
+        dest_path = os.path.join(IMAGES_DIR, out_filename) if first_ext in [".mp4", ".webm"] else os.path.join(AUDIO_DIR, out_filename)
+        
+        cmd = [
+            "ffmpeg", "-y",
+            "-f", "concat",
+            "-safe", "0",
+            "-i", temp_list_path,
+            "-c", "copy",  # Fusion directe sans réencoder
+            dest_path
+        ]
+        
+        proc = await asyncio.create_subprocess_exec(*cmd)
+        await proc.wait()
+        
+        # Nettoyage fichier temporaire
+        if os.path.exists(temp_list_path):
+            os.remove(temp_list_path)
+            
+        return {"status": "ok", "filename": out_filename, "url": f"/data/images/{out_filename}" if first_ext in [".mp4", ".webm"] else f"/data/audio/{out_filename}"}
+    except Exception as e:
+        raise HTTPException(500, str(e))
+
+
+@router.post("/stream_info")
+async def stream_info(request: Request):
+    """
+    Analyse les flux internes d'un fichier multimédia (Audio, Vidéo, Sous-titres).
+    """
+    try:
+        data = await request.json()
+        filename = os.path.basename(data.get("filename", ""))
+        
+        filepath = os.path.join(IMAGES_DIR, filename)
+        if not os.path.exists(filepath):
+            filepath = os.path.join(AUDIO_DIR, filename)
+            
+        if not os.path.exists(filepath):
+            raise HTTPException(404, "Fichier introuvable")
+            
+        cmd = [
+            "ffprobe", "-v", "error",
+            "-show_entries", "stream=index,codec_type,codec_name,channels,r_frame_rate",
+            "-of", "json", filepath
+        ]
+        
+        proc = await asyncio.create_subprocess_exec(
+            *cmd, stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE
+        )
+        stdout, stderr = await proc.communicate()
+        
+        import json
+        return json.loads(stdout.decode("utf-8"))
+    except Exception as e:
+        logger.error(f"Stream info probe failed: {e}")
+        raise HTTPException(500, str(e))
+
+
+@router.post("/snapshot")
+async def take_snapshot(request: Request):
+    """
+    Extrait une image clé haute définition instantanée d'une vidéo à un timestamp précis.
+    """
+    try:
+        data = await request.json()
+        filename = os.path.basename(data.get("filename", ""))
+        timestamp = float(data.get("time", 0.0))
+        
+        filepath = os.path.join(IMAGES_DIR, filename)
+        if not os.path.exists(filepath):
+            raise HTTPException(404, "Vidéo introuvable")
+            
+        snap_name = f"snap_{os.path.splitext(filename)[0]}_{int(timestamp*1000)}.png"
+        dest_path = os.path.join(IMAGES_DIR, snap_name)
+        
+        cmd = [
+            "ffmpeg", "-y",
+            "-ss", str(timestamp),
+            "-i", filepath,
+            "-vframes", "1",
+            "-q:v", "2",  # Qualité maximale pour le snapshot
+            dest_path
+        ]
+        
+        logger.info(f"Taking snapshot: {' '.join(cmd)}")
+        proc = await asyncio.create_subprocess_exec(*cmd)
+        await proc.wait()
+        
+        return {"status": "ok", "filename": snap_name, "url": f"/data/images/{snap_name}"}
+    except Exception as e:
+        logger.error(f"Snapshot extraction failed: {e}")
+        raise HTTPException(500, str(e))
+
+

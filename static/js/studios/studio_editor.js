@@ -132,7 +132,11 @@ window.StudioEditor = {
       silenceDur: document.getElementById("prop-silence-dur"),
       silencePadding: document.getElementById("prop-silence-padding"),
       silenceMode: document.getElementById("prop-silence-mode"),
-      silenceBtn: document.getElementById("prop-silence-btn")
+      silenceBtn: document.getElementById("prop-silence-btn"),
+      snapshotBtn: document.getElementById("btn-snapshot"),
+      losslessSection: document.getElementById("prop-lossless-section"),
+      losslessTrimBtn: document.getElementById("prop-lossless-trim-btn"),
+      streamInfoDetails: document.getElementById("stream-info-details")
     };
 
     if (!this.elements.modal) return;
@@ -211,6 +215,14 @@ window.StudioEditor = {
     // Silence Cut Event listener
     if (el.silenceBtn) {
       el.silenceBtn.addEventListener("click", () => this.autoSilenceCutClip());
+    }
+
+    // Lossless Cut & Snapshot Event listeners
+    if (el.snapshotBtn) {
+      el.snapshotBtn.addEventListener("click", () => this.captureSnapshot());
+    }
+    if (el.losslessTrimBtn) {
+      el.losslessTrimBtn.addEventListener("click", () => this.triggerLosslessTrim());
     }
 
     // Timeline Ruler playhead seeking
@@ -417,6 +429,7 @@ window.StudioEditor = {
     if (!clip) {
       this.elements.inspectorPlaceholder.style.display = "flex";
       this.elements.inspectorControls.style.display = "none";
+      if (this.elements.losslessSection) this.elements.losslessSection.style.display = "none";
       return;
     }
 
@@ -455,19 +468,24 @@ window.StudioEditor = {
       audioGroup.style.display = "none";
       textGroup.style.display = "none";
       if (this.elements.silenceSection) this.elements.silenceSection.style.display = "block";
+      if (this.elements.losslessSection) this.elements.losslessSection.style.display = "block";
       document.getElementById("prop-filter").value = clip.filter;
+      this.loadStreamInfo(clip.filename);
     } else if (trackType === 'audio') {
       filterGroup.style.display = "none";
       audioGroup.style.display = "flex";
       textGroup.style.display = "none";
       if (this.elements.silenceSection) this.elements.silenceSection.style.display = "block";
+      if (this.elements.losslessSection) this.elements.losslessSection.style.display = "block";
       document.getElementById("prop-volume").value = clip.volume;
       document.getElementById("prop-vol-val").textContent = clip.volume;
+      this.loadStreamInfo(clip.filename);
     } else if (trackType === 'text') {
       filterGroup.style.display = "none";
       audioGroup.style.display = "none";
       textGroup.style.display = "block";
       if (this.elements.silenceSection) this.elements.silenceSection.style.display = "none";
+      if (this.elements.losslessSection) this.elements.losslessSection.style.display = "none";
       document.getElementById("prop-text-str").value = clip.text;
       document.getElementById("prop-text-color").value = clip.color;
       document.getElementById("prop-text-size").value = clip.font_size;
@@ -1390,6 +1408,141 @@ window.StudioEditor = {
     } catch (e) {
       console.error(e);
       if (window.toast) window.toast("❌ Silence Cut failed: " + e.message);
+    } finally {
+      btn.disabled = false;
+      btn.innerHTML = originalText;
+    }
+  },
+
+  async loadStreamInfo(filename) {
+    if (!this.elements.streamInfoDetails) return;
+    this.elements.streamInfoDetails.textContent = "⏳ Loading stream details...";
+    
+    try {
+      const resp = await fetch("/studio/stream_info", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ filename })
+      });
+      
+      if (resp.ok) {
+        const data = await resp.json();
+        if (data && data.streams) {
+          const videoStream = data.streams.find(s => s.codec_type === 'video');
+          const audioStream = data.streams.find(s => s.codec_type === 'audio');
+          
+          let infoText = "";
+          if (videoStream) {
+            infoText += `📹 Video: ${videoStream.codec_name} (${videoStream.r_frame_rate} fps)\n`;
+          }
+          if (audioStream) {
+            infoText += `🎵 Audio: ${audioStream.codec_name} (${audioStream.channels}ch)\n`;
+          }
+          if (!videoStream && !audioStream) {
+            infoText = "No streams detected.";
+          }
+          
+          this.elements.streamInfoDetails.textContent = infoText.trim();
+        } else {
+          this.elements.streamInfoDetails.textContent = "Unavailable metadata format.";
+        }
+      } else {
+        this.elements.streamInfoDetails.textContent = "Failed to load metadata.";
+      }
+    } catch (e) {
+      console.error(e);
+      this.elements.streamInfoDetails.textContent = "Error reading streams.";
+    }
+  },
+
+  async captureSnapshot() {
+    // Find active video clip under playhead
+    const activeVideo = this.clips.find(
+      c => this.getTrackType(c.track) === 'video' && 
+      this.playhead >= c.start && 
+      this.playhead < (c.start + c.duration)
+    );
+
+    if (!activeVideo) {
+      if (window.toast) window.toast("⚠️ No active video clip under playhead to capture !");
+      return;
+    }
+
+    const sourceTime = (this.playhead - activeVideo.start) * activeVideo.speed + activeVideo.trim_start;
+    if (window.toast) window.toast("📸 Snapping high-res frame...");
+
+    try {
+      const resp = await fetch("/studio/snapshot", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          filename: activeVideo.filename,
+          time: sourceTime
+        })
+      });
+
+      if (resp.ok) {
+        if (window.toast) window.toast("🎉 Frame snapped successfully! Saved in gallery.");
+        await this.loadGalleryAssets();
+        
+        // Auto refresh base studio if elements exists
+        const refreshEl = document.getElementById("media-refresh");
+        if (refreshEl) refreshEl.click();
+      } else {
+        throw new Error("Server failed to extract snapshot");
+      }
+    } catch (e) {
+      console.error(e);
+      if (window.toast) window.toast("❌ Snapshot failed: " + e.message);
+    }
+  },
+
+  async triggerLosslessTrim() {
+    if (!this.selectedClipId) return;
+    const clip = this.clips.find(c => c.id === this.selectedClipId);
+    if (!clip) return;
+
+    const startVal = parseFloat(document.getElementById("prop-trim-start").value) || 0.0;
+    const durationVal = parseFloat(document.getElementById("prop-duration").value) || 5.0;
+    const btn = this.elements.losslessTrimBtn;
+    
+    const originalText = btn.innerHTML;
+    btn.disabled = true;
+    btn.innerHTML = `⚡ Cutting...`;
+
+    try {
+      const resp = await fetch("/studio/lossless_trim", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          filename: clip.filename,
+          start: startVal,
+          duration: durationVal
+        })
+      });
+
+      if (resp.ok) {
+        const data = await resp.json();
+        if (window.toast) window.toast(`✂️ Fast Cut success! Created: ${data.filename}`);
+        
+        // Update clip with newly trimmed lossless asset
+        clip.filename = data.filename;
+        clip.trim_start = 0.0;
+        
+        this.renderTimeline();
+        await this.loadGalleryAssets();
+        this.selectClip(clip.id);
+        this.syncPreview();
+        
+        const refreshEl = document.getElementById("media-refresh");
+        if (refreshEl) refreshEl.click();
+      } else {
+        const err = await resp.json();
+        throw new Error(err.detail || "Server failed to crop clip");
+      }
+    } catch (e) {
+      console.error(e);
+      if (window.toast) window.toast("❌ Fast Cut failed: " + e.message);
     } finally {
       btn.disabled = false;
       btn.innerHTML = originalText;
