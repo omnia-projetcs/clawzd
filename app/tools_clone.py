@@ -736,15 +736,31 @@ async def vault_graph():
                 "color": color,
             })
 
-        # Build edges (cosine similarity > threshold)
+        # Build edges (cosine similarity > threshold, keeping top 3 relations per node to avoid hairballs)
         edges = []
-        sim_threshold = 0.35
+        sim_threshold = 0.60
+        
+        # Construct relationships for each node
+        node_relations = {src: [] for src in src_names}
         for i in range(len(src_names)):
-            for j in range(i + 1, len(src_names)):
+            for j in range(len(src_names)):
+                if i == j:
+                    continue
                 sim = float(np.dot(avg_embs[i], avg_embs[j]))
                 if sim > sim_threshold:
+                    node_relations[src_names[i]].append((sim, src_names[j]))
+        
+        # Prune to unique undirected top-3 edges
+        seen_edges = set()
+        for src, rels in node_relations.items():
+            rels.sort(key=lambda x: x[0], reverse=True)
+            for sim, target in rels[:3]:
+                edge_key = tuple(sorted([src, target]))
+                if edge_key not in seen_edges:
+                    seen_edges.add(edge_key)
                     edges.append({
-                        "source": src_names[i], "target": src_names[j],
+                        "source": edge_key[0],
+                        "target": edge_key[1],
                         "weight": round(sim, 3),
                     })
 

@@ -112,7 +112,7 @@ class VaultStudio {
     const text = $('#vault-progress-text');
     if (progress) progress.style.display = 'block';
     if (fill) fill.style.width = '10%';
-    if (text) text.textContent = `Indexing ${fileList.length} file(s)...`;
+    if (text) text.innerHTML = `<span>Indexing ${fileList.length} file(s)...</span>`;
 
     const formData = new FormData();
     for (const f of fileList) formData.append('files', f);
@@ -123,11 +123,11 @@ class VaultStudio {
       const d = await r.json();
       if (fill) fill.style.width = '100%';
       const indexed = d.indexed || 0;
-      if (text) text.textContent = `✓ ${indexed} file(s) indexed`;
+      if (text) text.innerHTML = `${ICONS.check(12)} <span>${indexed} file(s) indexed</span>`;
       toast(ICONS.check(14) + ` ${indexed} file(s) vectorized`);
       await this._load();
     } catch (e) {
-      if (text) text.textContent = '✗ Upload failed';
+      if (text) text.innerHTML = `${ICONS.x(12)} <span>Upload failed</span>`;
       toast('Upload failed: ' + e.message);
     }
     setTimeout(() => { if (progress) progress.style.display = 'none'; }, 2000);
@@ -238,30 +238,44 @@ class VaultStudio {
     const h = svg.clientHeight || 400;
     const cx = w / 2, cy = h / 2;
 
-    // Position nodes in a circle or force layout
+    // Position nodes close to the center with a slight random offset
     const nodeMap = {};
     nodes.forEach((n, i) => {
-      const angle = (2 * Math.PI * i) / nodes.length;
-      const radius = Math.min(w, h) * 0.35;
-      n._x = cx + radius * Math.cos(angle);
-      n._y = cy + radius * Math.sin(angle);
+      n._x = cx + (Math.random() - 0.5) * 40;
+      n._y = cy + (Math.random() - 0.5) * 40;
       n._vx = 0; n._vy = 0;
       nodeMap[n.id] = n;
     });
 
-    // Simple force simulation (30 iterations)
-    for (let iter = 0; iter < 40; iter++) {
-      // Repulsion
+    // force simulation iterations
+    for (let iter = 0; iter < 100; iter++) {
+      // Repulsion + Collision Avoidance
       for (let i = 0; i < nodes.length; i++) {
         for (let j = i + 1; j < nodes.length; j++) {
           let dx = nodes[j]._x - nodes[i]._x;
           let dy = nodes[j]._y - nodes[i]._y;
           let dist = Math.sqrt(dx * dx + dy * dy) || 1;
-          let force = 800 / (dist * dist);
+          
+          // Repulsion force
+          let force = 2500 / (dist * dist + 100);
           nodes[i]._vx -= dx / dist * force;
           nodes[i]._vy -= dy / dist * force;
           nodes[j]._vx += dx / dist * force;
           nodes[j]._vy += dy / dist * force;
+          
+          // Collision avoidance with padding
+          let r1 = 5 + Math.min(nodes[i].chunks || 1, 20) * 0.5;
+          let r2 = 5 + Math.min(nodes[j].chunks || 1, 20) * 0.5;
+          let minDist = r1 + r2 + 45;
+          if (dist < minDist) {
+            let overlap = minDist - dist;
+            let pushX = (dx / dist) * overlap * 0.4;
+            let pushY = (dy / dist) * overlap * 0.4;
+            nodes[i]._vx -= pushX;
+            nodes[i]._vy -= pushY;
+            nodes[j]._vx += pushX;
+            nodes[j]._vy += pushY;
+          }
         }
       }
       // Attraction (edges)
@@ -270,7 +284,7 @@ class VaultStudio {
         if (!s || !t) return;
         let dx = t._x - s._x, dy = t._y - s._y;
         let dist = Math.sqrt(dx * dx + dy * dy) || 1;
-        let force = (dist - 80) * 0.02 * (e.weight || 0.5);
+        let force = (dist - 90) * 0.03 * (e.weight || 0.5);
         s._vx += dx / dist * force;
         s._vy += dy / dist * force;
         t._vx -= dx / dist * force;
@@ -278,18 +292,18 @@ class VaultStudio {
       });
       // Center gravity
       nodes.forEach(n => {
-        n._vx += (cx - n._x) * 0.005;
-        n._vy += (cy - n._y) * 0.005;
+        n._vx += (cx - n._x) * 0.008;
+        n._vy += (cy - n._y) * 0.008;
         n._x += n._vx * 0.3;
         n._y += n._vy * 0.3;
-        n._vx *= 0.8; n._vy *= 0.8;
-        // Clamp
-        n._x = Math.max(30, Math.min(w - 30, n._x));
-        n._y = Math.max(30, Math.min(h - 30, n._y));
+        n._vx *= 0.75; n._vy *= 0.75;
+        // Clamp safely inside boundary
+        n._x = Math.max(25, Math.min(w - 25, n._x));
+        n._y = Math.max(25, Math.min(h - 25, n._y));
       });
     }
 
-    // Render
+    // Render SVG
     let html = '';
     // Edges
     edges.forEach(e => {
@@ -301,17 +315,78 @@ class VaultStudio {
     // Nodes
     const tooltip = $('#vault-tooltip');
     nodes.forEach(n => {
-      const r = 6 + Math.min(n.chunks || 1, 20) * 0.8;
-      html += `<g class="vault-node" data-id="${escHtml(n.id)}">
+      const r = 5 + Math.min(n.chunks || 1, 20) * 0.5;
+      html += `<g class="vault-node" data-id="${escHtml(n.id)}" style="cursor: grab;">
         <circle cx="${n._x}" cy="${n._y}" r="${r}" fill="${n.color}" opacity="0.85"/>
-        <circle cx="${n._x}" cy="${n._y}" r="${r + 3}" fill="${n.color}" opacity="0.15"/>
-        <text class="vault-node-label" x="${n._x}" y="${n._y + r + 12}">${escHtml(n.label.length > 18 ? n.label.substring(0, 16) + '…' : n.label)}</text>
+        <circle cx="${n._x}" cy="${n._y}" r="${r + 4}" fill="${n.color}" opacity="0.15"/>
+        <text class="vault-node-label" x="${n._x}" y="${n._y + r + 13}">${escHtml(n.label.length > 18 ? n.label.substring(0, 16) + '…' : n.label)}</text>
       </g>`;
     });
     svg.innerHTML = html;
 
-    // Tooltip events
+    // Tooltip & Drag-and-drop events
     svg.querySelectorAll('.vault-node').forEach(g => {
+      let isDragging = false;
+      
+      // Drag events
+      g.addEventListener('mousedown', e => {
+        e.preventDefault();
+        isDragging = true;
+        g.style.cursor = 'grabbing';
+        
+        const id = g.dataset.id;
+        const node = nodes.find(n => n.id === id);
+        if (!node) return;
+        
+        const rect = svg.getBoundingClientRect();
+        
+        const onMouseMove = ev => {
+          if (!isDragging) return;
+          
+          let mouseX = ev.clientX - rect.left;
+          let mouseY = ev.clientY - rect.top;
+          
+          node._x = Math.max(25, Math.min(w - 25, mouseX));
+          node._y = Math.max(25, Math.min(h - 25, mouseY));
+          
+          // Update node circle & ring & text in DOM
+          const r = 5 + Math.min(node.chunks || 1, 20) * 0.5;
+          const circles = g.querySelectorAll('circle');
+          if (circles[0]) { circles[0].setAttribute('cx', node._x); circles[0].setAttribute('cy', node._y); }
+          if (circles[1]) { circles[1].setAttribute('cx', node._x); circles[1].setAttribute('cy', node._y); }
+          const label = g.querySelector('text');
+          if (label) {
+            label.setAttribute('x', node._x);
+            label.setAttribute('y', node._y + r + 13);
+          }
+          
+          // Update connected edge lines in DOM
+          svg.querySelectorAll('.vault-edge').forEach((line, edgeIdx) => {
+            const edge = edges[edgeIdx];
+            if (edge) {
+              if (edge.source === node.id) {
+                line.setAttribute('x1', node._x);
+                line.setAttribute('y1', node._y);
+              } else if (edge.target === node.id) {
+                line.setAttribute('x2', node._x);
+                line.setAttribute('y2', node._y);
+              }
+            }
+          });
+        };
+        
+        const onMouseUp = () => {
+          isDragging = false;
+          g.style.cursor = 'grab';
+          document.removeEventListener('mousemove', onMouseMove);
+          document.removeEventListener('mouseup', onMouseUp);
+        };
+        
+        document.addEventListener('mousemove', onMouseMove);
+        document.addEventListener('mouseup', onMouseUp);
+      });
+
+      // Tooltip events
       g.addEventListener('mouseenter', e => {
         const id = g.dataset.id;
         const node = nodes.find(n => n.id === id);
