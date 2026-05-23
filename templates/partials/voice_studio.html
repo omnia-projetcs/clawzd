@@ -1,0 +1,117 @@
+<!-- templates/partials/voice_studio.html -->
+<div class="studio-container voice-studio-container" id="voice-studio" style="display:none">
+  <div class="voice-layout">
+    
+    <!-- Left Column: Controls & Settings -->
+    <div class="voice-sidebar-card glass-panel">
+      <div class="voice-card-header">
+        <svg class="ic voice-glowing-mic" width="20" height="20"><use href="#icon-mic"></use></svg>
+        <h3>Voice Controls</h3>
+      </div>
+      
+      <div class="voice-control-group">
+        <div class="voice-toggle-row">
+          <div class="voice-toggle-info">
+            <span class="voice-label">Hands-Free (Auto-VAD)</span>
+            <span class="voice-sublabel">No clicks needed. Continuous loop.</span>
+          </div>
+          <label class="toggle-switch">
+            <input type="checkbox" id="voice-handsfree" checked>
+            <span class="slider"></span>
+          </label>
+        </div>
+
+        <div class="voice-toggle-row">
+          <div class="voice-toggle-info">
+            <span class="voice-label">Voice Autonomy</span>
+            <span class="voice-sublabel">Execute tools immediately without prompts.</span>
+          </div>
+          <label class="toggle-switch">
+            <input type="checkbox" id="voice-autonomy" checked>
+            <span class="slider"></span>
+          </label>
+        </div>
+      </div>
+
+      <div class="voice-settings-divider"></div>
+
+      <div class="voice-settings-form">
+        <div class="voice-field">
+          <label for="voice-edge-preset" class="voice-field-label">Edge Neural Voice</label>
+          <select id="voice-edge-preset" class="voice-select">
+            <option value="female_soft" selected>Vivienne (Female Soft - Warm)</option>
+            <option value="male_deep">Henri (Male Deep - Mature)</option>
+            <option value="male_medium">Remy (Male Medium - Standard)</option>
+            <option value="female_pro">Denise (Female Pro - Clear)</option>
+            <option value="child">Eloise (Child Voice)</option>
+            <option value="robot">Eric (Robot Voice)</option>
+          </select>
+        </div>
+
+        <div class="voice-field">
+          <label for="voice-language" class="voice-field-label">Language</label>
+          <select id="voice-language" class="voice-select">
+            <option value="fr" selected>Français (fr-FR)</option>
+            <option value="en">English (en-US)</option>
+            <option value="es">Español (es-ES)</option>
+            <option value="de">Deutsch (de-DE)</option>
+          </select>
+        </div>
+
+        <div class="voice-field">
+          <label for="voice-vad-silence" class="voice-field-label">Silence Threshold (VAD)</label>
+          <select id="voice-vad-silence" class="voice-select">
+            <option value="1000">Fast (1.0s)</option>
+            <option value="1500" selected>Normal (1.5s)</option>
+            <option value="2000">Relaxed (2.0s)</option>
+          </select>
+        </div>
+      </div>
+      
+      <div class="voice-sidebar-footer">
+        <span class="voice-micro-tip">💡 Tip: Speak or click the glowing sphere to instantly interrupt Clawzd.</span>
+      </div>
+    </div>
+
+    <!-- Center/Right Column: Interactive Sphere & Spoken Terminal -->
+    <div class="voice-main-panel">
+      <!-- Glow canvas sphere -->
+      <div class="voice-sphere-card glass-panel">
+        <div class="voice-status-bar">
+          <span class="voice-status-badge" id="voice-status-badge">
+            <span class="voice-status-dot pulse-red"></span>
+            <span id="voice-status-text">INITIALIZING...</span>
+          </span>
+        </div>
+        
+        <div class="voice-sphere-container">
+          <canvas id="voice-sphere-canvas" width="400" height="400"></canvas>
+          <button class="voice-sphere-trigger" id="voice-sphere-trigger" title="Toggle Listening State">
+            <svg class="ic" width="40" height="40"><use href="#icon-mic"></use></svg>
+          </button>
+        </div>
+        
+        <div class="voice-hint-message" id="voice-hint-message">
+          Click the sphere to start hands-free voice pilot
+        </div>
+      </div>
+
+      <!-- Spoken Terminal transcript -->
+      <div class="voice-transcript-card glass-panel">
+        <div class="transcript-header">
+          <span>Spoken Logs</span>
+          <button class="icon-btn" id="voice-clear-transcript" title="Clear logs">
+            <svg class="ic" width="14" height="14"><use href="#icon-trash"></use></svg>
+          </button>
+        </div>
+        <div class="voice-transcript-feed" id="voice-transcript-feed">
+          <div class="voice-log-item system">
+            <span class="log-author">System</span>
+            <p>Welcome to Voice Pilot Mode. Say "help" or ask Clawzd to build a script, analyze files, or search the web.</p>
+          </div>
+        </div>
+      </div>
+    </div>
+
+  </div>
+</div>

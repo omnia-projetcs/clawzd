@@ -158,6 +158,9 @@ ATTENTION! THIS PROJECT IS CURRENTLY IN ACTIVE DEVELOPMENT (ALPHA VERSION). FEAT
 | 📐 **UI** | Structured UI | Dynamic __CHART__, __TABLE__, __CARD__ rendering |
 | ⌨️ **UX** | Keyboard Shortcuts | Ctrl+Shift+A/R/D/B/G panel toggles |
 | 📱 **Mobile** | Responsive UI | 5-breakpoint mobile-first CSS architecture |
+| 🎙️ **Voice Mode** | Hands-Free Control (VAD) | Real-time decibel-based VAD for continuous hands-free dialogue |
+| 🎙️ **Voice Mode** | Edge Neural TTS | High-fidelity multi-lingual spoken voice feedback using Microsoft Edge Neural |
+| 🎙️ **Voice Mode** | Interruption Handling | Bidirectional interruption by clicking the central orb or talking over the AI |
 
 ---
 
