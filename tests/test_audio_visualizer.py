@@ -1,5 +1,6 @@
 import os
 import subprocess
+import pytest
 from fastapi.testclient import TestClient
 from app.gateway import app
 from config import DATA_DIR
@@ -8,13 +9,20 @@ client = TestClient(app)
 IMAGES_DIR = os.path.join(DATA_DIR, "images")
 AUDIO_DIR = os.path.join(DATA_DIR, "audio")
 
-def test_generate_visualizer_endpoint():
+@pytest.mark.parametrize("style,theme", [
+    ("waveform_centered", "matrix_green"),
+    ("waveform_lines", "fire_ice"),
+    ("frequency_bars", "gold_glow"),
+    ("retro_oscilloscope", "classic_cyan"),
+    ("spectrogram", "cyberpunk_purple")
+])
+def test_generate_visualizer_endpoint(style, theme):
     # Ensure directories exist
     os.makedirs(IMAGES_DIR, exist_ok=True)
     os.makedirs(AUDIO_DIR, exist_ok=True)
     
     # 1. Create a 1-second silent audio file for testing
-    dummy_audio_name = "visualizer_test_silent_1s.mp3"
+    dummy_audio_name = f"visualizer_test_{style}_{theme}_1s.mp3"
     dummy_audio_path = os.path.join(AUDIO_DIR, dummy_audio_name)
     
     # FFmpeg command to generate 1 second of silence
@@ -34,8 +42,8 @@ def test_generate_visualizer_endpoint():
     # 2. Test visualizer generation endpoint
     payload = {
         "filename": dummy_audio_name,
-        "style": "waveform_centered",
-        "theme": "matrix_green",
+        "style": style,
+        "theme": theme,
         "resolution": "1280x720",
         "fps": 30
     }

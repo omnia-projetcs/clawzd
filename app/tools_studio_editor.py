@@ -1344,16 +1344,22 @@ async def generate_visualizer(request: Request):
         
         # Configurer le filtre FFmpeg selon le style et le theme de couleur
         colors = "green"
+        rc, gc, bc = 0, 255, 0
         if theme == "matrix_green":
             colors = "0x00FF00"
+            rc, gc, bc = 0, 255, 0
         elif theme == "cyberpunk_purple":
             colors = "0xFF00FF|0x8A2BE2"
+            rc, gc, bc = 255, 0, 255
         elif theme == "gold_glow":
             colors = "0xFFD700|0xFF8C00"
+            rc, gc, bc = 255, 215, 0
         elif theme == "fire_ice":
             colors = "0xFF3300|0x00FFFF"
+            rc, gc, bc = 255, 51, 0
         elif theme == "classic_cyan":
             colors = "0x00FFFF"
+            rc, gc, bc = 0, 255, 255
             
         filter_str = ""
         if style == "waveform_lines":
@@ -1363,17 +1369,19 @@ async def generate_visualizer(request: Request):
         elif style == "frequency_bars":
             filter_str = f"showfreqs=s={width}x{height}:mode=bar:colors={colors}:cmode=separate"
         elif style == "retro_oscilloscope":
-            filter_str = f"avectorscope=s={width}x{height}:colors={colors}:zoom=1.5"
+            filter_str = f"avectorscope=s={width}x{height}:rc={rc}:gc={gc}:bc={bc}:zoom=1.5:draw=aaline"
         elif style == "spectrogram":
             spec_color = "rainbow"
             if theme == "matrix_green":
                 spec_color = "green"
             elif theme == "classic_cyan":
-                spec_color = "cyan"
+                spec_color = "cool"
             elif theme == "cyberpunk_purple":
-                spec_color = "magenta"
+                spec_color = "plasma"
             elif theme == "gold_glow":
-                spec_color = "yellow"
+                spec_color = "magma"
+            elif theme == "fire_ice":
+                spec_color = "fiery"
             filter_str = f"showspectrum=s={width}x{height}:color={spec_color}:slide=scroll:fps={fps}"
         else:
             filter_str = f"showwaves=s={width}x{height}:mode=cline:colors={colors}:rate={fps}"

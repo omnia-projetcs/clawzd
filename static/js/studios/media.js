@@ -2352,12 +2352,11 @@ class MediaStudio {
       this.selected.clear();
       this.closeVisualizerModal();
       
-      // Select the video tab to show the newly generated video!
+      // Reload gallery first to get the newly generated video, then switch filter tab
+      await this.loadGallery();
       const videoTabBtn = document.querySelector('#media-filters .media-filter-tab[data-filter="video"]');
       if (videoTabBtn) {
         videoTabBtn.click();
-      } else {
-        await this.loadGallery();
       }
     } catch (e) {
       toast((window.icon ? window.icon('x', 14) : '❌') + ` Visualizer generation failed: ${e.message}`);
