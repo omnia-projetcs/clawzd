@@ -611,6 +611,7 @@
             <option value="convert_webm">➔ WEBM</option>
           </optgroup>
           <optgroup label="Actions">
+            <option value="audio_visualizer">🎬 Audio Visualizer</option>
             <option value="remove_bg">🎨 Remove BG</option>
             <option value="make_coloring">🖍️ Crayons</option>
             <option value="add_subtitles">💬 Add Subtitles</option>
@@ -1234,6 +1235,105 @@
   </div>
 </div>
 
+<!-- Audio Visualizer Studio Modal -->
+<div class="media-visualizer-modal" id="media-visualizer-modal">
+  <div class="media-visualizer-content">
+    <div class="media-visualizer-preview-area">
+      <!-- Premium dynamic simulated animation of visualizer preview -->
+      <div class="visualizer-mockup-wrapper theme-matrix_green waveform_centered" id="visualizer-preview-mockup">
+        <div class="visualizer-mockup-bar bar1" style="height: 10%;"></div>
+        <div class="visualizer-mockup-bar bar2" style="height: 30%;"></div>
+        <div class="visualizer-mockup-bar bar3" style="height: 60%;"></div>
+        <div class="visualizer-mockup-bar bar4" style="height: 90%;"></div>
+        <div class="visualizer-mockup-bar bar5" style="height: 75%;"></div>
+        <div class="visualizer-mockup-bar bar6" style="height: 40%;"></div>
+        <div class="visualizer-mockup-bar bar7" style="height: 50%;"></div>
+        <div class="visualizer-mockup-bar bar8" style="height: 85%;"></div>
+        <div class="visualizer-mockup-bar bar9" style="height: 95%;"></div>
+        <div class="visualizer-mockup-bar bar10" style="height: 60%;"></div>
+        <div class="visualizer-mockup-bar bar11" style="height: 25%;"></div>
+        <div class="visualizer-mockup-bar bar12" style="height: 10%;"></div>
+      </div>
+      <div id="media-visualizer-loading"
+           style="display:none;
+                  position:absolute;
+                  top:50%;
+                  left:50%;
+                  transform:translate(-50%,-50%);
+                  background:rgba(0,0,0,0.85);
+                  color:white;
+                  padding:16px 28px;
+                  border-radius:12px;
+                  font-weight:bold;
+                  border:1px solid rgba(255,255,255,0.1);
+                  backdrop-filter:blur(10px);
+                  z-index: 10;">
+        <span style="display:inline-block; margin-right:8px; animation:spin 1s linear infinite;">⏳</span> Rendering visualizer video...
+      </div>
+    </div>
+    <div class="media-visualizer-controls">
+      <div class="media-visualizer-header">
+        <h3>
+          <span class="media-icon" data-icon="music"></span> <span>Visualizer Studio</span>
+        </h3>
+        <button class="media-lightbox-close"
+                id="media-visualizer-close"
+                style="position:static;
+                       width:32px;
+                       height:32px">
+          <span class="media-icon" data-icon="x" style="margin:0;"></span>
+        </button>
+      </div>
+      <div class="media-visualizer-body">
+        <div class="media-form-group">
+          <label class="media-form-label">Visualization Style</label>
+          <select class="media-form-select" id="visualizer-style">
+            <option value="waveform_centered" selected>🧬 Centered Waveform (cline)</option>
+            <option value="waveform_lines">📈 Standard Waveform (line)</option>
+            <option value="frequency_bars">📊 Frequency Spectrum Bars</option>
+            <option value="retro_oscilloscope">🎛️ Retro oscilloscope vectors</option>
+            <option value="spectrogram">🌈 Frequency Spectrogram</option>
+          </select>
+        </div>
+        
+        <div class="media-form-group">
+          <label class="media-form-label">Color Scheme Theme</label>
+          <select class="media-form-select" id="visualizer-theme">
+            <option value="matrix_green" selected>💚 Matrix Green Neon</option>
+            <option value="cyberpunk_purple">💜 Cyberpunk Pink & Violet</option>
+            <option value="gold_glow">💛 Sunset Golden Glow</option>
+            <option value="fire_ice">❤️ Thermal Fire & Ice</option>
+            <option value="classic_cyan">💙 Classic Terminal Cyan</option>
+          </select>
+        </div>
+
+        <div class="media-form-group">
+          <label class="media-form-label">Aspect Ratio / Resolution</label>
+          <select class="media-form-select" id="visualizer-resolution">
+            <option value="1280x720" selected>🎥 720p Landscape (16:9)</option>
+            <option value="1920x1080">🎬 1080p Landscape (16:9)</option>
+            <option value="720x1280">📱 TikTok / Shorts (9:16)</option>
+            <option value="1080x1080">📸 Instagram Square (1:1)</option>
+          </select>
+        </div>
+
+        <div class="media-form-group">
+          <label class="media-form-label">Frame Rate (FPS)</label>
+          <select class="media-form-select" id="visualizer-fps">
+            <option value="30" selected>⚡ 30 FPS (Web Standard)</option>
+            <option value="60">🔥 60 FPS (Ultra Smooth)</option>
+            <option value="24">🎥 24 FPS (Cinematic Look)</option>
+          </select>
+        </div>
+      </div>
+      <div class="media-visualizer-footer">
+        <button class="media-visualizer-btn cancel" id="media-visualizer-cancel-btn">Cancel</button>
+        <button class="media-visualizer-btn apply" id="media-visualizer-apply-btn">Generate Video</button>
+      </div>
+    </div>
+  </div>
+</div>
+
 <style>
     /* ASCII Modal Styles */
     .media-ascii-modal {
@@ -1352,6 +1452,195 @@
     }
 
     .media-ascii-btn.apply:hover {
+        background: var(--accent-hover);
+    }
+
+    /* Audio Visualizer Modal Styles */
+    .media-visualizer-modal {
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        background: rgba(0, 0, 0, 0.85);
+        z-index: 10000;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        opacity: 0;
+        pointer-events: none;
+        transition: opacity var(--transition);
+        backdrop-filter: blur(8px);
+        -webkit-backdrop-filter: blur(8px);
+    }
+
+    .media-visualizer-modal.open {
+        opacity: 1;
+        pointer-events: auto;
+    }
+
+    .media-visualizer-content {
+        background: var(--bg-primary);
+        border: 1px solid var(--border);
+        border-radius: var(--radius-lg);
+        width: 900px;
+        max-width: 95vw;
+        height: 600px;
+        max-height: 90vh;
+        display: flex;
+        overflow: hidden;
+        box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5);
+    }
+
+    .media-visualizer-preview-area {
+        flex: 1;
+        background: #050508;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        position: relative;
+        padding: 20px;
+        border-right: 1px solid var(--border);
+        overflow: hidden;
+    }
+
+    .visualizer-mockup-wrapper {
+        width: 100%;
+        height: 120px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: 8px;
+        transition: color 0.3s;
+    }
+
+    .visualizer-mockup-bar {
+        width: 8px;
+        height: 100%;
+        border-radius: 4px;
+        background: var(--accent);
+        transform: scaleY(0.15);
+        transition: background 0.3s, transform 0.2s, height 0.2s;
+    }
+
+    /* Style presets */
+    .visualizer-mockup-wrapper.waveform_lines .visualizer-mockup-bar,
+    .visualizer-mockup-wrapper.waveform_centered .visualizer-mockup-bar {
+        border-radius: 2px;
+        width: 4px;
+        gap: 4px;
+    }
+    
+    .visualizer-mockup-wrapper.frequency_bars .visualizer-mockup-bar {
+        width: 12px;
+        gap: 6px;
+    }
+
+    .visualizer-mockup-wrapper.retro_oscilloscope .visualizer-mockup-bar {
+        width: 6px;
+        border-radius: 50%;
+    }
+
+    .visualizer-mockup-wrapper.spectrogram .visualizer-mockup-bar {
+        width: 14px;
+        border-radius: 0;
+        gap: 2px;
+    }
+
+    /* Theme colors */
+    .visualizer-mockup-wrapper.theme-matrix_green .visualizer-mockup-bar {
+        background: #00FF00;
+        box-shadow: 0 0 10px rgba(0, 255, 0, 0.5);
+    }
+    
+    .visualizer-mockup-wrapper.theme-cyberpunk_purple .visualizer-mockup-bar {
+        background: #FF00FF;
+        box-shadow: 0 0 10px rgba(255, 0, 255, 0.5);
+    }
+    
+    .visualizer-mockup-wrapper.theme-gold_glow .visualizer-mockup-bar {
+        background: #FFD700;
+        box-shadow: 0 0 10px rgba(255, 215, 0, 0.5);
+    }
+    
+    .visualizer-mockup-wrapper.theme-fire_ice .visualizer-mockup-bar {
+        background: #FF3300;
+        box-shadow: 0 0 10px rgba(255, 51, 0, 0.5);
+    }
+    
+    .visualizer-mockup-wrapper.theme-classic_cyan .visualizer-mockup-bar {
+        background: #00FFFF;
+        box-shadow: 0 0 10px rgba(0, 255, 255, 0.5);
+    }
+
+    /* Animation effects */
+    @keyframes spin {
+        0% { transform: rotate(0deg); }
+        100% { transform: rotate(360deg); }
+    }
+
+    .media-visualizer-controls {
+        width: 340px;
+        display: flex;
+        flex-direction: column;
+        background: var(--bg-secondary);
+    }
+
+    .media-visualizer-header {
+        padding: 16px 20px;
+        border-bottom: 1px solid var(--border);
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+    }
+
+    .media-visualizer-header h3 {
+        margin: 0;
+        font-size: 16px;
+        color: var(--text-primary);
+    }
+
+    .media-visualizer-body {
+        padding: 20px;
+        flex: 1;
+        overflow-y: auto;
+        display: flex;
+        flex-direction: column;
+        gap: 18px;
+    }
+
+    .media-visualizer-footer {
+        padding: 16px 20px;
+        border-top: 1px solid var(--border);
+        display: flex;
+        gap: 12px;
+    }
+
+    .media-visualizer-btn {
+        flex: 1;
+        padding: 10px;
+        border: none;
+        border-radius: var(--radius-sm);
+        cursor: pointer;
+        font-weight: 500;
+        transition: background 0.2s;
+    }
+
+    .media-visualizer-btn.cancel {
+        background: var(--bg-tertiary);
+        color: var(--text-primary);
+    }
+
+    .media-visualizer-btn.cancel:hover {
+        background: var(--border);
+    }
+
+    .media-visualizer-btn.apply {
+        background: var(--accent);
+        color: white;
+    }
+
+    .media-visualizer-btn.apply:hover {
         background: var(--accent-hover);
     }
 </style>

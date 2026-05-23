@@ -263,6 +263,7 @@ class MediaStudio {
           case 'make_coloring': this.makeColoringSelected(); break;
           case 'add_subtitles': this.openSubtitlesModal(); break;
           case 'convert_ascii': this.openASCIIModal(); break;
+          case 'audio_visualizer': this.openVisualizerModal(); break;
           case 'download_zip': this.downloadZip(); break;
         }
       });
@@ -414,6 +415,26 @@ class MediaStudio {
       if (el) {
         el.addEventListener('change', updateASCIIPreview);
         el.addEventListener('input', updateASCIIPreview);
+      }
+    });
+
+    // Audio Visualizer Modal Events
+    const vizClose = $('#media-visualizer-close');
+    const vizCancel = $('#media-visualizer-cancel-btn');
+    const vizApply = $('#media-visualizer-apply-btn');
+
+    const updateVizPreview = () => {
+      this._updateVisualizerPreviewMockup();
+    };
+
+    if (vizClose) vizClose.addEventListener('click', () => this.closeVisualizerModal());
+    if (vizCancel) vizCancel.addEventListener('click', () => this.closeVisualizerModal());
+    if (vizApply) vizApply.addEventListener('click', () => this.applyVisualizer());
+
+    ['visualizer-style', 'visualizer-theme'].forEach(id => {
+      const el = $(`#${id}`);
+      if (el) {
+        el.addEventListener('change', updateVizPreview);
       }
     });
 
@@ -2214,6 +2235,138 @@ class MediaStudio {
     if (sidebar) sidebar.scrollTop = 0;
 
     toast(`${ICONS.sparkles(14)} Image imported as video source (${videoModelSel?.options[videoModelSel?.selectedIndex]?.text || 'CogVideoX'}) — click Generate`);
+  }
+
+  openVisualizerModal() {
+    const files = [...this.selected];
+    if (files.length === 0) {
+      toast((window.icon ? window.icon('circle', 14) : '⚪') + ' Select an audio file to generate visualizer');
+      return;
+    }
+    if (files.length > 1) {
+      toast((window.icon ? window.icon('circle', 14) : '⚪') + ' Please select a single audio file');
+      return;
+    }
+    
+    const filename = files[0];
+    const isAudio = filename.toLowerCase().match(/\.(mp3|wav|ogg|aac|m4a|flac)$/i);
+
+    if (!isAudio) {
+      toast((window.icon ? window.icon('x', 14) : '❌') + " The selected file is not a supported audio format");
+      return;
+    }
+
+    this._currentVisualizerFile = filename;
+    
+    const modal = $('#media-visualizer-modal');
+    
+    // Set initial values
+    if ($('#visualizer-style')) $('#visualizer-style').value = 'waveform_centered';
+    if ($('#visualizer-theme')) $('#visualizer-theme').value = 'matrix_green';
+    if ($('#visualizer-resolution')) $('#visualizer-resolution').value = '1280x720';
+    if ($('#visualizer-fps')) $('#visualizer-fps').value = '30';
+
+    if (modal) modal.classList.add('open');
+
+    // Trigger initial preview simulation mockup
+    this._updateVisualizerPreviewMockup();
+  }
+
+  closeVisualizerModal() {
+    const modal = $('#media-visualizer-modal');
+    if (modal) modal.classList.remove('open');
+    this._currentVisualizerFile = null;
+    if (this._vizPreviewInterval) {
+      clearInterval(this._vizPreviewInterval);
+      this._vizPreviewInterval = null;
+    }
+  }
+
+  _updateVisualizerPreviewMockup() {
+    const style = $('#visualizer-style')?.value || 'waveform_centered';
+    const theme = $('#visualizer-theme')?.value || 'matrix_green';
+    
+    const mockup = $('#visualizer-preview-mockup');
+    if (!mockup) return;
+    
+    // Reset classes
+    mockup.className = 'visualizer-mockup-wrapper';
+    mockup.classList.add(style);
+    mockup.classList.add('theme-' + theme);
+    
+    // Start pulsing height animation for bars to feel reactive and premium!
+    if (this._vizPreviewInterval) {
+      clearInterval(this._vizPreviewInterval);
+    }
+    
+    const bars = mockup.querySelectorAll('.visualizer-mockup-bar');
+    this._vizPreviewInterval = setInterval(() => {
+      bars.forEach(bar => {
+        let val;
+        if (style === 'waveform_lines' || style === 'waveform_centered') {
+          val = Math.random() * 80 + 10;
+        } else if (style === 'frequency_bars') {
+          val = Math.random() * 90 + 5;
+        } else if (style === 'retro_oscilloscope') {
+          val = Math.random() * 50 + 20;
+        } else {
+          val = Math.random() * 100;
+        }
+        bar.style.height = val + '%';
+        bar.style.transform = `scaleY(${val / 100})`;
+      });
+    }, 120);
+  }
+
+  async applyVisualizer() {
+    if (!this._currentVisualizerFile) return;
+    const btn = $('#media-visualizer-apply-btn');
+    const cancelBtn = $('#media-visualizer-cancel-btn');
+    const loading = $('#media-visualizer-loading');
+
+    const oldText = btn.textContent;
+    btn.textContent = 'Rendering Video...';
+    btn.disabled = true;
+    if (cancelBtn) cancelBtn.disabled = true;
+    if (loading) loading.style.display = 'block';
+
+    try {
+      const payload = {
+        filename: this._currentVisualizerFile,
+        style: $('#visualizer-style')?.value || 'waveform_centered',
+        theme: $('#visualizer-theme')?.value || 'matrix_green',
+        resolution: $('#visualizer-resolution')?.value || '1280x720',
+        fps: parseInt($('#visualizer-fps')?.value || 30, 10)
+      };
+
+      const r = await fetch('/studio/generate_visualizer', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+      });
+      
+      const d = await r.json();
+      if (!r.ok) throw new Error(d.detail || 'Server error');
+
+      toast((window.icon ? window.icon('check', 14) : '✅') + ` Visualizer video saved as ${d.filename}`);
+      this.selected.clear();
+      this.closeVisualizerModal();
+      
+      // Select the video tab to show the newly generated video!
+      const videoTabBtn = document.querySelector('#media-filters .media-filter-tab[data-filter="video"]');
+      if (videoTabBtn) {
+        videoTabBtn.click();
+      } else {
+        await this.loadGallery();
+      }
+    } catch (e) {
+      toast((window.icon ? window.icon('x', 14) : '❌') + ` Visualizer generation failed: ${e.message}`);
+    } finally {
+      btn.textContent = oldText;
+      btn.disabled = false;
+      if (cancelBtn) cancelBtn.disabled = false;
+      if (loading) loading.style.display = 'none';
+    }
   }
 }
 

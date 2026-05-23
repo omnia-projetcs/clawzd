@@ -1308,3 +1308,115 @@ async def take_snapshot(request: Request):
         raise HTTPException(500, str(e))
 
 
+@router.post("/generate_visualizer")
+async def generate_visualizer(request: Request):
+    """
+    Génère une vidéo animée à partir d'un fichier audio en appliquant des filtres visuels de spectrogrammes / waveforms.
+    """
+    try:
+        data = await request.json()
+        filename = os.path.basename(data.get("filename", ""))
+        style = data.get("style", "waveform_centered")
+        theme = data.get("theme", "matrix_green")
+        resolution = data.get("resolution", "1280x720")
+        fps = int(data.get("fps", 30))
+        
+        # Trouver le chemin de l'audio
+        audio_path = os.path.join(AUDIO_DIR, filename)
+        if not os.path.exists(audio_path):
+            audio_path = os.path.join(IMAGES_DIR, filename)
+            
+        if not os.path.exists(audio_path):
+            raise HTTPException(404, "Fichier audio source introuvable")
+            
+        # Parse resolution
+        width, height = 1280, 720
+        try:
+            parts = resolution.split("x")
+            if len(parts) == 2:
+                width, height = int(parts[0]), int(parts[1])
+        except Exception:
+            pass
+
+        # Nom du fichier de sortie
+        out_filename = f"viz_{uuid.uuid4().hex[:6]}.mp4"
+        dest_path = os.path.join(IMAGES_DIR, out_filename)
+        
+        # Configurer le filtre FFmpeg selon le style et le theme de couleur
+        colors = "green"
+        if theme == "matrix_green":
+            colors = "0x00FF00"
+        elif theme == "cyberpunk_purple":
+            colors = "0xFF00FF|0x8A2BE2"
+        elif theme == "gold_glow":
+            colors = "0xFFD700|0xFF8C00"
+        elif theme == "fire_ice":
+            colors = "0xFF3300|0x00FFFF"
+        elif theme == "classic_cyan":
+            colors = "0x00FFFF"
+            
+        filter_str = ""
+        if style == "waveform_lines":
+            filter_str = f"showwaves=s={width}x{height}:mode=line:colors={colors}:rate={fps}"
+        elif style == "waveform_centered":
+            filter_str = f"showwaves=s={width}x{height}:mode=cline:colors={colors}:rate={fps}"
+        elif style == "frequency_bars":
+            filter_str = f"showfreqs=s={width}x{height}:mode=bar:colors={colors}:cmode=separate"
+        elif style == "retro_oscilloscope":
+            filter_str = f"avectorscope=s={width}x{height}:colors={colors}:zoom=1.5"
+        elif style == "spectrogram":
+            spec_color = "rainbow"
+            if theme == "matrix_green":
+                spec_color = "green"
+            elif theme == "classic_cyan":
+                spec_color = "cyan"
+            elif theme == "cyberpunk_purple":
+                spec_color = "magenta"
+            elif theme == "gold_glow":
+                spec_color = "yellow"
+            filter_str = f"showspectrum=s={width}x{height}:color={spec_color}:slide=scroll:fps={fps}"
+        else:
+            filter_str = f"showwaves=s={width}x{height}:mode=cline:colors={colors}:rate={fps}"
+            
+        # Commande FFmpeg
+        cmd = [
+            "ffmpeg", "-y",
+            "-i", audio_path,
+            "-filter_complex", f"[0:a]{filter_str}[v]",
+            "-map", "[v]",
+            "-map", "0:a",
+            "-c:v", "libx264",
+            "-pix_fmt", "yuv420p",
+            "-c:a", "aac",
+            "-b:a", "192k",
+            "-shortest",
+            dest_path
+        ]
+        
+        logger.info(f"Execution Audio Visualizer FFmpeg: {' '.join(cmd)}")
+        
+        proc = await asyncio.create_subprocess_exec(
+            *cmd, stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE
+        )
+        stdout, stderr = await proc.communicate()
+        
+        if proc.returncode != 0:
+            err_msg = stderr.decode("utf-8")
+            logger.error(f"FFmpeg visualizer error: {err_msg}")
+            raise HTTPException(500, f"Erreur FFmpeg : {err_msg}")
+            
+        # Obtenir les détails sur le fichier généré
+        media_info = get_media_info(dest_path)
+        
+        return {
+            "status": "ok",
+            "filename": out_filename,
+            "url": f"/data/images/{out_filename}",
+            "duration": media_info.get("duration", 10.0)
+        }
+    except Exception as e:
+        logger.error(f"Failed to generate audio visualizer: {e}")
+        raise HTTPException(500, str(e))
+
+
+
