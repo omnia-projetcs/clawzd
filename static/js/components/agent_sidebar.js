@@ -19,10 +19,10 @@ const AgentSidebar = (() => {
 
   // Agent icons and colors
   const _META = {
-    orchestrator: { icon: `<svg class="ic" width="16" height="16"><use href="#icon-brain"></use></svg>`, color: '#6366f1', label: 'Atlas' },
-    developer:    { icon: `<svg class="ic" width="16" height="16"><use href="#icon-code"></use></svg>`, color: '#10b981', label: 'Dev' },
-    researcher:   { icon: `<svg class="ic" width="16" height="16"><use href="#icon-search"></use></svg>`, color: '#f59e0b', label: 'Researcher' },
-    soul:         { icon: `<svg class="ic" width="16" height="16"><use href="#icon-heart"></use></svg>`, color: '#ec4899', label: 'Soul' },
+    orchestrator: { icon: 'brain', color: '#6366f1', label: 'Atlas' },
+    developer:    { icon: 'code', color: '#10b981', label: 'Dev' },
+    researcher:   { icon: 'search', color: '#f59e0b', label: 'Researcher' },
+    soul:         { icon: 'heart', color: '#ec4899', label: 'Soul' },
   };
 
   /**
@@ -87,7 +87,8 @@ const AgentSidebar = (() => {
     btn.id = 'agent-toggle-btn';
     btn.className = 'agent-toggle-btn';
     btn.title = 'Switch AI Agent';
-    btn.innerHTML = `<span class="agent-toggle-icon">${_META[_currentAgent]?.icon || `<svg class="ic" width="16" height="16"><use href="#icon-brain"></use></svg>`}</span>`;
+    const iconName = _META[_currentAgent]?.icon || 'brain';
+    btn.innerHTML = `<span class="agent-toggle-icon"><svg class="ic" width="16" height="16"><use href="#icon-${iconName}"></use></svg></span>`;
     btn.onclick = () => toggle();
 
     // Insert at the start of the container
@@ -100,16 +101,17 @@ const AgentSidebar = (() => {
     const agentKeys = Array.from(new Set([...baseKeys, ...loadedKeys]));
 
     const cards = agentKeys.map(key => {
-      const meta = _META[key] || { icon: `<svg class="ic" width="16" height="16"><use href="#icon-bot"></use></svg>`, color: '#6366f1', label: key };
+      const meta = _META[key] || { icon: 'bot', color: '#6366f1', label: key };
       const agent = _agents[key];
       const isActive = key === _currentAgent;
       const role = agent?.role || '';
+      const iconHtml = `<svg class="ic" width="28" height="28" style="color: ${meta.color}"><use href="#icon-${meta.icon}"></use></svg>`;
 
       return `
         <div class="agent-card ${isActive ? 'agent-card-active' : ''}"
              data-agent-key="${key}"
              style="--agent-color: ${meta.color}">
-          <div class="agent-card-icon">${meta.icon}</div>
+          <div class="agent-card-icon">${iconHtml}</div>
           <div class="agent-card-body">
             <div class="agent-card-name">${agent?.name || meta.label}</div>
             <div class="agent-card-role">${role}</div>
@@ -155,8 +157,8 @@ const AgentSidebar = (() => {
     // Update toggle button icon
     const btn = document.getElementById('agent-toggle-btn');
     if (btn) {
-      const meta = _META[key] || { icon: `<svg class="ic" width="16" height="16"><use href="#icon-bot"></use></svg>` };
-      btn.querySelector('.agent-toggle-icon').innerHTML = meta.icon;
+      const meta = _META[key] || { icon: 'bot' };
+      btn.querySelector('.agent-toggle-icon').innerHTML = `<svg class="ic" width="16" height="16"><use href="#icon-${meta.icon}"></use></svg>`;
     }
     // Dispatch event for gateway integration
     window.dispatchEvent(new CustomEvent('agent:switch', { detail: { agent: key } }));

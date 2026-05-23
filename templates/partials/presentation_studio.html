@@ -312,8 +312,29 @@
             <button class="media-type-btn active"
                     data-tplmode="business_card"
                     style="flex:1;
-                           padding:4px">📇 Card</button>
-            <button class="media-type-btn" data-tplmode="cv" style="flex:1; padding:4px;">📄 Resume</button>
+                           padding:4px;
+                           display:flex;
+                           align-items:center;
+                           justify-content:center;
+                           gap:4px">
+              <svg class="ic" width="12" height="12">
+                <use href="#icon-user"></use>
+              </svg>
+              Card
+            </button>
+            <button class="media-type-btn"
+                    data-tplmode="cv"
+                    style="flex:1;
+                           padding:4px;
+                           display:flex;
+                           align-items:center;
+                           justify-content:center;
+                           gap:4px">
+              <svg class="ic" width="12" height="12">
+                <use href="#icon-file-text"></use>
+              </svg>
+              Resume
+            </button>
           </div>
         </div>
         <!-- Template Style -->
@@ -355,7 +376,15 @@
                     style="padding:8px 10px;
                            font-size:11px;
                            white-space:nowrap;
-                           background:var(--accent)">🔍 Fetch</button>
+                           background:var(--accent);
+                           display:flex;
+                           align-items:center;
+                           gap:4px">
+              <svg class="ic" width="12" height="12">
+                <use href="#icon-search"></use>
+              </svg>
+              Fetch
+            </button>
           </div>
           <div id="pt-tpl-linkedin-status"
                style="display:none;
@@ -451,7 +480,15 @@
         <div class="media-form-group"
              id="pt-tpl-linkedin-preview"
              style="display:none">
-          <label class="media-form-label">📋 Imported data</label>
+          <label class="media-form-label"
+                 style="display:flex;
+                        align-items:center;
+                        gap:6px">
+            <svg class="ic" width="14" height="14">
+              <use href="#icon-clipboard"></use>
+            </svg>
+            Imported data
+          </label>
           <div id="pt-tpl-linkedin-data"
                style="font-size:11px;
                       padding:10px;
