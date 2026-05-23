@@ -5808,6 +5808,83 @@
     }
   }
 
+  // ---- Software Update Management (Git) ----
+  const btnCheckUpdate = $('#btn-check-update');
+  const btnRunUpdate = $('#btn-run-update');
+  const updateStatus = $('#settings-update-status');
+
+  if (btnCheckUpdate && btnRunUpdate && updateStatus) {
+    btnCheckUpdate.addEventListener('click', async () => {
+      btnCheckUpdate.disabled = true;
+      const originalText = btnCheckUpdate.textContent;
+      btnCheckUpdate.textContent = 'Checking...';
+      updateStatus.style.display = 'flex';
+      updateStatus.innerHTML = `<div style="display:flex; align-items:center; gap:6px;"><span class="tool-spinner"></span> <span>Checking Git remote...</span></div>`;
+
+      try {
+        const r = await fetch('/api/update/check');
+        const d = await r.json();
+
+        if (d.status === 'error') {
+          updateStatus.innerHTML = `<div style="display:flex; align-items:center; gap:6px; color:#ef4444;">${ICONS.x(12)} <span>${escHtml(d.message)}</span></div>`;
+          btnRunUpdate.disabled = true;
+        } else if (d.update_available) {
+          updateStatus.innerHTML = `
+            <div style="display:flex; align-items:center; gap:6px; color:#f59e0b; font-weight:600;">
+              ${ICONS.refresh(12)} <span>Update Available!</span>
+            </div>
+            <div style="margin-top:4px; font-size:10px; color:var(--text-muted);">
+              Branch: <code>${escHtml(d.branch)}</code><br>
+              Local SHA: <code>${d.local_sha}</code> &rarr; Remote: <code>${d.remote_sha}</code>
+            </div>
+            <div style="margin-top:6px; font-size:10px; font-style:italic; padding:4px 6px; background:var(--bg-lighter); border-radius:4px;">
+              ${escHtml(d.commit_message)}
+            </div>`;
+          btnRunUpdate.disabled = false;
+        } else {
+          updateStatus.innerHTML = `<div style="display:flex; align-items:center; gap:6px; color:#10b981;">${ICONS.check(12)} <span>Up to date (SHA: ${d.local_sha})</span></div>`;
+          btnRunUpdate.disabled = true;
+        }
+      } catch (err) {
+        updateStatus.innerHTML = `<div style="display:flex; align-items:center; gap:6px; color:#ef4444;">${ICONS.x(12)} <span>Check failed: ${escHtml(err.message)}</span></div>`;
+        btnRunUpdate.disabled = true;
+      } finally {
+        btnCheckUpdate.disabled = false;
+        btnCheckUpdate.textContent = originalText;
+      }
+    });
+
+    btnRunUpdate.addEventListener('click', async () => {
+      if (!confirm('Run git pull and update Clawzd?')) return;
+      btnRunUpdate.disabled = true;
+      const originalText = btnRunUpdate.textContent;
+      btnRunUpdate.textContent = 'Updating...';
+      updateStatus.innerHTML = `<div style="display:flex; align-items:center; gap:6px;"><span class="tool-spinner"></span> <span>Pulling repository changes...</span></div>`;
+
+      try {
+        const r = await fetch('/api/update/pull', { method: 'POST' });
+        const d = await r.json();
+
+        if (d.status === 'error') {
+          updateStatus.innerHTML = `<div style="display:flex; align-items:center; gap:6px; color:#ef4444;">${ICONS.x(12)} <span>Update failed: ${escHtml(d.message)}</span></div>`;
+        } else {
+          updateStatus.innerHTML = `
+            <div style="display:flex; align-items:center; gap:6px; color:#10b981; font-weight:600;">
+              ${ICONS.check(12)} <span>Clawzd updated successfully!</span>
+            </div>
+            <pre style="margin-top:6px; font-size:10px; font-family:var(--font-mono); background:var(--bg-lighter); padding:6px; border-radius:4px; overflow-x:auto; white-space:pre-wrap;">${escHtml(d.output || '')}</pre>`;
+          toast(ICONS.check(14) + ' Update installed successfully! Reloading in 3s...');
+          setTimeout(() => { window.location.reload(); }, 3000);
+        }
+      } catch (err) {
+        updateStatus.innerHTML = `<div style="display:flex; align-items:center; gap:6px; color:#ef4444;">${ICONS.x(12)} <span>Error: ${escHtml(err.message)}</span></div>`;
+      } finally {
+        btnRunUpdate.disabled = false;
+        btnRunUpdate.textContent = originalText;
+      }
+    });
+  }
+
   // ---- RAG Profil management ----
 
   window.loadRagProfiles = async function () {

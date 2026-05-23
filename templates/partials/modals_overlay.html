@@ -373,6 +373,29 @@
         </button>
       </div>
       <div class="settings-divider"></div>
+      <div class="settings-group">
+        <label class="settings-label">
+          <svg class="ic" width="14" height="14" style="margin-right: 6px;">
+            <use href="#icon-refresh"></use>
+          </svg>
+          Software Updates (Git)
+        </label>
+        <div style="font-size:11px; color:var(--text-muted); margin-bottom:8px;">
+          Check for new releases and perform a Git pull to update Clawzd to the latest commit.
+        </div>
+        <div style="display:flex; gap:8px;">
+          <button class="btn btn-secondary btn-sm" id="btn-check-update" style="flex:1; justify-content:center;">
+            Check Update
+          </button>
+          <button class="btn btn-accent btn-sm" id="btn-run-update" style="flex:1; justify-content:center;" disabled>
+            Install Update
+          </button>
+        </div>
+        <div id="settings-update-status" style="font-size:11px; margin-top:8px; display:none; flex-direction:column; gap:4px; padding:8px; background:var(--bg-default); border-radius:6px; border:1px solid var(--border);">
+          <!-- Populated by JS -->
+        </div>
+      </div>
+      <div class="settings-divider"></div>
       <button class="btn btn-primary btn-block" id="btn-save-settings">Save Settings</button>
     </div>
   </div>

@@ -114,3 +114,72 @@ async def update_env_settings(request: dict):
         # up the change immediately (especially OLLAMA_HOST for remote servers).
         os.environ[k] = v
     return {"status": "ok"}
+
+
+@router.get("/update/check")
+async def check_update():
+    """Check if a new git update is available by fetching origin."""
+    import subprocess
+    try:
+        if not os.path.exists(".git"):
+            return {"status": "error", "message": "Not a git repository."}
+        
+        # silent fetch origin
+        subprocess.run(["git", "fetch", "origin"], capture_output=True, text=True, check=True)
+        
+        # active branch
+        branch_res = subprocess.run(["git", "rev-parse", "--abbrev-ref", "HEAD"], capture_output=True, text=True, check=True)
+        branch = branch_res.stdout.strip()
+        
+        # shas
+        local_res = subprocess.run(["git", "rev-parse", "HEAD"], capture_output=True, text=True, check=True)
+        local_sha = local_res.stdout.strip()
+        
+        remote_res = subprocess.run(["git", "rev-parse", f"origin/{branch}"], capture_output=True, text=True, check=True)
+        remote_sha = remote_res.stdout.strip()
+        
+        if local_sha == remote_sha:
+            return {
+                "status": "ok",
+                "update_available": False,
+                "branch": branch,
+                "local_sha": local_sha[:7],
+            }
+        
+        log_res = subprocess.run(["git", "log", "-n", "1", f"origin/{branch}", "--oneline"], capture_output=True, text=True, check=True)
+        commit_msg = log_res.stdout.strip()
+        
+        return {
+            "status": "ok",
+            "update_available": True,
+            "branch": branch,
+            "local_sha": local_sha[:7],
+            "remote_sha": remote_sha[:7],
+            "commit_message": commit_msg,
+        }
+    except subprocess.CalledProcessError as e:
+        return {"status": "error", "message": f"Git command failed: {e.stderr or str(e)}"}
+    except Exception as e:
+        return {"status": "error", "message": f"Error: {str(e)}"}
+
+
+@router.post("/update/pull")
+async def pull_update():
+    """Execute git pull origin [active branch] to fetch latest changes."""
+    import subprocess
+    try:
+        if not os.path.exists(".git"):
+            return {"status": "error", "message": "Not a git repository."}
+            
+        branch_res = subprocess.run(["git", "rev-parse", "--abbrev-ref", "HEAD"], capture_output=True, text=True, check=True)
+        branch = branch_res.stdout.strip()
+        
+        pull_res = subprocess.run(["git", "pull", "origin", branch], capture_output=True, text=True)
+        if pull_res.returncode != 0:
+            return {"status": "error", "message": f"Git pull failed: {pull_res.stderr or pull_res.stdout}"}
+            
+        return {"status": "ok", "output": pull_res.stdout.strip()}
+    except subprocess.CalledProcessError as e:
+        return {"status": "error", "message": f"Git pull command failed: {e.stderr or str(e)}"}
+    except Exception as e:
+        return {"status": "error", "message": f"Error: {str(e)}"}
