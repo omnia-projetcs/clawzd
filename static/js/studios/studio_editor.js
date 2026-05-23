@@ -113,6 +113,7 @@ window.StudioEditor = {
       inspectorControls: document.getElementById("inspector-controls"),
       liveText: document.getElementById("live-text-overlay"),
       videoPreview: document.getElementById("editor-preview-video"),
+      imagePreview: document.getElementById("editor-preview-image"),
       asciiPreview: document.getElementById("editor-preview-ascii"),
       audioPreview: document.getElementById("editor-preview-audio"),
       previewPlaceholder: document.getElementById("preview-placeholder-msg"),
@@ -846,59 +847,81 @@ window.StudioEditor = {
     const aEl = this.elements.audioPreview;
     const placeholder = this.elements.previewPlaceholder;
     const textOverlay = this.elements.liveText;
+    const imgEl = this.elements.imagePreview;
 
     // Find active clips at current playhead
     const activeVideo = this.clips.find(c => this.getTrackType(c.track) === 'video' && this.playhead >= c.start && this.playhead < (c.start + c.duration));
     const activeAudio = this.clips.find(c => this.getTrackType(c.track) === 'audio' && this.playhead >= c.start && this.playhead < (c.start + c.duration));
     const activeText = this.clips.find(c => this.getTrackType(c.track) === 'text' && this.playhead >= c.start && this.playhead < (c.start + c.duration));
 
-    // 1. VIDEO PREVIEW SYNC
+    // 1. VIDEO/IMAGE PREVIEW SYNC
     if (activeVideo) {
       placeholder.style.display = "none";
+      const isImg = activeVideo.filename.toLowerCase().endsWith('.png') || 
+                    activeVideo.filename.toLowerCase().endsWith('.jpg') || 
+                    activeVideo.filename.toLowerCase().endsWith('.jpeg') || 
+                    activeVideo.filename.toLowerCase().endsWith('.webp') ||
+                    activeVideo.filename.toLowerCase().endsWith('.gif');
       
-      const videoSrc = `/data/images/${activeVideo.filename}`;
-      if (vEl.dataset.currentSrc !== videoSrc) {
-        vEl.src = videoSrc;
-        vEl.dataset.currentSrc = videoSrc;
-        vEl.load();
-      }
-
-      // Mute video element to let the Web Audio mixer manage sound output
-      vEl.muted = !!this.audioEngine;
-
-      // Calculate time offset inside source clip
-      const offset = (this.playhead - activeVideo.start) * activeVideo.speed + activeVideo.trim_start;
+      const fileSrc = `/data/images/${activeVideo.filename}`;
       
-      // Apply filters live in preview screen using CSS mapping
-      vEl.className = '';
-      if (activeVideo.filter && activeVideo.filter !== 'none') {
-        vEl.classList.add(`filter-${activeVideo.filter}`);
-      }
-
-      if (vEl.readyState >= 1) {
-        if (!isLoopRunning || Math.abs(vEl.currentTime - offset) > 0.25) {
-          vEl.currentTime = offset;
-        }
-      }
-
-      if (this.isPlaying) {
-        vEl.play().catch(() => {});
-      } else {
-        vEl.pause();
-      }
-
-      // Handle ASCII Art preview versus standard video display
-      if (activeVideo.filter === 'ascii_art') {
+      if (isImg) {
         vEl.style.display = "none";
-        this.elements.asciiPreview.style.display = "flex";
-        this.updateAsciiPreview(vEl);
-      } else {
+        vEl.pause();
         this.elements.asciiPreview.style.display = "none";
-        vEl.style.display = "block";
+        
+        imgEl.style.display = "block";
+        if (imgEl.src !== window.location.origin + fileSrc && !imgEl.src.endsWith(fileSrc)) {
+          imgEl.src = fileSrc;
+        }
+        
+        imgEl.className = '';
+        if (activeVideo.filter && activeVideo.filter !== 'none') {
+          imgEl.classList.add(`filter-${activeVideo.filter}`);
+        }
+      } else {
+        imgEl.style.display = "none";
+        
+        if (vEl.dataset.currentSrc !== fileSrc) {
+          vEl.src = fileSrc;
+          vEl.dataset.currentSrc = fileSrc;
+          vEl.load();
+        }
+
+        vEl.muted = !!this.audioEngine;
+
+        const offset = (this.playhead - activeVideo.start) * activeVideo.speed + activeVideo.trim_start;
+        
+        vEl.className = '';
+        if (activeVideo.filter && activeVideo.filter !== 'none') {
+          vEl.classList.add(`filter-${activeVideo.filter}`);
+        }
+
+        if (vEl.readyState >= 1) {
+          if (!isLoopRunning || Math.abs(vEl.currentTime - offset) > 0.25) {
+            vEl.currentTime = offset;
+          }
+        }
+
+        if (this.isPlaying) {
+          vEl.play().catch(() => {});
+        } else {
+          vEl.pause();
+        }
+
+        if (activeVideo.filter === 'ascii_art') {
+          vEl.style.display = "none";
+          this.elements.asciiPreview.style.display = "flex";
+          this.updateAsciiPreview(vEl);
+        } else {
+          this.elements.asciiPreview.style.display = "none";
+          vEl.style.display = "block";
+        }
       }
     } else {
       vEl.style.display = "none";
       vEl.pause();
+      if (imgEl) imgEl.style.display = "none";
       this.elements.asciiPreview.style.display = "none";
       placeholder.style.display = "flex";
     }
