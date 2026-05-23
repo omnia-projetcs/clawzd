@@ -90,6 +90,7 @@ window.StudioEditor = {
 
   init() {
     logger = console; // local logger fallback
+    this.audioEngine = new window.ClawzdWebAudioEngine();
     
     // Bind elements
     this.elements = {
@@ -251,10 +252,25 @@ window.StudioEditor = {
     });
   },
 
+  preloadTimelineAssets() {
+    if (!this.audioEngine) return;
+    this.clips.forEach(clip => {
+      const type = this.getTrackType(clip.track);
+      if (type === 'audio' || type === 'video') {
+        const url = type === 'audio' ? 
+          (clip.filename.toLowerCase().endsWith('.mp3') || clip.filename.toLowerCase().endsWith('.wav') ? 
+            `/data/audio/${clip.filename}` : `/data/images/${clip.filename}`)
+          : `/data/images/${clip.filename}`;
+        this.audioEngine.preloadAsset(url);
+      }
+    });
+  },
+
   open() {
     this.elements.modal.style.display = "block";
     this.stop();
     this.loadGalleryAssets();
+    this.preloadTimelineAssets();
     this.renderTimeline();
     this.syncPreview();
     
@@ -405,6 +421,13 @@ window.StudioEditor = {
     };
 
     this.clips.push(newClip);
+    if (this.audioEngine) {
+      const url = mediaItem.type === 'audio' ? 
+        (mediaItem.filename.toLowerCase().endsWith('.mp3') || mediaItem.filename.toLowerCase().endsWith('.wav') ? 
+          `/data/audio/${mediaItem.filename}` : `/data/images/${mediaItem.filename}`)
+        : `/data/images/${mediaItem.filename}`;
+      this.audioEngine.preloadAsset(url);
+    }
     this.renderTimeline();
     this.selectClip(id);
     this.syncPreview();
@@ -643,6 +666,9 @@ window.StudioEditor = {
   seekTo(time) {
     this.playhead = Math.max(0, Math.min(time, this.duration));
     this.updatePlayheadLine();
+    if (this.isPlaying && this.audioEngine) {
+      this.audioEngine.playTimeline(this.clips, this.playhead, (trackId) => this.getTrackType(trackId));
+    }
     this.syncPreview();
   },
 
@@ -827,6 +853,9 @@ window.StudioEditor = {
         vEl.load();
       }
 
+      // Mute video element to let the Web Audio mixer manage sound output
+      vEl.muted = !!this.audioEngine;
+
       // Calculate time offset inside source clip
       const offset = (this.playhead - activeVideo.start) * activeVideo.speed + activeVideo.trim_start;
       
@@ -865,7 +894,7 @@ window.StudioEditor = {
     }
 
     // 2. AUDIO PREVIEW SYNC
-    if (activeAudio) {
+    if (activeAudio && !this.audioEngine) {
       const audioSrc = activeAudio.filename.toLowerCase().endsWith('.mp3') || activeAudio.filename.toLowerCase().endsWith('.wav') ? 
         `/data/audio/${activeAudio.filename}` : `/data/images/${activeAudio.filename}`;
         
@@ -975,6 +1004,9 @@ window.StudioEditor = {
     this.elements.playPauseBtn.innerHTML = window.icon ? window.icon('pause', 20) : '⏸';
     this.lastFrameTime = performance.now();
     this.animationFrameId = requestAnimationFrame((t) => this.playbackStep(t));
+    if (this.audioEngine) {
+      this.audioEngine.playTimeline(this.clips, this.playhead, (trackId) => this.getTrackType(trackId));
+    }
     this.syncPreview();
     
     const editorStatus = document.getElementById("editor-status-text");
@@ -986,6 +1018,9 @@ window.StudioEditor = {
     this.elements.playPauseBtn.innerHTML = window.icon ? window.icon('play', 20) : '▶';
     if (this.animationFrameId) {
       cancelAnimationFrame(this.animationFrameId);
+    }
+    if (this.audioEngine) {
+      this.audioEngine.stopTimeline();
     }
     
     // Pause previews
