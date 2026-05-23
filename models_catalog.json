@@ -472,5 +472,24 @@
       "image"
     ],
     "backend": "hf"
+  },
+  {
+    "id": "bytedance-research/Lance",
+    "vendor": "Video",
+    "name": "Lance 3B (Unified Multimodal)",
+    "ollama_id": "bytedance-research/Lance",
+    "size_gb": 12.0,
+    "params": "3B",
+    "quant": "BF16",
+    "vram_min_gb": 12,
+    "description": "ByteDance unified multimodal model. Supports text-to-video, text-to-image, image/video editing and understanding within a single 3B-parameter framework.",
+    "recommended": true,
+    "token_limit": "N/A",
+    "release_date": "2026-05",
+    "capabilities": [
+      "video",
+      "image"
+    ],
+    "backend": "hf"
   }
 ]

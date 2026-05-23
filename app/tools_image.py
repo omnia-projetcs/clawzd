@@ -573,6 +573,16 @@ _VIDEO_MODELS = {
         "vram_gb": 20,
         "dtype": "bfloat16",
     },
+    "lance_3b": {
+        "repo": "bytedance-research/Lance",
+        "pipeline": "lance",
+        "steps": 30,
+        "guidance": 4.0,
+        "fps": 24,
+        "max_frames": 121,
+        "vram_gb": 12,
+        "dtype": "bfloat16",
+    },
 }
 
 _video_pipeline = None
@@ -682,6 +692,28 @@ def _get_video_pipeline(repo_id: str, model_key: str = ""):
             _video_pipeline = WanPipeline.from_pretrained(
                 repo_id, **load_kwargs,
             )
+            if hasattr(_video_pipeline, 'vae') and hasattr(_video_pipeline.vae, 'enable_tiling'):
+                _video_pipeline.vae.enable_tiling()
+            if torch.cuda.is_available():
+                _video_pipeline.enable_model_cpu_offload()
+
+        elif pipeline_type == "lance":
+            # Lance — ByteDance unified multimodal model (3B active params)
+            # Uses custom pipeline with trust_remote_code
+            from diffusers import DiffusionPipeline
+            load_kwargs = dict(
+                torch_dtype=dtype, token=hf_token,
+                trust_remote_code=True,
+            )
+            if quant_config:
+                load_kwargs["quantization_config"] = quant_config
+            logger.info("Downloading/loading Lance pipeline weights for %s (this may take several minutes)...", repo_id)
+            _hf_download_state["stage"] = "downloading_weights"
+            _video_pipeline = DiffusionPipeline.from_pretrained(
+                repo_id, **load_kwargs,
+            )
+            logger.info("Lance pipeline loaded successfully: %s", repo_id)
+            _hf_download_state["stage"] = "loaded"
             if hasattr(_video_pipeline, 'vae') and hasattr(_video_pipeline.vae, 'enable_tiling'):
                 _video_pipeline.vae.enable_tiling()
             if torch.cuda.is_available():
@@ -1243,6 +1275,7 @@ async def _enhance_video_prompt_with_llm(prompt: str, video_model: str = "cogvid
         "ltx_23": "LTX 2.3: high-end cinematic with audio. Describe soundscape too. Under 80 words.",
         "hunyuanvideo": "HunyuanVideo: good at human motion. Describe body language, gestures. Under 70 words.",
         "wan22": "Wan 2.2 MoE 27B: premium model, can handle complex multi-subject scenes. Under 80 words.",
+        "lance_3b": "Lance 3B: unified multimodal model by ByteDance. Supports text-to-video, image generation, editing. Use detailed scene descriptions with motion. Under 70 words.",
     }
     model_hint = model_hints.get(video_model, "Generic video model. Under 70 words.")
 
@@ -1695,6 +1728,10 @@ async def generate_animation_core(
         # Wan prefers odd frame counts
         if num_frames % 2 == 0:
             num_frames += 1
+    elif pipeline_type == "lance":
+        # Lance prefers odd frame counts (default 121 = 5s × 24fps + 1)
+        if num_frames % 2 == 0:
+            num_frames += 1
 
     if backend == "api":
         raise RuntimeError("Remote API video generation is not yet supported. Please use local mode.")
@@ -1788,6 +1825,12 @@ async def generate_animation_core(
             gen_kwargs["height"] = height
             gen_kwargs["num_frames"] = num_frames
         elif pipeline_type == "wan":
+            gen_kwargs["negative_prompt"] = negative_prompt
+            gen_kwargs["guidance_scale"] = guidance
+            gen_kwargs["num_frames"] = num_frames
+            gen_kwargs["width"] = width
+            gen_kwargs["height"] = height
+        elif pipeline_type == "lance":
             gen_kwargs["negative_prompt"] = negative_prompt
             gen_kwargs["guidance_scale"] = guidance
             gen_kwargs["num_frames"] = num_frames
