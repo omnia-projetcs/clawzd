@@ -262,6 +262,7 @@ class MediaStudio {
           case 'remove_bg': this.removeBgSelected(); break;
           case 'make_coloring': this.makeColoringSelected(); break;
           case 'add_subtitles': this.openSubtitlesModal(); break;
+          case 'convert_ascii': this.convertASCIISelected(); break;
           case 'download_zip': this.downloadZip(); break;
         }
       });
@@ -1601,6 +1602,43 @@ class MediaStudio {
       toast(`${ICONS.check(14)} Coloring pages created!`);
       await this.loadGallery();
     } catch (e) { toast(' Crayons conversion failed: ' + e.message); }
+  }
+
+  async convertASCIISelected() {
+    const files = [...this.selected];
+    if (files.length === 0) {
+      toast((window.icon ? window.icon('circle', 14) : '⚪') + ' Select an image or video to convert to ASCII');
+      return;
+    }
+    if (files.length > 1) {
+      toast((window.icon ? window.icon('circle', 14) : '⚪') + ' Please select a single file to convert');
+      return;
+    }
+    const filename = files[0];
+    const isImage = filename.toLowerCase().match(/\.(png|jpg|jpeg|webp|svg)$/i);
+    const isVideo = filename.toLowerCase().match(/\.(mp4|webm|gif)$/i);
+
+    if (!isImage && !isVideo) {
+      toast((window.icon ? window.icon('x', 14) : '❌') + " The selected file is not an image or video");
+      return;
+    }
+
+    toast((window.icon ? window.icon('hourglass', 14) : '⏳') + ` Converting ${filename} to ASCII Video...`);
+    try {
+      const r = await fetch('/image/convert-ascii', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ filename })
+      });
+      const d = await r.json();
+      if (!r.ok) throw new Error(d.detail || 'Server error');
+
+      toast((window.icon ? window.icon('check', 14) : '✅') + ' ASCII Art conversion successful !');
+      this.selected.clear();
+      await this.loadGallery();
+    } catch (e) {
+      toast((window.icon ? window.icon('x', 14) : '❌') + ' Conversion failed: ' + e.message);
+    }
   }
 
   _openRembgModal(files) {

@@ -2698,6 +2698,82 @@ async def convert_video(request: Request):
         logger.error(f"Video conversion failed: {e}")
         raise HTTPException(500, f"Video conversion failed: {e}")
 
+@router.post("/convert-ascii")
+async def convert_ascii(request: Request):
+    """Convert a gallery image or video into a Green Phosphor terminal-style ASCII video asset."""
+    data = await request.json()
+    filename = data.get("filename", "")
+    width = int(data.get("width", 1280))
+    height = int(data.get("height", 720))
+    duration = float(data.get("duration", 5.0))
+    fps = int(data.get("fps", 30))
+
+    if not filename:
+        raise HTTPException(400, "filename is required")
+
+    input_path = os.path.join(IMAGES_DIR, os.path.basename(filename))
+    if not os.path.exists(input_path):
+        raise HTTPException(404, f"File not found: {filename}")
+
+    is_image = filename.lower().endswith((".png", ".jpg", ".jpeg", ".webp", ".svg"))
+    
+    base_name = os.path.splitext(os.path.basename(filename))[0]
+    out_filename = f"{base_name}_ascii.mp4"
+    out_filepath = os.path.join(IMAGES_DIR, out_filename)
+
+    logger.info("Starting ASCII art compilation for %s (image=%s, res=%dx%d)...", filename, is_image, width, height)
+
+    try:
+        from app.tools_studio_editor import convert_image_to_ascii_video, convert_video_to_ascii
+        import asyncio
+
+        # For videos, fetch actual duration if not provided
+        if not is_image and "duration" not in data:
+            try:
+                from app.tools_studio_editor import get_media_info
+                info = get_media_info(input_path)
+                duration = info.get("duration", 5.0)
+            except Exception:
+                pass
+
+        if is_image:
+            await asyncio.to_thread(
+                convert_image_to_ascii_video, input_path, out_filepath, width, height, duration, fps
+            )
+        else:
+            await asyncio.to_thread(
+                convert_video_to_ascii, input_path, out_filepath, width, height, duration, fps
+            )
+
+        # Write prompt description
+        original_prompt = ""
+        txt_path = input_path + ".txt"
+        if os.path.exists(txt_path):
+            try:
+                with open(txt_path, "r", encoding="utf-8") as f:
+                    original_prompt = f.read().strip()
+            except Exception:
+                pass
+
+        prompt_str = f"Green Phosphor ASCII art conversion of {filename}"
+        if original_prompt:
+            prompt_str = f"{original_prompt} (ASCII Art)"
+
+        with open(out_filepath + ".txt", "w", encoding="utf-8") as f:
+            f.write(prompt_str)
+
+        return {
+            "status": "ok",
+            "filename": out_filename,
+            "url": f"/data/images/{out_filename}",
+            "format": "mp4",
+            "duration": duration
+        }
+
+    except Exception as e:
+        logger.error("ASCII Art conversion tool failed: %s", e, exc_info=True)
+        raise HTTPException(500, f"ASCII conversion failed: {e}")
+
 
 def format_ass_timestamp(seconds: float) -> str:
     """Format seconds into ASS subtitle format: h:mm:ss.cs (where cs is centiseconds)."""
