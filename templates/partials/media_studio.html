@@ -108,6 +108,75 @@
                value="blurry, low quality, distorted"
                placeholder="What to avoid...">
       </div>
+      <!-- Cinema Studio Accordion -->
+      <div class="media-form-group" id="media-cinema-accordion" style="margin-bottom: 15px;">
+        <button type="button" 
+                class="media-generate-btn" 
+                id="media-cinema-toggle" 
+                style="width: 100%; display: flex; justify-content: space-between; align-items: center; padding: 10px 12px; background: linear-gradient(135deg, rgba(139, 92, 246, 0.1), rgba(59, 130, 246, 0.1)); border: 1px solid rgba(139, 92, 246, 0.2); font-weight: 500; font-size: 13px; text-transform: none; border-radius: var(--radius-sm); outline: none; box-shadow: none; cursor: pointer;">
+          <span style="display: flex; align-items: center; gap: 8px;">
+            <span class="media-icon" data-icon="video"></span> 🎥 Cinema Studio (Camera Physics)
+          </span>
+          <span id="media-cinema-arrow" style="transition: transform 0.3s;">▼</span>
+        </button>
+        
+        <div id="media-cinema-panel" style="display: none; padding: 12px; margin-top: 6px; background: rgba(0,0,0,0.15); border-radius: var(--radius-sm); border: 1px solid var(--border); flex-direction: column; gap: 10px;">
+          <!-- Camera Body -->
+          <div class="media-form-group" style="margin-bottom: 8px;">
+            <label class="media-form-label" style="font-size: 11px; margin-bottom: 4px;">Camera Body</label>
+            <select class="media-form-select" id="media-cinema-camera" style="font-size: 12px; padding: 6px 10px;">
+              <option value="none" selected>Auto / Default</option>
+              <option value="shot on 8K digital cinema camera">Modular 8K Digital</option>
+              <option value="shot on full-frame cine digital camera">Full-Frame Cine Digital</option>
+              <option value="shot on grand format 70mm film camera, high grain">Grand Format 70mm Film</option>
+              <option value="shot on studio digital S35 camera">Studio Digital S35</option>
+              <option value="shot on classic 16mm analog film camera, vintage look">Classic 16mm Analog Film</option>
+              <option value="shot on premium large-format digital cinema system">Premium Large-Format Digital</option>
+            </select>
+          </div>
+          
+          <!-- Lens / Filter -->
+          <div class="media-form-group" style="margin-bottom: 8px;">
+            <label class="media-form-label" style="font-size: 11px; margin-bottom: 4px;">Lens / Lens Filter</label>
+            <select class="media-form-select" id="media-cinema-lens" style="font-size: 12px; padding: 6px 10px;">
+              <option value="none" selected>Auto / Default</option>
+              <option value="creative tilt-shift lens, dreamy selective focus">Creative Tilt-Shift Lens</option>
+              <option value="extreme macro lens, high detail close-up">Extreme Macro Lens</option>
+              <option value="70s vintage cinema prime lens, chromatic aberration">70s Vintage Cinema Prime</option>
+              <option value="classic anamorphic lens, horizontal blue streak flares">Classic Anamorphic Lens</option>
+              <option value="premium modern cinema prime lens, clinical sharpness">Premium Modern Prime</option>
+              <option value="warm cinematic color grade prime lens">Warm Cinema Prime</option>
+              <option value="swirl bokeh portrait lens, dramatic background separation">Swirl Bokeh Portrait Lens</option>
+              <option value="vintage prime lens with halation diffusion filter">Halation Diffusion Filter</option>
+            </select>
+          </div>
+          
+          <!-- Focal Length -->
+          <div class="media-form-group" style="margin-bottom: 8px;">
+            <label class="media-form-label" style="font-size: 11px; margin-bottom: 4px;">Focal Length</label>
+            <select class="media-form-select" id="media-cinema-focal" style="font-size: 12px; padding: 6px 10px;">
+              <option value="none" selected>Auto / Default</option>
+              <option value="8mm focal length, ultra-wide angle, dramatic perspective distortion">8mm (Ultra-Wide Angle)</option>
+              <option value="14mm focal length, wide angle, sweeping landscape depth">14mm (Wide Angle)</option>
+              <option value="24mm focal length, environmental depth">24mm (Medium Wide)</option>
+              <option value="35mm focal length, natural human eye field of view">35mm (Standard / Narrative)</option>
+              <option value="50mm focal length, high detail standard portrait">50mm (Natural Portrait)</option>
+              <option value="85mm focal length, tight telephoto portrait, strong compressed background">85mm (Telephoto Portrait)</option>
+            </select>
+          </div>
+          
+          <!-- Aperture -->
+          <div class="media-form-group" style="margin-bottom: 4px;">
+            <label class="media-form-label" style="font-size: 11px; margin-bottom: 4px;">Aperture (Depth of Field)</label>
+            <select class="media-form-select" id="media-cinema-aperture" style="font-size: 12px; padding: 6px 10px;">
+              <option value="none" selected>Auto / Default</option>
+              <option value="extremely shallow depth of field, f/1.4 aperture, beautifully blurred background, strong separation">f/1.4 (Shallow DoF / Blurred BG)</option>
+              <option value="balanced depth of field, f/4.0 aperture, clear subject with soft environmental context">f/4.0 (Balanced / Narrative)</option>
+              <option value="deep focus, f/11.0 aperture, pin-sharp detail from foreground to background">f/11.0 (Deep Focus / Landscape)</option>
+            </select>
+          </div>
+        </div>
+      </div>
       <!-- Format (Image) -->
       <div class="media-form-group" id="media-format-image-group">
         <label class="media-form-label">Format</label>

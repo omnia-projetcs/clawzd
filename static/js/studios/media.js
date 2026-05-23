@@ -416,6 +416,21 @@ class MediaStudio {
         el.addEventListener('input', updateASCIIPreview);
       }
     });
+
+    // Cinema Studio Collapsible Toggle
+    const cinemaToggle = $('#media-cinema-toggle');
+    const cinemaPanel = $('#media-cinema-panel');
+    const cinemaArrow = $('#media-cinema-arrow');
+    if (cinemaToggle && cinemaPanel) {
+      cinemaToggle.addEventListener('click', (e) => {
+        e.preventDefault();
+        const isCollapsed = cinemaPanel.style.display === 'none' || !cinemaPanel.style.display;
+        cinemaPanel.style.display = isCollapsed ? 'flex' : 'none';
+        if (cinemaArrow) {
+          cinemaArrow.style.transform = isCollapsed ? 'rotate(180deg)' : 'rotate(0deg)';
+        }
+      });
+    }
   }
 
   _updateFormVisibility() {
@@ -497,6 +512,10 @@ class MediaStudio {
     const negGrp = $('#media-neg-prompt')?.closest('.media-form-group');
     if (promptGrp) promptGrp.style.display = (isAudio || isTemplate) ? 'none' : '';
     if (negGrp) negGrp.style.display = (isAudio || isTemplate) ? 'none' : '';
+
+    // Cinema Studio — show for image/video only
+    const cinemaGrp = $('#media-cinema-accordion');
+    if (cinemaGrp) cinemaGrp.style.display = (isAudio || isTemplate) ? 'none' : '';
 
     // Upload / reference image — show for image/video only
     const uploadGrp = $('#media-upload-group');
@@ -1091,6 +1110,26 @@ class MediaStudio {
       if (this.audioSubMode !== 'music' && !audioText.trim()) { toast(ICONS.circle(14) + ' Veuillez entrer du texte'); return; }
     } else if (!prompt || !prompt.value.trim()) { toast(ICONS.circle(14) + ' ️ Please enter a prompt'); return; }
 
+    // Cinema Studio Prompt Expansion
+    let finalPrompt = '';
+    if (prompt) finalPrompt = prompt.value.trim();
+    if (this.type !== 'audio') {
+      const cameraVal = ($('#media-cinema-camera') || {}).value || 'none';
+      const lensVal = ($('#media-cinema-lens') || {}).value || 'none';
+      const focalVal = ($('#media-cinema-focal') || {}).value || 'none';
+      const apertureVal = ($('#media-cinema-aperture') || {}).value || 'none';
+      
+      const modifiers = [];
+      if (cameraVal && cameraVal !== 'none') modifiers.push(cameraVal);
+      if (lensVal && lensVal !== 'none') modifiers.push(lensVal);
+      if (focalVal && focalVal !== 'none') modifiers.push(focalVal);
+      if (apertureVal && apertureVal !== 'none') modifiers.push(apertureVal);
+      
+      if (modifiers.length > 0) {
+        finalPrompt += ", " + modifiers.join(", ");
+      }
+    }
+
     this.generating = true;
     const genBtn = $('#media-generate-btn');
     const cancelBtn = $('#media-cancel-btn');
@@ -1244,7 +1283,7 @@ class MediaStudio {
             headers: { 'Content-Type': 'application/json' },
             signal: this._abortController ? this._abortController.signal : undefined,
             body: JSON.stringify({
-              prompt: prompt.value.trim(),
+              prompt: finalPrompt,
               negative_prompt: negPrompt,
               format, style: currentStyle, enhance_prompt: enhance,
               backend: this.backend,
@@ -1320,7 +1359,7 @@ class MediaStudio {
             headers: { 'Content-Type': 'application/json' },
             signal: this._abortController ? this._abortController.signal : undefined,
             body: JSON.stringify({
-              prompt: prompt.value.trim(),
+              prompt: finalPrompt,
               negative_prompt: negPrompt,
               format, duration,
               width: vidW,

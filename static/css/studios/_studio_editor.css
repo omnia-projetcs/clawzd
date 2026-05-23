@@ -700,6 +700,7 @@
   flex-direction: column;
   position: relative;
   min-height: 100%;
+  min-width: 100%;
 }
 
 /* 4. TIME RULER INDICATORS */
@@ -711,6 +712,7 @@
   font-size: 9px;
   font-family: monospace;
   color: var(--editor-text-muted);
+  min-width: 100%;
 }
 
 .ruler-tick {
@@ -730,6 +732,7 @@
   height: 46px;
   border-bottom: 1px solid var(--editor-border);
   position: relative;
+  min-width: 100%;
 }
 
 .track-info {
@@ -746,6 +749,11 @@
   color: var(--editor-text-muted);
   box-shadow: 2px 0 5px rgba(0,0,0,0.3);
   z-index: 10;
+}
+
+.track-delete-btn:hover {
+  background: rgba(239, 68, 68, 0.15) !important;
+  color: #ef4444 !important;
 }
 
 .track-lane {

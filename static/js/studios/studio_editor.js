@@ -14,6 +14,73 @@ window.StudioEditor = {
   clips: [], // List of timeline clip models
   mediaBinItems: [], // List of gallery items in Resource Bin
   
+  // Dynamic Tracks
+  tracks: [
+    { id: 'video_1', type: 'video', name: 'Video Track 1' },
+    { id: 'audio_1', type: 'audio', name: 'Audio Track 1' },
+    { id: 'text_1', type: 'text', name: 'Text Track 1' }
+  ],
+
+  getTrackType(trackId) {
+    const track = this.tracks.find(t => t.id === trackId);
+    return track ? track.type : 'video';
+  },
+
+  ensureTrackExists(trackId) {
+    if (this.tracks.some(t => t.id === trackId)) return trackId;
+    
+    // Map legacy 'video', 'audio', 'text' to default dynamic tracks
+    if (trackId === 'video') return 'video_1';
+    if (trackId === 'audio') return 'audio_1';
+    if (trackId === 'text') return 'text_1';
+    
+    // If not matching, create new dynamic track
+    let type = 'video';
+    if (trackId.includes('audio')) type = 'audio';
+    else if (trackId.includes('text')) type = 'text';
+    
+    const count = this.tracks.filter(t => t.type === type).length + 1;
+    const typeLabel = type.charAt(0).toUpperCase() + type.slice(1);
+    this.tracks.push({
+      id: trackId,
+      type,
+      name: `${typeLabel} Track ${count}`
+    });
+    return trackId;
+  },
+
+  addTrack(type) {
+    const count = this.tracks.filter(t => t.type === type).length + 1;
+    const typeLabel = type.charAt(0).toUpperCase() + type.slice(1);
+    const id = `${type}_${Date.now()}_${Math.random().toString(36).substr(2, 4)}`;
+    this.tracks.push({
+      id,
+      type,
+      name: `${typeLabel} Track ${count}`
+    });
+    this.renderTimeline();
+    if (window.toast) window.toast(`➕ Added new ${typeLabel} Track`);
+  },
+
+  deleteTrack(trackId) {
+    // Check if there are any clips on this track
+    const hasClips = this.clips.some(c => c.track === trackId);
+    if (hasClips) {
+      if (!confirm("This track contains clips. Are you sure you want to delete it and all its clips?")) {
+        return;
+      }
+    }
+    this.clips = this.clips.filter(c => c.track !== trackId);
+    this.tracks = this.tracks.filter(t => t.id !== trackId);
+    if (this.selectedClipId && !this.clips.some(c => c.id === this.selectedClipId)) {
+      this.selectedClipId = null;
+      this.selectClip(null);
+    }
+    this.renderTimeline();
+    this.syncPreview();
+    if (window.toast) window.toast("🗑️ Track deleted successfully");
+  },
+
   // Playback timer variables
   lastFrameTime: 0,
   animationFrameId: null,
@@ -52,7 +119,10 @@ window.StudioEditor = {
       toolSplit: document.getElementById("tool-split"),
       toolClear: document.getElementById("tool-clear"),
       aiPrompt: document.getElementById("ai-prompt-input"),
-      aiPlanBtn: document.getElementById("ai-plan-btn")
+      aiPlanBtn: document.getElementById("ai-plan-btn"),
+      trackAddVideo: document.getElementById("track-add-video"),
+      trackAddAudio: document.getElementById("track-add-audio"),
+      trackAddText: document.getElementById("track-add-text")
     };
 
     if (!this.elements.modal) return;
@@ -108,6 +178,11 @@ window.StudioEditor = {
       el.aiPlanBtn.addEventListener("click", () => this.generateAIPlan());
     }
 
+    // Dynamic track adders
+    if (el.trackAddVideo) el.trackAddVideo.addEventListener("click", () => this.addTrack("video"));
+    if (el.trackAddAudio) el.trackAddAudio.addEventListener("click", () => this.addTrack("audio"));
+    if (el.trackAddText) el.trackAddText.addEventListener("click", () => this.addTrack("text"));
+
     // Action tools
     el.toolSelect.addEventListener("click", () => this.setTool('select'));
     el.toolSplit.addEventListener("click", () => this.setTool('split'));
@@ -120,7 +195,8 @@ window.StudioEditor = {
 
       const seek = (evt) => {
         const rect = el.ruler.getBoundingClientRect();
-        const x = evt.clientX - rect.left + el.scrollContainer.scrollLeft;
+        // Offset click coordinate by 120px to match ruler pad/ticks starting position
+        const x = evt.clientX - (rect.left + 120) + el.scrollContainer.scrollLeft;
         const time = Math.max(0, Math.min(x / this.zoom, this.duration));
         this.seekTo(Math.round(time * 10) / 10);
       };
@@ -264,12 +340,21 @@ window.StudioEditor = {
 
   addClipToTimeline(mediaItem) {
     const trackType = mediaItem.type === 'audio' ? 'audio' : 'video';
+    const firstTrack = this.tracks.find(t => t.type === trackType);
+    if (!firstTrack) {
+      if (window.toast) {
+        window.toast(`⚠️ Please add a ${trackType.charAt(0).toUpperCase() + trackType.slice(1)} Track first!`);
+      } else {
+        alert(`Please add a ${trackType.charAt(0).toUpperCase() + trackType.slice(1)} Track first!`);
+      }
+      return;
+    }
     const id = `clip_${Date.now()}_${Math.random().toString(36).substr(2, 5)}`;
     
     const newClip = {
       id,
       filename: mediaItem.filename,
-      track: trackType,
+      track: firstTrack.id,
       start: this.playhead,
       duration: mediaItem.duration,
       trim_start: 0.0,
@@ -319,23 +404,39 @@ window.StudioEditor = {
     document.getElementById("prop-duration").value = clip.duration;
     document.getElementById("prop-trim-start").value = clip.trim_start;
     
+    const trackType = this.getTrackType(clip.track);
+    
+    // Dynamic Move to Track dropdown populator
+    const trackSelect = document.getElementById("prop-track-select");
+    if (trackSelect) {
+      trackSelect.innerHTML = '';
+      const compatibleTracks = this.tracks.filter(t => t.type === trackType);
+      compatibleTracks.forEach(t => {
+        const opt = document.createElement("option");
+        opt.value = t.id;
+        opt.textContent = t.name;
+        opt.selected = t.id === clip.track;
+        trackSelect.appendChild(opt);
+      });
+    }
+    
     const filterGroup = document.querySelector(".inspector-video-only");
     const audioGroup = document.querySelector(".inspector-audio-only");
     const textGroup = document.querySelector(".inspector-text-only");
 
     // Toggle track fields
-    if (clip.track === 'video') {
+    if (trackType === 'video') {
       filterGroup.style.display = "flex";
       audioGroup.style.display = "none";
       textGroup.style.display = "none";
       document.getElementById("prop-filter").value = clip.filter;
-    } else if (clip.track === 'audio') {
+    } else if (trackType === 'audio') {
       filterGroup.style.display = "none";
       audioGroup.style.display = "flex";
       textGroup.style.display = "none";
       document.getElementById("prop-volume").value = clip.volume;
       document.getElementById("prop-vol-val").textContent = clip.volume;
-    } else if (clip.track === 'text') {
+    } else if (trackType === 'text') {
       filterGroup.style.display = "none";
       audioGroup.style.display = "none";
       textGroup.style.display = "block";
@@ -377,6 +478,11 @@ window.StudioEditor = {
 
     document.getElementById("prop-filter").addEventListener("change", (e) => {
       this.updateSelectedClipProperty('filter', e.target.value);
+    });
+
+    document.getElementById("prop-track-select").addEventListener("change", (e) => {
+      this.updateSelectedClipProperty('track', e.target.value);
+      this.renderTimeline();
     });
 
     // Subtitle specific properties
@@ -495,7 +601,7 @@ window.StudioEditor = {
   },
 
   updatePlayheadLine() {
-    const leftPos = this.playhead * this.zoom;
+    const leftPos = (this.playhead * this.zoom) + 120;
     this.elements.playheadLine.style.left = leftPos + 'px';
     
     // Center viewport scrolling around playhead if playing
@@ -523,15 +629,20 @@ window.StudioEditor = {
     const ruler = this.elements.ruler;
     const totalWidth = this.duration * this.zoom;
 
+    // Stretch ruler and grid width to container width if needed to prevent empty spaces
+    const containerWidth = this.elements.scrollContainer ? (this.elements.scrollContainer.clientWidth || 0) : 0;
+    const gridWidth = Math.max(totalWidth + 120, containerWidth);
+
     // Render Ruler Tick Marks
-    ruler.style.width = totalWidth + 'px';
+    ruler.style.width = gridWidth + 'px';
     ruler.innerHTML = '';
     
     for (let s = 0; s <= this.duration; s++) {
       if (s % 5 === 0 || this.zoom > 35) {
         const tick = document.createElement("div");
         tick.className = "ruler-tick";
-        tick.style.left = (s * this.zoom) + 'px';
+        // Tick is shifted by 120px to align perfectly with track lanes
+        tick.style.left = (s * this.zoom) + 120 + 'px';
         if (s % 5 === 0 || this.zoom > 50) {
           tick.textContent = s + "s";
         }
@@ -540,20 +651,53 @@ window.StudioEditor = {
     }
 
     // Adjust grid width
-    this.elements.timelineGrid.style.width = (totalWidth + 120) + 'px';
+    this.elements.timelineGrid.style.width = gridWidth + 'px';
 
-    // Group and render tracks
-    const videoLane = document.getElementById("video-track-lane");
-    const audioLane = document.getElementById("audio-track-lane");
-    const textLane = document.getElementById("text-track-lane");
+    // Clear dynamic track rows
+    const gridEl = this.elements.timelineGrid;
+    
+    // Clear all existing track-row elements
+    gridEl.querySelectorAll(".track-row").forEach(r => r.remove());
 
-    [videoLane, audioLane, textLane].forEach(l => l.innerHTML = '');
+    // Render each dynamic track row
+    this.tracks.forEach(track => {
+      const row = document.createElement("div");
+      row.className = "track-row";
+      row.dataset.track = track.id;
 
+      let iconName = 'film';
+      if (track.type === 'audio') iconName = 'music';
+      else if (track.type === 'text') iconName = 'chat';
+
+      row.innerHTML = `
+        <div class="track-info">
+          <span class="media-icon" data-icon="${iconName}"></span>
+          <span style="flex-grow: 1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; padding-right: 5px;">${track.name}</span>
+          <button class="track-delete-btn" data-track-id="${track.id}" title="Delete Track" style="background: none; border: none; color: #f87171; cursor: pointer; padding: 2px 6px; display: flex; align-items: center; justify-content: center; border-radius: 4px; transition: background 0.2s;">
+            <span class="media-icon" data-icon="x"></span>
+          </button>
+        </div>
+        <div class="track-lane" id="${track.id}-track-lane"></div>
+      `;
+
+      // Bind delete track button
+      row.querySelector(".track-delete-btn").addEventListener("click", (e) => {
+        e.stopPropagation();
+        this.deleteTrack(track.id);
+      });
+
+      gridEl.appendChild(row);
+    });
+
+    // Populate clips in dynamic tracks
     this.clips.forEach(clip => {
+      // Ensure target track still exists, or default it to first compatible one
+      clip.track = this.ensureTrackExists(clip.track);
+
       const clipEl = document.createElement("div");
       clipEl.className = "timeline-clip";
       clipEl.dataset.clipId = clip.id;
-      clipEl.dataset.trackType = clip.track;
+      clipEl.dataset.trackType = this.getTrackType(clip.track);
       clipEl.style.left = (clip.start * this.zoom) + 'px';
       clipEl.style.width = (clip.duration * this.zoom) + 'px';
       clipEl.textContent = clip.filename.substr(0, 20);
@@ -601,15 +745,18 @@ window.StudioEditor = {
         document.addEventListener("mouseup", onMouseUp);
       });
 
-      // Target appropriate lane container
-      if (clip.track === 'video') {
-        videoLane.appendChild(clipEl);
-      } else if (clip.track === 'audio') {
-        audioLane.appendChild(clipEl);
-      } else if (clip.track === 'text') {
-        textLane.appendChild(clipEl);
+      const lane = document.getElementById(`${clip.track}-track-lane`);
+      if (lane) {
+        lane.appendChild(clipEl);
       }
     });
+
+    // Automatically recompile dynamic SVG icons for new track headers
+    if (window.icon) {
+      gridEl.querySelectorAll('.media-icon[data-icon]').forEach(n => {
+        n.innerHTML = window.icon(n.dataset.icon, 13);
+      });
+    }
   },
 
   syncPreview(isLoopRunning = false) {
@@ -619,9 +766,9 @@ window.StudioEditor = {
     const textOverlay = this.elements.liveText;
 
     // Find active clips at current playhead
-    const activeVideo = this.clips.find(c => c.track === 'video' && this.playhead >= c.start && this.playhead < (c.start + c.duration));
-    const activeAudio = this.clips.find(c => c.track === 'audio' && this.playhead >= c.start && this.playhead < (c.start + c.duration));
-    const activeText = this.clips.find(c => c.track === 'text' && this.playhead >= c.start && this.playhead < (c.start + c.duration));
+    const activeVideo = this.clips.find(c => this.getTrackType(c.track) === 'video' && this.playhead >= c.start && this.playhead < (c.start + c.duration));
+    const activeAudio = this.clips.find(c => this.getTrackType(c.track) === 'audio' && this.playhead >= c.start && this.playhead < (c.start + c.duration));
+    const activeText = this.clips.find(c => this.getTrackType(c.track) === 'text' && this.playhead >= c.start && this.playhead < (c.start + c.duration));
 
     // 1. VIDEO PREVIEW SYNC
     if (activeVideo) {
@@ -845,7 +992,7 @@ window.StudioEditor = {
     this.pause();
 
     // Map properties strictly for backend compiler
-    const videoTrackClips = this.clips.filter(c => c.track === 'video').map(c => ({
+    const videoTrackClips = this.clips.filter(c => this.getTrackType(c.track) === 'video').map(c => ({
       filename: c.filename,
       start: c.start,
       duration: c.duration,
@@ -854,7 +1001,7 @@ window.StudioEditor = {
       filter: c.filter
     }));
 
-    const audioTrackClips = this.clips.filter(c => c.track === 'audio').map(c => ({
+    const audioTrackClips = this.clips.filter(c => this.getTrackType(c.track) === 'audio').map(c => ({
       filename: c.filename,
       start: c.start,
       duration: c.duration,
@@ -863,7 +1010,7 @@ window.StudioEditor = {
       speed: c.speed
     }));
 
-    const textTrackClips = this.clips.filter(c => c.track === 'text').map(c => ({
+    const textTrackClips = this.clips.filter(c => this.getTrackType(c.track) === 'text').map(c => ({
       text: c.text,
       start: c.start,
       duration: c.duration,
@@ -978,6 +1125,8 @@ window.StudioEditor = {
           if (!clip.id) {
             clip.id = "clip_" + Math.random().toString(36).substr(2, 9);
           }
+          // Ensure the planned track exists or maps perfectly
+          clip.track = this.ensureTrackExists(clip.track);
           this.clips.push(clip);
         });
 

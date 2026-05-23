@@ -122,6 +122,11 @@
               <input type="number" id="prop-trim-start" step="0.1" min="0" class="editor-input">
             </div>
             
+            <div class="property-group">
+              <label class="property-label">Move to Track</label>
+              <select id="prop-track-select" class="editor-select" title="Assign to Track"></select>
+            </div>
+            
             <div class="property-group inspector-video-only">
               <label class="property-label">Color Grade / Filter</label>
               <select id="prop-filter" class="editor-select">
@@ -239,7 +244,7 @@
       
       <!-- Timeline Action controls bar -->
       <div class="timeline-action-bar">
-        <div class="timeline-tools">
+        <div class="timeline-tools" style="display: flex; align-items: center; gap: 8px;">
           <button class="timeline-btn active" id="tool-select" title="Selection tool">
             <span class="media-icon" data-icon="copy"></span> Select
           </button>
@@ -249,6 +254,19 @@
           <button class="timeline-btn danger" id="tool-clear" title="Clear all tracks">
             <span class="media-icon" data-icon="refresh"></span> Clear Canvas
           </button>
+          
+          <!-- Track Adder Buttons -->
+          <div class="timeline-track-adder" style="display: flex; gap: 4px; border-left: 1px solid var(--editor-border); padding-left: 10px; margin-left: 2px;">
+            <button class="timeline-btn" id="track-add-video" title="Add Video Track">
+              <span class="media-icon" data-icon="plus"></span> + Video Track
+            </button>
+            <button class="timeline-btn" id="track-add-audio" title="Add Audio Track">
+              <span class="media-icon" data-icon="plus"></span> + Audio Track
+            </button>
+            <button class="timeline-btn" id="track-add-text" title="Add Text Track">
+              <span class="media-icon" data-icon="plus"></span> + Text Track
+            </button>
+          </div>
         </div>
         
         <div class="timeline-zoom-controls">
@@ -273,38 +291,7 @@
             <!-- Populated via Javascript -->
           </div>
 
-          <!-- Video Track Lane -->
-          <div class="track-row" data-track="video">
-            <div class="track-info">
-              <span class="media-icon" data-icon="film"></span>
-              <span>Video Track</span>
-            </div>
-            <div class="track-lane" id="video-track-lane">
-              <!-- ABSOLUTE CLIPS CONTAINER -->
-            </div>
-          </div>
-
-          <!-- Audio Track Lane -->
-          <div class="track-row" data-track="audio">
-            <div class="track-info">
-              <span class="media-icon" data-icon="music"></span>
-              <span>Audio Track</span>
-            </div>
-            <div class="track-lane" id="audio-track-lane">
-              <!-- ABSOLUTE CLIPS CONTAINER -->
-            </div>
-          </div>
-
-          <!-- Text Track Lane -->
-          <div class="track-row" data-track="text">
-            <div class="track-info">
-              <span class="media-icon" data-icon="chat"></span>
-              <span>Text Track</span>
-            </div>
-            <div class="track-lane" id="text-track-lane">
-              <!-- ABSOLUTE CLIPS CONTAINER -->
-            </div>
-          </div>
+          <!-- Dynamic track lanes will be rendered here by JS -->
 
         </div>
       </div>
