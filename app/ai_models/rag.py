@@ -42,9 +42,13 @@ def _get_rag():
     """Lazy-initialize ChromaDB client and encoder."""
     global _client, _collection, _encoder
     if _client is None:
-        import chromadb
-        from chromadb.config import Settings
-        from sentence_transformers import SentenceTransformer
+        try:
+            import chromadb
+            from chromadb.config import Settings
+            from sentence_transformers import SentenceTransformer
+        except (ImportError, ModuleNotFoundError) as e:
+            logger.warning("RAG dependencies are not installed on this system: %s. RAG features are disabled.", e)
+            raise HTTPException(503, "RAG dependencies (chromadb/sentence-transformers) are not installed on this system.")
 
         _client = chromadb.PersistentClient(
             path=CHROMA_DB_PATH,

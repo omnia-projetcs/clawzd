@@ -251,6 +251,19 @@ window.StudioEditor = {
       document.addEventListener("mousemove", onMouseMove);
       document.addEventListener("mouseup", onMouseUp);
     });
+
+    // Global Keyboard shortcuts (Delete or Backspace to delete selected clip)
+    document.addEventListener("keydown", (e) => {
+      if (this.selectedClipId) {
+        const tag = e.target.tagName.toLowerCase();
+        if (tag !== "input" && tag !== "textarea") {
+          if (e.key === "Delete" || e.key === "Backspace") {
+            e.preventDefault();
+            this.deleteClip(this.selectedClipId);
+          }
+        }
+      }
+    });
   },
 
   preloadTimelineAssets() {
@@ -788,6 +801,104 @@ window.StudioEditor = {
       if (this.selectedClipId === clip.id) {
         clipEl.classList.add("selected");
       }
+
+      // Trim left handle
+      const leftHandle = document.createElement("div");
+      leftHandle.className = "clip-trim-handle left-handle";
+      clipEl.appendChild(leftHandle);
+
+      leftHandle.addEventListener("mousedown", (e) => {
+        e.stopPropagation();
+        e.preventDefault();
+        const startX = e.clientX;
+        const initialStart = clip.start;
+        const initialDuration = clip.duration;
+        const initialTrimStart = clip.trim_start || 0;
+
+        const onMouseMove = (moveEvt) => {
+          const deltaX = moveEvt.clientX - startX;
+          const deltaT = deltaX / this.zoom;
+          
+          let newStart = initialStart + deltaT;
+          let newDuration = initialDuration - deltaT;
+          let newTrimStart = initialTrimStart + deltaT;
+
+          if (newDuration < 0.1) {
+            const maxDelta = initialDuration - 0.1;
+            newStart = initialStart + maxDelta;
+            newDuration = 0.1;
+            newTrimStart = initialTrimStart + maxDelta;
+          }
+          if (newStart < 0) {
+            newStart = 0;
+            newDuration = initialDuration + initialStart;
+            newTrimStart = initialTrimStart - initialStart;
+          }
+
+          newStart = Math.round(newStart * 10) / 10;
+          newDuration = Math.round(newDuration * 10) / 10;
+          newTrimStart = Math.round(newTrimStart * 10) / 10;
+
+          clip.start = newStart;
+          clip.duration = newDuration;
+          clip.trim_start = newTrimStart;
+
+          clipEl.style.left = (newStart * this.zoom) + 'px';
+          clipEl.style.width = (newDuration * this.zoom) + 'px';
+
+          const startInput = document.getElementById("prop-start");
+          const durInput = document.getElementById("prop-duration");
+          const trimInput = document.getElementById("prop-trim-start");
+          if (startInput) startInput.value = newStart;
+          if (durInput) durInput.value = newDuration;
+          if (trimInput) trimInput.value = newTrimStart;
+        };
+
+        const onMouseUp = () => {
+          document.removeEventListener("mousemove", onMouseMove);
+          document.removeEventListener("mouseup", onMouseUp);
+          this.renderTimeline();
+          this.syncPreview();
+        };
+
+        document.addEventListener("mousemove", onMouseMove);
+        document.addEventListener("mouseup", onMouseUp);
+      });
+
+      // Trim right handle
+      const rightHandle = document.createElement("div");
+      rightHandle.className = "clip-trim-handle right-handle";
+      clipEl.appendChild(rightHandle);
+
+      rightHandle.addEventListener("mousedown", (e) => {
+        e.stopPropagation();
+        e.preventDefault();
+        const startX = e.clientX;
+        const initialDuration = clip.duration;
+
+        const onMouseMove = (moveEvt) => {
+          const deltaX = moveEvt.clientX - startX;
+          const deltaT = deltaX / this.zoom;
+          let newDuration = Math.max(0.1, initialDuration + deltaT);
+          newDuration = Math.round(newDuration * 10) / 10;
+
+          clip.duration = newDuration;
+          clipEl.style.width = (newDuration * this.zoom) + 'px';
+
+          const durInput = document.getElementById("prop-duration");
+          if (durInput) durInput.value = newDuration;
+        };
+
+        const onMouseUp = () => {
+          document.removeEventListener("mousemove", onMouseMove);
+          document.removeEventListener("mouseup", onMouseUp);
+          this.renderTimeline();
+          this.syncPreview();
+        };
+
+        document.addEventListener("mousemove", onMouseMove);
+        document.addEventListener("mouseup", onMouseUp);
+      });
 
       // Drag to Move timeline clip
       clipEl.addEventListener("mousedown", (e) => {

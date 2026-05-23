@@ -691,7 +691,7 @@
 .tracks-scroll-viewport {
   flex: 1;
   overflow-x: auto;
-  overflow-y: hidden;
+  overflow-y: auto;
   position: relative;
   background: #0c0e16;
 }
@@ -806,6 +806,31 @@
   text-overflow: ellipsis;
   box-shadow: 0 2px 5px rgba(0, 0, 0, 0.4);
   transition: border-color 0.2s, box-shadow 0.2s;
+}
+
+.clip-trim-handle {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 6px;
+  cursor: ew-resize;
+  background: rgba(255, 255, 255, 0.1);
+  transition: background 0.2s;
+  z-index: 5;
+}
+
+.clip-trim-handle:hover {
+  background: rgba(255, 255, 255, 0.4);
+}
+
+.clip-trim-handle.left-handle {
+  left: 0;
+  border-right: 1px solid rgba(255,255,255,0.1);
+}
+
+.clip-trim-handle.right-handle {
+  right: 0;
+  border-left: 1px solid rgba(255,255,255,0.1);
 }
 
 .timeline-clip:hover {
