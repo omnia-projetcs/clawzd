@@ -24,8 +24,10 @@
             <option value="wav">WAV (Raw Audio)</option>
           </select>
           <select id="export-res" class="editor-select" title="Resolution">
-            <option value="1280x720" selected>720p (1280x720)</option>
-            <option value="1920x1080">1080p (1920x1080)</option>
+            <option value="1280x720" selected>720p Landscape (1280x720)</option>
+            <option value="1920x1080">1080p Landscape (1920x1080)</option>
+            <option value="720x1280">TikTok/Shorts (9:16 - 720x1280)</option>
+            <option value="1080x1080">Instagram Square (1:1 - 1080x1080)</option>
             <option value="640x360">360p (640x360)</option>
           </select>
           <select id="export-fps" class="editor-select" title="Frame rate">
@@ -75,7 +77,19 @@
         
         <!-- Tab Content 1: Media Bin -->
         <div class="tab-content active" id="tab-media-bin">
-          <div class="search-box">
+          <!-- AI Smart Montage Planner -->
+          <div class="ai-planner-card">
+            <h3>⚡ AI Montage Planner</h3>
+            <p>Enter a description to auto-generate a multi-track sequence plan using your assets.</p>
+            <div class="ai-input-group">
+              <input type="text" id="ai-prompt-input" placeholder="e.g., fast cyberpunk trailer..." class="editor-input">
+              <button id="ai-plan-btn" class="editor-btn primary" title="Generate AI Timeline Plan">
+                <span class="media-icon" data-icon="wand"></span> Plan Montage
+              </button>
+            </div>
+          </div>
+
+          <div class="search-box" style="margin-top: 15px;">
             <input type="text" id="bin-search" placeholder="Search media bin..." class="editor-input">
           </div>
           <div class="bin-list" id="bin-list-container">

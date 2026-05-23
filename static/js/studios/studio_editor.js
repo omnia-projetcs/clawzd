@@ -50,7 +50,9 @@ window.StudioEditor = {
       previewPlaceholder: document.getElementById("preview-placeholder-msg"),
       toolSelect: document.getElementById("tool-select"),
       toolSplit: document.getElementById("tool-split"),
-      toolClear: document.getElementById("tool-clear")
+      toolClear: document.getElementById("tool-clear"),
+      aiPrompt: document.getElementById("ai-prompt-input"),
+      aiPlanBtn: document.getElementById("ai-plan-btn")
     };
 
     if (!this.elements.modal) return;
@@ -100,6 +102,11 @@ window.StudioEditor = {
     el.searchBin.addEventListener("input", (e) => {
       this.filterMediaBin(e.target.value);
     });
+
+    // AI Montage Planner Event
+    if (el.aiPlanBtn) {
+      el.aiPlanBtn.addEventListener("click", () => this.generateAIPlan());
+    }
 
     // Action tools
     el.toolSelect.addEventListener("click", () => this.setTool('select'));
@@ -933,6 +940,66 @@ window.StudioEditor = {
       
       console.error(e);
       if (window.toast) window.toast("❌ Rendering failed: " + e.message);
+    }
+  },
+
+  async generateAIPlan() {
+    const promptInput = this.elements.aiPrompt;
+    const planBtn = this.elements.aiPlanBtn;
+    if (!promptInput || !planBtn) return;
+    const promptVal = promptInput.value.trim();
+
+    if (!promptVal) {
+      if (window.toast) window.toast("⚠️ Please enter a prompt for the AI to plan!");
+      return;
+    }
+
+    const originalHtml = planBtn.innerHTML;
+    planBtn.disabled = true;
+    planBtn.innerHTML = `⚡ Planning...`;
+
+    try {
+      const resp = await fetch("/studio/ai_plan", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ prompt: promptVal })
+      });
+
+      if (!resp.ok) {
+        throw new Error("Server failed to generate a plan");
+      }
+
+      const plan = await resp.json();
+      if (plan && plan.clips) {
+        this.clips = [];
+        this.duration = parseFloat(plan.duration) || 30.0;
+        
+        plan.clips.forEach(clip => {
+          if (!clip.id) {
+            clip.id = "clip_" + Math.random().toString(36).substr(2, 9);
+          }
+          this.clips.push(clip);
+        });
+
+        this.renderTimeline();
+        this.seekTo(0);
+        
+        if (window.toast) {
+          if (plan.error_fallback) {
+            window.toast("⚡ AI Montage fallback generated using gallery assets!");
+          } else {
+            window.toast("🎉 AI Smart Montage successfully generated & populated!");
+          }
+        }
+      } else {
+        throw new Error("Invalid plan schema returned from server");
+      }
+    } catch (e) {
+      console.error(e);
+      if (window.toast) window.toast("❌ AI Planning failed: " + e.message);
+    } finally {
+      planBtn.disabled = false;
+      planBtn.innerHTML = originalHtml;
     }
   }
 };

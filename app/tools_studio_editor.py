@@ -38,6 +38,26 @@ COLOR_FILTERS = {
     "ascii_art": "ascii_art"
 }
 
+def get_scale_crop_filter(src_w: int, src_h: int, target_w: int, target_h: int) -> str:
+    """Calculate scale and crop filter to fill target resolution without stretching."""
+    if src_w <= 0 or src_h <= 0:
+        return f"scale={target_w}:{target_h}"
+    src_ar = src_w / src_h
+    target_ar = target_w / target_h
+    
+    if abs(src_ar - target_ar) < 0.01:
+        return f"scale={target_w}:{target_h}"
+    elif src_ar > target_ar:
+        scaled_w = int(target_h * src_ar)
+        if scaled_w % 2 != 0:
+            scaled_w += 1
+        return f"scale={scaled_w}:{target_h},crop={target_w}:{target_h}"
+    else:
+        scaled_h = int(target_w / src_ar)
+        if scaled_h % 2 != 0:
+            scaled_h += 1
+        return f"scale={target_w}:{scaled_h},crop={target_w}:{target_h}"
+
 def get_media_info(filepath: str) -> dict:
     """Read media details (duration, width, height, has_audio) using ffprobe/ffmpeg."""
     info = {"duration": 5.0, "width": 1280, "height": 720, "has_audio": False}
@@ -241,6 +261,21 @@ async def export_timeline(request: Request):
                 temp_clip_path = os.path.join(temp_dir, f"video_clip_{idx}.mp4")
                 is_image = filename.lower().endswith((".png", ".jpg", ".jpeg", ".webp", ".svg"))
 
+                # Determine original source dimensions
+                src_w, src_h = width, height
+                if is_image:
+                    try:
+                        with Image.open(filepath) as img:
+                            src_w, src_h = img.size
+                    except Exception:
+                        pass
+                else:
+                    info = get_media_info(filepath)
+                    src_w, src_h = info.get("width", width), info.get("height", height)
+
+                # Generate professional crop/scale filter
+                scale_filter = get_scale_crop_filter(src_w, src_h, width, height)
+
                 if is_image:
                     if color_filter == "ascii_art":
                         logger.info(f"Rendering static image to ASCII Art: {filepath} -> {temp_clip_path}")
@@ -250,7 +285,7 @@ async def export_timeline(request: Request):
                         cmd = [
                             "ffmpeg", "-y", "-loop", "1", "-i", filepath,
                             "-t", str(duration),
-                            "-vf", f"scale={width}:{height},format=yuv420p",
+                            "-vf", f"{scale_filter},format=yuv420p",
                             "-c:v", "libx264", "-r", str(fps),
                             temp_clip_path
                         ]
@@ -260,7 +295,7 @@ async def export_timeline(request: Request):
                 else:
                     if color_filter == "ascii_art":
                         temp_trimmed = os.path.join(temp_dir, f"trimmed_{idx}.mp4")
-                        vf_filters = [f"scale={width}:{height}"]
+                        vf_filters = [scale_filter]
                         if speed != 1.0:
                             vf_filters.append(f"setpts=(1/{speed})*PTS")
                         
@@ -282,7 +317,7 @@ async def export_timeline(request: Request):
                         else:
                             res_code = res.returncode
                     else:
-                        vf_filters = [f"scale={width}:{height}"]
+                        vf_filters = [scale_filter]
                         if speed != 1.0:
                             vf_filters.append(f"setpts=(1/{speed})*PTS")
                         
@@ -575,3 +610,161 @@ async def export_timeline(request: Request):
             logger.info("Cleaned temporary workspace: %s", temp_dir)
         except Exception:
             pass
+
+@router.post("/ai_plan")
+async def ai_plan(request: Request):
+    """Generate a multi-track timeline plan from a natural language prompt using gallery assets."""
+    try:
+        data = await request.json()
+    except Exception:
+        raise HTTPException(400, "Invalid JSON body")
+
+    prompt = data.get("prompt", "").strip()
+    if not prompt:
+        raise HTTPException(400, "Prompt is required")
+
+    # Gather all assets from images/audio directories
+    images = []
+    if os.path.exists(IMAGES_DIR):
+        for f in os.listdir(IMAGES_DIR):
+            if f.lower().endswith((".png", ".jpg", ".jpeg", ".webp", ".svg", ".mp4", ".webm")):
+                images.append(f)
+
+    audios = []
+    if os.path.exists(AUDIO_DIR):
+        for f in os.listdir(AUDIO_DIR):
+            if f.lower().endswith((".mp3", ".wav", ".m4a", ".ogg")):
+                audios.append(f)
+
+    if not images:
+        raise HTTPException(400, "Your gallery is empty. Please upload or generate some images/videos first!")
+
+    # Query LLM to organize these assets
+    from app.llm_provider import get_llm_provider
+    from config import LLM_PROVIDER
+    import json
+
+    system_prompt = (
+        "You are an AI Video Editor. Your task is to plan a professional video timeline by sequencing available media files.\n"
+        "You must respond with ONLY a raw JSON block matching this exact structure:\n"
+        "{\n"
+        "  \"duration\": 30.0,\n"
+        "  \"clips\": [\n"
+        "    {\n"
+        "      \"filename\": \"image_or_video_file.png\",\n"
+        "      \"track\": \"video\",\n"
+        "      \"start\": 0.0,\n"
+        "      \"duration\": 5.0,\n"
+        "      \"trim_start\": 0.0,\n"
+        "      \"speed\": 1.0,\n"
+        "      \"filter\": \"none\"\n"
+        "    },\n"
+        "    {\n"
+        "      \"filename\": \"ambient_music.mp3\",\n"
+        "      \"track\": \"audio\",\n"
+        "      \"start\": 0.0,\n"
+        "      \"duration\": 15.0,\n"
+        "      \"trim_start\": 0.0,\n"
+        "      \"volume\": 0.8,\n"
+        "      \"speed\": 1.0\n"
+        "    },\n"
+        "    {\n"
+        "      \"text\": \"Subtitle Overlay Text\",\n"
+        "      \"track\": \"text\",\n"
+        "      \"start\": 1.0,\n"
+        "      \"duration\": 4.0,\n"
+        "      \"color\": \"white\",\n"
+        "      \"font_size\": 28,\n"
+        "      \"position\": \"bottom\"\n"
+        "    }\n"
+        "  ]\n"
+        "}\n\n"
+        "Constraints:\n"
+        "- The 'track' field must be 'video', 'audio', or 'text'.\n"
+        "- For 'video' clips, 'filename' MUST be chosen strictly from the Available Video/Image Files listed below.\n"
+        "- For 'audio' clips, 'filename' MUST be chosen strictly from the Available Audio Files listed below.\n"
+        "- For 'text' clips, 'text' is the subtitle overlay, and 'filename' is NOT required.\n"
+        "- Available filters for 'video' clips are: 'none', 'grayscale', 'sepia', 'cinematic', 'cyberpunk', 'vignette', 'vintage', 'ascii_art'.\n"
+        "- Ensure clips do not overlap on the same track unless intended. Sequence them nicely.\n"
+        "- Respond with ONLY the valid JSON block, starting with '{' and ending with '}'. No chat, no markdown fences."
+    )
+
+    user_content = (
+        f"Available Video/Image Files:\n{json.dumps(images, indent=2)}\n\n"
+        f"Available Audio Files:\n{json.dumps(audios, indent=2)}\n\n"
+        f"User Prompt / Creative Concept: \"{prompt}\"\n\n"
+        "Please plan a stunning, coherent video using these assets."
+    )
+
+    messages = [
+        {"role": "system", "content": system_prompt},
+        {"role": "user", "content": user_content}
+    ]
+
+    try:
+        # Resolve LLM provider
+        provider = get_llm_provider(LLM_PROVIDER)
+        raw_resp = await provider.chat(messages)
+        raw_resp = raw_resp.strip()
+
+        # Clean markdown fences if any
+        if raw_resp.startswith("```"):
+            lines = raw_resp.splitlines()
+            if lines[0].startswith("```"):
+                lines = lines[1:]
+            if lines and lines[-1].startswith("```"):
+                lines = lines[:-1]
+            raw_resp = "\n".join(lines).strip()
+
+        start_idx = raw_resp.find("{")
+        end_idx = raw_resp.rfind("}")
+        if start_idx != -1 and end_idx != -1:
+            raw_resp = raw_resp[start_idx:end_idx + 1]
+
+        plan_data = json.loads(raw_resp)
+        return plan_data
+
+    except Exception as e:
+        logger.error(f"Failed to generate AI montage plan: {e}", exc_info=True)
+        # Fallback dynamic mock plan using actual assets
+        fallback_clips = []
+        curr_time = 0.0
+        for img in images[:5]:
+            fallback_clips.append({
+                "id": f"clip_{uuid.uuid4().hex[:6]}",
+                "filename": img,
+                "track": "video",
+                "start": curr_time,
+                "duration": 4.0,
+                "trim_start": 0.0,
+                "speed": 1.0,
+                "filter": "cinematic"
+            })
+            fallback_clips.append({
+                "text": "Creative AI Edit",
+                "track": "text",
+                "start": curr_time + 0.5,
+                "duration": 3.0,
+                "color": "yellow",
+                "font_size": 28,
+                "position": "bottom"
+            })
+            curr_time += 4.0
+
+        if audios:
+            fallback_clips.append({
+                "id": f"clip_{uuid.uuid4().hex[:6]}",
+                "filename": audios[0],
+                "track": "audio",
+                "start": 0.0,
+                "duration": curr_time,
+                "trim_start": 0.0,
+                "volume": 0.8,
+                "speed": 1.0
+            })
+
+        return {
+            "duration": curr_time,
+            "clips": fallback_clips,
+            "error_fallback": str(e)
+        }
