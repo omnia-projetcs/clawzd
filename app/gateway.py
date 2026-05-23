@@ -38,6 +38,7 @@ from app.settings import router as settings_router
 from app.tools_screenshot import router as screenshot_router
 from app.tools_image import router as image_router
 from app.tools_audio import router as audio_router
+from app.routers.voice_rtvi import router as voice_rtvi_router
 from app.tools_browser import router as browser_router
 from app.tools_cron import router as cron_router
 from app.tools_skills import router as skills_router
@@ -271,6 +272,7 @@ app.include_router(memory_router, prefix="/api")
 app.include_router(screenshot_router, prefix="/screenshot")
 app.include_router(image_router, prefix="/image")
 app.include_router(audio_router, prefix="/audio")
+app.include_router(voice_rtvi_router)
 app.include_router(browser_router, prefix="/browser")
 app.include_router(cron_router, prefix="/cron")
 app.include_router(skills_router, prefix="/skills")

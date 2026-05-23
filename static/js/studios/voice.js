@@ -95,6 +95,57 @@ class VoiceStudio {
         this.toggleManualTrigger();
       });
     }
+
+    // RTVI Mode Switcher
+    const rtviToggle = document.getElementById('voice-rtvi-toggle');
+    if (rtviToggle) {
+      rtviToggle.addEventListener('change', (e) => {
+        const isRtvi = e.target.checked;
+        const canvasStandard = document.getElementById('voice-sphere-canvas');
+        const canvasRtvi = document.getElementById('voice-rtvi-canvas');
+        const telemetry = document.getElementById('voice-telemetry-panel');
+        const sphereGlow = document.getElementById('voice-sphere-glow');
+        const handsfreeRow = document.getElementById('handsfree-row');
+        const autonomyRow = document.getElementById('autonomy-row');
+        
+        if (isRtvi) {
+          canvasStandard.style.display = 'none';
+          canvasRtvi.style.display = 'block';
+          telemetry.style.display = 'block';
+          if (sphereGlow) sphereGlow.style.display = 'block';
+          if (handsfreeRow) handsfreeRow.style.opacity = '0.5';
+          if (autonomyRow) autonomyRow.style.opacity = '0.5';
+          
+          // Deactivate standard loop
+          this.stopListening();
+          this.interruptActiveAudio();
+          
+          // Connect to Pro WebSocket pilot
+          if (window.clawzdVoicePilot) {
+            window.clawzdVoicePilot.connect();
+          }
+        } else {
+          canvasStandard.style.display = 'block';
+          canvasRtvi.style.display = 'none';
+          telemetry.style.display = 'none';
+          if (sphereGlow) sphereGlow.style.display = 'none';
+          if (handsfreeRow) handsfreeRow.style.opacity = '1';
+          if (autonomyRow) autonomyRow.style.opacity = '1';
+          
+          // Disconnect Pro WebSocket pilot
+          if (window.clawzdVoicePilot) {
+            window.clawzdVoicePilot.disconnect();
+          }
+          
+          // Restore standard state
+          this.state = 'idle';
+          this.setStatus('IDLE');
+          if (this.handsFree && this.active) {
+            this.startListening();
+          }
+        }
+      });
+    }
   }
 
   async activate() {
@@ -306,6 +357,15 @@ class VoiceStudio {
   }
 
   toggleManualTrigger() {
+    if (document.getElementById('voice-rtvi-toggle')?.checked) {
+      if (window.clawzdVoicePilot) {
+        if (window.clawzdVoicePilot.ws && window.clawzdVoicePilot.ws.readyState === WebSocket.OPEN) {
+          window.clawzdVoicePilot.ws.send(JSON.stringify({ type: 'interrupt' }));
+        }
+      }
+      return;
+    }
+
     if (this.state === 'speaking') {
       this.interruptActiveAudio();
       this.state = 'idle';

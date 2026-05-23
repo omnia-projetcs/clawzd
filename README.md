@@ -158,9 +158,12 @@ ATTENTION! THIS PROJECT IS CURRENTLY IN ACTIVE DEVELOPMENT (ALPHA VERSION). FEAT
 | 📐 **UI** | Structured UI | Dynamic __CHART__, __TABLE__, __CARD__ rendering |
 | ⌨️ **UX** | Keyboard Shortcuts | Ctrl+Shift+A/R/D/B/G panel toggles |
 | 📱 **Mobile** | Responsive UI | 5-breakpoint mobile-first CSS architecture |
-| 🎙️ **Voice Mode** | Hands-Free Control (VAD) | Real-time decibel-based VAD for continuous hands-free dialogue |
+| 🎙️ **Voice Mode** | Conversational Pro (RTVI) | Sub-second full-duplex conversational pipeline inspired by Pipecat AI |
+| 🎙️ **Voice Mode** | WebSocket Transport | 100% private offline binary audio streaming (PCM 16-bit 16kHz) for seamless connectivity |
+| 🎙️ **Voice Mode** | Instant Interruption | Active server-side pipeline cancellation when the user speaks or clicks |
+| 🎙️ **Voice Mode** | Siri Waveform Visualizer | Multi-layered frequency wave Canvas animation reacting to mic and speech volumes |
+| 🎙️ **Voice Mode** | Telemetry Dashboard | Real-time WebRTC/RTVI glassmorphic diagnostics (RTT latency, buffer status) |
 | 🎙️ **Voice Mode** | Edge Neural TTS | High-fidelity multi-lingual spoken voice feedback using Microsoft Edge Neural |
-| 🎙️ **Voice Mode** | Interruption Handling | Bidirectional interruption by clicking the central orb or talking over the AI |
 
 ---
 

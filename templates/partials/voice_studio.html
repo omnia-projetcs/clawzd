@@ -12,6 +12,17 @@
       <div class="voice-control-group">
         <div class="voice-toggle-row">
           <div class="voice-toggle-info">
+            <span class="voice-label">Mode Conversationnel (RTVI)</span>
+            <span class="voice-sublabel">Voix fluide temps réel Pipecat AI.</span>
+          </div>
+          <label class="toggle-switch">
+            <input type="checkbox" id="voice-rtvi-toggle">
+            <span class="slider"></span>
+          </label>
+        </div>
+
+        <div class="voice-toggle-row" id="handsfree-row">
+          <div class="voice-toggle-info">
             <span class="voice-label">Hands-Free (Auto-VAD)</span>
             <span class="voice-sublabel">No clicks needed. Continuous loop.</span>
           </div>
@@ -21,7 +32,7 @@
           </label>
         </div>
 
-        <div class="voice-toggle-row">
+        <div class="voice-toggle-row" id="autonomy-row">
           <div class="voice-toggle-info">
             <span class="voice-label">Voice Autonomy</span>
             <span class="voice-sublabel">Execute tools immediately without prompts.</span>
@@ -69,6 +80,27 @@
       </div>
       
       <div class="voice-sidebar-footer">
+        <!-- Telemetry Panel -->
+        <div class="voice-telemetry-panel collapsed" id="voice-telemetry-panel" style="display:none;">
+          <div class="telemetry-header">
+            <h4>
+              <svg class="ic" width="12" height="12" style="color:#a78bfa;"><use href="#icon-cpu"></use></svg>
+              Télémétrie RTVI
+            </h4>
+            <span class="telemetry-toggle-icon">▼</span>
+          </div>
+          <div class="telemetry-grid">
+            <div class="tel-item">
+              <span class="tel-label">Latence RTT</span>
+              <span class="tel-val" id="rtvi-rtt">-- ms</span>
+            </div>
+            <div class="tel-item">
+              <span class="tel-label">Flux Transport</span>
+              <span class="tel-val" style="color:#34d399;">WS / PCM</span>
+            </div>
+          </div>
+        </div>
+
         <span class="voice-micro-tip">💡 Tip: Speak or click the glowing sphere to instantly interrupt Clawzd.</span>
       </div>
     </div>
@@ -85,7 +117,9 @@
         </div>
         
         <div class="voice-sphere-container">
+          <div class="voice-sphere-glow-layer state-idle" id="voice-sphere-glow" style="display:none;"></div>
           <canvas id="voice-sphere-canvas" width="400" height="400"></canvas>
+          <canvas id="voice-rtvi-canvas" width="400" height="400" style="display:none; position:absolute; top:0; left:0; width:100%; height:100%; z-index:1;"></canvas>
           <button class="voice-sphere-trigger" id="voice-sphere-trigger" title="Toggle Listening State">
             <svg class="ic" width="40" height="40"><use href="#icon-mic"></use></svg>
           </button>

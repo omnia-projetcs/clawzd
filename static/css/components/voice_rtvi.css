@@ -1,0 +1,168 @@
+/* static/css/components/voice_rtvi.css */
+
+/* Siri Waveform Visualizer styling */
+.voice-rtvi-wave-container {
+  position: relative;
+  width: 100%;
+  max-width: 400px;
+  height: 180px;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  margin: 20px 0;
+  border-radius: var(--radius-lg, 12px);
+  background: rgba(0, 0, 0, 0.2);
+  border: 1px solid rgba(255, 255, 255, 0.05);
+  box-shadow: inset 0 0 20px rgba(0, 0, 0, 0.3);
+  overflow: hidden;
+}
+
+#voice-rtvi-canvas {
+  width: 100%;
+  height: 100%;
+  display: block;
+}
+
+/* Glassmorphic Telemetry Dashboard */
+.voice-telemetry-panel {
+  margin-top: 16px;
+  border-radius: var(--radius-lg, 12px);
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.2);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  transition: all 0.3s ease;
+  overflow: hidden;
+}
+
+.voice-telemetry-panel.collapsed {
+  max-height: 48px;
+}
+
+.voice-telemetry-panel:not(.collapsed) {
+  max-height: 250px;
+}
+
+.telemetry-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 14px 18px;
+  cursor: pointer;
+  background: rgba(255, 255, 255, 0.02);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+}
+
+.telemetry-header h4 {
+  font-size: 13px;
+  font-weight: 600;
+  margin: 0;
+  color: var(--text-muted, #9ca3af);
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.telemetry-toggle-icon {
+  font-size: 12px;
+  color: var(--text-muted, #9ca3af);
+  transition: transform 0.3s ease;
+}
+
+.voice-telemetry-panel:not(.collapsed) .telemetry-toggle-icon {
+  transform: rotate(180deg);
+}
+
+.telemetry-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 12px;
+  padding: 18px;
+}
+
+.tel-item {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 10px 14px;
+  background: rgba(0, 0, 0, 0.15);
+  border-radius: var(--radius-sm, 6px);
+  border: 1px solid rgba(255, 255, 255, 0.03);
+}
+
+.tel-label {
+  font-size: 10px;
+  font-weight: 500;
+  color: var(--text-muted, #6b7280);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.tel-val {
+  font-size: 14px;
+  font-weight: 600;
+  font-family: var(--font-mono, monospace);
+  color: #a78bfa;
+}
+
+/* Mode toggle select */
+.voice-mode-select-container {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-bottom: 18px;
+}
+
+.voice-mode-badge {
+  font-size: 9px;
+  font-weight: 700;
+  padding: 2px 6px;
+  border-radius: 4px;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.badge-sequential {
+  background: rgba(59, 130, 246, 0.15);
+  color: #60a5fa;
+  border: 1px solid rgba(59, 130, 246, 0.3);
+}
+
+.badge-conversational {
+  background: rgba(16, 185, 129, 0.15);
+  color: #34d399;
+  border: 1px solid rgba(16, 185, 129, 0.3);
+}
+
+/* Sphere state colors */
+.voice-sphere-glow-layer {
+  position: absolute;
+  width: 260px;
+  height: 260px;
+  border-radius: 50%;
+  filter: blur(60px);
+  opacity: 0.25;
+  transition: background-color 0.8s ease, transform 0.5s ease;
+  z-index: 0;
+  pointer-events: none;
+}
+
+.state-idle { background-color: rgba(139, 92, 246, 0.6); }
+.state-thinking { background-color: rgba(245, 158, 11, 0.6); transform: scale(1.1); }
+.state-speaking { background-color: rgba(16, 185, 129, 0.6); transform: scale(1.05); }
+.state-listening { background-color: rgba(59, 130, 246, 0.6); }
+
+/* Custom active word spotlight effect for live transcript */
+.voice-active-word {
+  color: #f3f4f6;
+  font-weight: 600;
+  text-shadow: 0 0 8px rgba(167, 139, 250, 0.6);
+  background: rgba(167, 139, 250, 0.1);
+  padding: 1px 4px;
+  border-radius: 4px;
+  border: 1px solid rgba(167, 139, 250, 0.25);
+  transition: all 0.15s ease;
+}
