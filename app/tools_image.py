@@ -2539,7 +2539,7 @@ async def list_images():
                 if os.path.exists(txt_path):
                     with open(txt_path, "r", encoding="utf-8") as tf:
                         prompt_text = tf.read().strip()
-                images.append({"filename": f, "path": filepath, "format": fmt, "prompt": prompt_text})
+                images.append({"filename": f, "path": filepath, "format": fmt, "prompt": prompt_text, "url": f"/data/images/{f}"})
     return {"images": images[:200]}
 
 

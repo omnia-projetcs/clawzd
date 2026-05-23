@@ -95,7 +95,7 @@
           <div class="search-box" style="margin-top: 15px;">
             <input type="text" id="bin-search" placeholder="Search media bin..." class="editor-input">
           </div>
-          <div class="bin-list" id="bin-list-container">
+          <div class="bin-list" id="bin-list-container" style="flex: 1; min-height: 0; overflow-y: auto;">
             <!-- Dynamically populated from gallery items -->
           </div>
         </div>
@@ -124,7 +124,7 @@
             </div>
           </div>
 
-          <div class="bin-list" id="stock-list-container" style="margin-top:15px; display:flex; flex-direction:column; gap:10px; overflow-y:auto; max-height: calc(100vh - 350px);">
+          <div class="bin-list" id="stock-list-container" style="margin-top:15px; display:flex; flex-direction:column; gap:10px; overflow-y:auto; flex: 1; min-height: 0;">
             <!-- Populated via Javascript -->
           </div>
         </div>
@@ -176,8 +176,6 @@
             <div class="property-group inspector-audio-only">
               <label class="property-label">Volume Multiplier (<span id="prop-vol-val">1.0</span>x)</label>
               <input type="range" id="prop-volume" min="0.0" max="2.0" step="0.05" class="editor-range">
-            </div>
-            
             </div>
 
             <!-- Silence Cutter Section -->

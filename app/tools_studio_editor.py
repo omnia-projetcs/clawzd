@@ -871,6 +871,14 @@ CURATED_MOCK_AUDIOS = [
     },
     {
         "id": "mock_aud_3",
+        "title": "Ambient Deep Space Probe",
+        "url": "https://www.soundhelix.com/examples/mp3/SoundHelix-Song-3.mp3",
+        "type": "audio",
+        "duration": 344.0,
+        "thumbnail": ""
+    },
+    {
+        "id": "mock_aud_4",
         "title": "Epic Orchestral Adventure Theme",
         "url": "https://www.soundhelix.com/examples/mp3/SoundHelix-Song-4.mp3",
         "type": "audio",
@@ -878,7 +886,39 @@ CURATED_MOCK_AUDIOS = [
         "thumbnail": ""
     },
     {
-        "id": "mock_aud_4",
+        "id": "mock_aud_5",
+        "title": "Upbeat Funk & Groove Loop",
+        "url": "https://www.soundhelix.com/examples/mp3/SoundHelix-Song-5.mp3",
+        "type": "audio",
+        "duration": 362.0,
+        "thumbnail": ""
+    },
+    {
+        "id": "mock_aud_6",
+        "title": "Electro Lounge Afterhours",
+        "url": "https://www.soundhelix.com/examples/mp3/SoundHelix-Song-6.mp3",
+        "type": "audio",
+        "duration": 502.0,
+        "thumbnail": ""
+    },
+    {
+        "id": "mock_aud_7",
+        "title": "Retro 8-Bit Arcade Run",
+        "url": "https://www.soundhelix.com/examples/mp3/SoundHelix-Song-8.mp3",
+        "type": "audio",
+        "duration": 318.0,
+        "thumbnail": ""
+    },
+    {
+        "id": "mock_aud_8",
+        "title": "Smooth Jazz Coffee Break",
+        "url": "https://www.soundhelix.com/examples/mp3/SoundHelix-Song-10.mp3",
+        "type": "audio",
+        "duration": 512.0,
+        "thumbnail": ""
+    },
+    {
+        "id": "mock_aud_9",
         "title": "Digital Watch Beep Sound Effect",
         "url": "https://actions.google.com/sounds/v1/alarms/digital_watch_alarm_long.ogg",
         "type": "audio",

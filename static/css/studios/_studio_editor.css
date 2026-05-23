@@ -273,8 +273,9 @@
 .tab-content {
   display: none;
   flex: 1;
-  overflow-y: auto;
+  overflow: hidden;
   padding: 15px;
+  height: 100%;
 }
 
 .tab-content.active {

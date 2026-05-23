@@ -299,7 +299,7 @@ window.StudioEditor = {
         files.forEach(f => {
           this.mediaBinItems.push({
             filename: f.filename,
-            url: f.url,
+            url: f.url || `/data/images/${f.filename}`,
             type: f.filename.toLowerCase().endsWith('.mp4') || f.filename.toLowerCase().endsWith('.webm') ? 'video' : 'image',
             duration: f.duration || 5.0
           });
@@ -315,7 +315,7 @@ window.StudioEditor = {
           files.forEach(f => {
             this.mediaBinItems.push({
               filename: f.filename,
-              url: f.url,
+              url: f.url || `/data/audio/${f.filename}`,
               type: 'audio',
               duration: f.duration || 5.0
             });
@@ -350,7 +350,7 @@ window.StudioEditor = {
       if (item.type === 'image') {
         thumbnailMarkup = `<img src="${item.url}" alt="thumb">`;
       } else if (item.type === 'video') {
-        thumbnailMarkup = `<span class="media-icon" data-icon="video"></span>`;
+        thumbnailMarkup = `<video src="${item.url}" class="bin-video-thumb" muted playsinline loop preload="metadata" style="width:100%; height:100%; object-fit:cover; pointer-events:none;"></video>`;
       } else if (item.type === 'audio') {
         thumbnailMarkup = `<span class="media-icon" data-icon="music"></span>`;
       }
@@ -366,6 +366,16 @@ window.StudioEditor = {
         </div>
         <button class="bin-add-btn" title="Add to Timeline">+ Add</button>
       `;
+
+      // Quick hover preview for videos
+      const videoEl = el.querySelector(".bin-video-thumb");
+      if (videoEl) {
+        el.addEventListener("mouseenter", () => videoEl.play().catch(() => {}));
+        el.addEventListener("mouseleave", () => {
+          videoEl.pause();
+          videoEl.currentTime = 0;
+        });
+      }
 
       // Quick Add action
       el.querySelector(".bin-add-btn").addEventListener("click", () => {
@@ -1272,18 +1282,65 @@ window.StudioEditor = {
           thumbHtml = `<div style="width: 60px; height: 45px; display: flex; align-items: center; justify-content: center; background: rgba(0,0,0,0.3); border-radius: 3px; font-size: 16px;">🎵</div>`;
         }
 
+        let playBtnHtml = "";
+        if (item.type === 'audio') {
+          playBtnHtml = `<button class="stock-play-btn" data-url="${item.url}" style="background: rgba(226, 183, 20, 0.1); border: 1px solid var(--accent); color: var(--accent); cursor: pointer; font-size: 12px; display: flex; align-items: center; justify-content: center; width: 26px; height: 26px; border-radius: 50%; padding: 0;" title="Play/Pause Preview">▶</button>`;
+        }
+
         card.innerHTML = `
           ${thumbHtml}
           <div style="flex: 1; min-width: 0;">
             <h4 style="font-size: 12px; margin: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; color: var(--text-primary);">${item.title}</h4>
             <span style="font-size: 10px; color: var(--text-secondary);">${Math.round(item.duration)}s • ${item.type.toUpperCase()}</span>
           </div>
-          <button class="editor-btn primary" data-url="${item.url}" data-title="${item.title}" data-type="${item.type}" style="padding: 4px 8px; font-size: 10px; background: var(--accent); color: white; border: none; border-radius: var(--radius-xs); cursor: pointer;">
-            📥 Ingest
-          </button>
+          <div style="display: flex; align-items: center; gap: 6px;">
+            ${playBtnHtml}
+            <button class="editor-btn primary ingest-btn" data-url="${item.url}" data-title="${item.title}" data-type="${item.type}" style="padding: 4px 8px; font-size: 10px; background: var(--accent); color: white; border: none; border-radius: var(--radius-xs); cursor: pointer;">
+              📥 Ingest
+            </button>
+          </div>
         `;
 
-        card.querySelector("button").addEventListener("click", (e) => this.downloadStockMedia(e.currentTarget));
+        // Play/Pause Preview Listener
+        const playBtn = card.querySelector(".stock-play-btn");
+        if (playBtn) {
+          playBtn.addEventListener("click", (e) => {
+            e.stopPropagation();
+            if (!this.stockAudioPlayer) {
+              this.stockAudioPlayer = new Audio();
+            }
+
+            if (this.stockAudioPlayer.src === playBtn.dataset.url) {
+              if (this.stockAudioPlayer.paused) {
+                this.stockAudioPlayer.play().catch(err => console.error("Audio playback failed", err));
+                playBtn.innerHTML = "⏸";
+                playBtn.classList.add("playing");
+              } else {
+                this.stockAudioPlayer.pause();
+                playBtn.innerHTML = "▶";
+                playBtn.classList.remove("playing");
+              }
+            } else {
+              // Reset all other play buttons
+              list.querySelectorAll(".stock-play-btn").forEach(btn => {
+                btn.innerHTML = "▶";
+                btn.classList.remove("playing");
+              });
+
+              this.stockAudioPlayer.src = playBtn.dataset.url;
+              this.stockAudioPlayer.play().catch(err => console.error("Audio playback failed", err));
+              playBtn.innerHTML = "⏸";
+              playBtn.classList.add("playing");
+            }
+
+            this.stockAudioPlayer.onended = () => {
+              playBtn.innerHTML = "▶";
+              playBtn.classList.remove("playing");
+            };
+          });
+        }
+
+        card.querySelector(".ingest-btn").addEventListener("click", (e) => this.downloadStockMedia(e.currentTarget));
         list.appendChild(card);
       });
 

@@ -793,6 +793,7 @@ async def audio_gallery():
                 "mode": mode,
                 "duration": duration,
                 "size": os.path.getsize(filepath),
+                "url": f"/data/audio/{f}",
             })
 
     return {"audio_files": files}
