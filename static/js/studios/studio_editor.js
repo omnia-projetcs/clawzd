@@ -122,7 +122,17 @@ window.StudioEditor = {
       aiPlanBtn: document.getElementById("ai-plan-btn"),
       trackAddVideo: document.getElementById("track-add-video"),
       trackAddAudio: document.getElementById("track-add-audio"),
-      trackAddText: document.getElementById("track-add-text")
+      trackAddText: document.getElementById("track-add-text"),
+      stockSearchType: document.getElementById("stock-search-type"),
+      stockSearchQuery: document.getElementById("stock-search-query"),
+      stockSearchBtn: document.getElementById("stock-search-btn"),
+      stockListContainer: document.getElementById("stock-list-container"),
+      silenceSection: document.getElementById("prop-silence-section"),
+      silenceDb: document.getElementById("prop-silence-db"),
+      silenceDur: document.getElementById("prop-silence-dur"),
+      silencePadding: document.getElementById("prop-silence-padding"),
+      silenceMode: document.getElementById("prop-silence-mode"),
+      silenceBtn: document.getElementById("prop-silence-btn")
     };
 
     if (!this.elements.modal) return;
@@ -187,6 +197,21 @@ window.StudioEditor = {
     el.toolSelect.addEventListener("click", () => this.setTool('select'));
     el.toolSplit.addEventListener("click", () => this.setTool('split'));
     el.toolClear.addEventListener("click", () => this.clearTimeline());
+
+    // Stock Search Event listeners
+    if (el.stockSearchBtn) {
+      el.stockSearchBtn.addEventListener("click", () => this.searchStockMedia());
+    }
+    if (el.stockSearchQuery) {
+      el.stockSearchQuery.addEventListener("keypress", (e) => {
+        if (e.key === "Enter") this.searchStockMedia();
+      });
+    }
+
+    // Silence Cut Event listener
+    if (el.silenceBtn) {
+      el.silenceBtn.addEventListener("click", () => this.autoSilenceCutClip());
+    }
 
     // Timeline Ruler playhead seeking
     el.ruler.addEventListener("mousedown", (e) => {
@@ -429,17 +454,20 @@ window.StudioEditor = {
       filterGroup.style.display = "flex";
       audioGroup.style.display = "none";
       textGroup.style.display = "none";
+      if (this.elements.silenceSection) this.elements.silenceSection.style.display = "block";
       document.getElementById("prop-filter").value = clip.filter;
     } else if (trackType === 'audio') {
       filterGroup.style.display = "none";
       audioGroup.style.display = "flex";
       textGroup.style.display = "none";
+      if (this.elements.silenceSection) this.elements.silenceSection.style.display = "block";
       document.getElementById("prop-volume").value = clip.volume;
       document.getElementById("prop-vol-val").textContent = clip.volume;
     } else if (trackType === 'text') {
       filterGroup.style.display = "none";
       audioGroup.style.display = "none";
       textGroup.style.display = "block";
+      if (this.elements.silenceSection) this.elements.silenceSection.style.display = "none";
       document.getElementById("prop-text-str").value = clip.text;
       document.getElementById("prop-text-color").value = clip.color;
       document.getElementById("prop-text-size").value = clip.font_size;
@@ -1149,6 +1177,222 @@ window.StudioEditor = {
     } finally {
       planBtn.disabled = false;
       planBtn.innerHTML = originalHtml;
+    }
+  },
+
+  async searchStockMedia() {
+    const query = this.elements.stockSearchQuery.value.trim();
+    const type = this.elements.stockSearchType.value;
+    const btn = this.elements.stockSearchBtn;
+    const list = this.elements.stockListContainer;
+    if (!list) return;
+
+    list.innerHTML = `<div class="empty-inspector" style="padding:20px; color:var(--text-secondary);">🔍 Searching stock library...</div>`;
+    btn.disabled = true;
+
+    try {
+      const resp = await fetch("/studio/search_stock", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ query, type })
+      });
+
+      if (!resp.ok) throw new Error("Search failed");
+
+      const data = await resp.json();
+      list.innerHTML = "";
+
+      if (!data.results || data.results.length === 0) {
+        list.innerHTML = `<div class="empty-inspector" style="padding:20px; color:var(--text-secondary);">No results found. Try another query like 'cyberpunk' or 'sunrise'!</div>`;
+        return;
+      }
+
+      data.results.forEach(item => {
+        const card = document.createElement("div");
+        card.className = "gallery-item-card";
+        card.style = "display: flex; gap: 10px; background: rgba(255,255,255,0.02); border: 1px solid var(--border); padding: 8px; border-radius: var(--radius-sm); align-items: center; position: relative;";
+        
+        let thumbHtml = "";
+        if (item.thumbnail) {
+          thumbHtml = `<img src="${item.thumbnail}" style="width: 60px; height: 45px; object-fit: cover; border-radius: 3px;" alt="${item.title}">`;
+        } else {
+          thumbHtml = `<div style="width: 60px; height: 45px; display: flex; align-items: center; justify-content: center; background: rgba(0,0,0,0.3); border-radius: 3px; font-size: 16px;">🎵</div>`;
+        }
+
+        card.innerHTML = `
+          ${thumbHtml}
+          <div style="flex: 1; min-width: 0;">
+            <h4 style="font-size: 12px; margin: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; color: var(--text-primary);">${item.title}</h4>
+            <span style="font-size: 10px; color: var(--text-secondary);">${Math.round(item.duration)}s • ${item.type.toUpperCase()}</span>
+          </div>
+          <button class="editor-btn primary" data-url="${item.url}" data-title="${item.title}" data-type="${item.type}" style="padding: 4px 8px; font-size: 10px; background: var(--accent); color: white; border: none; border-radius: var(--radius-xs); cursor: pointer;">
+            📥 Ingest
+          </button>
+        `;
+
+        card.querySelector("button").addEventListener("click", (e) => this.downloadStockMedia(e.currentTarget));
+        list.appendChild(card);
+      });
+
+    } catch (e) {
+      console.error(e);
+      list.innerHTML = `<div class="empty-inspector" style="padding:20px; color:red;">❌ Error loading stock results</div>`;
+    } finally {
+      btn.disabled = false;
+    }
+  },
+
+  async downloadStockMedia(btn) {
+    const url = btn.dataset.url;
+    const title = btn.dataset.title;
+    const type = btn.dataset.type;
+
+    const originalText = btn.innerHTML;
+    btn.disabled = true;
+    btn.innerHTML = "⏳ Ingesting...";
+
+    try {
+      const resp = await fetch("/studio/download_stock", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ url, title, type })
+      });
+
+      if (!resp.ok) throw new Error("Download failed");
+
+      const res = await resp.json();
+      if (window.toast) window.toast(`🎉 Ingested "${title}" into gallery!`);
+      btn.innerHTML = "✅ Ingested";
+      btn.style.background = "#22c55e";
+
+      // Reload gallery assets instantly
+      await this.loadGalleryAssets();
+
+    } catch (e) {
+      console.error(e);
+      if (window.toast) window.toast("❌ Ingest failed: " + e.message);
+      btn.disabled = false;
+      btn.innerHTML = originalText;
+    }
+  },
+
+  async autoSilenceCutClip() {
+    if (!this.selectedClipId) return;
+    const clip = this.clips.find(c => c.id === this.selectedClipId);
+    if (!clip) return;
+
+    const threshold = parseFloat(this.elements.silenceDb.value);
+    const minDur = parseFloat(this.elements.silenceDur.value);
+    const padding = parseFloat(this.elements.silencePadding.value) || 0.1;
+    const mode = this.elements.silenceMode.value; // "remove" or "speed_up"
+    const btn = this.elements.silenceBtn;
+
+    const originalText = btn.innerHTML;
+    btn.disabled = true;
+    btn.innerHTML = `⏳ Parsing...`;
+
+    try {
+      const resp = await fetch("/studio/silence_detect", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          filename: clip.filename,
+          threshold_db: threshold,
+          min_duration: minDur,
+          padding: padding
+        })
+      });
+
+      if (!resp.ok) {
+        throw new Error("Silence detection failed on server");
+      }
+
+      const res = await resp.json();
+      const segments = res.speech_segments; // Speech intervals: [{start: 0, end: 1.2}, ...]
+      const silences = res.silences; // Silence intervals: [{start: 1.2, end: 2.5, duration: 1.3}, ...]
+
+      if (!segments || segments.length === 0) {
+        if (window.toast) window.toast("❌ No speech segments detected!");
+        return;
+      }
+
+      const origClipStart = clip.start;
+      const origClipTrim = clip.trim_start;
+      const origClipSpeed = clip.speed;
+
+      const newClips = [];
+
+      if (mode === "remove") {
+        let currentTimelineOffset = origClipStart;
+        
+        segments.forEach((seg, idx) => {
+          const sourceDuration = seg.end - seg.start;
+          const timelineDuration = sourceDuration / origClipSpeed;
+          const trimStart = origClipTrim + seg.start;
+
+          const newId = `clip_${Date.now()}_speech_${idx}_${Math.random().toString(36).substr(2, 4)}`;
+          newClips.push({
+            ...clip,
+            id: newId,
+            start: currentTimelineOffset,
+            duration: timelineDuration,
+            trim_start: trimStart
+          });
+
+          currentTimelineOffset += timelineDuration;
+        });
+
+      } else if (mode === "speed_up") {
+        let currentTimelineOffset = origClipStart;
+        const allIntervals = [];
+
+        segments.forEach(s => allIntervals.push({ type: 'speech', start: s.start, end: s.end }));
+        silences.forEach(s => allIntervals.push({ type: 'silence', start: s.start, end: s.end }));
+        allIntervals.sort((a, b) => a.start - b.start);
+
+        allIntervals.forEach((interval, idx) => {
+          const sourceDuration = interval.end - interval.start;
+          if (sourceDuration < 0.05) return;
+
+          const speedMultiplier = interval.type === 'silence' ? 6.0 : 1.0;
+          const clipSpeed = origClipSpeed * speedMultiplier;
+
+          const timelineDuration = sourceDuration / clipSpeed;
+          const trimStart = origClipTrim + interval.start;
+
+          const newId = `clip_${Date.now()}_${interval.type}_${idx}_${Math.random().toString(36).substr(2, 4)}`;
+          newClips.push({
+            ...clip,
+            id: newId,
+            start: currentTimelineOffset,
+            duration: timelineDuration,
+            trim_start: trimStart,
+            speed: clipSpeed,
+            filter: interval.type === 'silence' ? 'grayscale' : clip.filter
+          });
+
+          currentTimelineOffset += timelineDuration;
+        });
+      }
+
+      this.clips = this.clips.filter(c => c.id !== clip.id);
+      this.clips.push(...newClips);
+
+      this.renderTimeline();
+      this.selectClip(null);
+      this.syncPreview();
+
+      const timeSaved = Math.round(clip.duration - newClips.reduce((sum, c) => sum + c.duration, 0));
+      if (window.toast) {
+        window.toast(`✂️ Auto Silence Cut complete! Saved ~${timeSaved}s of empty silence!`);
+      }
+
+    } catch (e) {
+      console.error(e);
+      if (window.toast) window.toast("❌ Silence Cut failed: " + e.message);
+    } finally {
+      btn.disabled = false;
+      btn.innerHTML = originalText;
     }
   }
 };
