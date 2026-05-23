@@ -62,6 +62,43 @@ window.StudioEditor = {
     if (window.toast) window.toast(`➕ Added new ${typeLabel} Track`);
   },
 
+  addTextClip() {
+    // Find text track. If none, auto-create one first
+    let textTrack = this.tracks.find(t => t.type === 'text');
+    if (!textTrack) {
+      const id = `text_${Date.now()}_${Math.random().toString(36).substr(2, 4)}`;
+      textTrack = {
+        id,
+        type: 'text',
+        name: 'Text Track 1'
+      };
+      this.tracks.push(textTrack);
+      if (window.toast) window.toast("➕ Auto-created a Text Track first");
+    }
+
+    const id = `clip_${Date.now()}_${Math.random().toString(36).substr(2, 5)}`;
+    const newClip = {
+      id,
+      filename: 'Subtitle Block',
+      track: textTrack.id,
+      start: this.playhead,
+      duration: 4.0, // default 4 seconds
+      trim_start: 0.0,
+      speed: 1.0,
+      volume: 1.0,
+      filter: 'none',
+      text: 'My Subtitle text',
+      color: 'yellow',
+      font_size: 28,
+      position: 'bottom'
+    };
+
+    this.clips.push(newClip);
+    this.renderTimeline();
+    this.selectClip(id);
+    if (window.toast) window.toast("📝 Text clip added at playhead!");
+  },
+
   deleteTrack(trackId) {
     // Check if there are any clips on this track
     const hasClips = this.clips.some(c => c.track === trackId);
@@ -119,6 +156,7 @@ window.StudioEditor = {
       previewPlaceholder: document.getElementById("preview-placeholder-msg"),
       toolSelect: document.getElementById("tool-select"),
       toolSplit: document.getElementById("tool-split"),
+      toolAddTextClip: document.getElementById("timeline-add-text-clip"),
       toolClear: document.getElementById("tool-clear"),
       aiPrompt: document.getElementById("ai-prompt-input"),
       aiPlanBtn: document.getElementById("ai-plan-btn"),
@@ -152,6 +190,88 @@ window.StudioEditor = {
     this.bindEvents();
     this.setupInspectorListeners();
     this.updateZoom(parseInt(this.elements.zoomSlider.value));
+    this.initWorkspaceResizers();
+  },
+
+  initWorkspaceResizers() {
+    const leftResizer = document.getElementById("resizer-left");
+    const rightResizer = document.getElementById("resizer-right");
+    const timelineResizer = document.getElementById("resizer-timeline");
+
+    const leftSidebar = document.querySelector(".editor-sidebar");
+    const rightSidebar = document.querySelector(".editor-properties-sidebar");
+    const timelineFooter = document.querySelector(".studio-editor-timeline");
+
+    // Horizontal Left Resizer (Sidebar width)
+    if (leftResizer && leftSidebar) {
+      leftResizer.addEventListener("mousedown", (e) => {
+        e.preventDefault();
+        leftResizer.classList.add("active");
+        
+        const onMouseMove = (moveEvent) => {
+          const mainRect = document.querySelector(".studio-editor-main").getBoundingClientRect();
+          const newWidth = Math.max(200, Math.min(500, moveEvent.clientX - mainRect.left));
+          leftSidebar.style.width = `${newWidth}px`;
+        };
+        
+        const onMouseUp = () => {
+          leftResizer.classList.remove("active");
+          document.removeEventListener("mousemove", onMouseMove);
+          document.removeEventListener("mouseup", onMouseUp);
+        };
+        
+        document.addEventListener("mousemove", onMouseMove);
+        document.addEventListener("mouseup", onMouseUp);
+      });
+    }
+
+    // Horizontal Right Resizer (Properties width)
+    if (rightResizer && rightSidebar) {
+      rightResizer.addEventListener("mousedown", (e) => {
+        e.preventDefault();
+        rightResizer.classList.add("active");
+        
+        const onMouseMove = (moveEvent) => {
+          const mainRect = document.querySelector(".studio-editor-main").getBoundingClientRect();
+          const newWidth = Math.max(200, Math.min(500, mainRect.right - moveEvent.clientX));
+          rightSidebar.style.width = `${newWidth}px`;
+        };
+        
+        const onMouseUp = () => {
+          rightResizer.classList.remove("active");
+          document.removeEventListener("mousemove", onMouseMove);
+          document.removeEventListener("mouseup", onMouseUp);
+        };
+        
+        document.addEventListener("mousemove", onMouseMove);
+        document.addEventListener("mouseup", onMouseUp);
+      });
+    }
+
+    // Vertical Timeline Resizer (Footer height)
+    if (timelineResizer && timelineFooter) {
+      timelineResizer.addEventListener("mousedown", (e) => {
+        e.preventDefault();
+        timelineResizer.classList.add("active");
+        
+        const onMouseMove = (moveEvent) => {
+          const container = document.querySelector(".studio-editor-container");
+          if (!container) return;
+          const containerRect = container.getBoundingClientRect();
+          const newHeight = Math.max(150, Math.min(600, containerRect.bottom - moveEvent.clientY));
+          timelineFooter.style.height = `${newHeight}px`;
+        };
+        
+        const onMouseUp = () => {
+          timelineResizer.classList.remove("active");
+          document.removeEventListener("mousemove", onMouseMove);
+          document.removeEventListener("mouseup", onMouseUp);
+        };
+        
+        document.addEventListener("mousemove", onMouseMove);
+        document.addEventListener("mouseup", onMouseUp);
+      });
+    }
   },
 
   bindEvents() {
@@ -202,6 +322,9 @@ window.StudioEditor = {
     // Action tools
     el.toolSelect.addEventListener("click", () => this.setTool('select'));
     el.toolSplit.addEventListener("click", () => this.setTool('split'));
+    if (el.toolAddTextClip) {
+      el.toolAddTextClip.addEventListener("click", () => this.addTextClip());
+    }
     el.toolClear.addEventListener("click", () => this.clearTimeline());
 
     // Stock Search Event listeners

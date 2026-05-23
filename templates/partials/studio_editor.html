@@ -65,16 +65,12 @@
       
       <!-- Left Column: Resource Bin / Properties Inspector -->
       <aside class="editor-sidebar">
-        <!-- Tabs Header -->
         <div class="sidebar-tabs">
           <button class="sidebar-tab active" data-tab="media-bin">
             <span class="media-icon" data-icon="folder"></span> Resource Bin
           </button>
           <button class="sidebar-tab" data-tab="stock-media">
             <span class="media-icon" data-icon="download"></span> Stock Media
-          </button>
-          <button class="sidebar-tab" data-tab="inspector">
-            <span class="media-icon" data-icon="sliders"></span> Properties
           </button>
         </div>
         
@@ -123,14 +119,71 @@
               </button>
             </div>
           </div>
-
-          <div class="bin-list" id="stock-list-container" style="margin-top:15px; display:flex; flex-direction:column; gap:10px; overflow-y:auto; flex: 1; min-height: 0;">
-            <!-- Populated via Javascript -->
-          </div>
         </div>
-        
-        <!-- Tab Content 3: Properties Inspector -->
-        <div class="tab-content" id="tab-inspector">
+      </aside>
+      <!-- Left Horizontal Drag Resizer -->
+      <div class="resizer-horizontal" id="resizer-left"></div>
+
+      <!-- Right Column: Live Composition Preview Screen -->
+      <section class="editor-preview-panel">
+        <div class="preview-monitor-wrapper">
+          <div class="monitor-screen" id="preview-screen-container">
+            <!-- Dynamic video preview rendering or loading placeholder -->
+            <div class="preview-placeholder" id="preview-placeholder-msg">
+              <span class="media-icon pulse-effect" data-icon="play"></span>
+              <p>Import clips into tracks to begin preview</p>
+            </div>
+            <!-- Dynamic video element -->
+            <video id="editor-preview-video" style="display:none;" playsinline muted></video>
+            <img id="editor-preview-image" style="display:none; width: 100%; height: 100%; object-fit: contain;" alt="preview-image">
+            <audio id="editor-preview-audio" style="display:none;"></audio>
+            <!-- Dynamic ASCII pre overlay -->
+            <pre id="editor-preview-ascii" class="preview-ascii-screen" style="display:none;"></pre>
+            
+            <!-- Burned Text live preview -->
+            <div id="live-text-overlay" class="live-text-container" style="display:none;">Caption</div>
+          </div>
+          
+          <!-- Transport & Playback controls -->
+          <div class="monitor-controls">
+            <div class="playback-timer" id="timecode-display">
+              00:00:00.00
+            </div>
+            
+            <div class="transport-buttons">
+              <button class="transport-btn" id="btn-seek-start" title="Seek to start">
+                <span class="media-icon" data-icon="chevronLeft"></span>
+              </button>
+              <button class="transport-btn main-play-btn" id="btn-play-pause" title="Play / Pause">
+                <span class="media-icon" data-icon="play"></span>
+              </button>
+              <button class="transport-btn" id="btn-stop" title="Stop preview">
+                <span class="media-icon" data-icon="square"></span>
+              </button>
+              <button class="transport-btn" id="btn-snapshot" title="Take HD Snapshot Frame">
+                <span class="media-icon" data-icon="camera"></span>
+              </button>
+              <button class="transport-btn" id="btn-seek-end" title="Seek to end">
+                <span class="media-icon" data-icon="chevronRight"></span>
+              </button>
+            </div>
+            
+            <div class="playback-vol-group">
+              <span class="media-icon" data-icon="volume2"></span>
+              <input type="range" id="preview-volume" min="0" max="1" step="0.1" value="0.8" class="editor-range" style="width: 80px;">
+            </div>
+          </div>
+      </section>
+
+      <!-- Right Horizontal Drag Resizer -->
+      <div class="resizer-horizontal" id="resizer-right"></div>
+
+      <!-- Right Column: Dedicated Properties Inspector -->
+      <aside class="editor-properties-sidebar">
+        <div class="properties-header">
+          <span class="media-icon" data-icon="sliders"></span> Properties
+        </div>
+        <div class="properties-content-scroll" id="tab-inspector">
           <div id="inspector-placeholder" class="empty-inspector">
             <span class="media-icon" data-icon="info"></span>
             <p>Select a clip on the timeline to edit properties</p>
@@ -275,63 +328,12 @@
         </div>
       </aside>
 
-      <!-- Right Column: Live Composition Preview Screen -->
-      <section class="editor-preview-panel">
-        <div class="preview-monitor-wrapper">
-          <div class="monitor-screen" id="preview-screen-container">
-            <!-- Dynamic video preview rendering or loading placeholder -->
-            <div class="preview-placeholder" id="preview-placeholder-msg">
-              <span class="media-icon pulse-effect" data-icon="play"></span>
-              <p>Import clips into tracks to begin preview</p>
-            </div>
-            <!-- Dynamic video element -->
-            <video id="editor-preview-video" style="display:none;" playsinline muted></video>
-            <img id="editor-preview-image" style="display:none; width: 100%; height: 100%; object-fit: contain;" alt="preview-image">
-            <audio id="editor-preview-audio" style="display:none;"></audio>
-            <!-- Dynamic ASCII pre overlay -->
-            <pre id="editor-preview-ascii" class="preview-ascii-screen" style="display:none;"></pre>
-            
-            <!-- Burned Text live preview -->
-            <div id="live-text-overlay" class="live-text-container" style="display:none;">Caption</div>
-          </div>
-          
-          <!-- Transport & Playback controls -->
-          <div class="monitor-controls">
-            <div class="playback-timer" id="timecode-display">
-              00:00:00.00
-            </div>
-            
-            <div class="transport-buttons">
-              <button class="transport-btn" id="btn-seek-start" title="Seek to start">
-                <span class="media-icon" data-icon="chevronLeft"></span>
-              </button>
-              <button class="transport-btn main-play-btn" id="btn-play-pause" title="Play / Pause">
-                <span class="media-icon" data-icon="play"></span>
-              </button>
-              <button class="transport-btn" id="btn-stop" title="Stop preview">
-                <span class="media-icon" data-icon="square"></span>
-              </button>
-              <button class="transport-btn" id="btn-snapshot" title="Take HD Snapshot Frame">
-                <span class="media-icon" data-icon="camera"></span>
-              </button>
-              <button class="transport-btn" id="btn-seek-end" title="Seek to end">
-                <span class="media-icon" data-icon="chevronRight"></span>
-              </button>
-            </div>
-            
-            <div class="playback-vol-group">
-              <span class="media-icon" data-icon="volume2"></span>
-              <input type="range" id="preview-volume" min="0" max="1" step="0.1" value="0.8" class="editor-range" style="width: 80px;">
-            </div>
-          </div>
-        </div>
-      </section>
-
     </div>
 
     <!-- Bottom Timeline Track Panel -->
     <footer class="studio-editor-timeline">
-      
+      <!-- Vertical Timeline Drag Resizer -->
+      <div class="resizer-vertical" id="resizer-timeline"></div>
       <!-- Timeline Action controls bar -->
       <div class="timeline-action-bar">
         <div class="timeline-tools" style="display: flex; align-items: center; gap: 8px;">
@@ -340,6 +342,9 @@
           </button>
           <button class="timeline-btn" id="tool-split" title="Split clip at Playhead (Scissors)">
             <span class="media-icon" data-icon="wand"></span> Split Clip
+          </button>
+          <button class="timeline-btn" id="timeline-add-text-clip" title="Add Text Overlay Clip" style="background: rgba(226, 183, 20, 0.1); border-color: var(--editor-accent); color: var(--editor-accent); font-weight:600;">
+            <span class="media-icon" data-icon="plus"></span> 📝 Add Text Clip
           </button>
           <button class="timeline-btn danger" id="tool-clear" title="Clear all tracks">
             <span class="media-icon" data-icon="refresh"></span> Clear Canvas
