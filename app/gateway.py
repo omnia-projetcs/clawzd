@@ -1752,15 +1752,23 @@ async def _process_chat(session_id: str, data: dict) -> dict:
                     })
 
                     # Build compact tool results (strip base64 from results too)
-                    results_text = "\n\n".join(
-                        f"[Tool result: {tr['tool']}]\n{tr['result'][:2000]}"
-                        for tr in tool_results
-                    )
+                    # File content (read_file) needs more context than other tools
+                    _result_parts = []
+                    for tr in tool_results:
+                        _max_chars = 12000 if tr['tool'] in ('read_file', 'grep_code', 'webfetch') else 3000
+                        _result_parts.append(
+                            f"[Tool result: {tr['tool']}]\n{tr['result'][:_max_chars]}"
+                        )
+                    results_text = "\n\n".join(_result_parts)
                     instruction = "The tools have been executed and here are the results. "
                     if round_num >= MAX_TOOL_ROUNDS:
                         instruction += "You MUST now present a clear, complete answer based on these results. Do NOT use any tool_call blocks. Do NOT ask the user to run code. Directly present the answer or analysis."
                     else:
-                        instruction += "You may analyze these results and output another ```tool_call block if you need to run more tools to complete the user's request. If you have all the information you need, directly present the final answer without any tool calls."
+                        instruction += (
+                            "Analyze these results. If you need to modify a file, use a ```tool_call block with edit_file. "
+                            "If you need more information, use another tool. "
+                            "If you have all the information you need, directly present the final answer without any tool calls."
+                        )
 
                     current_messages.append({
                         "role": "user",

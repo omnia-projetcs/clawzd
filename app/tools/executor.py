@@ -2091,6 +2091,40 @@ def format_tool_result(tool_name: str, result: dict) -> str:
             lines.append(content[:12000])
         return "\n".join(lines)
 
+    # --- read_file: preserve file content so the LLM can reference/edit it ---
+    if tool_name == "read_file" and "content" in result:
+        file_path = result.get("file_path", "?")
+        total_lines = result.get("total_lines", "?")
+        shown = result.get("shown_lines", "?")
+        has_more = result.get("has_more", False)
+        file_type = result.get("file_type", "text")
+        content = result["content"]
+        # Allow up to 12000 chars so the LLM has enough context to find and edit code
+        if len(content) > 12000:
+            content = content[:12000] + "\n... (truncated — use start_line/end_line to read more)"
+        header = f"File: {file_path} ({file_type}, {total_lines} lines, showing {shown})"
+        if has_more:
+            next_line = result.get("next_start_line", "?")
+            header += f" [has_more: call read_file with start_line={next_line}]"
+        return f"{header}\n{content}"
+
+    # --- edit_file: clean confirmation with diff summary ---
+    if tool_name == "edit_file" and "status" in result:
+        file_path = result.get("file_path", "?")
+        message = result.get("message", "")
+        lines_added = result.get("lines_added", 0)
+        lines_removed = result.get("lines_removed", 0)
+        diff_text = result.get("diff", "")
+        parts = [f"✅ {file_path}: {message}"]
+        if lines_added or lines_removed:
+            parts.append(f"  +{lines_added}/-{lines_removed} lines")
+        if diff_text:
+            # Show a compact diff (first 2000 chars) so the LLM can verify its edit
+            if len(diff_text) > 2000:
+                diff_text = diff_text[:2000] + "\n... (diff truncated)"
+            parts.append(diff_text)
+        return "\n".join(parts)
+
     if "results" in result:
         # Search results — compressed
         items = result["results"]
