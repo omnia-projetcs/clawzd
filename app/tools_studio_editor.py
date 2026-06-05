@@ -526,56 +526,105 @@ async def export_timeline(request: Request):
 
         # 4. MIX AUDIO TIMELINE
         final_audio_track = os.path.join(temp_dir, "timeline_audio_mixed.wav")
-        if preprocessed_audio_clips:
-            delayed_audio_files = []
-            for idx, clip in enumerate(preprocessed_audio_clips):
-                delayed_path = os.path.join(temp_dir, f"delayed_aud_{idx}.wav")
-                delay_ms = int(clip["start"] * 1000)
-
-                # Delay audio stream start using adelay filter
-                delay_cmd = [
-                    "ffmpeg", "-y", "-i", clip["path"],
-                    "-filter_complex", f"adelay={delay_ms}|{delay_ms}",
-                    "-ac", "2", "-ar", "44100",
-                    delayed_path
-                ]
-                logger.info("Applying timeline delay to audio clip %d: %s", idx, " ".join(delay_cmd))
-                res = subprocess.run(delay_cmd, capture_output=True)
-                if res.returncode == 0 and os.path.exists(delayed_path):
-                    delayed_audio_files.append(delayed_path)
-
-            if delayed_audio_files:
-                mix_inputs = []
-                for p in delayed_audio_files:
-                    mix_inputs.extend(["-i", p])
+        logger.info("Compiling mixed timeline audio using high-performance Pedalboard/JUCE in-memory compiler...")
+        try:
+            import numpy as np
+            from pedalboard import Pedalboard, Limiter
+            from pedalboard.io import AudioFile
+            
+            sr = 44100
+            total_samples = int(sr * total_duration)
+            master = np.zeros((2, total_samples), dtype=np.float32)
+            
+            if preprocessed_audio_clips:
+                for idx, clip in enumerate(preprocessed_audio_clips):
+                    clip_path = clip["path"]
+                    start_sec = clip["start"]
+                    
+                    logger.info("Mixing preprocessed audio clip %d from %s at offset %.2fs", idx, clip_path, start_sec)
+                    with AudioFile(clip_path) as f:
+                        audio = f.read(f.frames)
+                    
+                    # Ensure stereo shape (2, samples)
+                    if audio.shape[0] == 1:
+                        audio = np.vstack((audio, audio))
+                    elif audio.shape[0] > 2:
+                        audio = audio[:2, :]
+                        
+                    start_sample = int(start_sec * sr)
+                    clip_samples = audio.shape[1]
+                    end_sample = start_sample + clip_samples
+                    
+                    if start_sample >= total_samples:
+                        continue
+                    if end_sample > total_samples:
+                        audio = audio[:, :total_samples - start_sample]
+                        end_sample = total_samples
+                        
+                    # Apply 50ms smooth linear boundary fades to prevent pops/clicks (JUCE envelope abstraction)
+                    fade_samples = min(2205, audio.shape[1] // 2)
+                    if fade_samples > 0:
+                        fade_in = np.linspace(0.0, 1.0, fade_samples, dtype=np.float32)
+                        fade_out = np.linspace(1.0, 0.0, fade_samples, dtype=np.float32)
+                        audio[:, :fade_samples] *= fade_in
+                        audio[:, -fade_samples:] *= fade_out
+                        
+                    # Accumulate into master output buffer
+                    master[:, start_sample:end_sample] += audio
+            
+            # Apply dynamic mastering limiter to prevent digital clipping/distortion
+            limiter = Pedalboard([Limiter(threshold_db=-0.5, release_ms=50.0)])
+            master_limited = limiter(master, sr)
+            
+            # Write master mixdown directly to wav
+            with AudioFile(final_audio_track, 'w', sr, 2) as f:
+                f.write(master_limited)
+            logger.info("Successfully generated mixed timeline audio track: %s", final_audio_track)
+            
+        except Exception as mix_err:
+            logger.error("High-performance Pedalboard mixing failed, falling back to FFmpeg: %s", mix_err, exc_info=True)
+            # Fallback to FFmpeg mixing if Pedalboard failed for any reason
+            if preprocessed_audio_clips:
+                delayed_audio_files = []
+                for idx, clip in enumerate(preprocessed_audio_clips):
+                    delayed_path = os.path.join(temp_dir, f"delayed_aud_{idx}.wav")
+                    delay_ms = int(clip["start"] * 1000)
+                    delay_cmd = [
+                        "ffmpeg", "-y", "-i", clip["path"],
+                        "-filter_complex", f"adelay={delay_ms}|{delay_ms}",
+                        "-ac", "2", "-ar", "44100",
+                        delayed_path
+                    ]
+                    subprocess.run(delay_cmd, capture_output=True)
+                    if os.path.exists(delayed_path):
+                        delayed_audio_files.append(delayed_path)
                 
-                mix_cmd = [
-                    "ffmpeg", "-y"
-                ] + mix_inputs + [
-                    "-filter_complex", f"amix=inputs={len(delayed_audio_files)}:duration=longest:dropout_transition=0",
-                    "-ac", "2", "-ar", "44100",
-                    final_audio_track
-                ]
-                logger.info("Mixing audio timeline track: %s", " ".join(mix_cmd))
-                subprocess.run(mix_cmd, capture_output=True, check=True)
+                if delayed_audio_files:
+                    mix_inputs = []
+                    for p in delayed_audio_files:
+                        mix_inputs.extend(["-i", p])
+                    mix_cmd = [
+                        "ffmpeg", "-y"
+                    ] + mix_inputs + [
+                        "-filter_complex", f"amix=inputs={len(delayed_audio_files)}:duration=longest:dropout_transition=0",
+                        "-ac", "2", "-ar", "44100",
+                        final_audio_track
+                    ]
+                    subprocess.run(mix_cmd, capture_output=True, check=True)
+                else:
+                    subprocess.run([
+                        "ffmpeg", "-y", "-f", "lavfi",
+                        "-i", f"anullsrc=cl=stereo:r=44100:d={total_duration}",
+                        "-acodec", "pcm_s16le",
+                        final_audio_track
+                    ], capture_output=True, check=True)
             else:
-                # Fallback to silent track
-                silent_cmd = [
+                subprocess.run([
                     "ffmpeg", "-y", "-f", "lavfi",
                     "-i", f"anullsrc=cl=stereo:r=44100:d={total_duration}",
                     "-acodec", "pcm_s16le",
                     final_audio_track
-                ]
-                subprocess.run(silent_cmd, capture_output=True, check=True)
-        else:
-            # Fallback silent track
-            silent_cmd = [
-                "ffmpeg", "-y", "-f", "lavfi",
-                "-i", f"anullsrc=cl=stereo:r=44100:d={total_duration}",
-                "-acodec", "pcm_s16le",
-                final_audio_track
-            ]
-            subprocess.run(silent_cmd, capture_output=True, check=True)
+                ], capture_output=True, check=True)
 
         # 5. FINAL EXPORT COMPILE
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")

@@ -221,15 +221,26 @@ def _save_audio(audio_array, sample_rate, format_type="wav", prompt="", mode="tt
             audio_array = audio_array / max_val * 0.95
         audio_array = np.clip(audio_array, -1.0, 1.0)
         
+    # Ensure mono and correct shape
+    if len(audio_array.shape) > 1:
+        audio_array = audio_array.squeeze()
+        
+    # High-fidelity auto-resampling to 44.1kHz standard (JUCE-grade sinc resampling fallback)
+    if sample_rate > 0 and sample_rate != 44100:
+        logger.info("Auto-resampling generated audio from %d Hz to 44100 Hz standard...", sample_rate)
+        try:
+            import scipy.signal
+            num_samples = int(len(audio_array) * 44100 / sample_rate)
+            audio_array = scipy.signal.resample(audio_array, num_samples)
+            sample_rate = 44100
+        except Exception as res_err:
+            logger.warning("High-fidelity resampling failed, keeping original rate: %s", res_err)
+
     duration_sec = len(audio_array) / sample_rate if sample_rate > 0 else 0.0
 
     import scipy.io.wavfile as wav
     wav_path = filepath if format_type == "wav" else filepath.replace(f".{format_type}", ".wav")
 
-    # Ensure mono and correct shape
-    if len(audio_array.shape) > 1:
-        audio_array = audio_array.squeeze()
-    
     # Convert to int16 for wav
     audio_int16 = (audio_array * 32767).astype(np.int16)
     wav.write(wav_path, sample_rate, audio_int16)
@@ -721,6 +732,18 @@ async def generate_audio(request: Request):
             meta_prompt = f"[Music/{genre or 'auto'}] {desc[:200]}"
             filename = _save_audio(audio, sr, format_type, meta_prompt, mode=mode)
 
+        elif mode == "song":
+            _audio_generation_progress = {
+                "active": True, "progress": 10.0, "stage": "loading_model",
+            }
+            from app.tools_music_studio import generate_heartmula_song
+            filename = await generate_heartmula_song(
+                data=data,
+                progress_dict=_audio_generation_progress,
+                audio_dir=AUDIO_DIR,
+                format_type=format_type
+            )
+
         else:
             raise HTTPException(400, f"Unknown mode: {mode}")
 
@@ -745,6 +768,17 @@ async def generate_audio(request: Request):
         unregister_task(_audio_current_task_id)
         logger.error("Audio generation failed: %s", e, exc_info=True)
         return {"error": str(e)}
+
+
+@router.post("/generate-lyrics")
+async def api_generate_lyrics(request: Request):
+    """Generate song lyrics using local or cloud LLM."""
+    data = await request.json()
+    prompt = data.get("prompt", "")
+    genre = data.get("genre", "pop")
+    from app.tools_music_studio import generate_lyrics
+    lyrics = await generate_lyrics(prompt, genre)
+    return {"lyrics": lyrics}
 
 
 @router.get("/gallery")

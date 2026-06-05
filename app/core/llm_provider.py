@@ -31,6 +31,8 @@ from config import (
     VLLM_HOST,
     VLLM_API_KEY,
     VLLM_MODEL,
+    FREELLMAPI_URL,
+    FREELLMAPI_KEY,
 )
 
 logger = logging.getLogger("clawzd.llm")
@@ -67,38 +69,40 @@ async def _get_ollama_semaphore() -> asyncio.Semaphore:
                             _resolve_ollama_max_concurrent())
     return _ollama_inference_semaphore
 
+# ---------------------------------------------------------------------------
+# TTL-cached .env resolvers (PERF: avoid rereading .env on every LLM call)
+# ---------------------------------------------------------------------------
+_env_cache: dict = {"data": {}, "ts": 0.0}
+_ENV_CACHE_TTL = 30.0  # seconds
+
+def _read_env_cached() -> dict:
+    """Read .env with a 30s TTL cache to avoid file I/O on every request."""
+    now = time.monotonic()
+    if now - _env_cache["ts"] < _ENV_CACHE_TTL and _env_cache["data"]:
+        return _env_cache["data"]
+    from dotenv import dotenv_values as _dv
+    _env_cache["data"] = _dv(".env") if os.path.exists(".env") else {}
+    _env_cache["ts"] = now
+    return _env_cache["data"]
+
 # --- Available models per provider ---
 
 def _resolve_ollama_host() -> str:
-    """Resolve OLLAMA_HOST at call time from .env, falling back to env/config.
-
-    This ensures that when the user changes OLLAMA_HOST in .env (e.g. to a
-    remote server), the new value is picked up immediately without a restart.
-    """
-    import os as _os
-    from dotenv import dotenv_values as _dv
-    _env = _dv(".env") if _os.path.exists(".env") else {}
-    return _env.get("OLLAMA_HOST", _os.getenv("OLLAMA_HOST", "http://localhost:11434"))
+    """Resolve OLLAMA_HOST at call time from .env (cached 30s)."""
+    env = _read_env_cached()
+    return env.get("OLLAMA_HOST", os.getenv("OLLAMA_HOST", "http://localhost:11434"))
 
 
 def _resolve_ollama_api_key() -> str:
-    """Resolve OLLAMA_API_KEY at call time from .env."""
-    import os as _os
-    from dotenv import dotenv_values as _dv
-    _env = _dv(".env") if _os.path.exists(".env") else {}
-    return _env.get("OLLAMA_API_KEY", _os.getenv("OLLAMA_API_KEY", ""))
+    """Resolve OLLAMA_API_KEY at call time from .env (cached 30s)."""
+    env = _read_env_cached()
+    return env.get("OLLAMA_API_KEY", os.getenv("OLLAMA_API_KEY", ""))
 
 
 def _resolve_ollama_verify() -> bool:
-    """Resolve OLLAMA_VERIFY_SSL at call time from .env.
-
-    This allows toggling verification (useful for self-signed certs)
-    without restarting the server.
-    """
-    import os as _os
-    from dotenv import dotenv_values as _dv
-    _env = _dv(".env") if _os.path.exists(".env") else {}
-    raw = _env.get("OLLAMA_VERIFY_SSL", _os.getenv("OLLAMA_VERIFY_SSL", "true"))
+    """Resolve OLLAMA_VERIFY_SSL at call time from .env (cached 30s)."""
+    env = _read_env_cached()
+    raw = env.get("OLLAMA_VERIFY_SSL", os.getenv("OLLAMA_VERIFY_SSL", "true"))
     return str(raw).lower() not in ("0", "false", "no", "off")
 
 
@@ -278,11 +282,13 @@ async def _get_provider_models() -> dict:
 
     local_models = await _get_local_models()
     vllm_models = await _get_vllm_models()
+    freellmapi_models = await _get_freellmapi_models()
 
-    # Ollama and vLLM are always available (local)
+    # Ollama, vLLM and FreeLLMAPI are always available (local proxies)
     result = {
         "ollama": local_models,
         "vllm": vllm_models,
+        "freellmapi": freellmapi_models,
     }
 
     if cloud_enabled:
@@ -334,6 +340,7 @@ PROVIDER_MODELS_STATIC = {
         {"id": "mistral-small-latest", "label": "Mistral Small"},
     ],
     "ollama": [],  # dynamic via _get_local_models()
+    "freellmapi": [],  # dynamic via _get_freellmapi_models()
     "openai": [
         {"id": "gpt-4.1", "label": "GPT-4.1"},
         {"id": "gpt-4.1-mini", "label": "GPT-4.1 Mini"},
@@ -467,6 +474,8 @@ class OllamaLLM(LLMProvider):
             base_url=f"{self._current_host}/v1",
             api_key=self._current_api_key or "ollama",
         )
+        # PERF: Instance-level health cache (was class-level mutable dict — shared bug)
+        self._health_cache = {"ok": False, "ts": 0.0}
 
     def _ensure_client(self):
         """Recreate the OpenAI client if OLLAMA_HOST has changed in .env."""
@@ -483,8 +492,7 @@ class OllamaLLM(LLMProvider):
             # Invalidate health cache since host changed
             self._health_cache = {"ok": False, "ts": 0.0}
 
-    # Cached health-check state (avoid HTTP call on every inference)
-    _health_cache: dict[str, float | bool] = {"ok": False, "ts": 0.0}
+    # Health-check TTL
     _HEALTH_TTL = 60.0  # seconds
 
     async def _is_ollama_running(self) -> bool:
@@ -1276,11 +1284,146 @@ class VllmLLM(LLMProvider):
 
 
 
+class FreeLLMAPIProvider(LLMProvider):
+    """FreeLLMAPI — free-tier proxy with automatic failover across ~14 providers.
+
+    Aggregates free tiers from Google, Groq, Cerebras, SambaNova, Mistral,
+    OpenRouter, GitHub Models, Cloudflare, Cohere, HuggingFace, Zhipu, etc.
+    behind a single OpenAI-compatible endpoint.
+
+    Use model="auto" to let the FreeLLMAPI router pick the best available
+    model, or specify a concrete model ID from the proxy's catalog.
+
+    See https://github.com/tashfeenahmed/freellmapi
+    """
+    default_model = "auto"
+
+    def __init__(self):
+        self._current_url = self._resolve_url()
+        self._current_key = self._resolve_key()
+        self.client = self._build_client(self._current_url, self._current_key)
+
+    @staticmethod
+    def _resolve_url() -> str:
+        env = _read_env_cached()
+        url = env.get("FREELLMAPI_URL", os.getenv("FREELLMAPI_URL", "http://localhost:3001"))
+        return url.rstrip("/")
+
+    @staticmethod
+    def _resolve_key() -> str:
+        env = _read_env_cached()
+        return env.get("FREELLMAPI_KEY", os.getenv("FREELLMAPI_KEY", ""))
+
+    @staticmethod
+    def _build_client(url: str, key: str) -> openai.AsyncOpenAI:
+        base_url = f"{url}/v1"
+        return openai.AsyncOpenAI(
+            base_url=base_url,
+            api_key=key or "EMPTY",
+        )
+
+    def _ensure_client(self):
+        """Recreate the client if FREELLMAPI_URL or FREELLMAPI_KEY changed."""
+        url = self._resolve_url()
+        key = self._resolve_key()
+        if url != self._current_url or key != self._current_key:
+            logger.info("FreeLLMAPI endpoint changed: %s → %s", self._current_url, url)
+            self._current_url = url
+            self._current_key = key
+            self.client = self._build_client(url, key)
+
+    async def chat_stream(self, messages, model="auto", **kwargs):
+        self._ensure_client()
+        key = self._resolve_key()
+
+        if not key:
+            yield (
+                "⚠️ **FreeLLMAPI key not configured.**\n\n"
+                "1. Install FreeLLMAPI: `git clone https://github.com/tashfeenahmed/freellmapi && cd freellmapi && npm install && npm run dev`\n"
+                "2. Open http://localhost:5173, add your provider keys, and copy the unified API key\n"
+                "3. Set `FREELLMAPI_KEY=<your-key>` in your `.env` file"
+            )
+            return
+
+        t0 = time.perf_counter()
+        tokens = 0
+        model = model or "auto"
+
+        try:
+            stream = await self.client.chat.completions.create(
+                model=model, messages=messages, stream=True, **kwargs
+            )
+            _finish_reason = None
+            async for chunk in stream:
+                if chunk.choices and len(chunk.choices) > 0:
+                    delta = chunk.choices[0].delta.content
+                    if chunk.choices[0].finish_reason:
+                        _finish_reason = chunk.choices[0].finish_reason
+                    if delta:
+                        tokens += 1
+                        yield delta
+            if _finish_reason == "stop":
+                yield FINISH_STOP_SENTINEL
+        except openai.APIConnectionError:
+            yield (
+                f"⚠️ **Cannot connect to FreeLLMAPI** (`{self._current_url}`).\n\n"
+                "Make sure FreeLLMAPI is running: `cd freellmapi && npm run dev`"
+            )
+            return
+        except openai.APIStatusError as e:
+            if e.status_code == 429:
+                yield (
+                    "⚠️ **All FreeLLMAPI models exhausted.**\n\n"
+                    "All free-tier providers are rate-limited. Wait a few minutes "
+                    "or add more provider keys in the FreeLLMAPI dashboard."
+                )
+            else:
+                yield f"⚠️ **FreeLLMAPI error** (HTTP {e.status_code}): {e.message}"
+            return
+        except Exception as e:
+            yield f"⚠️ **FreeLLMAPI error:** {e}"
+            return
+
+        elapsed = time.perf_counter() - t0
+        logger.info(
+            "FreeLLMAPI [%s]: %d tokens in %.1fs (%.0f tok/s)",
+            model, tokens, elapsed, tokens / max(elapsed, 0.01),
+        )
+
+
+async def _get_freellmapi_models() -> list[dict]:
+    """Fetch available models from a running FreeLLMAPI instance."""
+    env = _read_env_cached()
+    url = env.get("FREELLMAPI_URL", os.getenv("FREELLMAPI_URL", "http://localhost:3001"))
+    url = url.rstrip("/")
+    key = env.get("FREELLMAPI_KEY", os.getenv("FREELLMAPI_KEY", ""))
+    if not key:
+        return [{"id": "auto", "label": "Auto (best available)"}]
+    try:
+        headers = {"Authorization": f"Bearer {key}"}
+        async with httpx.AsyncClient() as client:
+            resp = await client.get(f"{url}/v1/models", timeout=5, headers=headers)
+        if resp.status_code == 200:
+            data = resp.json()
+            models = [{"id": "auto", "label": "🔄 Auto (best available)"}]
+            for m in data.get("data", []):
+                mid = m.get("id", "")
+                if mid:
+                    # Build a cleaner label from the model ID
+                    label = mid.split("/")[-1] if "/" in mid else mid
+                    models.append({"id": mid, "label": label})
+            return models
+    except Exception as e:
+        logger.debug("Failed to fetch FreeLLMAPI models: %s", e)
+    return [{"id": "auto", "label": "🔄 Auto (best available)"}]
+
+
 # --- Provider registry (cached singletons) ---
 _provider_cache: dict[str, LLMProvider] = {}
 
 PROVIDER_CLASSES = {
     "anthropic": AnthropicLLM,
+    "freellmapi": FreeLLMAPIProvider,
     "google": GoogleLLM,
     "grok": GrokLLM,
     "groq": GroqLLM,

@@ -6,6 +6,7 @@ class VoiceStudio {
     this.state = 'idle'; // idle, listening, thinking, speaking
     this.handsFree = true;
     this.autonomy = true;
+    this.manuallyStopped = false;
     
     // Audio elements
     this.audioContext = null;
@@ -206,12 +207,26 @@ class VoiceStudio {
     const textEl = document.getElementById('voice-status-text');
     const dot = badge ? badge.querySelector('.voice-status-dot') : null;
     const hint = document.getElementById('voice-hint-message');
+    const trigger = document.getElementById('voice-sphere-trigger');
     
     if (textEl) textEl.textContent = text;
     
     if (dot) {
       dot.className = 'voice-status-dot';
-      if (text === 'LISTENING') dot.classList.add('pulse-red');
+      if (text === 'LISTENING') dot.className = 'voice-status-dot pulse-blue';
+      else if (text === 'THINKING') dot.className = 'voice-status-dot pulse-orange';
+      else if (text === 'SPEAKING') dot.className = 'voice-status-dot pulse-green';
+      else if (text === 'ERROR') dot.className = 'voice-status-dot';
+    }
+
+    if (trigger) {
+      if (text === 'IDLE' || text === 'ERROR') {
+        trigger.classList.add('inactive');
+        trigger.classList.remove('active');
+      } else {
+        trigger.classList.add('active');
+        trigger.classList.remove('inactive');
+      }
     }
     
     if (hint) {
@@ -298,6 +313,7 @@ class VoiceStudio {
     const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
     if (!SpeechRecognition) {
       console.warn('[Voice] SpeechRecognition unsupported natively. Whisper fallback will be used.');
+      this.isWhisperFallback = true;
       return;
     }
     
@@ -306,6 +322,10 @@ class VoiceStudio {
     this.recognition.interimResults = true;
     
     this.recognition.onstart = () => {
+      if (this.recognitionStartTimeout) {
+        clearTimeout(this.recognitionStartTimeout);
+        this.recognitionStartTimeout = null;
+      }
       this.state = 'listening';
       this.setStatus('LISTENING');
     };
@@ -339,21 +359,121 @@ class VoiceStudio {
     };
   }
 
-  startListening() {
-    if (!this.recognition) return;
+  async startListening() {
     this.finalTranscript = '';
     this.userIsSpeaking = false;
     this.lastSoundTime = Date.now();
+
+    // Auto-retry mic stream initialization if it hasn't succeeded yet
+    if (!this.micStream) {
+      try {
+        this.setStatus('INITIALIZING...');
+        await this.initMicrophone();
+      } catch (err) {
+        console.error('[Voice] Retry microphone setup failed:', err);
+        this.log('system', 'Error: Microphone access denied or unsupported.');
+        this.setStatus('ERROR');
+        return;
+      }
+    }
+
+    if (this.isWhisperFallback) {
+      this.state = 'listening';
+      this.setStatus('LISTENING');
+      this.startWhisperRecording();
+      return;
+    }
+
+    if (!this.recognition) return;
+
+    // Set a safety timeout: if native speech recognition doesn't start in 1.5 seconds,
+    // fallback to local Whisper recorder!
+    this.recognitionStartTimeout = setTimeout(() => {
+      console.warn('[Voice] SpeechRecognition start timeout. Switching to local Whisper fallback.');
+      this.isWhisperFallback = true;
+      this.stopListening();
+      this.startListening();
+    }, 1500);
+
     try {
       this.recognition.start();
     } catch (_) {}
   }
 
   stopListening() {
+    if (this.isWhisperFallback) {
+      if (this.mediaRecorder && this.mediaRecorder.state === 'recording') {
+        this.mediaRecorder.stop();
+      }
+      return;
+    }
+
     if (!this.recognition) return;
     try {
       this.recognition.stop();
     } catch (_) {}
+  }
+
+  startWhisperRecording() {
+    if (!this.micStream) return;
+    this.audioChunks = [];
+    try {
+      this.mediaRecorder = new MediaRecorder(this.micStream);
+      this.mediaRecorder.ondataavailable = (event) => {
+        if (event.data.size > 0) {
+          this.audioChunks.push(event.data);
+        }
+      };
+      
+      this.mediaRecorder.onstop = async () => {
+        const audioBlob = new Blob(this.audioChunks, { type: 'audio/webm' });
+        if (audioBlob.size > 1000) {
+          await this.submitWhisperAudio(audioBlob);
+        } else {
+          if (this.active && this.handsFree && !this.manuallyStopped) {
+            this.startListening();
+          }
+        }
+      };
+      this.mediaRecorder.start();
+    } catch (e) {
+      console.error("[Voice] MediaRecorder start failed:", e);
+    }
+  }
+
+  async submitWhisperAudio(audioBlob) {
+    this.state = 'thinking';
+    this.setStatus('THINKING');
+    
+    const formData = new FormData();
+    formData.append('file', audioBlob, 'recording.webm');
+    
+    try {
+      const res = await fetch('/api/transcribe', {
+        method: 'POST',
+        body: formData
+      });
+      const data = await res.json();
+      
+      if (data.error) {
+        throw new Error(data.error);
+      }
+      
+      const text = data.text ? data.text.trim() : '';
+      if (text) {
+        this.submitVoiceCommand(text);
+      } else {
+        this.state = 'idle';
+        this.setStatus('IDLE');
+        if (this.handsFree && !this.manuallyStopped) this.startListening();
+      }
+    } catch (e) {
+      console.error("[Voice] Whisper transcription failed:", e);
+      this.log('system', 'Transcription failed: ' + e.message);
+      this.state = 'idle';
+      this.setStatus('IDLE');
+      if (this.handsFree && !this.manuallyStopped) this.startListening();
+    }
   }
 
   toggleManualTrigger() {
@@ -370,11 +490,12 @@ class VoiceStudio {
       this.interruptActiveAudio();
       this.state = 'idle';
       this.setStatus('IDLE');
-      if (this.handsFree) this.startListening();
+      this.manuallyStopped = true;
       return;
     }
 
     if (this.state === 'listening') {
+      this.manuallyStopped = true;
       this.stopListening();
       if (this.finalTranscript.trim()) {
         this.submitVoiceCommand(this.finalTranscript.trim());
@@ -383,6 +504,7 @@ class VoiceStudio {
         this.setStatus('IDLE');
       }
     } else {
+      this.manuallyStopped = false;
       this.interruptActiveAudio();
       this.startListening();
     }
@@ -394,7 +516,9 @@ class VoiceStudio {
     if (command) {
       this.submitVoiceCommand(command);
     } else {
-      this.startListening();
+      if (!this.manuallyStopped) {
+        this.startListening();
+      }
     }
   }
 
@@ -447,7 +571,7 @@ class VoiceStudio {
       this.log('system', 'Error: Connection lost or request failed.');
       this.state = 'idle';
       this.setStatus('IDLE');
-      if (this.handsFree) this.startListening();
+      if (this.handsFree && !this.manuallyStopped) this.startListening();
     }
   }
 
@@ -476,7 +600,7 @@ class VoiceStudio {
         } else {
           this.state = 'idle';
           this.setStatus('IDLE');
-          if (this.handsFree) this.startListening();
+          if (this.handsFree && !this.manuallyStopped) this.startListening();
         }
       }
     };
@@ -504,10 +628,16 @@ class VoiceStudio {
 
       if (!res.ok) throw new Error('TTS generation failed');
       const data = await res.json();
+      if (data.error) throw new Error(data.error);
       
       if (!this.active || this.state !== 'speaking') return; // Cancelled/Interrupted already
 
       this.activeAudio = new Audio(data.url);
+      
+      this.activeAudio.addEventListener('error', (e) => {
+        console.warn('[Voice] Audio playback failed, falling back to browser SpeechSynthesis:', e);
+        this.speakFallback(text);
+      });
       
       // Visualizer volume feedback from audio output
       this.activeAudio.addEventListener('play', () => {
@@ -518,7 +648,7 @@ class VoiceStudio {
         this.activeAudio = null;
         this.state = 'idle';
         this.setStatus('IDLE');
-        if (this.handsFree) {
+        if (this.handsFree && !this.manuallyStopped) {
           this.startListening();
         }
       });
@@ -536,7 +666,7 @@ class VoiceStudio {
     if (!window.speechSynthesis) {
       this.state = 'idle';
       this.setStatus('IDLE');
-      if (this.handsFree) this.startListening();
+      if (this.handsFree && !this.manuallyStopped) this.startListening();
       return;
     }
 
@@ -547,7 +677,7 @@ class VoiceStudio {
     utterance.onend = () => {
       this.state = 'idle';
       this.setStatus('IDLE');
-      if (this.handsFree) this.startListening();
+      if (this.handsFree && !this.manuallyStopped) this.startListening();
     };
     
     window.speechSynthesis.speak(utterance);

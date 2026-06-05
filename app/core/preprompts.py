@@ -299,6 +299,8 @@ PREPROMPTS: dict[str, dict] = {
             "You are an expert software developer AI embedded in the user's IDE "
             "with full workspace access.\n"
             "CRITICAL BEHAVIOR RULES:\n"
+            "- BEFORE developing or writing any new code, ALWAYS ask the user for clarification and question their request to ensure a perfect understanding of their intent.\n"
+            "- ALWAYS ask the user if they want comprehensive documentation and unit tests for the changes.\n"
             "- Be EXTREMELY concise. NEVER explain what you're about to do — JUST DO IT.\n"
             "- DO NOT list steps. DO NOT ask permission. DO NOT narrate your actions.\n"
             "- Use tools IMMEDIATELY. Read files, edit files, run commands — silently and efficiently.\n"
@@ -350,6 +352,8 @@ PREPROMPTS: dict[str, dict] = {
         "system_prompt": (
             "You are an expert software developer.\n"
             "PRINCIPLES:\n"
+            "- BEFORE developing or writing any new code, ALWAYS ask the user for clarification and question their request to ensure a perfect understanding of their intent.\n"
+            "- ALWAYS ask the user if they want comprehensive documentation and unit tests for the changes.\n"
             "- Clean, maintainable, well-documented code.\n"
             "- SOLID principles and design patterns.\n"
             "- Error handling, input validation, edge cases.\n"
@@ -556,19 +560,32 @@ def get_preprompt(key: str, model: str = "", user_query: str = "") -> Optional[s
     **semantic recall** results — contextually relevant memories surfaced
     via vector similarity (hybrid .md + ChromaDB approach).
     """
-    entry = PREPROMPTS.get(key)
-    if not entry:
+    base = None
+    if key in PREPROMPTS:
+        entry = PREPROMPTS.get(key)
+        base = entry["system_prompt"]
+        # Model-specific jailbreaks
+        if key == "jailbreak" and model:
+            model_lower = model.lower()
+            for family, prompt in _JAILBREAK_MODELS.items():
+                if family in model_lower:
+                    base = prompt
+                    break
+    elif key.startswith("agent_"):
+        from config import AGENTS_DIR
+        name = key[6:]
+        path = os.path.join(AGENTS_DIR, f"{name}.md")
+        if os.path.exists(path):
+            try:
+                with open(path, "r", encoding="utf-8") as f:
+                    base = f.read().strip()
+            except Exception as e:
+                logger.error("Failed to read custom agent preprompt %s: %s", name, e)
+                return None
+        else:
+            return None
+    else:
         return None
-
-    base = entry["system_prompt"]
-
-    # Model-specific jailbreaks
-    if key == "jailbreak" and model:
-        model_lower = model.lower()
-        for family, prompt in _JAILBREAK_MODELS.items():
-            if family in model_lower:
-                base = prompt
-                break
 
     # Inject memory guidance and current memory entries
     memory_block = build_memory_prompt(user_query=user_query)
@@ -613,9 +630,47 @@ def get_jailbreak_wrapper(model: str, query: str, provider: str = "") -> str:
     )
 
 
+def _list_custom_agents() -> list[dict]:
+    from config import AGENTS_DIR
+    import os
+    agents = []
+    if not os.path.exists(AGENTS_DIR):
+        return agents
+    for f in sorted(os.listdir(AGENTS_DIR)):
+        if f.endswith(".md"):
+            name = f[:-3]
+            path = os.path.join(AGENTS_DIR, f)
+            try:
+                with open(path, "r", encoding="utf-8") as file:
+                    content = file.read().strip()
+                # Parse title from first line if # title, else use name
+                first_line = content.split("\n")[0] if content else ""
+                label = first_line.replace("#", "").strip() if first_line.startswith("#") else name.title()
+                
+                # Get first sentence/line for description
+                desc = "Custom agent preprompt."
+                lines = [line.strip() for line in content.split("\n") if line.strip() and not line.strip().startswith("#")]
+                if lines:
+                    desc = lines[0]
+                    if len(desc) > 80:
+                        desc = desc[:77] + "..."
+                
+                agents.append({
+                    "key": f"agent_{name}",
+                    "label": f"Agent: {label}",
+                    "icon": "🤖",
+                    "description": desc
+                })
+            except Exception as e:
+                logger.error("Failed to load custom agent %s: %s", f, e)
+    return agents
+
+
 def list_preprompts() -> list[dict]:
     """Return all available pre-prompts with their metadata, excluding hidden ones."""
-    return [
+    standard = [
         {"key": k, "label": v["label"], "icon": v["icon"], "description": v["description"]}
         for k, v in PREPROMPTS.items() if not v.get("hidden", False)
     ]
+    return standard + _list_custom_agents()
+

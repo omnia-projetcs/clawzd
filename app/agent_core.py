@@ -418,6 +418,20 @@ BUILTIN_TOOL_DEFINITIONS = [
             "required": ["action"],
         },
     },
+    {
+        "name": "run_tests",
+        "description": "Run the automated unit tests in the workspace. Automatically detects pytest (Python) or jest (JavaScript).",
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "test_file": {
+                    "type": "string",
+                    "description": "Optional specific test file to run (relative to workspace)",
+                }
+            },
+            "required": [],
+        },
+    },
 ]
 
 

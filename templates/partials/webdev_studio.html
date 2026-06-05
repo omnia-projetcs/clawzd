@@ -1,0 +1,135 @@
+<!-- ==================== WebDev Studio (Bolt-inspired Sandbox) ==================== -->
+<section class="studio-panel" id="webdev-studio" style="display:none;">
+  <div class="webdev-container">
+    
+    <!-- Left Column: WebDev Sidebar (Sync & Sandbox Status) -->
+    <div class="wd-sidebar">
+      <div class="wd-card">
+        <div class="wd-card-header">
+          <svg class="ic" width="16" height="16"><use href="#icon-cpu"></use></svg>
+          <h3>Sandbox Status</h3>
+        </div>
+        <div class="wd-card-body">
+          <div class="wd-status-item">
+            <span class="wd-status-label">FastAPI WebSocket Sync:</span>
+            <span class="wd-status-badge wd-badge-offline" id="wd-status-sync">Offline</span>
+          </div>
+          <div class="wd-status-item">
+            <span class="wd-status-label">WebContainer Runtime:</span>
+            <span class="wd-status-badge wd-badge-offline" id="wd-status-runtime">Not Booted</span>
+          </div>
+          <div class="wd-status-item">
+            <span class="wd-status-label">Local Dev Server:</span>
+            <span class="wd-status-badge wd-badge-offline" id="wd-status-server">Inactive</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Quick Actions Card -->
+      <div class="wd-card">
+        <div class="wd-card-header">
+          <svg class="ic" width="16" height="16"><use href="#icon-terminal"></use></svg>
+          <h3>Operations</h3>
+        </div>
+        <div class="wd-card-body wd-actions-grid">
+          <button class="btn btn-secondary btn-sm" id="wd-btn-boot" title="Boot the WebContainer runtime sandbox">
+            <svg class="ic" width="14" height="14"><use href="#icon-bolt"></use></svg>
+            <span>Boot Sandbox</span>
+          </button>
+          <button class="btn btn-secondary btn-sm" id="wd-btn-install" disabled title="Install npm dependencies inside the WebContainer">
+            <svg class="ic" width="14" height="14"><use href="#icon-download"></use></svg>
+            <span>npm install</span>
+          </button>
+          <button class="btn btn-accent btn-sm" id="wd-btn-start" disabled title="Start the web development server">
+            <svg class="ic" width="14" height="14"><use href="#icon-play"></use></svg>
+            <span>npm run dev</span>
+          </button>
+          <button class="btn btn-danger btn-sm" id="wd-btn-stop" disabled title="Stop the active Dev Server">
+            <svg class="ic" width="14" height="14"><use href="#icon-x"></use></svg>
+            <span>Stop Server</span>
+          </button>
+        </div>
+      </div>
+
+      <!-- Sandbox File Explorer Card -->
+      <div class="wd-card wd-explorer-card">
+        <div class="wd-card-header">
+          <svg class="ic" width="16" height="16"><use href="#icon-folder-open"></use></svg>
+          <h3>Sandbox Files</h3>
+        </div>
+        <div class="wd-card-body">
+          <div class="wd-file-tree" id="wd-file-tree">
+            <span class="wd-tree-placeholder">Waiting for Sandbox to boot...</span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Center Column: WebDev Preview (Vite/React Live App) -->
+    <div class="wd-preview-area">
+      <div class="wd-browser-bar">
+        <div class="wd-browser-dots">
+          <span class="wd-dot wd-dot-red"></span>
+          <span class="wd-dot wd-dot-yellow"></span>
+          <span class="wd-dot wd-dot-green"></span>
+        </div>
+        <div class="wd-browser-address">
+          <input type="text" id="wd-address-input" value="http://localhost:5173" readonly />
+        </div>
+        <div class="wd-browser-actions">
+          <button class="wd-browser-btn" id="wd-btn-preview-refresh" title="Refresh Preview">
+            <svg class="ic" width="14" height="14"><use href="#icon-refresh"></use></svg>
+          </button>
+          <button class="wd-browser-btn" id="wd-btn-preview-external" title="Open in New Tab" disabled>
+            <svg class="ic" width="14" height="14"><use href="#icon-external-link"></use></svg>
+          </button>
+        </div>
+      </div>
+
+      <div class="wd-iframe-wrap">
+        <!-- Live App Preview frame -->
+        <iframe id="wd-preview-iframe" src="about:blank"></iframe>
+        
+        <!-- Glassmorphic loading overlay -->
+        <div class="wd-overlay-loader" id="wd-preview-loader">
+          <div class="wd-spinner"></div>
+          <span id="wd-loader-text">Sandbox ready to boot. Click "Boot Sandbox" to begin.</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- Right Column: Interactive Console & Development Terminal Logs -->
+    <div class="wd-console-area">
+      <div class="wd-card wd-console-card">
+        <div class="wd-card-header wd-console-tabs">
+          <button class="wd-console-tab active" data-tab="dev" id="wd-tab-dev">
+            <svg class="ic" width="14" height="14"><use href="#icon-activity"></use></svg>
+            <span>Dev Server Output</span>
+          </button>
+          <button class="wd-console-tab" data-tab="terminal" id="wd-tab-terminal">
+            <svg class="ic" width="14" height="14"><use href="#icon-terminal"></use></svg>
+            <span>Interactive Shell</span>
+          </button>
+          <button class="wd-console-clear" id="wd-btn-clear-logs" title="Clear console logs">
+            <svg class="ic" width="14" height="14"><use href="#icon-trash"></use></svg>
+          </button>
+        </div>
+        <div class="wd-card-body wd-console-panels">
+          <!-- Panel 1: Dev Server Output (Vite logs) -->
+          <div class="wd-console-panel active" id="wd-panel-dev">
+            <pre class="wd-log-output" id="wd-dev-logs">Waiting for Dev Server to start...</pre>
+          </div>
+          <!-- Panel 2: Interactive terminal stdout/input -->
+          <div class="wd-console-panel" id="wd-panel-terminal">
+            <pre class="wd-log-output" id="wd-terminal-output">Interactive terminal console. Ready to execute commands.</pre>
+            <div class="wd-terminal-input-row">
+              <span class="wd-prompt">$</span>
+              <input type="text" id="wd-terminal-input" placeholder="npm run build, ls, pwd, cat package.json..." disabled />
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+  </div>
+</section>

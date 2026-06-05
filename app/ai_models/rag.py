@@ -587,7 +587,15 @@ async def folder_info():
 @router.get("/sources")
 async def list_sources():
     """List all indexed document sources with chunk counts and metadata."""
-    collection, _ = _get_rag()
+    try:
+        collection, _ = _get_rag()
+    except HTTPException as e:
+        if e.status_code == 503:
+            return {"sources": [], "status": "unavailable", "message": e.detail}
+        raise e
+    except Exception as e:
+        return {"sources": [], "status": "unavailable", "message": str(e)}
+
     all_data = collection.get(include=["metadatas"])
     sources: dict[str, dict] = {}
     for m in (all_data.get("metadatas") or []):

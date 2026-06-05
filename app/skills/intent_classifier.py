@@ -158,27 +158,38 @@ async def classify_intent(message: str) -> list[str]:
         text = text[:400]
 
     from app.llm_provider import get_llm_provider
+    from config import LLM_PROVIDER
 
-    llm = get_llm_provider("ollama")
+    llm = get_llm_provider()
     messages = [
         {"role": "system", "content": _SYSTEM_PROMPT},
         {"role": "user",   "content": text},
     ]
 
     raw = ""
-    for model in _get_classifier_models():
+    if LLM_PROVIDER in ("ollama", "local"):
+        for model in _get_classifier_models():
+            try:
+                raw = await llm.chat(
+                    messages,
+                    model=model,
+                    num_predict=_MAX_TOKENS,
+                    temperature=_TEMPERATURE,
+                )
+                if raw and raw.strip():
+                    break
+            except Exception as e:
+                logger.debug("Classifier model %s failed on Ollama: %s", model, e)
+                continue
+    else:
         try:
             raw = await llm.chat(
                 messages,
-                model=model,
                 num_predict=_MAX_TOKENS,
                 temperature=_TEMPERATURE,
             )
-            if raw and raw.strip():
-                break
         except Exception as e:
-            logger.debug("Classifier model %s failed: %s", model, e)
-            continue
+            logger.error("Classifier failed on provider %s: %s", LLM_PROVIDER, e)
 
     tools = _parse_tool_array(raw)
     logger.info("Intent classifier [%s…] -> %s (raw: %r)", text[:60], tools, raw[:80])

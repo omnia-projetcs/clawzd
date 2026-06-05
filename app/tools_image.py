@@ -1234,16 +1234,19 @@ async def _enhance_prompt_with_llm(prompt: str, style: str = "none", model_repo:
     # Always use a fast, non-reasoning model for prompt enrichment.
     # Configured via ENHANCE_MODEL in .env — must be a non-reasoning instruction model
     # to avoid <think> token budget waste (e.g. avoid qwen3 reasoning variants).
-    from config import ENHANCE_MODEL as _ENHANCE_MODEL
-    llm = get_llm_provider("ollama")
+    from config import ENHANCE_MODEL as _ENHANCE_MODEL, LLM_PROVIDER
+    llm = get_llm_provider()
     
     try:
-        raw_response = await llm.chat(
-            messages, 
-            model=_ENHANCE_MODEL, 
-            max_tokens=1024, 
-            temperature=0.6
-        )
+        chat_kwargs = {
+            "messages": messages,
+            "max_tokens": 1024,
+            "temperature": 0.6,
+        }
+        if LLM_PROVIDER in ("ollama", "local"):
+            chat_kwargs["model"] = _ENHANCE_MODEL
+            
+        raw_response = await llm.chat(**chat_kwargs)
         
         enhanced = _clean_llm_output(raw_response)
         if enhanced:
@@ -1297,15 +1300,23 @@ async def _enhance_video_prompt_with_llm(prompt: str, video_model: str = "cogvid
     # Always use a fast, non-reasoning model for prompt enrichment.
     # Configured via ENHANCE_MODEL in .env — must be a non-reasoning instruction model
     # to avoid <think> token budget waste (e.g. avoid qwen3 reasoning variants).
-    from config import ENHANCE_MODEL as _ENHANCE_MODEL
-    llm = get_llm_provider("ollama")
+    from config import ENHANCE_MODEL as _ENHANCE_MODEL, LLM_PROVIDER
+    llm = get_llm_provider()
     messages = [
         {"role": "system", "content": system_prompt},
         {"role": "user", "content": prompt}
     ]
 
     try:
-        raw_response = await llm.chat(messages, model=_ENHANCE_MODEL, max_tokens=512, temperature=0.6)
+        chat_kwargs = {
+            "messages": messages,
+            "max_tokens": 512,
+            "temperature": 0.6,
+        }
+        if LLM_PROVIDER in ("ollama", "local"):
+            chat_kwargs["model"] = _ENHANCE_MODEL
+            
+        raw_response = await llm.chat(**chat_kwargs)
             
         enhanced = _clean_llm_output(raw_response)
         if enhanced:

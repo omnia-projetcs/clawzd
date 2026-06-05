@@ -191,6 +191,20 @@ window.StudioEditor = {
     this.setupInspectorListeners();
     this.updateZoom(parseInt(this.elements.zoomSlider.value));
     this.initWorkspaceResizers();
+
+    // Auto-inject visualizer canvas into the preview monitor container
+    const previewContainer = document.getElementById("preview-screen-container");
+    if (previewContainer && !document.getElementById("editor-audio-visualizer")) {
+      const visualizerCanvas = document.createElement("canvas");
+      visualizerCanvas.id = "editor-audio-visualizer";
+      visualizerCanvas.style.cssText = "display:none; position:absolute; bottom:0; left:0; width:100%; height:90px; z-index:10; pointer-events:none;";
+      previewContainer.appendChild(visualizerCanvas);
+    }
+    
+    // Listen for dynamic audio preloads from WebAudioEngine to render waveforms
+    window.addEventListener('clawzd-audio-loaded', () => {
+      this.renderTimeline();
+    });
   },
 
   initWorkspaceResizers() {
@@ -606,11 +620,21 @@ window.StudioEditor = {
     // Populate inspector
     this.elements.inspectorPlaceholder.style.display = "none";
     this.elements.inspectorControls.style.display = "block";
-    
-    document.getElementById("inspector-clip-name").textContent = clip.filename.substr(0, 15) + '...';
-    document.getElementById("prop-start").value = clip.start;
-    document.getElementById("prop-duration").value = clip.duration;
-    document.getElementById("prop-trim-start").value = clip.trim_start;
+
+    // Null-safe DOM setters
+    const safeSetValue = (id, val) => {
+      const el = document.getElementById(id);
+      if (el) el.value = val;
+    };
+    const safeSetText = (id, text) => {
+      const el = document.getElementById(id);
+      if (el) el.textContent = text;
+    };
+
+    safeSetText("inspector-clip-name", clip.filename.substr(0, 15) + '...');
+    safeSetValue("prop-start", clip.start);
+    safeSetValue("prop-duration", clip.duration);
+    safeSetValue("prop-trim-start", clip.trim_start);
     
     const trackType = this.getTrackType(clip.track);
     
@@ -634,89 +658,99 @@ window.StudioEditor = {
 
     // Toggle track fields
     if (trackType === 'video') {
-      filterGroup.style.display = "flex";
-      audioGroup.style.display = "none";
-      textGroup.style.display = "none";
+      if (filterGroup) filterGroup.style.display = "flex";
+      if (audioGroup) audioGroup.style.display = "none";
+      if (textGroup) textGroup.style.display = "none";
       if (this.elements.silenceSection) this.elements.silenceSection.style.display = "block";
       if (this.elements.losslessSection) this.elements.losslessSection.style.display = "block";
-      document.getElementById("prop-filter").value = clip.filter;
+      safeSetValue("prop-filter", clip.filter);
       this.loadStreamInfo(clip.filename);
     } else if (trackType === 'audio') {
-      filterGroup.style.display = "none";
-      audioGroup.style.display = "flex";
-      textGroup.style.display = "none";
+      if (filterGroup) filterGroup.style.display = "none";
+      if (audioGroup) audioGroup.style.display = "flex";
+      if (textGroup) textGroup.style.display = "none";
       if (this.elements.silenceSection) this.elements.silenceSection.style.display = "block";
       if (this.elements.losslessSection) this.elements.losslessSection.style.display = "block";
-      document.getElementById("prop-volume").value = clip.volume;
-      document.getElementById("prop-vol-val").textContent = clip.volume;
+      safeSetValue("prop-volume", clip.volume);
+      safeSetText("prop-vol-val", clip.volume);
       this.loadStreamInfo(clip.filename);
     } else if (trackType === 'text') {
-      filterGroup.style.display = "none";
-      audioGroup.style.display = "none";
-      textGroup.style.display = "block";
+      if (filterGroup) filterGroup.style.display = "none";
+      if (audioGroup) audioGroup.style.display = "none";
+      if (textGroup) textGroup.style.display = "block";
       if (this.elements.silenceSection) this.elements.silenceSection.style.display = "none";
       if (this.elements.losslessSection) this.elements.losslessSection.style.display = "none";
-      document.getElementById("prop-text-str").value = clip.text;
-      document.getElementById("prop-text-color").value = clip.color;
-      document.getElementById("prop-text-size").value = clip.font_size;
-      document.getElementById("prop-text-position").value = clip.position;
+      safeSetValue("prop-text-str", clip.text);
+      safeSetValue("prop-text-color", clip.color);
+      safeSetValue("prop-text-size", clip.font_size);
+      safeSetValue("prop-text-position", clip.position);
     }
 
-    document.getElementById("prop-speed").value = clip.speed;
-    document.getElementById("prop-speed-val").textContent = clip.speed;
+    safeSetValue("prop-speed", clip.speed);
+    safeSetText("prop-speed-val", clip.speed);
   },
 
   setupInspectorListeners() {
+    const safeAddListener = (id, event, callback) => {
+      const el = document.getElementById(id);
+      if (el) el.addEventListener(event, callback);
+    };
+
+    const safeSetText = (id, text) => {
+      const el = document.getElementById(id);
+      if (el) el.textContent = text;
+    };
+
     // Volume slider val update
-    document.getElementById("prop-volume").addEventListener("input", (e) => {
-      document.getElementById("prop-vol-val").textContent = e.target.value;
+    safeAddListener("prop-volume", "input", (e) => {
+      safeSetText("prop-vol-val", e.target.value);
       this.updateSelectedClipProperty('volume', parseFloat(e.target.value));
     });
 
     // Speed slider val update
-    document.getElementById("prop-speed").addEventListener("input", (e) => {
-      document.getElementById("prop-speed-val").textContent = e.target.value;
+    safeAddListener("prop-speed", "input", (e) => {
+      safeSetText("prop-speed-val", e.target.value);
       this.updateSelectedClipProperty('speed', parseFloat(e.target.value));
     });
 
     // Precision inputs update
-    document.getElementById("prop-start").addEventListener("change", (e) => {
+    safeAddListener("prop-start", "change", (e) => {
       this.updateSelectedClipProperty('start', parseFloat(e.target.value) || 0.0);
     });
 
-    document.getElementById("prop-duration").addEventListener("change", (e) => {
+    safeAddListener("prop-duration", "change", (e) => {
       this.updateSelectedClipProperty('duration', parseFloat(e.target.value) || 1.0);
     });
 
-    document.getElementById("prop-trim-start").addEventListener("change", (e) => {
+    safeAddListener("prop-trim-start", "change", (e) => {
       this.updateSelectedClipProperty('trim_start', parseFloat(e.target.value) || 0.0);
     });
 
-    document.getElementById("prop-filter").addEventListener("change", (e) => {
+    safeAddListener("prop-filter", "change", (e) => {
       this.updateSelectedClipProperty('filter', e.target.value);
     });
 
-    document.getElementById("prop-track-select").addEventListener("change", (e) => {
+    safeAddListener("prop-track-select", "change", (e) => {
       this.updateSelectedClipProperty('track', e.target.value);
       this.renderTimeline();
     });
 
     // Subtitle specific properties
-    document.getElementById("prop-text-str").addEventListener("input", (e) => {
+    safeAddListener("prop-text-str", "input", (e) => {
       this.updateSelectedClipProperty('text', e.target.value);
     });
-    document.getElementById("prop-text-color").addEventListener("change", (e) => {
+    safeAddListener("prop-text-color", "change", (e) => {
       this.updateSelectedClipProperty('color', e.target.value);
     });
-    document.getElementById("prop-text-size").addEventListener("change", (e) => {
+    safeAddListener("prop-text-size", "change", (e) => {
       this.updateSelectedClipProperty('font_size', parseInt(e.target.value) || 24);
     });
-    document.getElementById("prop-text-position").addEventListener("change", (e) => {
+    safeAddListener("prop-text-position", "change", (e) => {
       this.updateSelectedClipProperty('position', e.target.value);
     });
 
     // Inspector Delete Clip
-    document.getElementById("prop-delete-btn").addEventListener("click", () => {
+    safeAddListener("prop-delete-btn", "click", () => {
       if (this.selectedClipId) {
         this.clips = this.clips.filter(c => c.id !== this.selectedClipId);
         this.selectedClipId = null;
@@ -916,10 +950,57 @@ window.StudioEditor = {
       const clipEl = document.createElement("div");
       clipEl.className = "timeline-clip";
       clipEl.dataset.clipId = clip.id;
-      clipEl.dataset.trackType = this.getTrackType(clip.track);
+      const trackType = this.getTrackType(clip.track);
+      clipEl.dataset.trackType = trackType;
       clipEl.style.left = (clip.start * this.zoom) + 'px';
       clipEl.style.width = (clip.duration * this.zoom) + 'px';
-      clipEl.textContent = clip.filename.substr(0, 20);
+
+      // Create a relative z-indexed text label so it sits above waveforms
+      const textSpan = document.createElement("span");
+      textSpan.className = "clip-label-text";
+      textSpan.style.cssText = "position:relative; z-index:2; padding-left: 6px; pointer-events:none;";
+      textSpan.textContent = clip.filename.substr(0, 20);
+      clipEl.appendChild(textSpan);
+
+      // Render background waveform for audio or video assets preloaded in cache
+      if (this.audioEngine && (trackType === 'audio' || trackType === 'video')) {
+        const url = trackType === 'audio' ? 
+          (clip.filename.toLowerCase().endsWith('.mp3') || clip.filename.toLowerCase().endsWith('.wav') ? 
+            `/data/audio/${clip.filename}` : `/data/images/${clip.filename}`)
+          : `/data/images/${clip.filename}`;
+          
+        const peaks = this.audioEngine.getPeaks(url, 200);
+        if (peaks) {
+          const waveCanvas = document.createElement("canvas");
+          waveCanvas.className = "clip-waveform-canvas";
+          waveCanvas.style.cssText = "position:absolute; top:0; left:0; width:100%; height:100%; opacity:0.45; pointer-events:none; z-index:1;";
+          clipEl.appendChild(waveCanvas);
+          
+          // Draw wave asynchronously after DOM insertion
+          setTimeout(() => {
+            const w = waveCanvas.offsetWidth || (clip.duration * this.zoom);
+            const h = waveCanvas.offsetHeight || 36;
+            if (w > 0 && h > 0) {
+              waveCanvas.width = w;
+              waveCanvas.height = h;
+              const wCtx = waveCanvas.getContext("2d");
+              if (wCtx) {
+                wCtx.clearRect(0, 0, w, h);
+                const barColor = trackType === 'audio' ? '#38bdf8' : '#a78bfa'; // light blue for audio, purple for video
+                wCtx.fillStyle = barColor;
+                const barWidth = 2;
+                const gap = 1;
+                for (let x = 0; x < w; x += (barWidth + gap)) {
+                  const peakIndex = Math.floor((x / w) * peaks.length);
+                  const peakVal = peaks[peakIndex] || 0;
+                  const barHeight = peakVal * h * 0.85;
+                  wCtx.fillRect(x, (h - barHeight) / 2, barWidth, barHeight);
+                }
+              }
+            }
+          }, 0);
+        }
+      }
 
       if (this.selectedClipId === clip.id) {
         clipEl.classList.add("selected");
@@ -1276,6 +1357,13 @@ window.StudioEditor = {
     }
     this.syncPreview();
     
+    const canvas = document.getElementById("editor-audio-visualizer");
+    if (canvas) {
+      canvas.style.display = "block";
+      canvas.width = canvas.offsetWidth || 640;
+      canvas.height = 90;
+    }
+
     const editorStatus = document.getElementById("editor-status-text");
     if (editorStatus) editorStatus.textContent = "Playing preview";
   },
@@ -1294,6 +1382,9 @@ window.StudioEditor = {
     this.elements.videoPreview.pause();
     this.elements.audioPreview.pause();
     
+    const canvas = document.getElementById("editor-audio-visualizer");
+    if (canvas) canvas.style.display = "none";
+
     const editorStatus = document.getElementById("editor-status-text");
     if (editorStatus) editorStatus.textContent = "Paused";
   },
@@ -1318,7 +1409,49 @@ window.StudioEditor = {
     this.updatePlayheadLine();
     this.syncPreview(true);
 
+    // Draw spectrum visualizer ticks
+    this.drawVisualizer();
+
     this.animationFrameId = requestAnimationFrame((t) => this.playbackStep(t));
+  },
+
+  drawVisualizer() {
+    const canvas = document.getElementById("editor-audio-visualizer");
+    if (!canvas || !this.audioEngine) return;
+    
+    if (!this.visualCtx) {
+      this.visualCtx = canvas.getContext("2d");
+    }
+    
+    const ctx = this.visualCtx;
+    const width = canvas.width;
+    const height = canvas.height;
+    
+    const dataArray = this.audioEngine.getByteFrequencyData();
+    if (!dataArray) {
+      ctx.clearRect(0, 0, width, height);
+      return;
+    }
+    
+    ctx.clearRect(0, 0, width, height);
+    
+    const barWidth = (width / dataArray.length) * 1.6;
+    let barHeight;
+    let x = 0;
+    
+    // Premium neon indigo-violet-cyan gradient matching premium theme
+    const gradient = ctx.createLinearGradient(0, height, 0, 0);
+    gradient.addColorStop(0, "rgba(79, 70, 229, 0.15)");
+    gradient.addColorStop(0.5, "rgba(139, 92, 246, 0.7)");
+    gradient.addColorStop(1, "rgba(6, 182, 212, 0.95)");
+    
+    ctx.fillStyle = gradient;
+    
+    for (let i = 0; i < dataArray.length; i++) {
+      barHeight = (dataArray[i] / 255) * height * 0.9;
+      ctx.fillRect(x, height - barHeight, barWidth - 2, barHeight);
+      x += barWidth;
+    }
   },
 
   async exportTimeline() {

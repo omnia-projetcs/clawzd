@@ -161,7 +161,7 @@ class MediaStudio {
       updateMediaVoices();
     }
 
-    // Reference audio upload (voice cloning)
+    // Reference audio upload (voice cloning & song style transfer)
     const audioRefBtn = $('#media-audio-ref-btn');
     const audioRefInput = $('#media-audio-ref-input');
     if (audioRefBtn && audioRefInput) {
@@ -183,7 +183,10 @@ class MediaStudio {
             player.src = data.url;
             preview.style.display = 'block';
           }
-          toast(ICONS.check(14) + ' Voice sample loaded');
+          if (this.audioSubMode === 'song') {
+            this.initWaveSurfer(data.url);
+          }
+          toast(ICONS.check(14) + ' Reference audio loaded');
         } catch (err) {
           toast(ICONS.x(14) + ' Upload failed: ' + err.message);
         } finally {
@@ -197,7 +200,64 @@ class MediaStudio {
       this.referenceAudio = null;
       const preview = $('#media-audio-ref-preview');
       if (preview) preview.style.display = 'none';
+      if (this.wavesurfer) {
+        try { this.wavesurfer.destroy(); } catch(e) {}
+        this.wavesurfer = null;
+      }
+      const wsCont = $('#media-audio-waveform-container');
+      if (wsCont) wsCont.style.display = 'none';
     });
+
+    // Advanced Audio Settings Accordion
+    const audioAdvancedToggle = $('#media-audio-advanced-toggle');
+    const audioAdvancedPanel = $('#media-audio-advanced-panel');
+    const audioAdvancedArrow = $('#media-audio-advanced-arrow');
+    if (audioAdvancedToggle && audioAdvancedPanel) {
+      audioAdvancedToggle.addEventListener('click', (e) => {
+        e.preventDefault();
+        const isCollapsed = audioAdvancedPanel.style.display === 'none' || !audioAdvancedPanel.style.display;
+        audioAdvancedPanel.style.display = isCollapsed ? 'flex' : 'none';
+        if (audioAdvancedArrow) {
+          audioAdvancedArrow.style.transform = isCollapsed ? 'rotate(180deg)' : 'rotate(0deg)';
+        }
+      });
+    }
+
+    // AI Write Lyrics
+    const lyricsGenBtn = $('#media-lyrics-generate');
+    const lyricsTextarea = $('#media-audio-lyrics');
+    if (lyricsGenBtn && lyricsTextarea) {
+      lyricsGenBtn.addEventListener('click', async () => {
+        const textEl = $('#media-audio-text');
+        const prompt = textEl ? textEl.value.trim() : '';
+        const genre = ($('#media-genre') || {}).value || 'pop';
+        if (!prompt) {
+          toast(ICONS.circle(14) + ' Please enter a description/theme in the Text field first');
+          return;
+        }
+        try {
+          lyricsGenBtn.classList.add('loading');
+          lyricsGenBtn.disabled = true;
+          lyricsGenBtn.textContent = '✍️ Writing...';
+          
+          const resp = await fetch('/audio/generate-lyrics', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ prompt, genre }),
+          });
+          if (!resp.ok) throw new Error('Lyrics generation failed');
+          const d = await resp.json();
+          lyricsTextarea.value = d.lyrics;
+          toast(ICONS.check(14) + ' Lyrics generated successfully');
+        } catch (err) {
+          toast(ICONS.x(14) + ' Failed: ' + err.message);
+        } finally {
+          lyricsGenBtn.classList.remove('loading');
+          lyricsGenBtn.disabled = false;
+          lyricsGenBtn.textContent = '🤖 Write with AI';
+        }
+      });
+    }
 
     // Generate
     const genBtn = $('#media-generate-btn');
@@ -452,6 +512,58 @@ class MediaStudio {
         }
       });
     }
+    this._initAudioLab();
+  }
+
+  initWaveSurfer(url) {
+    if (this.wavesurfer) {
+      try { this.wavesurfer.destroy(); } catch(e) {}
+    }
+    const container = $('#media-audio-waveform-container');
+    if (!container) return;
+    container.style.display = 'block';
+    
+    this.wavesurfer = WaveSurfer.create({
+      container: '#media-audio-waveform',
+      waveColor: 'rgba(139, 92, 246, 0.4)',
+      progressColor: 'var(--primary)',
+      cursorColor: 'var(--primary-light)',
+      height: 60,
+      responsive: true,
+      barWidth: 2,
+      barGap: 3
+    });
+    
+    const wsRegions = this.wavesurfer.registerPlugin(WaveSurfer.Regions.create());
+    this.wavesurfer.load(url);
+    
+    this.wavesurfer.on('ready', () => {
+      const duration = this.wavesurfer.getDuration();
+      const start = Math.max(0, duration / 2 - 5);
+      const end = Math.min(duration, start + 10);
+      
+      wsRegions.addRegion({
+        id: 'style-region',
+        start: start,
+        end: end,
+        color: 'rgba(139, 92, 246, 0.25)',
+        drag: true,
+        resize: true
+      });
+      
+      this.refAudioStart = start;
+      this.refAudioDuration = 10;
+    });
+    
+    wsRegions.on('region-updated', (region) => {
+      let dur = region.end - region.start;
+      if (dur > 20) {
+        region.setOptions({ end: region.start + 20 });
+        dur = 20;
+      }
+      this.refAudioStart = region.start;
+      this.refAudioDuration = dur;
+    });
   }
 
   _updateFormVisibility() {
@@ -459,6 +571,11 @@ class MediaStudio {
     const isAudio = this.type === 'audio';
     const isImage = this.type === 'image';
     const isTemplate = this.type === 'templates';
+    const isAudioLab = this.type === 'audiolab';
+
+    // Audio Lab Group
+    const audioLabGrp = $('#media-audiolab-group');
+    if (audioLabGrp) audioLabGrp.style.display = isAudioLab ? '' : 'none';
 
     // Image-specific groups
     const imgFmt = $('#media-format-image-group');
@@ -531,16 +648,16 @@ class MediaStudio {
     // Shared prompt & neg prompt — show for image/video only
     const promptGrp = $('#media-prompt')?.closest('.media-form-group');
     const negGrp = $('#media-neg-prompt')?.closest('.media-form-group');
-    if (promptGrp) promptGrp.style.display = (isAudio || isTemplate) ? 'none' : '';
-    if (negGrp) negGrp.style.display = (isAudio || isTemplate) ? 'none' : '';
+    if (promptGrp) promptGrp.style.display = (isAudio || isTemplate || isAudioLab) ? 'none' : '';
+    if (negGrp) negGrp.style.display = (isAudio || isTemplate || isAudioLab) ? 'none' : '';
 
     // Cinema Studio — show for image/video only
     const cinemaGrp = $('#media-cinema-accordion');
-    if (cinemaGrp) cinemaGrp.style.display = (isAudio || isTemplate) ? 'none' : '';
+    if (cinemaGrp) cinemaGrp.style.display = (isAudio || isTemplate || isAudioLab) ? 'none' : '';
 
     // Upload / reference image — show for image/video only
     const uploadGrp = $('#media-upload-group');
-    if (uploadGrp) uploadGrp.style.display = (isAudio || isTemplate) ? 'none' : 'flex';
+    if (uploadGrp) uploadGrp.style.display = (isAudio || isTemplate || isAudioLab) ? 'none' : 'flex';
 
     // Update upload button label
     const uploadLabel = uploadGrp?.querySelector('#media-upload-btn');
@@ -567,11 +684,24 @@ class MediaStudio {
 
     // Enhance checkbox — hide for audio/templates
     const enhanceGrp = $('#media-enhance')?.closest('.media-form-group');
-    if (enhanceGrp) enhanceGrp.style.display = (isAudio || isTemplate) ? 'none' : '';
+    if (enhanceGrp) enhanceGrp.style.display = (isAudio || isTemplate || isAudioLab) ? 'none' : '';
 
     // Backend toggle — hide for audio/templates (always local)
     const backendGrp = $('#media-backend-toggle')?.closest('.media-form-group');
-    if (backendGrp) backendGrp.style.display = (isAudio || isTemplate) ? 'none' : '';
+    if (backendGrp) backendGrp.style.display = (isAudio || isTemplate || isAudioLab) ? 'none' : '';
+
+    // Update process button label
+    const genBtn = $('#media-generate-btn');
+    if (genBtn && !this.generating) {
+      const lbl = genBtn.querySelector('.gen-label');
+      if (lbl) {
+        if (isAudioLab) {
+          lbl.innerHTML = window.icon ? window.icon('sliders', 14) + ' Process Audio' : 'Process Audio';
+        } else {
+          lbl.innerHTML = window.icon ? window.icon('sparkles', 14) + ' Generate' : 'Generate';
+        }
+      }
+    }
 
 
 
@@ -584,9 +714,11 @@ class MediaStudio {
 
     const audioSubGrp = $('#media-audio-submode-group');
     const audioTextGrp = $('#media-audio-text-group');
+    const lyricsGrp = $('#media-lyrics-group');
     const voiceGrp = $('#media-voice-style-group');
     const ttsEngGrp = $('#media-tts-engine-group');
     const audioRefGrp = $('#media-audio-ref-group');
+    const advancedAccordion = $('#media-audio-advanced-accordion');
     const genreGrp = $('#media-genre-group');
     const tempoGrp = $('#media-tempo-group');
     const langGrp = $('#media-language-group');
@@ -595,9 +727,17 @@ class MediaStudio {
 
     if (audioSubGrp) audioSubGrp.style.display = isAudio ? '' : 'none';
     if (audioTextGrp) audioTextGrp.style.display = isAudio && (isTTS || isClone || isSong) ? '' : 'none';
+    if (lyricsGrp) lyricsGrp.style.display = isAudio && isSong ? '' : 'none';
     if (voiceGrp) voiceGrp.style.display = isAudio && (isTTS || isSong) ? '' : 'none';
     if (ttsEngGrp) ttsEngGrp.style.display = isAudio && isTTS ? '' : 'none';
-    if (audioRefGrp) audioRefGrp.style.display = isAudio && isClone ? '' : 'none';
+    if (audioRefGrp) {
+      audioRefGrp.style.display = isAudio && (isClone || isSong) ? '' : 'none';
+      const refLabel = $('#media-audio-ref-label');
+      if (refLabel) {
+        refLabel.textContent = isSong ? 'Reference Style (10s segment)' : 'Sample Voice (6s min)';
+      }
+    }
+    if (advancedAccordion) advancedAccordion.style.display = isAudio ? '' : 'none';
     if (genreGrp) genreGrp.style.display = isAudio && (isMusic || isSong) ? '' : 'none';
     if (tempoGrp) tempoGrp.style.display = isAudio && (isMusic || isSong) ? '' : 'none';
     if (langGrp) langGrp.style.display = isAudio && (isTTS || isClone || isSong) ? '' : 'none';
@@ -1123,6 +1263,10 @@ class MediaStudio {
 
   async generate() {
     if (this.generating) return;
+    if (this.type === 'audiolab') {
+      this.processAudioLab();
+      return;
+    }
     // Delegate to template generator
     if (this.type === 'templates') { toast(ICONS.circle(14) + ' Templates are available in the Presentation Studio'); return; }
     const prompt = $('#media-prompt');
@@ -1489,14 +1633,19 @@ class MediaStudio {
               mode: this.audioSubMode,
               text: audioText,
               prompt: audioText,
+              lyrics: ($('#media-audio-lyrics') || {}).value || '',
               voice_style: voiceStyle,
               tts_engine: ttsEngine,
               reference_audio: this.referenceAudio,
+              ref_audio_start_sec: this.refAudioStart || 0.0,
+              ref_audio_duration: this.refAudioDuration || 10.0,
               genre, tempo_bpm: tempoBpm,
               duration: audioDur,
               format: audioFmt,
               language,
               enhance_prompt: enhance,
+              seed: parseInt(($('#media-audio-seed') || {}).value) || -1,
+              int8_quantization: $('#media-audio-quantization') ? $('#media-audio-quantization').checked : false,
             }),
           });
           result = await resp.json();
@@ -2365,6 +2514,209 @@ class MediaStudio {
       btn.disabled = false;
       if (cancelBtn) cancelBtn.disabled = false;
       if (loading) loading.style.display = 'none';
+    }
+  }
+
+  _initAudioLab() {
+    const dropzone = $('#audiolab-dropzone');
+    const fileInput = $('#audiolab-upload-input');
+    const methodSelect = $('#audiolab-method');
+    const modelSelect = $('#audiolab-model');
+    
+    if (dropzone && fileInput) {
+      dropzone.addEventListener('click', () => fileInput.click());
+      
+      dropzone.addEventListener('dragover', (e) => {
+        e.preventDefault();
+        dropzone.style.borderColor = 'var(--accent)';
+        dropzone.style.background = 'rgba(139,92,246,0.1)';
+      });
+      
+      dropzone.addEventListener('dragleave', () => {
+        dropzone.style.borderColor = 'var(--border)';
+        dropzone.style.background = 'rgba(0,0,0,0.15)';
+      });
+      
+      dropzone.addEventListener('drop', (e) => {
+        e.preventDefault();
+        dropzone.style.borderColor = 'var(--border)';
+        dropzone.style.background = 'rgba(0,0,0,0.15)';
+        if (e.dataTransfer.files && e.dataTransfer.files[0]) {
+          this._uploadAudioLabFile(e.dataTransfer.files[0]);
+        }
+      });
+      
+      fileInput.addEventListener('change', (e) => {
+        if (e.target.files && e.target.files[0]) {
+          this._uploadAudioLabFile(e.target.files[0]);
+        }
+      });
+    }
+    
+    if (methodSelect && modelSelect) {
+      methodSelect.addEventListener('change', () => {
+        const method = methodSelect.value;
+        modelSelect.innerHTML = '';
+        if (method === 'enhance') {
+          modelSelect.innerHTML = `
+            <option value="MossFormer2_SE_48K" selected>MossFormer2 SE (Best 48kHz)</option>
+            <option value="FRCRN_SE_16K">FRCRN SE (Standard 16kHz)</option>
+            <option value="MossFormerGAN_SE_16K">MossFormerGAN (Light 16kHz)</option>
+          `;
+        } else if (method === 'separate') {
+          modelSelect.innerHTML = `
+            <option value="MossFormer2_SS_16K" selected>MossFormer2 SS (Separation 16kHz)</option>
+          `;
+        } else if (method === 'upscale') {
+          modelSelect.innerHTML = `
+            <option value="MossFormer2_SR_48K" selected>MossFormer2 SR (Super-Resolution 48kHz)</option>
+          `;
+        } else if (method === 'extract_target') {
+          modelSelect.innerHTML = `
+            <option value="AV_MossFormer2_TSE_16K" selected>AV MossFormer2 TSE (16kHz)</option>
+          `;
+        } else if (method === 'effects') {
+          modelSelect.innerHTML = `
+            <option value="warm_vocal" selected>🎤 Warm Vocal (Low-Cut + Compression + Room Reverb)</option>
+            <option value="studio_master">🎛️ Studio Master (Compression + Limiter + Delay)</option>
+            <option value="radio_broadcast">📻 Radio Broadcast (Warm EQ + Tight Limiter)</option>
+            <option value="telephone_voice">📞 Telephone Bandwidth (Severe Bandpass + Chorus)</option>
+            <option value="spaced_reverb">🌌 Spaced Reverb (Deep Arena Echo)</option>
+            <option value="pitch_shift_up">⬆️ Pitch Shift Up (+2 Semitones)</option>
+            <option value="pitch_shift_down">⬇️ Pitch Shift Down (-2 Semitones)</option>
+          `;
+        }
+      });
+    }
+  }
+
+  async _uploadAudioLabFile(file) {
+    const filenameEl = $('#audiolab-filename');
+    const playerEl = $('#audiolab-player');
+    const playerGrp = $('#audiolab-player-group');
+    
+    if (filenameEl) filenameEl.textContent = 'Uploading: ' + file.name;
+    
+    const formData = new FormData();
+    formData.append('file', file);
+    
+    try {
+      const resp = await fetch('/audio-lab/upload', {
+        method: 'POST',
+        body: formData
+      });
+      if (!resp.ok) throw new Error('Upload failed');
+      const data = await resp.json();
+      
+      this.audioLabSourceFile = data.filename;
+      
+      if (filenameEl) filenameEl.textContent = file.name;
+      if (playerEl && playerGrp) {
+        playerEl.src = data.url;
+        playerGrp.style.display = 'block';
+      }
+      toast((window.icon ? window.icon('check', 14) : '✅') + ' Audio source loaded');
+    } catch (err) {
+      if (filenameEl) filenameEl.textContent = 'Upload failed. Click to retry.';
+      toast((window.icon ? window.icon('x', 14) : '❌') + ' Failed to upload audio: ' + err.message);
+    }
+  }
+
+  async processAudioLab() {
+    if (!this.audioLabSourceFile) {
+      toast((window.icon ? window.icon('alertTriangle', 14) : '⚠️') + ' Please select or upload a source audio file first.');
+      return;
+    }
+    
+    const method = $('#audiolab-method').value;
+    const model = $('#audiolab-model').value;
+    
+    this.generating = true;
+    const genBtn = $('#media-generate-btn');
+    const progress = $('#media-progress');
+    const progressBar = $('#media-progress-bar');
+    const statusEl = $('#media-progress-status');
+    
+    if (genBtn) {
+      genBtn.classList.add('loading');
+      genBtn.disabled = true;
+      const lbl = genBtn.querySelector('.gen-label');
+      if (lbl) lbl.textContent = 'Restoring...';
+    }
+    if (progress) progress.classList.add('active', 'indeterminate');
+    if (statusEl) {
+      statusEl.classList.add('active');
+      statusEl.textContent = '⏳ Processing audio in background thread...';
+    }
+    
+    try {
+      const resp = await fetch('/audio-lab/process', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          mode: method,
+          input_file: this.audioLabSourceFile,
+          model: model
+        })
+      });
+      if (!resp.ok) {
+        const err = await resp.json().catch(() => ({}));
+        throw new Error(err.detail || 'Processing request failed');
+      }
+      
+      const data = await resp.json();
+      
+      this._audioLabPoll = setInterval(async () => {
+        try {
+          const prResp = await fetch('/audio-lab/progress');
+          if (!prResp.ok) return;
+          const pg = await prResp.json();
+          
+          if (pg.active) {
+            const pct = Math.round(pg.progress);
+            if (statusEl) statusEl.textContent = `⚡ Processing [${pg.stage}]: ${pct}%`;
+            if (progressBar) {
+              progress.classList.remove('indeterminate');
+              progressBar.style.width = pct + '%';
+            }
+          } else {
+            clearInterval(this._audioLabPoll);
+            this.generating = false;
+            
+            if (genBtn) {
+              genBtn.classList.remove('loading');
+              genBtn.disabled = false;
+              const lbl = genBtn.querySelector('.gen-label');
+              if (lbl) {
+                lbl.innerHTML = window.icon ? window.icon('sliders', 14) + ' Process Audio' : 'Process Audio';
+              }
+            }
+            if (progress) progress.classList.remove('active');
+            if (statusEl) statusEl.classList.remove('active');
+            
+            if (pg.error) {
+              toast((window.icon ? window.icon('x', 14) : '❌') + ' Error: ' + pg.error);
+            } else {
+              toast((window.icon ? window.icon('check', 14) : '✅') + ' Audio restored successfully!');
+              this.loadGallery();
+            }
+          }
+        } catch (_) { /* ignore */ }
+      }, 1000);
+      
+    } catch (err) {
+      this.generating = false;
+      if (genBtn) {
+        genBtn.classList.remove('loading');
+        genBtn.disabled = false;
+        const lbl = genBtn.querySelector('.gen-label');
+        if (lbl) {
+          lbl.innerHTML = window.icon ? window.icon('sliders', 14) + ' Process Audio' : 'Process Audio';
+        }
+      }
+      if (progress) progress.classList.remove('active');
+      if (statusEl) statusEl.classList.remove('active');
+      toast((window.icon ? window.icon('x', 14) : '❌') + ' Failed: ' + err.message);
     }
   }
 }

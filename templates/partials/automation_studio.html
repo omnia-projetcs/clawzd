@@ -1,8 +1,11 @@
 <!-- ---- Automation Studio Layout ---- -->
-      <!-- Sub-tab bar: Workflows vs My Clone -->
+      <!-- Sub-tab bar: Workflows vs Paperclip vs My Clone -->
       <div class="auto-subtab-bar" id="auto-subtab-bar" style="display:none">
         <button class="auto-subtab active" data-submode="workflows" id="auto-subtab-workflows">
           <span class="subtab-icon"><svg class="ic" width="14" height="14"><use href="#icon-bolt"></use></svg></span> Workflows
+        </button>
+        <button class="auto-subtab" data-submode="paperclip" id="auto-subtab-paperclip">
+          <span class="subtab-icon"><svg class="ic" width="14" height="14"><use href="#icon-paperclip"></use></svg></span> Paperclip
         </button>
         <button class="auto-subtab" data-submode="clone" id="auto-subtab-clone">
           <span class="subtab-icon"><svg class="ic" width="14" height="14"><use href="#icon-dna"></use></svg></span> My Clone
@@ -184,4 +187,5 @@
         </div>
       </div>
 
+      {% include 'partials/paperclip_panel.html' %}
       {% include 'partials/vault_panel.html' %}

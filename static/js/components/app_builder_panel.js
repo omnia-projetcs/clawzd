@@ -145,6 +145,7 @@ const AppBuilderPanel = (() => {
                 <button class="ab-dd-item" onclick="AppBuilderPanel.showServices('${app.id}')">${ICONS.shield(14)} <span>Services</span></button>
                 <button class="ab-dd-item" onclick="AppBuilderPanel.editInChat('${app.id}', '${escapedName}')">${ICONS.penTool(14)} <span>Edit in Chat</span></button>
                 <button class="ab-dd-item" onclick="AppBuilderPanel.openInEditor('${app.id}', '${escapedName}')">${ICONS.monitor(14)} <span>Open in Editor</span></button>
+                <button class="ab-dd-item" onclick="AppBuilderPanel.runInWebDev('${app.id}', '${escapedName}')" style="color:#818cf8; font-weight:600;"><svg class="ic" width="14" height="14" style="color:#818cf8;"><use href="#icon-globe"></use></svg> <span>Run in WebDev</span></button>
                 <button class="ab-dd-item" onclick="AppBuilderPanel.showEdit('${app.id}')">${ICONS.settings(14)} <span>Settings</span></button>
                 <div class="ab-dd-sep"></div>
                 <button class="ab-dd-item" onclick="AppBuilderPanel.exportApp('${app.id}')">📥 <span>Export ZIP</span></button>
@@ -976,6 +977,48 @@ const {columns, rows} = await res.json();</code></pre>
     }
   }
 
+  /**
+   * Export the app files into the workspace, switch to WebDev Studio, and auto-boot the sandbox.
+   */
+  async function runInWebDev(appId, appName) {
+    const toastFn = typeof window.toast === 'function' ? window.toast : () => {};
+    try {
+      // 1. Export app files to workspace
+      const res = await fetch(`/apps/${appId}/export-to-workspace`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({}),
+      });
+      if (!res.ok) {
+        const err = await res.json();
+        throw new Error(err.detail || 'Export failed');
+      }
+      const data = await res.json();
+      const projectName = data.project;
+
+      // 2. Close the Skill Catalog overlay
+      const overlay = document.getElementById('skills-catalog-overlay');
+      if (overlay) overlay.classList.remove('open');
+
+      // 3. Switch to WebDev Studio
+      const webdevModeBtn = document.getElementById("mode-btn-webdev");
+      if (webdevModeBtn && !webdevModeBtn.classList.contains('active')) {
+        webdevModeBtn.click();
+      }
+
+      // 4. Trigger auto-boot after a small delay for DOM and workspace sync
+      setTimeout(() => {
+        const bootBtn = document.getElementById("wd-btn-boot");
+        if (bootBtn && !bootBtn.disabled) {
+          bootBtn.click();
+          toastFn(`🚀 Booting "${appName}" in WebDev Sandbox!`);
+        }
+      }, 500);
+    } catch (e) {
+      toastFn(`❌ Failed to run in WebDev: ${e.message}`);
+    }
+  }
+
   function toggleCardMenu(event, appId) {
     event.stopPropagation();
 
@@ -1032,7 +1075,7 @@ const {columns, rows} = await res.json();</code></pre>
     init, open, close, showCreate, create, toggleGameOptions, preview, remove,
     editInChat, showEdit, saveEdit, showCode, saveCode, switchTab, addFileTab, deleteFileTab,
     showServices, switchServiceTab, addSecret, deleteSecret, executeSQL, loadTablePreview, exportApp,
-    openInEditor, toggleCardMenu
+    openInEditor, runInWebDev, toggleCardMenu
   };
 })();
 

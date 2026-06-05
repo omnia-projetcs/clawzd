@@ -48,6 +48,7 @@ Can be used to rebuild from scratch the project with AI assistance.
     - [x] GroqLLM
     - [x] MistralLLM
     - [x] GoogleLLM (via google-generativeai SDK)
+    - [x] FreeLLMAPIProvider via FreeLLMAPI (Unified local proxy with rate-limit failover)
     - [x] Provider alias: "ollama" = "local" = OllamaLLM
 - [x] get_llm_provider() factory selected via .env (LLM_PROVIDER + API key)
 - [x] Unified streaming: each provider implements async chat_stream()
@@ -98,7 +99,7 @@ Can be used to rebuild from scratch the project with AI assistance.
 - [x] Code audit results saved to audit.md in workspace (visible in file panel)
 - [x] Active agent type indicator (UI display)
 - [x] ClaudeCode editor type in UI (3-panel IDE: file tree, code editor, AI chat + activity feed), + git editor
-- [ ] UI should give the ability to change the preprompts of agents and to save new ones in the directory agents/
+- [x] UI should give the ability to change the preprompts of agents and to save new ones in the directory agents/
 - [x] Studio UI components harmonization (dynamic SVG rendering, consistent branding headers)
 - [x] Centralized SVG icon architecture (replaced inline/emoji icons with sprite sheet)
 - [x] Project Management Studio enhancements:
@@ -248,8 +249,8 @@ Can be used to rebuild from scratch the project with AI assistance.
     - [x] Context-aware continuation (language-tagged code blocks)
     - [x] Max 3 continuation rounds
 - [x] Rendering stabilization (fenced code blocks)
-- [ ] before developing, always ask for clarification and question the request
-- [ ] ask if the user wants documentation and tests
+- [x] before developing, always ask for clarification and question the request
+- [x] ask if the user wants documentation and tests
 
 ## 11. Security & Hardening
 - [x] Sandbox isolation for code execution (subprocess + resource limits)

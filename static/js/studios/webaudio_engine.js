@@ -6,6 +6,7 @@ window.ClawzdWebAudioEngine = class ClawzdWebAudioEngine {
   constructor() {
     this.audioCtx = null;
     this.masterGainNode = null;
+    this.analyser = null; // Visualisateur temps réel
     this.activeSources = [];
     this.audioBuffers = new Map(); // Cache des fichiers pré-chargés
     this.isPlaying = false;
@@ -17,7 +18,48 @@ window.ClawzdWebAudioEngine = class ClawzdWebAudioEngine {
     if (this.audioCtx) return;
     this.audioCtx = new (window.AudioContext || window.webkitAudioContext)();
     this.masterGainNode = this.audioCtx.createGain();
-    this.masterGainNode.connect(this.audioCtx.destination);
+    
+    // Initialise l'analyseur de spectre pour le visualiseur audio
+    this.analyser = this.audioCtx.createAnalyser();
+    this.analyser.fftSize = 256;
+    
+    this.masterGainNode.connect(this.analyser);
+    this.analyser.connect(this.audioCtx.destination);
+  }
+
+  /**
+   * Retourne les données de fréquences actuelles pour le visualiseur canvas.
+   */
+  getByteFrequencyData() {
+    if (!this.analyser) return null;
+    const bufferLength = this.analyser.frequencyBinCount;
+    const dataArray = new Uint8Array(bufferLength);
+    this.analyser.getByteFrequencyData(dataArray);
+    return dataArray;
+  }
+
+  /**
+   * Extrait des pics d'amplitude d'un fichier audio pré-chargé pour dessiner sa waveform.
+   */
+  getPeaks(url, steps = 100) {
+    const buffer = this.audioBuffers.get(url);
+    if (!buffer) return null;
+    
+    const channelData = buffer.getChannelData(0);
+    const peaks = [];
+    const stepSize = Math.floor(channelData.length / steps) || 1;
+    
+    for (let i = 0; i < steps; i++) {
+      let max = 0;
+      const start = i * stepSize;
+      const end = Math.min(start + stepSize, channelData.length);
+      for (let j = start; j < end; j++) {
+        const val = Math.abs(channelData[j]);
+        if (val > max) max = val;
+      }
+      peaks.push(max);
+    }
+    return peaks;
   }
 
   /**
@@ -47,6 +89,10 @@ window.ClawzdWebAudioEngine = class ClawzdWebAudioEngine {
       
       this.audioBuffers.set(url, audioBuffer);
       console.log(`🔊 [WebAudioEngine] Asset pré-chargé avec succès : ${url}`);
+      
+      // Déclencher un évènement global pour avertir l'éditeur qu'un asset est prêt (permet de redessiner la waveform)
+      window.dispatchEvent(new CustomEvent('clawzd-audio-loaded', { detail: { url } }));
+      
       return audioBuffer;
     } catch (err) {
       console.error(`❌ Impossible de charger/décoder l'audio : ${url}`, err);
@@ -120,7 +166,16 @@ window.ClawzdWebAudioEngine = class ClawzdWebAudioEngine {
         source.playbackRate.value = speed;
 
         const gainNode = this.audioCtx.createGain();
-        gainNode.gain.setValueAtTime(volume, this.audioCtx.currentTime);
+        
+        // Applique des micro-rampes de volume (fades) pour éviter les clics/pops audio désagréables
+        const rampDuration = Math.min(0.05, duration / 2); // 50ms max ou moitié du clip
+        gainNode.gain.setValueAtTime(0.0, when);
+        gainNode.gain.linearRampToValueAtTime(volume, when + rampDuration);
+        
+        // Planifier le fade-out de fin de clip
+        const clipEnd = when + duration;
+        gainNode.gain.setValueAtTime(volume, clipEnd - rampDuration);
+        gainNode.gain.linearRampToValueAtTime(0.0, clipEnd);
 
         source.connect(gainNode);
         gainNode.connect(this.masterGainNode);

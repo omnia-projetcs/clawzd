@@ -54,6 +54,8 @@ PIXABAY_API_KEY = os.getenv("PIXABAY_API_KEY", "")
 VLLM_HOST = os.getenv("VLLM_HOST", "http://localhost:8000")
 VLLM_API_KEY = os.getenv("VLLM_API_KEY", "vllm")
 VLLM_MODEL = os.getenv("VLLM_MODEL", "")
+FREELLMAPI_URL = os.getenv("FREELLMAPI_URL", "http://localhost:3001")
+FREELLMAPI_KEY = os.getenv("FREELLMAPI_KEY", "")
 
 # Master toggle for cloud AI providers (OpenAI, Anthropic, Google, Grok, Groq, Mistral, etc.)
 # Set to "false" in .env to run fully offline/local (Ollama only).

@@ -446,3 +446,61 @@ def delete_branch(session_id: str, branch_id: str) -> bool:
     )
     conn.commit()
     return True
+
+
+# ---------------------------------------------------------------------------
+#  FEAT-6: Automatic database backup with rotation
+# ---------------------------------------------------------------------------
+
+_BACKUP_DIR = os.path.join(os.path.dirname(DB_PATH), "backups")
+_MAX_BACKUPS = 7  # Keep last 7 daily backups
+
+
+def backup_database() -> dict:
+    """Create a compressed backup of the SQLite database.
+
+    Uses SQLite's built-in backup API for safe, online backups.
+    Old backups are rotated (keeps last 7).
+
+    Returns:
+        dict with status and backup_path.
+    """
+    os.makedirs(_BACKUP_DIR, exist_ok=True)
+
+    timestamp = datetime.now(timezone.utc).strftime("%Y%m%d_%H%M%S")
+    backup_path = os.path.join(_BACKUP_DIR, f"clawzd_{timestamp}.db")
+
+    try:
+        # Use SQLite backup API (safe for WAL mode, no locking issues)
+        source = _get_conn()
+        dest = sqlite3.connect(backup_path)
+        source.backup(dest)
+        dest.close()
+
+        # Compress the backup
+        import gzip
+        gz_path = backup_path + ".gz"
+        with open(backup_path, "rb") as f_in:
+            with gzip.open(gz_path, "wb") as f_out:
+                shutil.copyfileobj(f_in, f_out)
+        os.remove(backup_path)  # Remove uncompressed copy
+
+        backup_size = os.path.getsize(gz_path)
+        logging.info("Database backup created: %s (%d bytes)", gz_path, backup_size)
+
+        # Rotate old backups (keep last _MAX_BACKUPS)
+        backups = sorted(
+            [f for f in os.listdir(_BACKUP_DIR) if f.endswith(".db.gz")],
+            reverse=True,
+        )
+        for old in backups[_MAX_BACKUPS:]:
+            old_path = os.path.join(_BACKUP_DIR, old)
+            os.remove(old_path)
+            logging.info("Rotated old backup: %s", old)
+
+        return {"status": "ok", "backup_path": gz_path, "size_bytes": backup_size}
+
+    except Exception as e:
+        logging.error("Database backup failed: %s", e)
+        return {"status": "error", "error": str(e)}
+

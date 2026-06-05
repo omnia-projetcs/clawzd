@@ -2272,7 +2272,7 @@
       } else if (prov === 'ollama' && window._activeLocalModel) {
         lbl.textContent = window._activeLocalModel;
       } else {
-        const PNAMES = { anthropic: 'Claude', google: 'Gemini', grok: 'Grok', groq: 'Groq', huggingface: 'HuggingFace', mistral: 'Mistral', ollama: 'Ollama', vllm: 'vLLM', openai: 'OpenAI', openrouter: 'OpenRouter' };
+        const PNAMES = { anthropic: 'Claude', google: 'Gemini', grok: 'Grok', groq: 'Groq', huggingface: 'HuggingFace', mistral: 'Mistral', ollama: 'Ollama', vllm: 'vLLM', openai: 'OpenAI', openrouter: 'OpenRouter', freellmapi: 'FreeLLMAPI' };
         lbl.textContent = PNAMES[prov] || prov;
       }
     }
@@ -3180,16 +3180,23 @@
     // Clone Studio (My Clone — sub-mode of Automation)
     window.cloneStudio = new CloneStudio();
 
+    // Paperclip Orchestrator (sub-mode of Automation)
+    if (window.PaperclipStudio) {
+      window.paperclipStudio = new PaperclipStudio();
+      window.paperclipStudio.init();
+    }
+
     // Vault Studio (Knowledge Vault — sub-mode of Automation)
     if (window.VaultStudio) window.vaultStudio = new VaultStudio();
 
-    // Automation sub-tab toggle (Workflows vs My Clone vs Knowledge Vault)
+    // Automation sub-tab toggle (Workflows vs Paperclip vs My Clone vs Knowledge Vault)
     $$('#auto-subtab-bar .auto-subtab').forEach(tab => {
       tab.addEventListener('click', () => {
         $$('#auto-subtab-bar .auto-subtab').forEach(t => t.classList.remove('active'));
         tab.classList.add('active');
         const sub = tab.dataset.submode;
         window.automationStudio?.toggle(sub === 'workflows');
+        window.paperclipStudio?.toggle(sub === 'paperclip');
         window.cloneStudio?.toggle(sub === 'clone');
         window.vaultStudio?.toggle(sub === 'vault');
       });
@@ -3278,11 +3285,13 @@
           const activeSub = document.querySelector('#auto-subtab-bar .auto-subtab.active');
           const subMode = activeSub?.dataset.submode || 'workflows';
           window.automationStudio?.toggle(subMode === 'workflows');
+          window.paperclipStudio?.toggle(subMode === 'paperclip');
           window.cloneStudio?.toggle(subMode === 'clone');
           window.vaultStudio?.toggle(subMode === 'vault');
         } else {
           if (autoSubBar) autoSubBar.style.display = 'none';
           window.automationStudio?.toggle(false);
+          window.paperclipStudio?.toggle(false);
           window.cloneStudio?.toggle(false);
           window.vaultStudio?.toggle(false);
         }
@@ -4561,7 +4570,7 @@
     const PROVIDER_NAMES = {
       anthropic: 'Claude', google: 'Gemini', grok: 'Grok', groq: 'Groq',
       huggingface: 'HuggingFace', mistral: 'Mistral', ollama: 'Ollama',
-      vllm: 'vLLM', openai: 'OpenAI', openrouter: 'OpenRouter'
+      vllm: 'vLLM', openai: 'OpenAI', openrouter: 'OpenRouter', freellmapi: 'FreeLLMAPI'
     };
 
     function renderModelPicker() {
@@ -4572,7 +4581,7 @@
 
       // Providers
       provList.innerHTML = '';
-      ['anthropic', 'google', 'grok', 'groq', 'huggingface', 'mistral', 'ollama', 'vllm', 'openai', 'openrouter'].forEach(p => {
+      ['anthropic', 'freellmapi', 'google', 'grok', 'groq', 'huggingface', 'mistral', 'ollama', 'vllm', 'openai', 'openrouter'].forEach(p => {
         const opt = el('div', {
           class: 'mpd-option' + (currentProv === p ? ' active' : ''),
           onclick: () => {
@@ -4697,7 +4706,7 @@
 
       // Providers
       provList.innerHTML = '';
-      ['anthropic', 'google', 'grok', 'groq', 'huggingface', 'mistral', 'ollama', 'vllm', 'openai', 'openrouter'].forEach(p => {
+      ['anthropic', 'freellmapi', 'google', 'grok', 'groq', 'huggingface', 'mistral', 'ollama', 'vllm', 'openai', 'openrouter'].forEach(p => {
         const opt = el('div', {
           class: 'mpd-option' + (currentProv === p ? ' active' : ''),
           onclick: () => {
@@ -5442,7 +5451,7 @@
         let groupName = KEY_GROUP_OVERRIDES[key] || null;
         if (!groupName) {
           groupName = 'System / Other';
-          const prefixes = ['GOOGLE', 'GROQ', 'OPENAI', 'ANTHROPIC', 'HUGGINGFACE', 'MISTRAL', 'OPENROUTER', 'GROK', 'TAVILY', 'APP', 'OLLAMA', 'VLLM', 'TELEGRAM', 'DISCORD', 'TWITTER', 'LINKEDIN', 'MEDIUM', 'SMTP'];
+          const prefixes = ['GOOGLE', 'GROQ', 'OPENAI', 'ANTHROPIC', 'HUGGINGFACE', 'MISTRAL', 'OPENROUTER', 'GROK', 'TAVILY', 'APP', 'OLLAMA', 'VLLM', 'TELEGRAM', 'DISCORD', 'TWITTER', 'LINKEDIN', 'MEDIUM', 'SMTP', 'FREELLMAPI'];
           for (const prefix of prefixes) {
             if (key.startsWith(prefix + '_')) {
               groupName = prefix;
@@ -5502,6 +5511,16 @@
           url: 'https://console.groq.com/keys',
           subscription: '✅ Free tier available (30 RPM, 14,400 req/day).',
           keyFormat: 'gsk_...'
+        },
+        FREELLMAPI: {
+          name: 'FreeLLMAPI (Local Proxy)',
+          url: 'https://github.com/tashfeenahmed/freellmapi',
+          subscription: '✅ Free & self-hosted unified local failover proxy for multiple providers.',
+          keyFormat: '',
+          fields: [
+            { key: 'FREELLMAPI_URL', label: 'Proxy API URL', hint: 'e.g. http://localhost:3001' },
+            { key: 'FREELLMAPI_KEY', label: 'API Key / Token', hint: 'Your unified proxy access key' }
+          ]
         },
         HUGGINGFACE: {
           name: 'HuggingFace',

@@ -108,8 +108,8 @@ async def translate_narration_text(text: str, target_lang: str) -> str:
     )
     
     try:
-        from config import LLM_PROVIDER, OLLAMA_MODEL, VLLM_MODEL, GOOGLE_API_KEY, OPENAI_API_KEY, ANTHROPIC_API_KEY
-        from app.core.llm_provider import get_llm_provider, _get_local_models, _get_vllm_models
+        from config import LLM_PROVIDER, OLLAMA_MODEL, VLLM_MODEL, GOOGLE_API_KEY, OPENAI_API_KEY, ANTHROPIC_API_KEY, FREELLMAPI_KEY
+        from app.core.llm_provider import get_llm_provider, _get_local_models, _get_vllm_models, _get_freellmapi_models
         
         provider_key = LLM_PROVIDER
         model_key = None
@@ -143,6 +143,13 @@ async def translate_narration_text(text: str, target_lang: str) -> str:
                     model_key = VLLM_MODEL
                 else:
                     model_key = active_ids[0]
+            else:
+                if GOOGLE_API_KEY: provider_key = "google"
+                elif OPENAI_API_KEY: provider_key = "openai"
+                elif ANTHROPIC_API_KEY: provider_key = "anthropic"
+        elif provider_key == "freellmapi":
+            if FREELLMAPI_KEY:
+                model_key = "auto"
             else:
                 if GOOGLE_API_KEY: provider_key = "google"
                 elif OPENAI_API_KEY: provider_key = "openai"
@@ -207,8 +214,8 @@ async def generate_slide_narration_script(slide_elements: List[dict], target_lan
         )
     
     try:
-        from config import LLM_PROVIDER, OLLAMA_MODEL, VLLM_MODEL, GOOGLE_API_KEY, OPENAI_API_KEY, ANTHROPIC_API_KEY
-        from app.core.llm_provider import get_llm_provider, _get_local_models, _get_vllm_models
+        from config import LLM_PROVIDER, OLLAMA_MODEL, VLLM_MODEL, GOOGLE_API_KEY, OPENAI_API_KEY, ANTHROPIC_API_KEY, FREELLMAPI_KEY
+        from app.core.llm_provider import get_llm_provider, _get_local_models, _get_vllm_models, _get_freellmapi_models
         
         provider_key = LLM_PROVIDER
         model_key = None
@@ -251,6 +258,16 @@ async def generate_slide_narration_script(slide_elements: List[dict], target_lan
                     logger.info(f"vLLM model '{VLLM_MODEL}' not found. Falling back to active model '{model_key}'")
             else:
                 # No active vLLM model found, try cloud fallbacks
+                if GOOGLE_API_KEY:
+                    provider_key = "google"
+                elif OPENAI_API_KEY:
+                    provider_key = "openai"
+                elif ANTHROPIC_API_KEY:
+                    provider_key = "anthropic"
+        elif provider_key == "freellmapi":
+            if FREELLMAPI_KEY:
+                model_key = "auto"
+            else:
                 if GOOGLE_API_KEY:
                     provider_key = "google"
                 elif OPENAI_API_KEY:

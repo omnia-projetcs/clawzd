@@ -506,6 +506,44 @@
           <option value="ogg">OGG Vorbis (open)</option>
         </select>
       </div>
+      <!-- ====== AUDIO LAB MODE GROUPS ====== -->
+      <div id="media-audiolab-group" style="display:none">
+        <!-- Source Audio File selection -->
+        <div class="media-form-group">
+          <label class="media-form-label">Source Audio File</label>
+          <div id="audiolab-dropzone" style="border: 2px dashed var(--border); border-radius: var(--radius-md); padding: 20px; text-align: center; cursor: pointer; background: rgba(0,0,0,0.15); transition: all 0.2s; margin-bottom: 8px;">
+            <span class="media-icon" data-icon="upload" style="font-size: 20px; color: var(--text-muted); display: block; margin: 0 auto 6px;"></span>
+            <span id="audiolab-filename" style="font-size: 11px; color: var(--text-secondary); display: block; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">Drag & Drop or Click to Upload</span>
+            <input type="file" id="audiolab-upload-input" accept="audio/*" style="display: none;">
+          </div>
+        </div>
+
+        <!-- Selected File Player -->
+        <div class="media-form-group" id="audiolab-player-group" style="display: none;">
+          <audio id="audiolab-player" controls style="width: 100%; height: 36px;"></audio>
+        </div>
+
+        <!-- Processing Method -->
+        <div class="media-form-group">
+          <label class="media-form-label">Restoration Method</label>
+          <select class="media-form-select" id="audiolab-method">
+            <option value="enhance" selected>✨ Speech Enhancement (Denoise)</option>
+            <option value="separate">🎙️ Speech Separation (Demixing)</option>
+            <option value="upscale">🌟 Super-Resolution (Upscale to 48kHz)</option>
+            <option value="extract_target">🎯 Target Speaker Extraction</option>
+          </select>
+        </div>
+
+        <!-- Model Architecture Selector -->
+        <div class="media-form-group" id="audiolab-model-group">
+          <label class="media-form-label">Model Architecture</label>
+          <select class="media-form-select" id="audiolab-model">
+            <option value="MossFormer2_SE_48K" selected>MossFormer2 SE (Best 48kHz)</option>
+            <option value="FRCRN_SE_16K">FRCRN SE (Standard 16kHz)</option>
+            <option value="MossFormerGAN_SE_16K">MossFormerGAN (Light 16kHz)</option>
+          </select>
+        </div>
+      </div>
       <!-- Audio Estimation Info -->
       <div class="media-form-group"
            id="media-audio-estimate-group"

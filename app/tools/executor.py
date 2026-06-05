@@ -168,10 +168,20 @@ TOOL_KEYWORDS: dict[str, list[str]] = {
         "fetch", "url", "web", "page", "content", "download",
         "documentation", "docs", "reference", "http",
     ],
+    "run_tests": [
+        "test", "tests", "testing", "pytest", "jest", "unittest",
+        "run_tests", "run-tests", "suite", "assertion", "coverage",
+    ],
 }
 
 # Direct alias map for common invented names
 TOOL_ALIASES: dict[str, str] = {
+    "run-tests": "run_tests",
+    "run_tests": "run_tests",
+    "execute-tests": "run_tests",
+    "execute_tests": "run_tests",
+    "pytest": "run_tests",
+    "jest": "run_tests",
     # Crypto / finance
     "cryptocurrency-analysis": "fetch_market_data",
     "crypto-analysis": "fetch_market_data",
@@ -867,6 +877,12 @@ async def execute_tool(tool_name: str, params: dict, context: dict = None) -> di
             replace_all = params.get("replace_all", False)
             return editor.edit_file(file_path, old_str, new_str, replace_all)
 
+        elif resolved == "run_tests":
+            from app.tools_code import run_workspace_tests
+            test_file = params.get("test_file")
+            active_project = (context or {}).get("active_project", ".")
+            return run_workspace_tests(test_file, active_project)
+
         elif resolved == "read_file":
             from app.tools_code import editor
             file_path = params.get("file_path", "")
@@ -1252,7 +1268,7 @@ async def execute_tool(tool_name: str, params: dict, context: dict = None) -> di
 
         elif resolved == "write_file":
             from config import WORKSPACE_DIR
-            from app.tools_code import snapshot_manager
+            from app.tools_code import snapshot_manager, validate_and_format_file, format_file_on_disk
             import os as _os
             file_path = params.get("file_path", "") or params.get("path", "")
             content = params.get("content", "")
@@ -1267,6 +1283,11 @@ async def execute_tool(tool_name: str, params: dict, context: dict = None) -> di
             real_ws = _os.path.realpath(WORKSPACE_DIR)
             if not full_path.startswith(real_ws):
                 return {"error": "Path escapes workspace"}
+
+            # Syntax validation before saving
+            valid, _, err_msg = validate_and_format_file(file_path, content)
+            if not valid:
+                return {"error": f"Syntax validation failed. The file was NOT written.\nDetails: {err_msg}"}
 
             # Save snapshot for undo
             old_content = ""
@@ -1283,12 +1304,22 @@ async def execute_tool(tool_name: str, params: dict, context: dict = None) -> di
             with open(full_path, "w", encoding="utf-8") as f:
                 f.write(content)
 
+            # Format file on disk
+            format_file_on_disk(full_path)
+
+            # Read final content to return accurate size
+            try:
+                with open(full_path, "r", encoding="utf-8") as f:
+                    final_content = f.read()
+            except Exception:
+                final_content = content
+
             action = "updated" if old_content else "created"
             return {
                 "status": action,
                 "file_path": file_path,
-                "size": len(content),
-                "message": f"File '{file_path}' {action} ({len(content)} bytes)",
+                "size": len(final_content),
+                "message": f"File '{file_path}' {action} ({len(final_content)} bytes)",
             }
 
         elif resolved == "grep_code":

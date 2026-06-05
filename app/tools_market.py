@@ -14,9 +14,14 @@ import os
 from typing import Dict, Optional
 
 import pandas as pd
-import requests
+import httpx
+from config import DATA_DIR
 
 logger = logging.getLogger("clawzd.tools_market")
+
+# PERF-5: Use data/cache/ for temp CSV files instead of /tmp/
+_CACHE_DIR = os.path.join(DATA_DIR, "cache")
+os.makedirs(_CACHE_DIR, exist_ok=True)
 
 
 # ---------------------------------------------------------------------------
@@ -40,9 +45,11 @@ def _fetch_crypto(symbol: str, interval: str = "1d",
     params = {"symbol": sym, "interval": interval, "limit": min(limit, 1000)}
 
     try:
-        r = requests.get(_BINANCE_KLINES_URL, params=params, timeout=15)
-        r.raise_for_status()
-        data = r.json()
+        # PERF-4: Use httpx instead of blocking requests
+        with httpx.Client(timeout=15) as client:
+            r = client.get(_BINANCE_KLINES_URL, params=params)
+            r.raise_for_status()
+            data = r.json()
     except Exception as e:
         return {"error": f"Binance API error: {e}"}
 
@@ -58,8 +65,8 @@ def _fetch_crypto(symbol: str, interval: str = "1d",
     out = df[["timestamp", "open", "high", "low", "close", "volume"]].copy()
     out["timestamp"] = out["timestamp"].dt.strftime("%Y-%m-%d %H:%M")
 
-    # Auto-save to CSV for easy plotting in execute_python
-    csv_path = f"/tmp/market_{sym}_{interval}.csv"
+    # PERF-5: Save to data/cache/ instead of /tmp/
+    csv_path = os.path.join(_CACHE_DIR, f"market_{sym}_{interval}.csv")
     out.to_csv(csv_path, index=False)
     logger.info("Market data saved to %s (%d rows)", csv_path, len(out))
 
@@ -133,8 +140,8 @@ def _fetch_stock(symbol: str, period: str = "1mo",
 
     out = df[keep]
 
-    # Auto-save to CSV for easy plotting in execute_python
-    csv_path = f"/tmp/market_{symbol.upper()}_{interval}.csv"
+    # PERF-5: Save to data/cache/ instead of /tmp/
+    csv_path = os.path.join(_CACHE_DIR, f"market_{symbol.upper()}_{interval}.csv")
     out.to_csv(csv_path, index=False)
     logger.info("Market data saved to %s (%d rows)", csv_path, len(out))
 
@@ -177,8 +184,10 @@ def _fetch_forex(symbol: str, year: int = 0, month: int = 0,
     )
 
     try:
-        r = requests.get(url, timeout=15)
-        r.raise_for_status()
+        # PERF-4: Use httpx instead of blocking requests
+        with httpx.Client(timeout=15) as client:
+            r = client.get(url)
+            r.raise_for_status()
     except Exception as e:
         return {"error": f"Dukascopy fetch error: {e}"}
 

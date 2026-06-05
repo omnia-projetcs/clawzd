@@ -271,7 +271,7 @@ All configuration is done via the `.env` file at the project root.
 # ============================================================
 
 # --- LLM Providers ---
-# Available: ollama | vllm | anthropic | google | grok | groq | huggingface | mistral | openai | openrouter
+# Available: ollama | vllm | freellmapi | anthropic | google | grok | groq | huggingface | mistral | openai | openrouter
 LLM_PROVIDER=ollama
 GOOGLE_API_KEY=
 GROK_API_KEY=
@@ -281,6 +281,8 @@ MISTRAL_API_KEY=
 OPENAI_API_KEY=
 OPENROUTER_API_KEY=
 TAVILY_API_KEY=
+FREELLMAPI_URL=http://localhost:3001
+FREELLMAPI_KEY=
 
 # --- Ollama (local LLM backend) ---
 OLLAMA_HOST=http://localhost:11434
@@ -397,6 +399,7 @@ DEBUG=false
 |----------|----------------|-----------|----------------|
 | **Local (Ollama)** | — | ✅ (self-hosted) | Model-dependent |
 | **Local (vLLM)** | `VLLM_API_KEY` | ✅ (self-hosted) | Model-dependent |
+| **FreeLLMAPI** | `FREELLMAPI_KEY` | ✅ (unified proxy) | Model-dependent |
 | **OpenRouter** | `OPENROUTER_API_KEY` | Limited | Model-dependent |
 | **Groq** | `GROQ_API_KEY` | ✅ | 8K–128K |
 | **Mistral** | `MISTRAL_API_KEY` | Limited | 8K–32K |

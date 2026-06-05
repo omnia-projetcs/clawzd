@@ -574,7 +574,25 @@ async def _exec_node(node: dict, input_data: dict, wf: dict, testing_mode: bool 
             results = []
             for expr in exprs:
                 try:
-                    results.append(bool(eval(expr, safe_globals, safe_locals)))
+                    # SEC-3: Use restricted AST-based evaluation instead of raw eval()
+                    import ast
+                    tree = ast.parse(expr, mode='eval')
+                    # Block dangerous node types (imports, calls to arbitrary functions, etc.)
+                    for node in ast.walk(tree):
+                        if isinstance(node, (ast.Import, ast.ImportFrom)):
+                            raise ValueError("Imports not allowed in condition expressions")
+                        if isinstance(node, ast.Call):
+                            # Only allow safe builtins
+                            if isinstance(node.func, ast.Name) and node.func.id not in (
+                                'len', 'str', 'int', 'float', 'bool', 'abs', 'round', 'min', 'max'
+                            ):
+                                raise ValueError(f"Function call '{node.func.id}' not allowed")
+                    safe_globals = {"__builtins__": {}}
+                    safe_globals.update({"len": len, "str": str, "int": int, "float": float,
+                                        "bool": bool, "abs": abs, "round": round, "min": min, "max": max})
+                    safe_locals = {"data": input_data}
+                    code_obj = compile(tree, "<condition>", "eval")
+                    results.append(bool(eval(code_obj, safe_globals, safe_locals)))
                 except Exception:
                     results.append(False)
             if operator == "AND":
@@ -588,11 +606,32 @@ async def _exec_node(node: dict, input_data: dict, wf: dict, testing_mode: bool 
         elif ntype == "transform":
             code = resolved.get("code", "result = data")
             local_ns = {"data": input_data, "result": None, "json": json}
-            exec(code, {"__builtins__": {"len": len, "str": str, "int": int, "float": float,
-                                          "list": list, "dict": dict, "range": range, "enumerate": enumerate,
-                                          "zip": zip, "map": map, "filter": filter, "sorted": sorted,
-                                          "min": min, "max": max, "sum": sum, "round": round,
-                                          "json": json, "print": print}}, local_ns)
+            # SEC-3: Use restricted builtins to prevent arbitrary code execution
+            _safe_builtins = {
+                "len": len, "str": str, "int": int, "float": float,
+                "list": list, "dict": dict, "range": range, "enumerate": enumerate,
+                "zip": zip, "map": map, "filter": filter, "sorted": sorted,
+                "min": min, "max": max, "sum": sum, "round": round,
+                "json": json, "print": print, "True": True, "False": False, "None": None,
+                "isinstance": isinstance, "type": type, "abs": abs,
+            }
+            # Validate code doesn't contain dangerous patterns
+            import ast
+            try:
+                tree = ast.parse(code, mode='exec')
+                for node in ast.walk(tree):
+                    if isinstance(node, (ast.Import, ast.ImportFrom)):
+                        raise ValueError("Imports not allowed in transform code")
+                    if isinstance(node, ast.Call) and isinstance(node.func, ast.Name):
+                        if node.func.id in ('eval', 'exec', 'compile', '__import__',
+                                            'open', 'getattr', 'setattr', 'delattr'):
+                            raise ValueError(f"Dangerous function '{node.func.id}' not allowed")
+                code_obj = compile(tree, "<transform>", "exec")
+                exec(code_obj, {"__builtins__": _safe_builtins}, local_ns)
+            except ValueError as ve:
+                return {**input_data, "_error": f"Transform security violation: {ve}"}
+            except SyntaxError as se:
+                return {**input_data, "_error": f"Transform syntax error: {se}"}
             return local_ns.get("result", input_data)
 
         elif ntype == "delay":
@@ -937,7 +976,21 @@ async def _exec_node(node: dict, input_data: dict, wf: dict, testing_mode: bool 
 
 
 def _exec_db_query(db_type: str, conn_str: str, query: str) -> list:
-    """Execute a DB query (runs in thread)."""
+    """Execute a DB query (runs in thread).
+    
+    SEC: Only read-only queries are allowed (SELECT, EXPLAIN, PRAGMA, SHOW, DESCRIBE).
+    Write operations are blocked to prevent SQL injection damage.
+    """
+    # SEC: Validate query is read-only
+    stripped = query.strip().upper()
+    _allowed_prefixes = ("SELECT", "EXPLAIN", "PRAGMA", "SHOW", "DESCRIBE", "WITH")
+    if not any(stripped.startswith(p) for p in _allowed_prefixes):
+        return [{"error": f"Only read queries are allowed (SELECT/EXPLAIN/PRAGMA/SHOW). Got: {stripped[:20]}..."}]
+    # Double-check: block dangerous keywords anywhere in the query
+    _blocked_keywords = ("DROP ", "DELETE ", "INSERT ", "UPDATE ", "ALTER ", "CREATE ", "TRUNCATE ", "EXEC ", "EXECUTE ")
+    if any(kw in stripped for kw in _blocked_keywords):
+        return [{"error": "Write operations are not allowed in automation db_query nodes"}]
+
     if db_type == "sqlite":
         import sqlite3
         conn = sqlite3.connect(conn_str or os.path.join(DATA_DIR, "clawzd.db"))

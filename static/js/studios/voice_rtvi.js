@@ -319,7 +319,7 @@ class VoiceStudioRTVIPilot {
   updateUIState() {
     // Modify standard sphere state class and telemetry panel
     const statusDot = document.querySelector('.voice-status-dot');
-    const statusText = document.querySelector('.voice-status-badge span');
+    const statusText = document.getElementById('voice-status-text');
     const sphereGlow = document.getElementById('voice-sphere-glow');
     
     if (statusText) {

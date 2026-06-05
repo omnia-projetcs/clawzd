@@ -221,12 +221,27 @@
   align-items: center;
   cursor: pointer;
   box-shadow: 0 4px 20px rgba(124, 58, 237, 0.4);
-  transition: transform 0.2s, box-shadow 0.2s;
+  transition: transform 0.2s, box-shadow 0.2s, background 0.3s, border-color 0.3s;
 }
 
-.voice-sphere-trigger:hover {
+.voice-sphere-trigger.inactive {
+  background: linear-gradient(135deg, #ef4444, #dc2626) !important;
+  box-shadow: 0 4px 20px rgba(239, 68, 68, 0.5) !important;
+}
+
+.voice-sphere-trigger.inactive:hover {
   transform: scale(1.05);
-  box-shadow: 0 6px 24px rgba(124, 58, 237, 0.6);
+  box-shadow: 0 6px 24px rgba(239, 68, 68, 0.7) !important;
+}
+
+.voice-sphere-trigger.active {
+  background: linear-gradient(135deg, #10b981, #059669) !important;
+  box-shadow: 0 4px 20px rgba(16, 185, 129, 0.5) !important;
+}
+
+.voice-sphere-trigger.active:hover {
+  transform: scale(1.05);
+  box-shadow: 0 6px 24px rgba(16, 185, 129, 0.7) !important;
 }
 
 .voice-sphere-trigger:active {
@@ -316,3 +331,69 @@
   margin: 0;
   color: var(--text-primary, #e5e7eb);
 }
+
+/* ==========================================================================
+   Light Mode Theme Support
+   ========================================================================== */
+:root.theme-light .voice-studio-container {
+  background: radial-gradient(circle at 50% -20%, rgba(124, 58, 237, 0.08), transparent 60%);
+}
+
+:root.theme-light .voice-label {
+  color: var(--text-primary);
+}
+
+:root.theme-light .voice-sublabel {
+  color: var(--text-muted);
+}
+
+:root.theme-light .voice-field-label {
+  color: var(--text-muted);
+}
+
+:root.theme-light .voice-select {
+  background: #ffffff;
+  border-color: var(--border);
+  color: var(--text-primary);
+}
+
+:root.theme-light .voice-select:focus {
+  border-color: #8b5cf6;
+}
+
+:root.theme-light .voice-status-badge {
+  background: rgba(255, 255, 255, 0.8);
+  border-color: var(--border);
+  color: var(--text-primary);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.04);
+}
+
+:root.theme-light .transcript-header {
+  background: rgba(0, 0, 0, 0.02);
+  border-bottom-color: var(--border);
+}
+
+:root.theme-light .transcript-header span {
+  color: var(--text-muted);
+}
+
+:root.theme-light .voice-log-item {
+  background: rgba(0, 0, 0, 0.01);
+}
+
+:root.theme-light .voice-log-item.user {
+  background: rgba(59, 130, 246, 0.04);
+}
+
+:root.theme-light .voice-log-item.assistant {
+  background: rgba(16, 185, 129, 0.04);
+}
+
+:root.theme-light .voice-log-item.system {
+  background: rgba(139, 92, 246, 0.04);
+}
+
+:root.theme-light .voice-log-item p {
+  color: var(--text-primary);
+}
+

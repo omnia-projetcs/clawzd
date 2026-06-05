@@ -41,6 +41,8 @@
     <link rel="stylesheet"
           href="/static/css/studios/_vault.css?v={{ app_version }}">
     <link rel="stylesheet"
+          href="/static/css/studios/_paperclip.css?v={{ app_version }}">
+    <link rel="stylesheet"
           href="/static/css/studios/_analytics.css?v={{ app_version }}">
     <link rel="stylesheet"
           href="/static/css/studios/_research.css?v={{ app_version }}">
@@ -48,6 +50,8 @@
           href="/static/css/studios/_voice.css?v={{ app_version }}">
     <link rel="stylesheet"
           href="/static/css/studios/_studio_editor.css?v={{ app_version }}">
+    <link rel="stylesheet"
+          href="/static/css/studios/_webdev.css?v={{ app_version }}">
     <link rel="stylesheet"
           href="/static/css/components/voice_rtvi.css?v={{ app_version }}">
     <link id="hljs-theme"
@@ -57,6 +61,8 @@
     <script src="/static/js/highlight.min.js?v={{ app_version }}"></script>
     <script src="/static/js/mermaid.min.js?v={{ app_version }}"></script>
     <script src="/static/js/chart.min.js?v={{ app_version }}"></script>
+    <script src="https://unpkg.com/wavesurfer.js@7"></script>
+    <script src="https://unpkg.com/wavesurfer.js@7/dist/plugins/regions.min.js"></script>
     <script src="/static/js/cm6.bundle.js?v={{ app_version }}"></script>
   </head>
   <body>
@@ -76,6 +82,7 @@
         {% include 'partials/project_studio.html' %}
         {% include 'partials/analytics_studio.html' %}
         {% include 'partials/voice_studio.html' %}
+        {% include 'partials/webdev_studio.html' %}
       </main>
       {% include 'partials/modals_overlay.html' %}
       {% include 'partials/status_bar.html' %}
@@ -104,8 +111,10 @@
     <script src="/static/js/studios/automation.js?v={{ app_version }}"></script>
     <script src="/static/js/studios/clone.js?v={{ app_version }}"></script>
     <script src="/static/js/studios/vault.js?v={{ app_version }}"></script>
+    <script src="/static/js/studios/paperclip.js?v={{ app_version }}"></script>
     <script src="/static/js/studios/analytics.js?v={{ app_version }}"></script>
     <script src="/static/js/studios/voice.js?v={{ app_version }}"></script>
+    <script src="/static/js/studios/webdev.js?v={{ app_version }}"></script>
     <script src="/static/js/studios/voice_rtvi.js?v={{ app_version }}"></script>
     <script src="/static/js/components/twitter_watch.js?v={{ app_version }}"></script>
     <script src="/static/js/components/skill_catalog.js?v={{ app_version }}"></script>

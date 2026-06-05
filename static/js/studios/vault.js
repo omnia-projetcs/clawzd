@@ -10,6 +10,16 @@ class VaultStudio {
     this.layout = $('#vault-layout');
     this._graphNodes = [];
     this._graphEdges = [];
+    
+    // Zoom, Pan & Resize state
+    this.zoomScale = 1;
+    this.panX = 0;
+    this.panY = 0;
+    this.isPanning = false;
+    this.panStartX = 0;
+    this.panStartY = 0;
+    this.savedRightWidth = parseInt(localStorage.getItem('vault-right-width') || '320', 10);
+    
     this._init();
   }
 
@@ -45,10 +55,18 @@ class VaultStudio {
     $('#vault-btn-clear')?.addEventListener('click', () => this.clearAll());
     $('#vault-sources-refresh')?.addEventListener('click', () => this.loadSources());
     $('#vault-graph-refresh')?.addEventListener('click', () => this.loadGraph());
+    
+    // Zoom and resize initializer
+    this._initResizeAndZoom();
   }
 
   toggle(show) {
-    if (this.layout) this.layout.style.display = show ? 'grid' : 'none';
+    if (this.layout) {
+      this.layout.style.display = show ? 'grid' : 'none';
+      if (show) {
+        this.layout.style.gridTemplateColumns = `280px 1fr 4px ${this.savedRightWidth}px`;
+      }
+    }
     if (show) this._load();
   }
 
@@ -222,17 +240,22 @@ class VaultStudio {
   _renderGraph() {
     const svg = $('#vault-graph-svg');
     const empty = $('#vault-graph-empty');
+    const controls = $('#vault-graph-controls');
     if (!svg) return;
 
     const nodes = this._graphNodes;
     const edges = this._graphEdges;
 
     if (!nodes.length) {
-      svg.innerHTML = '';
+      const viewport = $('#vault-graph-viewport');
+      if (viewport) viewport.innerHTML = '';
+      else svg.innerHTML = '';
       if (empty) empty.style.display = 'flex';
+      if (controls) controls.style.display = 'none';
       return;
     }
     if (empty) empty.style.display = 'none';
+    if (controls) controls.style.display = 'flex';
 
     const w = svg.clientWidth || 320;
     const h = svg.clientHeight || 400;
@@ -322,7 +345,14 @@ class VaultStudio {
         <text class="vault-node-label" x="${n._x}" y="${n._y + r + 13}">${escHtml(n.label.length > 18 ? n.label.substring(0, 16) + '…' : n.label)}</text>
       </g>`;
     });
-    svg.innerHTML = html;
+
+    const viewport = $('#vault-graph-viewport');
+    if (viewport) {
+      viewport.innerHTML = html;
+      this.applyTransform();
+    } else {
+      svg.innerHTML = html;
+    }
 
     // Tooltip & Drag-and-drop events
     svg.querySelectorAll('.vault-node').forEach(g => {
@@ -346,8 +376,9 @@ class VaultStudio {
           let mouseX = ev.clientX - rect.left;
           let mouseY = ev.clientY - rect.top;
           
-          node._x = Math.max(25, Math.min(w - 25, mouseX));
-          node._y = Math.max(25, Math.min(h - 25, mouseY));
+          // Map mouse coordinates through zoom & pan matrix
+          node._x = (mouseX - this.panX) / this.zoomScale;
+          node._y = (mouseY - this.panY) / this.zoomScale;
           
           // Update node circle & ring & text in DOM
           const r = 5 + Math.min(node.chunks || 1, 20) * 0.5;
@@ -404,6 +435,157 @@ class VaultStudio {
         if (tooltip) tooltip.style.display = 'none';
       });
     });
+  }
+
+  /**
+   * Initializes resize handles, zoom controls, and wheel events.
+   * @private
+   */
+  _initResizeAndZoom() {
+    // 1. Resizing Panel via splitter handle
+    const splitter = $('#vault-resize-handle');
+    const layout = $('#vault-layout');
+    if (splitter && layout) {
+      // Set initial saved width inline on the layout element to override cached styles
+      layout.style.gridTemplateColumns = `280px 1fr 4px ${this.savedRightWidth}px`;
+      layout.style.setProperty('--vault-right-width', `${this.savedRightWidth}px`);
+
+      splitter.addEventListener('mousedown', e => {
+        e.preventDefault();
+        splitter.classList.add('active');
+        const startX = e.clientX;
+        const startWidth = this.savedRightWidth;
+
+        const onMouseMove = ev => {
+          const deltaX = ev.clientX - startX;
+          // Splitting from right side: dragging left increases the panel width
+          let newWidth = startWidth - deltaX;
+          newWidth = Math.max(250, Math.min(800, newWidth));
+          this.savedRightWidth = newWidth;
+          layout.style.gridTemplateColumns = `280px 1fr 4px ${newWidth}px`;
+          layout.style.setProperty('--vault-right-width', `${newWidth}px`);
+          localStorage.setItem('vault-right-width', newWidth);
+          
+          // Re-render and center graph
+          if (this._graphNodes.length) {
+            this._renderGraph();
+          }
+        };
+
+        const onMouseUp = () => {
+          splitter.classList.remove('active');
+          document.removeEventListener('mousemove', onMouseMove);
+          document.removeEventListener('mouseup', onMouseUp);
+        };
+
+        document.addEventListener('mousemove', onMouseMove);
+        document.addEventListener('mouseup', onMouseUp);
+      });
+    }
+
+    // 2. Click listeners for zoom buttons
+    const btnIn = $('#vault-zoom-in');
+    const btnOut = $('#vault-zoom-out');
+    const btnReset = $('#vault-zoom-reset');
+
+    btnIn?.addEventListener('click', () => this.zoom(1.2));
+    btnOut?.addEventListener('click', () => this.zoom(0.85));
+    btnReset?.addEventListener('click', () => this.resetZoom());
+
+    // 3. Mouse Wheel zoom relative to pointer position
+    const svg = $('#vault-graph-svg');
+    if (svg) {
+      svg.addEventListener('wheel', e => {
+        e.preventDefault();
+        const factor = e.deltaY < 0 ? 1.1 : 0.9;
+        const rect = svg.getBoundingClientRect();
+        const mouseX = e.clientX - rect.left;
+        const mouseY = e.clientY - rect.top;
+        this.zoomAt(factor, mouseX, mouseY);
+      }, { passive: false });
+
+      // 4. Background drag panning
+      svg.addEventListener('mousedown', e => {
+        if (e.target.closest('.vault-node')) return;
+        
+        e.preventDefault();
+        this.isPanning = true;
+        this.panStartX = e.clientX - this.panX;
+        this.panStartY = e.clientY - this.panY;
+        svg.style.cursor = 'grabbing';
+
+        const onMouseMove = ev => {
+          if (!this.isPanning) return;
+          this.panX = ev.clientX - this.panStartX;
+          this.panY = ev.clientY - this.panStartY;
+          this.applyTransform();
+        };
+
+        const onMouseUp = () => {
+          this.isPanning = false;
+          svg.style.cursor = 'default';
+          document.removeEventListener('mousemove', onMouseMove);
+          document.removeEventListener('mouseup', onMouseUp);
+        };
+
+        document.addEventListener('mousemove', onMouseMove);
+        document.addEventListener('mouseup', onMouseUp);
+      });
+    }
+  }
+
+  /**
+   * Zoom centered inside the viewport
+   * @param {number} factor - zoom factor
+   */
+  zoom(factor) {
+    const svg = $('#vault-graph-svg');
+    if (!svg) return;
+    const w = svg.clientWidth || 320;
+    const h = svg.clientHeight || 400;
+    this.zoomAt(factor, w / 2, h / 2);
+  }
+
+  /**
+   * Zoom anchored on a specific SVG coordinate
+   * @param {number} factor - zoom factor
+   * @param {number} x - anchor x
+   * @param {number} y - anchor y
+   */
+  zoomAt(factor, x, y) {
+    const oldScale = this.zoomScale;
+    let newScale = oldScale * factor;
+    newScale = Math.max(0.2, Math.min(5, newScale));
+    
+    // Recalculate pan positions relative to anchor coordinates
+    this.panX = x - (x - this.panX) * (newScale / oldScale);
+    this.panY = y - (y - this.panY) * (newScale / oldScale);
+    this.zoomScale = newScale;
+
+    this.applyTransform();
+  }
+
+  /**
+   * Reset zoom scale and pan offsets, recentering the graph.
+   */
+  resetZoom() {
+    this.zoomScale = 1;
+    this.panX = 0;
+    this.panY = 0;
+    this.applyTransform();
+    if (this._graphNodes.length) {
+      this._renderGraph();
+    }
+  }
+
+  /**
+   * Applies the zoom and pan translate/scale values to the SVG viewport element.
+   */
+  applyTransform() {
+    const viewport = $('#vault-graph-viewport');
+    if (viewport) {
+      viewport.setAttribute('transform', `translate(${this.panX}, ${this.panY}) scale(${this.zoomScale})`);
+    }
   }
 }
 

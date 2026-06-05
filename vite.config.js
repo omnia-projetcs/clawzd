@@ -87,6 +87,7 @@ export default defineConfig({
       '/rag': 'http://localhost:8000',
       '/web': 'http://localhost:8000',
       '/image': 'http://localhost:8000',
+      '/audio': 'http://localhost:8000',
       '/workspace': 'http://localhost:8000',
       '/local': 'http://localhost:8000',
       '/quality': 'http://localhost:8000',

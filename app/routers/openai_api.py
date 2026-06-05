@@ -109,6 +109,8 @@ def _resolve_provider_model(model_str: str) -> tuple[str, str]:
             "huggingface": "huggingface",
             "hf": "huggingface",
             "openrouter": "openrouter",
+            "freellmapi": "freellmapi",
+            "freellm": "freellmapi",
         }
         provider_key = aliases.get(provider_key, provider_key)
         return provider_key, model_id

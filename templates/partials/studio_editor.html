@@ -119,6 +119,9 @@
               </button>
             </div>
           </div>
+          <div class="bin-list" id="stock-list-container" style="margin-top:15px; display:flex; flex-direction:column; gap:10px; overflow-y:auto; max-height: calc(100vh - 350px);">
+            <!-- Populated via Javascript -->
+          </div>
         </div>
       </aside>
       <!-- Left Horizontal Drag Resizer -->
@@ -173,6 +176,7 @@
               <input type="range" id="preview-volume" min="0" max="1" step="0.1" value="0.8" class="editor-range" style="width: 80px;">
             </div>
           </div>
+        </div>
       </section>
 
       <!-- Right Horizontal Drag Resizer -->
@@ -210,6 +214,11 @@
             <div class="property-group">
               <label class="property-label">Move to Track</label>
               <select id="prop-track-select" class="editor-select" title="Assign to Track"></select>
+            </div>
+            
+            <div class="property-group">
+              <label class="property-label">Playback Speed (<span id="prop-speed-val">1.0</span>x)</label>
+              <input type="range" id="prop-speed" min="0.5" max="2.0" step="0.05" class="editor-range">
             </div>
             
             <div class="property-group inspector-video-only">

@@ -24,10 +24,134 @@ from fastapi.responses import FileResponse, JSONResponse
 
 from config import DATA_DIR, WORKSPACE_DIR
 import difflib
+import ast
 router = APIRouter()
 logger = logging.getLogger("clawzd.tools_code")
 
 REPORTS_DIR = os.path.join(DATA_DIR, "audit_reports")
+
+
+def validate_and_format_file(file_path: str, content: str) -> tuple[bool, str, str]:
+    """Validate syntax of the file.
+    
+    Returns (success, content, error_message).
+    """
+    if file_path.endswith(".py"):
+        try:
+            ast.parse(content)
+        except SyntaxError as e:
+            return False, content, f"Python syntax error: {e.msg} at line {e.lineno}, col {e.offset}"
+        except Exception as e:
+            return False, content, f"Python syntax validation failed: {e}"
+    elif file_path.endswith(".json"):
+        try:
+            json.loads(content)
+        except json.JSONDecodeError as e:
+            return False, content, f"JSON syntax error: {e.msg} at line {e.lineno}, col {e.colno}"
+        except Exception as e:
+            return False, content, f"JSON syntax validation failed: {e}"
+    return True, content, ""
+
+
+def format_file_on_disk(full_path: str):
+    """Automatically formats a file on disk if appropriate tools are available."""
+    if full_path.endswith(".py"):
+        if shutil.which("ruff"):
+            try:
+                subprocess.run(["ruff", "format", full_path], capture_output=True, timeout=5)
+            except Exception:
+                pass
+        elif shutil.which("black"):
+            try:
+                subprocess.run(["black", full_path], capture_output=True, timeout=5)
+            except Exception:
+                pass
+    elif full_path.endswith((".js", ".ts", ".jsx", ".tsx", ".html", ".css", ".json", ".yaml", ".yml")):
+        if shutil.which("prettier"):
+            try:
+                subprocess.run(["prettier", "--write", full_path], capture_output=True, timeout=5)
+            except Exception:
+                pass
+
+
+def run_workspace_tests(test_file: Optional[str] = None, active_project: str = ".") -> Dict:
+    """Run the automated unit tests in the workspace.
+    
+    Automatically detects pytest (Python) or npm test/jest (JavaScript).
+    """
+    import os
+    base_dir = WORKSPACE_DIR
+    if active_project and active_project != ".":
+        proj_dir = os.path.join(WORKSPACE_DIR, active_project)
+        if os.path.isdir(proj_dir):
+            base_dir = proj_dir
+
+    cwd = base_dir
+    
+    test_path = ""
+    if test_file:
+        if test_file.startswith("/") or ".." in test_file:
+            return {"error": "Invalid test file path", "success": False}
+        test_path = test_file
+
+    has_package_json = os.path.exists(os.path.join(cwd, "package.json"))
+    
+    cmd = []
+    venv_pytest = os.path.join(WORKSPACE_DIR, ".venv", "bin", "pytest")
+    if not os.path.isfile(venv_pytest):
+        venv_pytest = "pytest"
+
+    # Find the framework
+    try:
+        dir_list = os.listdir(cwd)
+    except Exception:
+        dir_list = []
+        
+    if os.path.exists(os.path.join(cwd, "tests")) or any(f.endswith("_test.py") or f.startswith("test_") for f in dir_list if os.path.isfile(os.path.join(cwd, f))):
+        if shutil.which(venv_pytest) or venv_pytest == "pytest":
+            cmd = [venv_pytest]
+            if test_path:
+                cmd.append(test_path)
+        else:
+            cmd = ["python", "-m", "unittest", "discover"]
+            if test_path:
+                cmd = ["python", "-m", "unittest", test_path]
+    elif has_package_json:
+        if shutil.which("npm"):
+            cmd = ["npm", "test"]
+            if test_path:
+                cmd = ["npm", "test", "--", test_path]
+        else:
+            cmd = ["npx", "jest"]
+            if test_path:
+                cmd.append(test_path)
+    else:
+        if shutil.which(venv_pytest) or venv_pytest == "pytest":
+            cmd = [venv_pytest]
+        elif shutil.which("npm"):
+            cmd = ["npm", "test"]
+        else:
+            return {"error": "No automated test framework detected in the workspace (pytest or npm test).", "success": False}
+
+    try:
+        result = subprocess.run(
+            cmd,
+            capture_output=True,
+            text=True,
+            timeout=45,
+            cwd=cwd,
+        )
+        return {
+            "success": result.returncode == 0,
+            "stdout": result.stdout[-4000:],
+            "stderr": result.stderr[-2000:],
+            "returncode": result.returncode,
+            "command": " ".join(cmd),
+        }
+    except subprocess.TimeoutExpired:
+        return {"error": "Test execution timed out after 45s", "success": False}
+    except Exception as e:
+        return {"error": f"Failed to execute tests: {e}", "success": False}
 
 
 class LocalCodeExecutor:
@@ -304,8 +428,15 @@ class LocalCodeExecutor:
             with open(script, "w") as f:
                 f.write(final_code)
             try:
+                cmd = [self._python, script]
+                if shutil.which("firejail"):
+                    cmd = ["firejail", "--quiet", "--noprofile", "--nonewprivs", self._python, script]
+                    logger.info("Executing Python code inside firejail sandbox.")
+                else:
+                    logger.warning("firejail is not available on host, falling back to direct subprocess execution.")
+
                 result = subprocess.run(
-                    [self._python, script],
+                    cmd,
                     capture_output=True,
                     text=True,
                     timeout=self.timeout,
@@ -1357,15 +1488,28 @@ class CodeEditor:
             if old_string:
                 return {"error": f"File '{file_path}' does not exist. To create a new file, leave old_string empty."}
             
+            # Syntax validation before creating
+            valid, _, err_msg = validate_and_format_file(file_path, new_string)
+            if not valid:
+                return {"error": f"Syntax validation failed. The file was NOT created.\nDetails: {err_msg}"}
+
             os.makedirs(os.path.dirname(full_path), exist_ok=True)
             try:
                 with open(full_path, "w", encoding="utf-8") as f:
                     f.write(new_string)
+                
+                # Format file on disk
+                format_file_on_disk(full_path)
+                
+                # Read formatted content to return clean diff/content
+                with open(full_path, "r", encoding="utf-8") as f:
+                    formatted_content = f.read()
+
                 return {
                     "status": "success",
                     "file_path": file_path,
                     "message": "File created.",
-                    "diff": f"--- /dev/null\n+++ {file_path}\n@@ -0,0 +1 @@\n+{new_string}"
+                    "diff": f"--- /dev/null\n+++ {file_path}\n@@ -0,0 +1 @@\n+{formatted_content}"
                 }
             except Exception as e:
                 return {"error": f"Failed to create file: {e}"}
@@ -1397,18 +1541,30 @@ class CodeEditor:
                 
             new_content = content.replace(old_string, new_string) if replace_all or not old_string else content.replace(old_string, new_string, 1)
             
-            # Generate diff
+            # Syntax validation before saving
+            valid, _, err_msg = validate_and_format_file(file_path, new_content)
+            if not valid:
+                return {"error": f"Syntax validation failed. The changes were NOT saved.\nDetails: {err_msg}"}
+
+            with open(full_path, "w", encoding="utf-8") as f:
+                f.write(new_content)
+
+            # Format file on disk
+            format_file_on_disk(full_path)
+
+            # Read back formatted content
+            with open(full_path, "r", encoding="utf-8") as f:
+                formatted_new_content = f.read()
+
+            # Generate diff between original content and final formatted content
             diff = list(difflib.unified_diff(
                 content.splitlines(keepends=True),
-                new_content.splitlines(keepends=True),
+                formatted_new_content.splitlines(keepends=True),
                 fromfile=f"a/{file_path}",
                 tofile=f"b/{file_path}",
                 n=3
             ))
             diff_text = "".join(diff)
-            
-            with open(full_path, "w", encoding="utf-8") as f:
-                f.write(new_content)
 
             # Count meaningful changes for the frontend diff viewer
             lines_added = sum(1 for l in diff if l.startswith("+") and not l.startswith("+++"))
