@@ -5068,6 +5068,7 @@
     $('#btn-save-settings').addEventListener('click', async () => {
       const s = {
         default_provider: $('#settings-provider').value,
+        default_model: $('#settings-default-model')?.value || '',
         default_preprompt: $('#settings-preprompt').value,
         code_execution_timeout: parseInt($('#settings-timeout').value) || 30,
         code_max_memory_mb: parseInt($('#settings-memory').value) || 512,
@@ -5108,6 +5109,28 @@
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(newEnvData)
       });
+
+      // Immediately sync window._envData so the IDE picks up changes
+      // (don't wait for the async loadEnvSettings to complete)
+      if (!window._envData) window._envData = {};
+      Object.assign(window._envData, newEnvData);
+
+      // Sync the main model selector to the new default model
+      if (defaultModel) {
+        const modelSel = $('#model-select');
+        if (modelSel && Array.from(modelSel.options).some(o => o.value === defaultModel)) {
+          modelSel.value = defaultModel;
+          localStorage.setItem('hoc_last_model', defaultModel);
+        }
+      }
+
+      // Sync provider selector to new default
+      const settingsProvider = $('#settings-provider').value;
+      if (settingsProvider) {
+        $('#provider-select').value = settingsProvider;
+        localStorage.setItem('hoc_last_provider', settingsProvider);
+      }
+
       toast(ICONS.check(14) + ' Settings saved'); $('#settings-overlay').classList.remove('open');
       // Reload providers immediately to reflect cloud toggle change
       loadProviders();
@@ -5342,6 +5365,13 @@
     try {
       const r = await fetch('/api/settings'); const d = await r.json();
       if (d.default_provider) { $('#provider-select').value = d.default_provider; updateModels(); }
+      // Restore default model if saved in settings and not overridden by localStorage
+      if (d.default_model && !localStorage.getItem('hoc_last_model')) {
+        const modelSel = $('#model-select');
+        if (modelSel && Array.from(modelSel.options).some(o => o.value === d.default_model)) {
+          modelSel.value = d.default_model;
+        }
+      }
       if (d.default_preprompt) $('#preprompt-select').value = d.default_preprompt;
       if ($('#settings-provider')) $('#settings-provider').value = d.default_provider || 'ollama';
       if ($('#settings-preprompt')) $('#settings-preprompt').value = d.default_preprompt || 'none';

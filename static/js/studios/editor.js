@@ -1217,18 +1217,27 @@ class EditorMode {
     let model = '';
     let provider = '';
 
-    // 1. Get model from window._envData['CODE_MODEL'] or config fallback
+    // 1. Dedicated IDE code model from .env (highest priority)
     if (window._envData && window._envData['CODE_MODEL']) {
       model = window._envData['CODE_MODEL'];
     }
 
-    // 2. Fall back to current selected model in the main chat model picker
+    // 2. Fall back to currently selected model in the chat model picker
+    //    localStorage is the source of truth (set by the model picker UI)
     if (!model) {
-      model = $('#model-select')?.value || '';
+      model = localStorage.getItem('hoc_last_model') || $('#model-select')?.value || '';
     }
 
-    // 3. Find the provider that has this model in window._providers
-    if (model) {
+    // 3. Fall back to system default model from .env
+    if (!model && window._envData && window._envData['OLLAMA_MODEL']) {
+      model = window._envData['OLLAMA_MODEL'];
+    }
+
+    // 4. Resolve provider: localStorage > #provider-select > env > settings
+    provider = localStorage.getItem('hoc_last_provider') || $('#provider-select')?.value || '';
+
+    // 5. If we have a model but no provider, find which provider owns it
+    if (model && !provider) {
       for (const [p, models] of Object.entries(window._providers || {})) {
         if (models.some(m => m.id === model)) {
           provider = p;
@@ -1237,14 +1246,14 @@ class EditorMode {
       }
     }
 
-    // 4. If no provider could be determined, fallback to settings default provider or active provider
+    // 6. Final fallback for provider
     if (!provider) {
       if (window._envData && window._envData['LLM_PROVIDER']) {
         provider = window._envData['LLM_PROVIDER'];
       } else if (window.settings && window.settings.default_provider) {
         provider = window.settings.default_provider;
       } else {
-        provider = $('#provider-select')?.value || 'ollama';
+        provider = 'ollama';
       }
     }
 
