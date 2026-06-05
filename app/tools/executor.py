@@ -1800,6 +1800,13 @@ def parse_tool_calls(text: str) -> list[dict]:
     if not calls:
         calls.extend(_parse_bare_tool_calls(text, matched_spans))
 
+    # --- Fallback: scan for native <tool_call> tags ---
+    # Some models (Qwen, Mistral, Hermes) emit tool calls natively as:
+    # <tool_call>{"function": "read_file", "params": {...}}</tool_call>
+    # or: <tool_call>{"name": "read_file", "arguments": {...}}</tool_call>
+    if not calls:
+        calls.extend(_parse_native_tool_call_tags(text, matched_spans))
+
     # --- Fallback: scan for XML-style tool calls ---
     # Some models (especially Claude, Gemini, Qwen) emit XML-like tags:
     # <read_file><file_path>...</file_path></read_file>
@@ -1807,6 +1814,86 @@ def parse_tool_calls(text: str) -> list[dict]:
         calls.extend(_parse_xml_tool_calls(text, matched_spans))
 
     return calls
+
+
+def _parse_native_tool_call_tags(text: str, exclude_spans: list[tuple[int, int]]) -> list[dict]:
+    """Parser for native <tool_call> tags used by Qwen, Mistral-Hermes, etc.
+
+    These models emit tool calls as:
+      <tool_call>
+      {"function": "read_file", "params": {"file_path": "..."}}
+      </tool_call>
+    or:
+      <tool_call>
+      {"name": "read_file", "arguments": {"file_path": "..."}}
+      </tool_call>
+
+    We parse these and normalize to our standard {"tool": ..., "params": ...}.
+    """
+    results = []
+    # Match <tool_call> ... </tool_call> (case-insensitive)
+    tag_pattern = re.compile(
+        r'<tool_call>\s*([\s\S]*?)\s*</tool_call>', re.IGNORECASE
+    )
+
+    for match in tag_pattern.finditer(text):
+        start = match.start()
+        if any(s <= start < e for s, e in exclude_spans):
+            continue
+
+        raw_json = match.group(1).strip()
+        if not raw_json:
+            continue
+
+        try:
+            from app.tool_repair import repair_tool_call_arguments
+            repaired = repair_tool_call_arguments(raw_json, "tool_call")
+            data = json.loads(repaired)
+        except (json.JSONDecodeError, ValueError):
+            try:
+                data = json.loads(raw_json)
+            except (json.JSONDecodeError, ValueError):
+                logger.warning("Failed to parse <tool_call> JSON: %s", raw_json[:200])
+                continue
+
+        if not isinstance(data, dict):
+            continue
+
+        # Normalize key names: "function" / "name" → "tool"
+        tool_name = (
+            data.get("tool")
+            or data.get("function")
+            or data.get("name")
+            or ""
+        )
+        if not tool_name:
+            continue
+
+        # Normalize params: "arguments" → "params"
+        params = (
+            data.get("params")
+            or data.get("arguments")
+            or data.get("parameters")
+            or {}
+        )
+        if isinstance(params, str):
+            # Some models emit arguments as a JSON string
+            try:
+                params = json.loads(params)
+            except (json.JSONDecodeError, ValueError):
+                params = {"query": params}
+
+        results.append({
+            "tool": str(tool_name),
+            "params": params if isinstance(params, dict) else {},
+            "raw": match.group(0),
+        })
+        logger.info(
+            "Native <tool_call> tag detected: '%s' (normalized from %s)",
+            tool_name, "function" if "function" in data else "name" if "name" in data else "tool",
+        )
+
+    return results
 
 
 def _parse_xml_tool_calls(text: str, exclude_spans: list[tuple[int, int]]) -> list[dict]:
@@ -1847,7 +1934,6 @@ def _parse_xml_tool_calls(text: str, exclude_spans: list[tuple[int, int]]) -> li
             "params": params,
             "raw": match.group(0),
         })
-        from app.utils.logger import logger
         logger.info("XML tool call detected: %s (%d chars)", tool_name, len(match.group(0)))
         
     return results

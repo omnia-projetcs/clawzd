@@ -51,7 +51,10 @@ _KNOWN_TOOLS = {
     "audit_code", "rag_search", "edit_file", "read_file", "create_document",
     "send_email", "post_to_twitter", "post_to_linkedin", "post_to_medium",
     "trigger_n8n", "memory", "rebuild_skill", "search_twitter",
-    "search_linkedin", "undo", "create_skill",
+    "search_linkedin", "undo", "create_skill", "list_files", "todo_write",
+    "create_app", "update_app", "analyze_data", "fetch_market_data",
+    "git_clone", "cron_schedule", "write_file", "apply_patch", "grep_code",
+    "webfetch", "run_tests",
 }
 
 
