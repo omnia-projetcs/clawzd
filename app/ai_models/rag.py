@@ -37,24 +37,58 @@ _EMBEDDING_CACHE_DIR = os.path.join(os.path.dirname(os.path.dirname(os.path.absp
 # Track file hashes for incremental indexing
 _indexed_hashes: dict[str, str] = {}
 
+# Cached BM25 index and corpus data
+_bm25_cache = {
+    "index": None,
+    "docs": [],
+    "ids": [],
+    "metadatas": [],
+    "last_count": -1,
+}
 
-def _get_rag():
-    """Lazy-initialize ChromaDB client and encoder."""
-    global _client, _collection, _encoder
+
+def _invalidate_bm25_cache():
+    """Clear/invalidate the cached BM25 index."""
+    global _bm25_cache
+    _bm25_cache = {
+        "index": None,
+        "docs": [],
+        "ids": [],
+        "metadatas": [],
+        "last_count": -1,
+    }
+    logger.debug("RAG: BM25 cache invalidated.")
+
+
+def _get_collection():
+    """Lazy-initialize ChromaDB client and collection without loading the embedding model."""
+    global _client, _collection
     if _client is None:
         try:
             import chromadb
             from chromadb.config import Settings
-            from sentence_transformers import SentenceTransformer
         except (ImportError, ModuleNotFoundError) as e:
             logger.warning("RAG dependencies are not installed on this system: %s. RAG features are disabled.", e)
-            raise HTTPException(503, "RAG dependencies (chromadb/sentence-transformers) are not installed on this system.")
+            raise HTTPException(503, "RAG dependencies (chromadb) are not installed on this system.")
 
         _client = chromadb.PersistentClient(
             path=CHROMA_DB_PATH,
             settings=Settings(anonymized_telemetry=False),
         )
         _collection = _client.get_or_create_collection("knowledge_base")
+        logger.info("RAG ChromaDB initialized at %s", CHROMA_DB_PATH)
+    return _collection
+
+
+def _get_encoder():
+    """Lazy-initialize the embedding encoder."""
+    global _encoder
+    if _encoder is None:
+        try:
+            from sentence_transformers import SentenceTransformer
+        except (ImportError, ModuleNotFoundError) as e:
+            logger.warning("sentence-transformers is not installed on this system: %s.", e)
+            raise HTTPException(503, "sentence-transformers is not installed on this system.")
 
         # Force offline mode if model is already cached — no HF Hub requests
         model_name = "sentence-transformers/all-MiniLM-L6-v2"
@@ -65,8 +99,70 @@ def _get_rag():
             logger.info("RAG: Using cached embedding model (offline mode)")
 
         _encoder = SentenceTransformer(model_name, cache_folder=_EMBEDDING_CACHE_DIR)
-        logger.info("RAG initialized: ChromaDB at %s", CHROMA_DB_PATH)
-    return _collection, _encoder
+        logger.info("RAG Encoder initialized.")
+    return _encoder
+
+
+def _get_rag():
+    """Lazy-initialize ChromaDB client and encoder (backward-compatible)."""
+    return _get_collection(), _get_encoder()
+
+
+def _get_bm25_index(collection):
+    """Retrieve or build the cached BM25 index for the entire collection."""
+    global _bm25_cache
+    try:
+        current_count = collection.count()
+    except Exception as e:
+        logger.error("RAG: Error getting collection count: %s", e)
+        return None
+
+    if _bm25_cache["index"] is None or _bm25_cache["last_count"] != current_count:
+        logger.info("RAG: Building/rebuilding BM25 index for %d chunks", current_count)
+        if current_count == 0:
+            _bm25_cache = {
+                "index": None,
+                "docs": [],
+                "ids": [],
+                "metadatas": [],
+                "last_count": 0
+            }
+            return None
+        
+        try:
+            # Retrieve all documents from ChromaDB
+            all_data = collection.get(include=["documents", "metadatas"])
+            docs = all_data.get("documents") or []
+            ids = all_data.get("ids") or []
+            metas = all_data.get("metadatas") or []
+            
+            if not docs:
+                _bm25_cache = {
+                    "index": None,
+                    "docs": [],
+                    "ids": [],
+                    "metadatas": [],
+                    "last_count": 0
+                }
+                return None
+                
+            from rank_bm25 import BM25Okapi
+            tokenized_corpus = [doc.lower().split() for doc in docs]
+            bm25 = BM25Okapi(tokenized_corpus)
+            
+            _bm25_cache = {
+                "index": bm25,
+                "docs": docs,
+                "ids": ids,
+                "metadatas": metas,
+                "last_count": current_count
+            }
+            logger.info("RAG: BM25 index successfully built for %d documents.", len(docs))
+        except Exception as e:
+            logger.error("RAG: Failed to build BM25 index: %s", e)
+            return None
+            
+    return _bm25_cache
 
 
 # ---------------------------------------------------------------------------
@@ -332,6 +428,7 @@ def _index_document(content: bytes, filename: str, source_prefix: str = "") -> d
             }],
         )
 
+    _invalidate_bm25_cache()
     logger.info("Indexed %s: %d chunks (%s)", source_name, len(chunks), file_type)
     return {"status": "indexed", "filename": source_name, "chunks": len(chunks), "file_type": file_type}
 
@@ -423,6 +520,7 @@ def _delete_source_chunks(source_name: str):
             ids_to_delete.append(doc_id)
     if ids_to_delete:
         collection.delete(ids=ids_to_delete)
+        _invalidate_bm25_cache()
 
 
 # ---------------------------------------------------------------------------
@@ -464,67 +562,134 @@ async def scan_folder():
 
 
 @router.get("/search")
-async def search(query: str, k: int = 3, hybrid: bool = True):
+async def search(query: str, k: int = 3, hybrid: bool = True, method: str = "hybrid"):
     """Search the knowledge base using hybrid search (dense + BM25).
 
-    When ``hybrid=True`` (default), combines ChromaDB dense vector search
+    When ``hybrid=True`` or ``method='hybrid'``, combines ChromaDB dense vector search
     with BM25 keyword scoring using Reciprocal Rank Fusion (RRF).
+    Methods:
+      - 'hybrid': Combines dense and BM25 search.
+      - 'bm25': Pure BM25 search (fast, no embeddings computed).
+      - 'dense': Pure vector search.
     """
-    collection, encoder = _get_rag()
+    collection = _get_collection()
 
-    if not hybrid:
+    if method == "bm25" or (not hybrid and method != "dense"):
+        # Pure BM25 search
+        bm25_cache = _get_bm25_index(collection)
+        if not bm25_cache or not bm25_cache["index"]:
+            return {"documents": [], "metadatas": [], "method": "bm25"}
+            
+        bm25 = bm25_cache["index"]
+        docs = bm25_cache["docs"]
+        metas = bm25_cache["metadatas"]
+        
+        query_tokens = query.lower().split()
+        scores = bm25.get_scores(query_tokens)
+        
+        # Sort and return
+        top_indices = sorted(range(len(scores)), key=lambda i: scores[i], reverse=True)[:k]
+        result_docs = [docs[idx] for idx in top_indices if scores[idx] > 0]
+        result_metas = [metas[idx] for idx in top_indices if scores[idx] > 0]
+        
+        return {"documents": result_docs, "metadatas": result_metas, "method": "bm25"}
+
+    elif method == "dense":
         # Pure dense search
+        encoder = _get_encoder()
         query_embedding = encoder.encode(query).tolist()
         results = collection.query(query_embeddings=[query_embedding], n_results=k)
         docs = results.get("documents", [[]])[0]
         metadatas = results.get("metadatas", [[]])[0]
         return {"documents": docs, "metadatas": metadatas, "method": "dense"}
 
-    # --- Hybrid search: dense + BM25 with RRF ---
-    # 1. Dense search (retrieve more candidates for fusion)
-    n_candidates = min(k * 3, 20)
+    else:
+        # Hybrid search
+        results = _perform_hybrid_search(collection, query, k=k)
+        return {
+            "documents": results.get("documents", []),
+            "metadatas": results.get("metadatas", []),
+            "method": "hybrid"
+        }
+
+
+def _perform_hybrid_search(collection, query: str, k: int = 5) -> dict:
+    """Perform a hybrid search using BM25 and dense embeddings with Reciprocal Rank Fusion."""
+    # 1. Retrieve BM25 candidates
+    bm25_cache = _get_bm25_index(collection)
+    bm25_docs = []
+    bm25_ids = []
+    bm25_metas = []
+    
+    if bm25_cache and bm25_cache["index"]:
+        bm25 = bm25_cache["index"]
+        docs = bm25_cache["docs"]
+        ids = bm25_cache["ids"]
+        metas = bm25_cache["metadatas"]
+        
+        query_tokens = query.lower().split()
+        scores = bm25.get_scores(query_tokens)
+        
+        # Sort BM25 candidates
+        top_indices = sorted(range(len(scores)), key=lambda i: scores[i], reverse=True)[:min(k * 3, 50)]
+        for idx in top_indices:
+            if scores[idx] > 0:
+                bm25_docs.append(docs[idx])
+                bm25_ids.append(ids[idx])
+                bm25_metas.append(metas[idx])
+
+    # 2. Retrieve Dense candidates
+    encoder = _get_encoder()
     query_embedding = encoder.encode(query).tolist()
     dense_results = collection.query(
-        query_embeddings=[query_embedding], n_results=n_candidates,
-        include=["documents", "metadatas"],
+        query_embeddings=[query_embedding],
+        n_results=min(k * 3, 50),
+        include=["documents", "metadatas", "distances"]
     )
     dense_docs = dense_results.get("documents", [[]])[0]
     dense_ids = dense_results.get("ids", [[]])[0]
     dense_metas = dense_results.get("metadatas", [[]])[0]
+    dense_distances = dense_results.get("distances", [[]])[0]
 
-    if not dense_docs:
-        return {"documents": [], "metadatas": [], "method": "hybrid"}
-
-    # 2. BM25 scoring on the dense candidates
-    try:
-        from rank_bm25 import BM25Okapi
-        tokenized_corpus = [doc.lower().split() for doc in dense_docs]
-        bm25 = BM25Okapi(tokenized_corpus)
-        bm25_scores = bm25.get_scores(query.lower().split())
-    except ImportError:
-        logger.warning("rank_bm25 not installed — falling back to dense-only search")
-        return {"documents": dense_docs[:k], "metadatas": dense_metas[:k], "method": "dense_fallback"}
-
-    # 3. Reciprocal Rank Fusion (RRF)
-    rrf_k = 60  # standard RRF constant
+    # Combine using Reciprocal Rank Fusion (RRF)
+    rrf_k = 60
     rrf_scores = {}
-    for rank, doc_id in enumerate(dense_ids):
-        rrf_scores[doc_id] = rrf_scores.get(doc_id, 0) + 1.0 / (rrf_k + rank + 1)
+    
+    # Store doc information by ID
+    doc_info = {}
+    
+    # Process BM25 ranks
+    for rank, (doc_id, doc, meta) in enumerate(zip(bm25_ids, bm25_docs, bm25_metas)):
+        rrf_scores[doc_id] = rrf_scores.get(doc_id, 0.0) + 1.0 / (rrf_k + rank + 1)
+        doc_info[doc_id] = (doc, meta)
+        
+    # Process Dense ranks
+    for rank, (doc_id, doc, meta) in enumerate(zip(dense_ids, dense_docs, dense_metas)):
+        rrf_scores[doc_id] = rrf_scores.get(doc_id, 0.0) + 1.0 / (rrf_k + rank + 1)
+        doc_info[doc_id] = (doc, meta, dense_distances[rank])
 
-    bm25_ranking = sorted(range(len(bm25_scores)), key=lambda i: bm25_scores[i], reverse=True)
-    for rank, idx in enumerate(bm25_ranking):
-        doc_id = dense_ids[idx]
-        rrf_scores[doc_id] = rrf_scores.get(doc_id, 0) + 1.0 / (rrf_k + rank + 1)
-
-    # Sort by fused score
+    # Sort by combined RRF score
     sorted_ids = sorted(rrf_scores.keys(), key=lambda x: rrf_scores[x], reverse=True)[:k]
-
-    # Map back to docs and metadata
-    id_to_idx = {did: i for i, did in enumerate(dense_ids)}
-    docs = [dense_docs[id_to_idx[did]] for did in sorted_ids if did in id_to_idx]
-    metas = [dense_metas[id_to_idx[did]] for did in sorted_ids if did in id_to_idx]
-
-    return {"documents": docs, "metadatas": metas, "method": "hybrid"}
+    
+    result_docs = []
+    result_metas = []
+    result_distances = []
+    for did in sorted_ids:
+        info = doc_info[did]
+        result_docs.append(info[0])
+        result_metas.append(info[1])
+        if len(info) > 2:
+            result_distances.append(info[2])
+        else:
+            # BM25-only match has no distance; we calculate or set a neutral distance
+            result_distances.append(0.5)
+            
+    return {
+        "documents": result_docs,
+        "metadatas": result_metas,
+        "distances": result_distances,
+        "ids": sorted_ids
+    }
 
 
 @router.get("/stats")
@@ -542,15 +707,9 @@ async def rag_stats():
                 ftype = (m or {}).get("file_type", "")
                 sources[src] = sources.get(src, 0) + 1
             return {"total_chunks": count, "sources": sources, "source_count": len(sources)}
-        # Not yet initialized — open ChromaDB read-only without loading embeddings
-        import chromadb
-        from chromadb.config import Settings
-        client = chromadb.PersistentClient(
-            path=CHROMA_DB_PATH,
-            settings=Settings(anonymized_telemetry=False),
-        )
-        col = client.get_or_create_collection("knowledge_base")
-        return {"total_chunks": col.count()}
+        # Not yet initialized — open ChromaDB without loading embeddings
+        collection = _get_collection()
+        return {"total_chunks": collection.count()}
     except Exception:
         return {"total_chunks": 0, "status": "unavailable"}
 
@@ -588,7 +747,7 @@ async def folder_info():
 async def list_sources():
     """List all indexed document sources with chunk counts and metadata."""
     try:
-        collection, _ = _get_rag()
+        collection = _get_collection()
     except HTTPException as e:
         if e.status_code == 503:
             return {"sources": [], "status": "unavailable", "message": e.detail}
@@ -611,43 +770,6 @@ async def list_sources():
     return {"sources": sorted(sources.values(), key=lambda x: x["name"])}
 
 
-@router.delete("/source/{source_name:path}")
-async def delete_source(source_name: str):
-    """Delete all chunks from a specific source document."""
-    collection, _ = _get_rag()
-    # Find all IDs for this source
-    all_data = collection.get(include=["metadatas"])
-    ids_to_delete = []
-    for doc_id, meta in zip(all_data.get("ids", []), all_data.get("metadatas", [])):
-        if (meta or {}).get("source") == source_name:
-            ids_to_delete.append(doc_id)
-
-    if not ids_to_delete:
-        raise HTTPException(404, f"Source '{source_name}' not found")
-
-    collection.delete(ids=ids_to_delete)
-
-    # Remove from hash cache
-    _indexed_hashes.pop(source_name, None)
-
-    logger.info("Deleted %d chunks from source '%s'", len(ids_to_delete), source_name)
-    return {"status": "deleted", "source": source_name, "chunks_removed": len(ids_to_delete)}
-
-
-@router.delete("/clear")
-async def clear_all():
-    """Clear the entire knowledge base."""
-    collection, _ = _get_rag()
-    # Get all IDs and delete
-    all_data = collection.get()
-    all_ids = all_data.get("ids", [])
-    if all_ids:
-        collection.delete(ids=all_ids)
-    _indexed_hashes.clear()
-    logger.info("Cleared entire knowledge base (%d chunks)", len(all_ids))
-    return {"status": "cleared", "chunks_removed": len(all_ids)}
-
-
 # --- Auto-RAG Context Injection ---
 
 def auto_rag_context(user_message: str, threshold: float = 0.3, k: int = 3) -> str | None:
@@ -655,14 +777,29 @@ def auto_rag_context(user_message: str, threshold: float = 0.3, k: int = 3) -> s
 
     Returns a formatted context string to inject into the LLM prompt,
     or None if no relevant documents are found.
-    Only triggers if the knowledge base is initialized and non-empty.
+    Uses a fast BM25 pre-filtering step to avoid loading/running the
+    embedding model unless there is a keyword match.
     """
     try:
-        # Initialize ChromaDB first, THEN check count
-        collection, encoder = _get_rag()
+        # Initialize collection first (no embedding model loaded)
+        collection = _get_collection()
         if collection.count() == 0:
             return None
 
+        # Step 1: Fast BM25 keyword check
+        bm25_cache = _get_bm25_index(collection)
+        if bm25_cache and bm25_cache["index"]:
+            bm25 = bm25_cache["index"]
+            query_tokens = user_message.lower().split()
+            scores = bm25.get_scores(query_tokens)
+            
+            # If no keyword overlap exists at all, bypass semantic search completely
+            if not any(s > 0 for s in scores):
+                logger.debug("Auto-RAG: No BM25 keyword matches, skipping dense search.")
+                return None
+
+        # Step 2: Semantic check via dense embeddings
+        encoder = _get_encoder()
         query_embedding = encoder.encode(user_message).tolist()
         results = collection.query(
             query_embeddings=[query_embedding],
@@ -701,27 +838,20 @@ def auto_rag_context(user_message: str, threshold: float = 0.3, k: int = 3) -> s
 
 
 def explicit_rag_search(query: str, k: int = 5) -> str | None:
-    """Perform an explicit RAG search with more results and no threshold filtering.
+    """Perform an explicit RAG search.
 
-    Used when the user explicitly requests RAG search (via @rag or RAG pill).
-    Returns formatted context string or None.
+    Uses hybrid search (dense + BM25) with Reciprocal Rank Fusion (RRF).
     """
     try:
-        # Initialize ChromaDB first, THEN check count
-        collection, encoder = _get_rag()
+        collection = _get_collection()
         if collection.count() == 0:
             return "📚 **Knowledge base is empty.** Upload documents in Settings → Knowledge Base, or place files in the `data/rag/` folder."
 
-        query_embedding = encoder.encode(query).tolist()
-        results = collection.query(
-            query_embeddings=[query_embedding],
-            n_results=k,
-            include=["documents", "metadatas", "distances"],
-        )
-
-        docs = results.get("documents", [[]])[0]
-        distances = results.get("distances", [[]])[0]
-        metadatas = results.get("metadatas", [[]])[0]
+        # RAG Search using hybrid search (BM25 + dense)
+        results = _perform_hybrid_search(collection, query, k=k)
+        docs = results.get("documents", [])
+        metadatas = results.get("metadatas", [])
+        distances = results.get("distances", [])
 
         if not docs:
             return "📚 **No relevant documents found in the knowledge base.**"
