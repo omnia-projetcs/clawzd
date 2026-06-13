@@ -2471,10 +2471,10 @@ async def upload_image(request: Request):
 
         # --- Duplicate check: hash the uploaded content ---
         upload_hash = hashlib.md5(content).hexdigest()
-        exts = (".png", ".jpg", ".svg", ".gif", ".mp4", ".webp", ".webm")
         if os.path.exists(IMAGES_DIR):
             for existing in os.listdir(IMAGES_DIR):
-                if not existing.endswith(exts):
+                ext = existing.split('.')[-1].lower() if '.' in existing else ''
+                if ext not in ("png", "jpg", "jpeg", "svg", "gif", "mp4", "webp", "webm"):
                     continue
                 existing_path = os.path.join(IMAGES_DIR, existing)
                 try:
@@ -2515,7 +2515,9 @@ async def list_images():
             # Skip marker/meta files
             if f.endswith((".gallery-hidden", ".txt")):
                 continue
-            if f.endswith((".png", ".jpg", ".webp", ".svg", ".gif", ".mp4", ".webm")):
+            
+            ext = f.split('.')[-1].lower() if '.' in f else ''
+            if ext in ("png", "jpg", "jpeg", "webp", "svg", "gif", "mp4", "webm"):
                 filepath = os.path.join(IMAGES_DIR, f)
 
                 # Skip images hidden from gallery (still used in presentations)
@@ -2535,16 +2537,7 @@ async def list_images():
                 except Exception:
                     pass  # if hashing fails, include the file anyway
 
-                if f.endswith(".svg"):
-                    fmt = "svg"
-                elif f.endswith(".gif"):
-                    fmt = "gif"
-                elif f.endswith(".mp4"):
-                    fmt = "mp4"
-                elif f.endswith(".webm"):
-                    fmt = "webm"
-                else:
-                    fmt = "png"
+                fmt = ext
                 prompt_text = ""
                 txt_path = os.path.join(IMAGES_DIR, f + ".txt")
                 if os.path.exists(txt_path):

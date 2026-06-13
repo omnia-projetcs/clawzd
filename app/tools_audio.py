@@ -790,7 +790,8 @@ async def audio_gallery():
     seen_hashes: set[str] = set()
 
     for f in sorted(os.listdir(AUDIO_DIR), reverse=True):
-        if f.endswith((".wav", ".mp3", ".ogg")):
+        ext = f.split('.')[-1].lower() if '.' in f else ''
+        if ext in ("wav", "mp3", "ogg", "flac", "m4a"):
             filepath = os.path.join(AUDIO_DIR, f)
 
             # --- Deduplicate by file content hash ---
@@ -822,7 +823,7 @@ async def audio_gallery():
 
             files.append({
                 "filename": f,
-                "format": f.rsplit(".", 1)[-1],
+                "format": f.rsplit(".", 1)[-1].lower(),
                 "prompt": prompt,
                 "mode": mode,
                 "duration": duration,
