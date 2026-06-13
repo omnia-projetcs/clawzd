@@ -329,6 +329,84 @@ class MediaStudio {
       });
     }
 
+    // Toolbar Gallery Upload
+    const uploadGalleryBtn = $('#media-upload-gallery-btn');
+    const uploadGalleryInput = $('#media-upload-gallery-input');
+    if (uploadGalleryBtn && uploadGalleryInput) {
+      uploadGalleryBtn.addEventListener('click', () => uploadGalleryInput.click());
+      uploadGalleryInput.addEventListener('change', async (e) => {
+        if (!e.target.files || e.target.files.length === 0) return;
+
+        const files = Array.from(e.target.files);
+        uploadGalleryBtn.disabled = true;
+        uploadGalleryBtn.style.opacity = '0.5';
+        uploadGalleryBtn.style.cursor = 'not-allowed';
+        const originalHtml = uploadGalleryBtn.innerHTML;
+        uploadGalleryBtn.innerHTML = `Uploading...`;
+
+        let successCount = 0;
+        let failCount = 0;
+        let duplicateCount = 0;
+
+        for (const file of files) {
+          const formData = new FormData();
+          formData.append('file', file);
+
+          const isAudio = file.type.startsWith('audio/') ||
+                          ['wav', 'mp3', 'ogg', 'flac', 'm4a'].includes(file.name.split('.').pop().toLowerCase());
+
+          const endpoint = isAudio ? '/audio/upload' : '/image/upload';
+
+          try {
+            const resp = await fetch(endpoint, {
+              method: 'POST',
+              body: formData
+            });
+
+            if (resp.status === 409) {
+              duplicateCount++;
+              continue;
+            }
+
+            if (!resp.ok) throw new Error('Upload failed');
+            successCount++;
+          } catch (err) {
+            console.error(`Upload failed for ${file.name}:`, err);
+            failCount++;
+          }
+        }
+
+        // Refresh the gallery
+        this.loadGallery();
+
+        // Show status message
+        let msg = '';
+        if (successCount > 0) {
+          msg += `${successCount} file(s) uploaded successfully. `;
+        }
+        if (duplicateCount > 0) {
+          msg += `${duplicateCount} file(s) already existed. `;
+        }
+        if (failCount > 0) {
+          msg += `${failCount} file(s) failed. `;
+        }
+
+        if (successCount > 0) {
+          toast((window.icon ? window.icon('check', 14) : '✅') + ' ' + msg);
+        } else if (duplicateCount > 0 && failCount === 0) {
+          toast((window.icon ? window.icon('alertTriangle', 14) : '⚠️') + ' ' + msg);
+        } else if (failCount > 0) {
+          toast((window.icon ? window.icon('x', 14) : '❌') + ' ' + msg);
+        }
+
+        uploadGalleryBtn.disabled = false;
+        uploadGalleryBtn.style.opacity = '';
+        uploadGalleryBtn.style.cursor = '';
+        uploadGalleryBtn.innerHTML = originalHtml;
+        uploadGalleryInput.value = '';
+      });
+    }
+
     // Toolbar
     const selAll = $('#media-select-all');
     if (selAll) selAll.addEventListener('click', () => this.toggleSelectAll());

@@ -833,6 +833,80 @@ async def audio_gallery():
     return {"audio_files": files}
 
 
+@router.post("/upload")
+async def upload_audio(file: UploadFile = File(...)):
+    """Upload an audio file to the audio gallery.
+    Rejects the upload with 409 if an identical file already exists.
+    """
+    import hashlib
+    import json
+    from app.tools_studio_editor import get_media_info
+
+    if not file.filename:
+        raise HTTPException(400, "No file provided")
+
+    ext = file.filename.rsplit(".", 1)[-1].lower()
+    if ext not in ("wav", "mp3", "ogg", "flac", "m4a"):
+        raise HTTPException(400, "Unsupported audio format")
+
+    content = await file.read()
+
+    # --- Duplicate check: hash the uploaded content ---
+    upload_hash = hashlib.md5(content).hexdigest()
+    exts = (".wav", ".mp3", ".ogg", ".flac", ".m4a")
+
+    if os.path.exists(AUDIO_DIR):
+        for existing in os.listdir(AUDIO_DIR):
+            if not existing.endswith(exts):
+                continue
+            existing_path = os.path.join(AUDIO_DIR, existing)
+            try:
+                h = hashlib.md5()
+                with open(existing_path, "rb") as bf:
+                    for chunk in iter(lambda: bf.read(8192), b""):
+                        h.update(chunk)
+                if h.hexdigest() == upload_hash:
+                    raise HTTPException(
+                        409,
+                        detail=f"This file already exists in the gallery as '{existing}'."
+                    )
+            except HTTPException:
+                raise
+            except Exception:
+                continue
+
+    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+    uid = uuid.uuid4().hex[:6]
+    filename = f"upload_{timestamp}_{uid}.{ext}"
+    filepath = os.path.join(AUDIO_DIR, filename)
+
+    with open(filepath, "wb") as buffer:
+        buffer.write(content)
+
+    # Retrieve media info to get duration
+    duration = 0.0
+    try:
+        info = get_media_info(filepath)
+        duration = info.get("duration", 0.0)
+    except Exception:
+        pass
+
+    # Save metadata file
+    meta_path = os.path.join(AUDIO_DIR, filename + ".meta")
+    try:
+        with open(meta_path, "w") as f:
+            json.dump({
+                "prompt": f"Uploaded audio: {file.filename}",
+                "created": datetime.now().isoformat(),
+                "mode": "upload",
+                "duration": duration
+            }, f)
+    except Exception:
+        pass
+
+    return {"status": "ok", "url": f"/data/audio/{filename}", "filename": filename}
+
+
 @router.post("/upload-reference")
 async def upload_reference(file: UploadFile = File(...)):
     """Upload reference audio for voice cloning."""
