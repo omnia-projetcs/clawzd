@@ -7,6 +7,7 @@ import os
 import logging
 import threading
 import time
+from typing import Optional
 
 import httpx
 from fastapi import APIRouter, HTTPException
@@ -750,11 +751,25 @@ async def get_hardware_info():
             ["nvidia-smi", "--query-gpu=name,memory.total,memory.free", "--format=csv,noheader,nounits"],
             capture_output=True, text=True, timeout=5,
         )
-        if result.returncode == 0:
-            parts = result.stdout.strip().split(", ")
-            info["gpu_name"] = parts[0]
-            info["vram_total_mib"] = int(parts[1])
-            info["vram_free_mib"] = int(parts[2])
+        if result.returncode == 0 and result.stdout.strip():
+            # Take the first line (first GPU) if multiple exist
+            first_line = result.stdout.strip().splitlines()[0]
+            parts = [p.strip() for p in first_line.split(",")]
+
+            def parse_vram(val: str) -> Optional[int]:
+                try:
+                    if "n/a" in val.lower() or not val:
+                        return None
+                    return int(val)
+                except ValueError:
+                    return None
+
+            if len(parts) >= 1:
+                info["gpu_name"] = parts[0]
+            if len(parts) >= 2:
+                info["vram_total_mib"] = parse_vram(parts[1])
+            if len(parts) >= 3:
+                info["vram_free_mib"] = parse_vram(parts[2])
     except Exception:
         pass
 
