@@ -151,6 +151,24 @@ BUILTIN_PROFILES: list[dict] = [
         "builtin": True,
         "process_template_file": "research_blog_article.md",
     },
+    {
+        "id": "arbor_htr",
+        "name": "🌲 Arbor HTR",
+        "description": "Arbor framework: maintains a branching tree of hypotheses and runs sandbox experiments in isolated worktrees.",
+        "icon": "git-branch",
+        "target_score": 0.85,
+        "max_iterations": 15,
+        "allowed_actions": [
+            "web_search", "scrape_url", "download_asset",
+            "write_script", "query_rag", "deep_dive", "smart_scrape",
+            "ask_model", "academic_search", "fetch_market_data"
+        ],
+        "sources": "Web, Scraping, Isolated Sandbox, RAG, Academic, Market",
+        "recommended_provider": "",
+        "phase_models": {},
+        "builtin": True,
+        "process_template_file": "research_arbor_htr.md",
+    },
 ]
 
 # Resolve process_template from file at load time

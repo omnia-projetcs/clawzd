@@ -1624,3 +1624,318 @@ async def merge_iteration_findings(
         + new_branch_summaries[:2000]
     )
 
+
+# ── 9. Arbor Hypothesis-Tree Refinement (HTR) Core Functions ──────────────────
+
+async def arbor_ideate_hypotheses(
+    query: str,
+    tree: dict,
+    llm_call: LLMCallFn,
+    provider: str = "",
+    model: str = "",
+    num_to_ideate: int = 3,
+) -> list[dict]:
+    """
+    Coordinator step: Propose new hypothesis nodes based on the current tree.
+    Reads previous successes, failures, and gaps.
+    """
+    nodes = tree.get("nodes", {})
+    root = tree.get("root", {})
+    
+    merged_insights = []
+    failures = []
+    
+    if root.get("insight"):
+        merged_insights.append(f"Root: {root['insight']}")
+        
+    for nid, node in nodes.items():
+        h_desc = f"Node {nid} ({node.get('hypothesis', '')}): "
+        if node.get("status") == "merged":
+            merged_insights.append(f"{h_desc}Merged (Score: {node.get('score', 0):.0%}) - Distilled Insight: {node.get('insight', '')}")
+        elif node.get("status") == "pruned":
+            failures.append(f"{h_desc}Pruned (Score: {node.get('score', 0):.0%}) - Lesson learned: {node.get('insight', '')}")
+
+    insights_ctx = "\n".join(merged_insights) if merged_insights else "None yet"
+    failures_ctx = "\n".join(failures) if failures else "None yet"
+    
+    prompt = [
+        {"role": "system", "content": (
+            "You are a research coordinator driving Hypothesis-Tree Refinement (Arbor framework).\n"
+            "Given a research topic and the current state of our Hypothesis Tree, generate "
+            f"exactly {num_to_ideate} new child hypotheses to explore.\n\n"
+            "Rules for ideation:\n"
+            "  - Avoid paths that failed or were pruned (failures listed below)\n"
+            "  - Build on top of merged/successful branches (insights listed below)\n"
+            "  - Each hypothesis must have a clear description, reason, priority (0.0 to 1.0), "
+            "    and expected actions (e.g. ['web_search', 'write_script', 'smart_scrape', 'ask_model'])\n\n"
+            "Return JSON array:\n"
+            '[\n'
+            '  {\n'
+            '    "hypothesis": "specific sub-topic or quantitative test description",\n'
+            '    "reason": "why this helps fill gaps or verify merged insights",\n'
+            '    "priority": 0.8,\n'
+            '    "expected_actions": ["web_search", "write_script"]\n'
+            '  }\n'
+            ']\n\n'
+            "Return ONLY valid JSON array, no markdown fences."
+        )},
+        {"role": "user", "content": (
+            f"Research topic: {query}\n\n"
+            f"=== MERGED INSIGHTS (SUCCESSES) ===\n{insights_ctx}\n\n"
+            f"=== PRUNED NODES (FAILURES) ===\n{failures_ctx}\n\n"
+            "Ideate new child hypotheses to expand the research tree."
+        )},
+    ]
+    
+    text = await llm_call(prompt, provider, model)
+    result = _parse_json_block(text, fallback=[])
+    if not isinstance(result, list):
+        result = []
+        
+    validated = []
+    import uuid
+    from datetime import datetime, timezone
+    
+    for h in result[:num_to_ideate]:
+        if isinstance(h, dict) and "hypothesis" in h:
+            node_id = f"node_{uuid.uuid4().hex[:6]}"
+            # Determine parent: default to root, or the best merged node ID
+            best_parent = "root"
+            best_score = root.get("score", 0.0)
+            for nid, node in nodes.items():
+                if node.get("status") == "merged" and node.get("score", 0.0) > best_score:
+                    best_parent = nid
+                    best_score = node.get("score", 0.0)
+                    
+            validated.append({
+                "id": node_id,
+                "parent_id": best_parent,
+                "hypothesis": h.get("hypothesis", ""),
+                "status": "pending",
+                "priority": float(h.get("priority", 0.5)),
+                "expected_actions": h.get("expected_actions", ["web_search"]),
+                "reason": h.get("reason", ""),
+                "depth": nodes.get(best_parent, {}).get("depth", 0) + 1 if best_parent != "root" else 1,
+                "evidence": [],
+                "assets": [],
+                "score": 0.0,
+                "scores_detail": {},
+                "insight": "",
+                "artifact": "",
+                "created_at": datetime.now(timezone.utc).isoformat()
+            })
+    return validated
+
+
+def arbor_select_hypotheses(tree: dict, n: int = 1) -> list[dict]:
+    """
+    Select n pending hypothesis nodes from the tree using softmax score-proportional selection.
+    This maintains exploratory diversity.
+    """
+    nodes = tree.get("nodes", {})
+    pending = [node for node in nodes.values() if node.get("status") == "pending"]
+    if not pending:
+        return []
+        
+    if len(pending) <= n:
+        return pending
+        
+    items = [node["id"] for node in pending]
+    scores = [node.get("priority", 0.5) for node in pending]
+    
+    selected_ids = _score_proportional_selection(items, scores, n, temperature=0.3)
+    return [nodes[nid] for nid in selected_ids]
+
+
+async def arbor_evaluate_hypothesis_node(
+    query: str,
+    node: dict,
+    llm_call: LLMCallFn,
+    provider: str = "",
+    model: str = "",
+) -> dict:
+    """
+    Evaluate the evidence and findings gathered for a specific hypothesis node.
+    """
+    evidence_text = "\n".join(
+        f"- [{r.get('source', 'web')}] {r.get('title','')}: {r.get('snippet','')[:150]}"
+        for r in node.get("evidence", [])
+    )[:3000]
+    
+    artifact_text = f"Sandbox Script/Code Tested:\n{node.get('artifact', '')[:1000]}" if node.get("artifact") else "No sandbox script tested."
+    
+    prompt = [
+        {"role": "system", "content": (
+            "You are a research evaluator assessing a specific hypothesis branch in the Arbor framework.\n"
+            "Assess the node's findings on 5 axes: coverage, depth, reliability, coherence, recency.\n\n"
+            "Return JSON:\n"
+            '{\n'
+            '  "coverage": 0.0-1.0,\n'
+            '  "depth": 0.0-1.0,\n'
+            '  "reliability": 0.0-1.0,\n'
+            '  "coherence": 0.0-1.0,\n'
+            '  "recency": 0.0-1.0,\n'
+            '  "insight": "Distilled lesson or conclusion from testing this hypothesis (1-3 sentences)",\n'
+            '  "gaps": ["remaining open gap 1", ...]\n'
+            '}\n\n'
+            "Return ONLY valid JSON, no markdown fences."
+        )},
+        {"role": "user", "content": (
+            f"Core Topic: {query}\n"
+            f"Hypothesis tested: {node.get('hypothesis', '')}\n"
+            f"Reasoning for hypothesis: {node.get('reason', '')}\n\n"
+            f"=== EVIDENCE COLLECTED ===\n{evidence_text}\n\n"
+            f"=== EXPERIMENTAL ARTIFACT ===\n{artifact_text}\n\n"
+            "Evaluate this branch's quality and distill the lessons/insights."
+        )},
+    ]
+    
+    text = await llm_call(prompt, provider, model)
+    data = _parse_json_block(text, fallback={})
+    if not isinstance(data, dict):
+        data = {}
+        
+    axes = ["coverage", "depth", "reliability", "coherence", "recency"]
+    scores = {}
+    for ax in axes:
+        try:
+            scores[ax] = max(0.0, min(1.0, float(data.get(ax, 0.3))))
+        except (ValueError, TypeError):
+            scores[ax] = 0.3
+            
+    weights = {
+        "coverage": 0.25, "depth": 0.25,
+        "reliability": 0.20, "coherence": 0.15, "recency": 0.15,
+    }
+    overall = sum(scores[ax] * weights[ax] for ax in axes)
+    
+    return {
+        "scores": scores,
+        "overall": round(overall, 3),
+        "insight": data.get("insight", "Completed evaluation."),
+        "gaps": data.get("gaps", []),
+    }
+
+
+def arbor_backpropagate_and_decide(
+    tree: dict,
+    node_id: str,
+    merge_gate_threshold: float = 0.72,
+) -> tuple[str, str]:
+    """
+    Decide whether to merge, prune, or keep a node after evaluation.
+    Updates scores up the tree to the parent/root node.
+    Returns (status, log_msg).
+    """
+    nodes = tree.get("nodes", {})
+    root = tree.get("root", {})
+    node = nodes.get(node_id)
+    if not node:
+        return "error", "Node not found"
+        
+    parent_id = node.get("parent_id", "root")
+    parent = root if parent_id == "root" else nodes.get(parent_id)
+    
+    if not parent:
+        parent = root
+        
+    parent_score = parent.get("score", 0.0)
+    node_score = node.get("score", 0.0)
+    
+    # Prepend insight from child into parent's insight
+    child_insight = node.get("insight", "").strip()
+    if child_insight:
+        parent_insight = parent.get("insight", "").strip()
+        if parent_insight:
+            parent["insight"] = f"{child_insight}\n↳ {parent_insight}"
+        else:
+            parent["insight"] = child_insight
+            
+    # Decision logic: Merge Gate
+    if node_score > parent_score and node_score >= merge_gate_threshold:
+        node["status"] = "merged"
+        
+        # Merge evidence, assets, and artifact into parent
+        parent_evidence = parent.setdefault("evidence", [])
+        seen_urls = {r.get("url") for r in parent_evidence if r.get("url")}
+        for r in node.get("evidence", []):
+            url = r.get("url")
+            if not url or url not in seen_urls:
+                parent_evidence.append(r)
+                if url:
+                    seen_urls.add(url)
+                    
+        parent_assets = parent.setdefault("assets", [])
+        seen_assets = {a.get("name") for a in parent_assets if a.get("name")}
+        for a in node.get("assets", []):
+            if a.get("name") not in seen_assets:
+                parent_assets.append(a)
+                seen_assets.add(a.get("name"))
+                
+        if node.get("artifact"):
+            parent_art = parent.get("artifact", "").strip()
+            if parent_art:
+                parent["artifact"] = f"{parent_art}\n\n# Merged from {node_id}:\n{node['artifact']}"
+            else:
+                parent["artifact"] = node["artifact"]
+                
+        # Parent inherits the higher score
+        parent["score"] = node_score
+        parent["scores_detail"] = node.get("scores_detail", {})
+        
+        log_msg = f"🟢 Merged node {node_id} to parent {parent_id} (Score: {node_score:.0%} > {parent_score:.0%})"
+        
+        # Recursively update root score if we merged a chain
+        if parent_id != "root":
+            arbor_backpropagate_and_decide(tree, parent_id, merge_gate_threshold)
+            
+    elif node_score < 0.45:
+        node["status"] = "pruned"
+        log_msg = f"🔴 Pruned node {node_id} (Score: {node_score:.0%} is below 45%)"
+    else:
+        node["status"] = "evaluated"
+        log_msg = f"🟡 Evaluated node {node_id} (Score: {node_score:.0%}). Kept in frontier but not merged."
+        
+    return node["status"], log_msg
+
+
+def render_arbor_tree_ascii(tree: dict) -> str:
+    """
+    Render the tree structure beautifully in ASCII.
+    """
+    root = tree.get("root", {})
+    nodes = tree.get("nodes", {})
+    
+    lines = ["🌲 Hypothesis Tree Structure:"]
+    lines.append(f"└── [Root] (Score: {root.get('score', 0.0):.0%}) - Distilled: {root.get('insight', '')[:80]}...")
+    
+    # Build adjacency list
+    adj = {}
+    for nid, node in nodes.items():
+        p_id = node.get("parent_id", "root")
+        adj.setdefault(p_id, []).append(nid)
+        
+    def _dfs(node_id, prefix="    "):
+        children = adj.get(node_id, [])
+        for i, child_id in enumerate(children):
+            node = nodes[child_id]
+            is_last = (i == len(children) - 1)
+            char = "└── " if is_last else "├── "
+            
+            status_lbl = "⏳ Pending"
+            if node["status"] == "merged":
+                status_lbl = "🟢 Merged"
+            elif node["status"] == "pruned":
+                status_lbl = "🔴 Pruned"
+            elif node["status"] == "evaluated":
+                status_lbl = "🟡 Active"
+                
+            lines.append(f"{prefix}{char}[{status_lbl}] {child_id} ({node.get('hypothesis','')[:50]}...) Score: {node.get('score', 0.0):.0%}")
+            
+            next_prefix = prefix + ("    " if is_last else "│   ")
+            _dfs(child_id, next_prefix)
+            
+    _dfs("root")
+    return "\n".join(lines)
+
+

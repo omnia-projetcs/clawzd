@@ -710,6 +710,380 @@ async def _llm_call(messages: list[dict], provider: str = "", model: str = "", p
     return result
 
 
+async def _run_arbor_htr_loop(
+    pid: str,
+    proj: dict,
+    query: str,
+    provider: str,
+    model: str,
+    main_model: str,
+    llm_call: Callable,
+    emit_log: Callable,
+    emit_progress: Callable,
+    emit_new_results: Callable,
+    emit_new_asset: Callable,
+):
+    from datetime import datetime, timezone
+    import os
+    import json
+    import subprocess
+    import asyncio
+    from app.tools.research_engine import (
+        arbor_ideate_hypotheses,
+        arbor_select_hypotheses,
+        arbor_evaluate_hypothesis_node,
+        arbor_backpropagate_and_decide,
+        render_arbor_tree_ascii
+    )
+    from app.tools_market import fetch_market_data
+    from app.rag import explicit_rag_search
+    
+    # 1. Initialize Hypothesis Tree if not present
+    if "hypothesis_tree" not in proj:
+        proj["hypothesis_tree"] = {
+            "root": {
+                "id": "root",
+                "parent_id": None,
+                "hypothesis": query,
+                "status": "active",
+                "depth": 0,
+                "evidence": [],
+                "assets": [],
+                "score": 0.0,
+                "scores_detail": {},
+                "insight": "Initial research query",
+                "artifact": "",
+                "created_at": datetime.now(timezone.utc).isoformat()
+            },
+            "nodes": {}
+        }
+        _save(proj)
+        
+    tree = proj["hypothesis_tree"]
+    max_iterations = proj.get("max_iterations", 15)
+    target_score = proj.get("target_score", 0.85)
+    
+    await emit_log("🌲 Hypothesis-Tree Refinement (Arbor HTR) initialized!")
+    
+    for iteration in range(len(proj["iterations"]), max_iterations):
+        if pid in _stop_requested:
+            _stop_requested.discard(pid)
+            proj["status"] = "paused"
+            _save(proj)
+            await _emit(pid, "status", {"status": "paused"})
+            return
+            
+        iter_num = iteration + 1
+        iter_data = {
+            "num": iter_num,
+            "started_at": datetime.now(timezone.utc).isoformat(),
+            "actions": [],
+            "score": 0.0,
+            "evaluation": "",
+            "scores_detail": {},
+        }
+        
+        await _emit(pid, "iteration_start", {"iteration": iter_num})
+        await emit_progress(phase=ResearchPhase.SEARCH, current_query=query)
+        await emit_log(f"🧠 Arbor Coordinator: Running HTR Iteration {iter_num}/{max_iterations}")
+        
+        # 1. Observe & Ideate
+        pending = [n for n in tree["nodes"].values() if n["status"] == "pending"]
+        if not pending or len(pending) < 2:
+            await emit_log("🔭 Coordinator: Ideating new hypotheses to fill gaps...")
+            new_nodes = await arbor_ideate_hypotheses(
+                query=query,
+                tree=tree,
+                llm_call=llm_call,
+                provider=provider,
+                model=main_model or model,
+                num_to_ideate=3
+            )
+            for n in new_nodes:
+                tree["nodes"][n["id"]] = n
+            _save(proj)
+            await emit_log(f"   Ideated {len(new_nodes)} new hypotheses.")
+            
+        # 2. Select
+        selected = arbor_select_hypotheses(tree, n=1)
+        if not selected:
+            await emit_log("⚠️ No active hypothesis to test. Retrying ideation...")
+            continue
+            
+        active_node = selected[0]
+        node_id = active_node["id"]
+        node_hypothesis = active_node["hypothesis"]
+        node_actions = active_node.get("expected_actions", ["web_search"])
+        
+        await emit_log(f"🔬 Dispatching Executor: Testing hypothesis {node_id}")
+        await emit_log(f"   Hypothesis: '{node_hypothesis}'")
+        
+        active_node["status"] = "active"
+        _save(proj)
+        
+        # 3. Execute actions for this node in an isolated worktree
+        worktree_dir = os.path.join(_proj_dir(pid), "worktrees", f"node_{node_id}")
+        os.makedirs(worktree_dir, exist_ok=True)
+        
+        node_evidence = []
+        node_assets = []
+        node_artifact = ""
+        
+        # Run up to 4 actions defined for the node
+        for act_type in node_actions[:4]:
+            if pid in _stop_requested:
+                break
+                
+            await emit_log(f"   ↳ Executing action '{act_type}'...")
+            
+            if act_type == "web_search":
+                search_res = await _do_web_search_with_retry(node_hypothesis)
+                node_evidence.extend(search_res)
+                await emit_new_results(search_res)
+                if search_res:
+                    top_url = search_res[0].get("url")
+                    if top_url and not top_url.startswith("rag://"):
+                        try:
+                            text = await _scrape_url(top_url)
+                            if text:
+                                asset = await _save_text_asset(
+                                    f"Web ({node_id}): {search_res[0].get('title', top_url[:40])[:60]}",
+                                    text, "web_page", top_url, pid
+                                )
+                                node_assets.append(asset)
+                                proj.setdefault("assets", []).append(asset)
+                                await emit_new_asset(asset)
+                        except Exception:
+                            pass
+                            
+            elif act_type == "smart_scrape":
+                urls = [r.get("url") for r in proj.get("search_results", []) if r.get("url")][:3]
+                if urls:
+                    from app.tools.research_scraper import batch_scrape
+                    scraped = await batch_scrape(
+                        urls, query, _scrape_url, llm_call, provider, model
+                    )
+                    for s in scraped:
+                        sr_entry = {
+                            "title": f"Smart-scraped ({node_id}): {s['url'][:60]}",
+                            "snippet": s["relevant_extract"][:500],
+                            "url": s["url"],
+                            "full_text": s["relevant_extract"],
+                            "key_facts": s.get("key_facts", []),
+                            "source": "smart_scrape",
+                        }
+                        node_evidence.append(sr_entry)
+                        await emit_new_results([sr_entry])
+                        asset = await _save_text_asset(f"Smart Scrape ({node_id})", s["relevant_extract"], "smart_scrape", s["url"], pid)
+                        node_assets.append(asset)
+                        proj.setdefault("assets", []).append(asset)
+                        await emit_new_asset(asset)
+                        
+            elif act_type == "scrape_url":
+                urls = [r.get("url") for r in proj.get("search_results", []) if r.get("url")][:1]
+                if urls:
+                    text = await _scrape_url(urls[0])
+                    if text:
+                        sr_entry = {
+                            "title": f"Scraped ({node_id}): {urls[0][:60]}",
+                            "snippet": text[:500], "url": urls[0], "full_text": text
+                        }
+                        node_evidence.append(sr_entry)
+                        await emit_new_results([sr_entry])
+                        asset = await _save_text_asset(f"Scraped ({node_id})", text, "scrape", urls[0], pid)
+                        node_assets.append(asset)
+                        proj.setdefault("assets", []).append(asset)
+                        await emit_new_asset(asset)
+                        
+            elif act_type == "write_script":
+                script_prompt = [
+                    {"role": "system", "content": (
+                        "Generate a self-contained python script to verify or analyze data for this research question.\n"
+                        "The script will run inside an isolated worktree directory.\n"
+                        "Keep it short, print results to stdout.\n"
+                        "Return ONLY valid python code, no markdown fences."
+                    )},
+                    {"role": "user", "content": f"Research question: {node_hypothesis}"}
+                ]
+                script_code = await llm_call(script_prompt, provider, model)
+                if script_code.startswith("```"):
+                    lines = script_code.split("\n")
+                    inner = [l for l in lines[1:] if not l.strip().startswith("```")]
+                    script_code = "\n".join(inner).strip()
+                    
+                if script_code:
+                    try:
+                        script_path = os.path.join(worktree_dir, "experiment.py")
+                        with open(script_path, "w", encoding="utf-8") as f:
+                            f.write(script_code)
+                        python_exe = _venv_python(pid)
+                        result = await asyncio.to_thread(
+                            subprocess.run, [python_exe, "experiment.py"],
+                            capture_output=True, text=True, timeout=30,
+                            cwd=worktree_dir,
+                        )
+                        output = (result.stdout + "\n" + result.stderr)[:2000].strip()
+                        node_artifact = f"Code:\n```python\n{script_code}\n```\n\nOutput:\n```\n{output}\n```"
+                        
+                        sr_entry = {
+                            "title": f"🧪 Arbor Experiment ({node_id})",
+                            "snippet": output[:500],
+                            "url": f"sandbox://worktree/{node_id}",
+                            "full_text": output,
+                            "source": "experiment",
+                            "code": script_code[:500]
+                        }
+                        node_evidence.append(sr_entry)
+                        await emit_new_results([sr_entry])
+                        asset = await _save_text_asset(f"Arbor Experiment ({node_id})", node_artifact, "script_experiment", "sandbox", pid)
+                        node_assets.append(asset)
+                        proj.setdefault("assets", []).append(asset)
+                        await emit_new_asset(asset)
+                        await emit_log(f"   🧪 Sandbox output: {output[:150]}...")
+                    except Exception as e:
+                        await emit_log(f"   ❌ Sandbox error: {e}")
+                        
+            elif act_type == "query_rag":
+                rag_q = node_hypothesis
+                rag_ctx = explicit_rag_search(rag_q, k=3)
+                if rag_ctx:
+                    sr_entry = {
+                        "title": f"RAG ({node_id}): {rag_q[:50]}",
+                        "snippet": rag_ctx[:500], "url": f"rag://local/{node_id}"
+                    }
+                    node_evidence.append(sr_entry)
+                    await emit_new_results([sr_entry])
+                    
+            elif act_type == "ask_model":
+                ask_prompt = [
+                    {"role": "system", "content": "Provide detailed expert knowledge for this subtopic. Be precise (300-500 words)."},
+                    {"role": "user", "content": node_hypothesis}
+                ]
+                ans = await llm_call(ask_prompt, provider, model)
+                if ans:
+                    sr_entry = {
+                        "title": f"🤖 Model Knowledge ({node_id})",
+                        "snippet": ans[:500], "url": f"model://internal/{node_id}", "full_text": ans, "source": "model_knowledge"
+                    }
+                    node_evidence.append(sr_entry)
+                    await emit_new_results([sr_entry])
+                    
+            elif act_type == "academic_search":
+                try:
+                    from app.tools.research_engine import _semantic_scholar_search
+                    sem_res = await _semantic_scholar_search(node_hypothesis, max_results=5)
+                    node_evidence.extend(sem_res)
+                    await emit_new_results(sem_res)
+                except Exception as e:
+                    await emit_log(f"   ⚠️ Academic search failed: {e}")
+                    
+            elif act_type == "fetch_market_data":
+                symbol_prompt = [
+                    {"role": "system", "content": "Extract a financial asset symbol (crypto, stock, or forex) from the text. Return ONLY the symbol, e.g. BTCUSDT, AAPL. If none, return empty."},
+                    {"role": "user", "content": node_hypothesis}
+                ]
+                sym = (await llm_call(symbol_prompt, provider, model)).strip()
+                if sym:
+                    try:
+                        m_res = fetch_market_data({"symbol": sym, "source": "crypto" if "USDT" in sym or len(sym)>5 else "stock", "interval": "1d", "limit": 10})
+                        if not m_res.get("error"):
+                            rows = m_res.get("data", [])
+                            summary = f"OHLCV data for {sym}:\n" + "\n".join(str(r) for r in rows[:5])
+                            sr_entry = {
+                                "title": f"📈 Market Data ({node_id}): {sym}",
+                                "snippet": summary[:500], "url": f"market://{sym}", "full_text": summary, "source": "market_data"
+                            }
+                            node_evidence.append(sr_entry)
+                            await emit_new_results([sr_entry])
+                    except Exception:
+                        pass
+                        
+        active_node["evidence"].extend(node_evidence)
+        active_node["assets"].extend(node_assets)
+        if node_artifact:
+            active_node["artifact"] = node_artifact
+            
+        # 4. Evaluate & Backpropagate
+        await emit_log(f"📊 Evaluator: Evaluating hypothesis node {node_id}...")
+        eval_res = await arbor_evaluate_hypothesis_node(
+            query=query,
+            node=active_node,
+            llm_call=llm_call,
+            provider=provider,
+            model=model
+        )
+        
+        active_node["score"] = eval_res["overall"]
+        active_node["scores_detail"] = eval_res["scores"]
+        active_node["insight"] = eval_res["insight"]
+        
+        new_status, decision_log = arbor_backpropagate_and_decide(
+            tree=tree,
+            node_id=node_id,
+            merge_gate_threshold=target_score
+        )
+        
+        await emit_log(decision_log)
+        
+        # Sync with main project state
+        proj["search_results"] = list(tree["root"].setdefault("evidence", []))
+        proj["current_score"] = tree["root"].get("score", 0.0)
+        
+        iter_data["score"] = active_node["score"]
+        iter_data["evaluation"] = active_node["insight"]
+        iter_data["scores_detail"] = active_node["scores_detail"]
+        iter_data["completed_at"] = datetime.now(timezone.utc).isoformat()
+        
+        for act_type in node_actions[:4]:
+            iter_data["actions"].append({
+                "type": act_type,
+                "node_id": node_id,
+                "timestamp": datetime.now(timezone.utc).isoformat()
+            })
+            
+        proj["iterations"].append(iter_data)
+        proj["hypothesis_tree"] = tree
+        _save(proj)
+        
+        tree_ascii = render_arbor_tree_ascii(tree)
+        await emit_log(tree_ascii)
+        
+        await _emit(pid, "iteration_end", {
+            "iteration": iter_num,
+            "score": proj["current_score"],
+            "evaluation": tree_ascii,
+            "scores_detail": tree["root"].get("scores_detail", {}),
+        })
+        
+        if proj["current_score"] >= target_score:
+            await emit_log(f"✅ Target score reached via HTR ({proj['current_score']:.0%})!")
+            break
+            
+        await asyncio.sleep(1)
+        
+    # Generate final report
+    await emit_progress(phase=ResearchPhase.REPORT)
+    tree_ascii = render_arbor_tree_ascii(tree)
+    report_header = f"### Hypothesis-Tree Refinement (HTR) Evolution\n\n```\n{tree_ascii}\n```\n\n"
+    
+    await _generate_report(
+        pid=pid,
+        provider=provider,
+        model=model,
+        perspectives=[],
+        branch_summaries=tree["root"].get("insight", ""),
+        dynamic_outline=None,
+        report_draft=report_header + "\n\n" + (tree["root"].get("artifact", "")),
+        perspective_synthesis=""
+    )
+    
+    proj = _load(pid)
+    proj["status"] = "completed"
+    _save(proj)
+    await _emit(pid, "status", {"status": "completed"})
+    await emit_log("🎉 Arbor HTR Research completed!")
+
+
 async def _research_loop(pid: str):
     from app.tools.task_manager import register_task, unregister_task
     from config import (
@@ -843,6 +1217,15 @@ async def _research_loop(pid: str):
         })
 
     try:
+        profile_id = proj.get("profile_id", "")
+        if profile_id == "arbor_htr":
+            await _run_arbor_htr_loop(
+                pid, proj, query, provider, model, main_model,
+                _project_llm_call, _emit_log, _emit_progress,
+                _emit_new_results, _emit_new_asset
+            )
+            return
+
         # ── Phase 0: Perspective Decomposition (STORM-style) ──
         pass
         await _emit_progress(phase=ResearchPhase.PERSPECTIVES)
