@@ -9,6 +9,10 @@ import os
 import time
 import zipfile
 import uuid
+import warnings
+
+# Suppress Hugging Face transformers Siglip2ImageProcessorFast deprecation warnings
+warnings.filterwarnings("ignore", message=".*Siglip2ImageProcessor.*")
 
 from fastapi import FastAPI, Request, HTTPException, UploadFile, File, Form, WebSocket, WebSocketDisconnect
 from fastapi.responses import HTMLResponse, JSONResponse, StreamingResponse, FileResponse

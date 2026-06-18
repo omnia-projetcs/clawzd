@@ -1584,7 +1584,7 @@ async def generate_image_core(
                         try:
                             import torch
                             with torch.no_grad():
-                                vae_device = next(p.vae.parameters()).device
+                                vae_device = latents.device
                                 dec_latents = latents.to(vae_device, dtype=p.vae.dtype)
                                 scaling = getattr(p.vae.config, "scaling_factor", None)
                                 force_up = getattr(p.vae.config, "force_upcast", False)
