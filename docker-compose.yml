@@ -12,6 +12,8 @@ services:
       - ./.env:/app/.env
     env_file:
       - .env
+    environment:
+      - OLLAMA_HOST=http://ollama:11434
     depends_on:
       - ollama
     deploy:
@@ -28,6 +30,9 @@ services:
     image: ollama/ollama:latest
     container_name: ollama
     restart: unless-stopped
+    # If host port 11434 is already in use by a native Ollama service on the host:
+    # Option A: Comment out the ports mapping below so Ollama runs inside Docker network only.
+    # Option B: Map it to a different host port, e.g. - "11435:11434".
     ports:
       - "11434:11434"
     volumes:
