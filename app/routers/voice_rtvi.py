@@ -9,7 +9,7 @@ import logging
 import asyncio
 from fastapi import APIRouter, WebSocket, WebSocketDisconnect
 
-from config import OLLAMA_MODEL, LLM_PROVIDER
+from config import OLLAMA_MODEL, LLM_PROVIDER, API_SECRET_TOKEN
 from app.core.llm_provider import get_llm_provider
 from app.tools_audio import _generate_tts_edge, _save_audio
 
@@ -27,6 +27,11 @@ def split_sentences(text: str) -> list[str]:
 
 @router.websocket("/session")
 async def websocket_voice_endpoint(websocket: WebSocket):
+    if API_SECRET_TOKEN:
+        token = websocket.query_params.get("token") or websocket.cookies.get("api_secret_token")
+        if token != API_SECRET_TOKEN:
+            await websocket.close(code=4001, reason="Unauthorized")
+            return
     await websocket.accept()
     session_id = f"voice_{uuid.uuid4().hex[:8]}"
     logger.info("Voice RTVI WebSocket connected: %s", session_id)

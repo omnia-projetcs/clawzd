@@ -9,7 +9,7 @@ import logging
 import os
 from pathlib import Path
 from fastapi import APIRouter, WebSocket, WebSocketDisconnect
-from config import WORKSPACE_DIR
+from config import WORKSPACE_DIR, API_SECRET_TOKEN
 
 router = APIRouter()
 logger = logging.getLogger("clawzd.webdev_sync")
@@ -101,6 +101,11 @@ def _get_workspace_files(base_dir: Path) -> dict[str, dict]:
 @router.websocket("/sync")
 async def websocket_sync_endpoint(websocket: WebSocket):
     """FastAPI WebSocket endpoint for real-time bidirectionnal workspace sync."""
+    if API_SECRET_TOKEN:
+        token = websocket.query_params.get("token") or websocket.cookies.get("api_secret_token")
+        if token != API_SECRET_TOKEN:
+            await websocket.close(code=4001, reason="Unauthorized")
+            return
     await websocket.accept()
     logger.info("WebDev sync WebSocket connection accepted.")
 

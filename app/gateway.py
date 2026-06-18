@@ -157,7 +157,13 @@ async def _auth_middleware(request: Request, call_next):
         # Skip auth for public routes, static files, and SSE streams
         if path not in _PUBLIC_PATHS and not any(path.startswith(p) for p in _PUBLIC_PREFIXES):
             auth_header = request.headers.get("Authorization", "")
-            if not auth_header.startswith("Bearer ") or auth_header[7:] != API_SECRET_TOKEN:
+            token = ""
+            if auth_header.startswith("Bearer "):
+                token = auth_header[7:]
+            else:
+                token = request.cookies.get("api_secret_token", "")
+            
+            if token != API_SECRET_TOKEN:
                 return JSONResponse(status_code=401, content={"error": "Unauthorized — set Authorization: Bearer <token>"})
     return await call_next(request)
 
@@ -466,7 +472,18 @@ async def index(request: Request):
         "has_hf_token": has_hf_token,
         "app_version": APP_VERSION,
     }
-    return templates.TemplateResponse(request=request, name="index.html", context=context)
+    response = templates.TemplateResponse(request=request, name="index.html", context=context)
+    if API_SECRET_TOKEN:
+        response.set_cookie(
+            key="api_secret_token",
+            value=API_SECRET_TOKEN,
+            httponly=True,
+            samesite="lax",
+            secure=False,
+        )
+    else:
+        response.delete_cookie(key="api_secret_token")
+    return response
 
 
 # --- Health Check ---
@@ -1964,6 +1981,11 @@ async def ws_chat(websocket: WebSocket, session_id: str):
       - {"type":"stop"}   → cancels active generation
       - {"type":"ping"}   → keepalive, returns {"type":"pong"}
     """
+    if API_SECRET_TOKEN:
+        token = websocket.query_params.get("token") or websocket.cookies.get("api_secret_token")
+        if token != API_SECRET_TOKEN:
+            await websocket.close(code=4001, reason="Unauthorized")
+            return
     await websocket.accept()
     await websocket.send_json({"type": "connected", "session_id": session_id})
     logger.info("WebSocket connected: %s", session_id)
