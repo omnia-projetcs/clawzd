@@ -61,6 +61,10 @@ def _get_workspace_files(base_dir: Path) -> dict[str, dict]:
             except ValueError:
                 continue
 
+            # Skip symlinks to avoid circular loops or broken target warnings
+            if file_path.is_symlink():
+                continue
+
             try:
                 stat = file_path.stat()
                 mtime = stat.st_mtime
