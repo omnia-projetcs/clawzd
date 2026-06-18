@@ -243,7 +243,7 @@ curl -fsSL https://ollama.com/install.sh | sh
 ollama pull qwen3.5:9b
 
 # Install all other dependencies
-pip install -r requirements.txt
+pip install -r requirements.txt --pre
 
 # Install Playwright browsers
 python -m playwright install chromium
