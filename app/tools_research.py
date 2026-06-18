@@ -6,6 +6,7 @@ V2: Multi-phase process, editable Markdown process, research profiles,
 sandbox execution with venv, chat-to-research integration.
 """
 import os, json, uuid, logging, asyncio, hashlib, shutil, subprocess, sys
+from typing import Callable
 from datetime import datetime, timezone
 from fastapi import APIRouter, Request, HTTPException
 from fastapi.responses import FileResponse, StreamingResponse
