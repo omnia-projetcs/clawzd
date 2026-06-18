@@ -454,7 +454,10 @@ class LLMProvider(ABC):
         async for token in self.chat_stream(messages, **kwargs):
             if token != FINISH_STOP_SENTINEL:
                 parts.append(token)
-        return "".join(parts)
+        response = "".join(parts)
+        if response.startswith("⚠️"):
+            raise RuntimeError(response)
+        return response
 
 
 class OllamaLLM(LLMProvider):
@@ -539,7 +542,10 @@ class OllamaLLM(LLMProvider):
             async for token in self._chat_stream_inner(messages, **kwargs):
                 if token != FINISH_STOP_SENTINEL:
                     parts.append(token)
-            return "".join(parts)
+            response = "".join(parts)
+            if response.startswith("⚠️"):
+                raise RuntimeError(response)
+            return response
 
     async def _chat_stream_inner(self, messages, model=None, **kwargs):
         """Stream via Ollama native /api/chat with dynamic num_ctx/num_predict.
