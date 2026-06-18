@@ -491,5 +491,23 @@
       "image"
     ],
     "backend": "hf"
+  },
+  {
+    "id": "ideogram-ai/ideogram-4-nf4",
+    "vendor": "Image",
+    "name": "Ideogram 4 NF4",
+    "ollama_id": "ideogram-ai/ideogram-4-nf4",
+    "size_gb": 12.0,
+    "params": "NF4",
+    "quant": "NF4",
+    "vram_min_gb": 16,
+    "description": "4-bit quantized version of Ideogram 4, optimized to fit on a single 16GB/24GB GPU. Excels at typography and spatial control.",
+    "recommended": true,
+    "token_limit": "N/A",
+    "release_date": "2026-06",
+    "capabilities": [
+      "image"
+    ],
+    "backend": "hf"
   }
 ]

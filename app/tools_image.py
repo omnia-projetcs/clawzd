@@ -88,6 +88,7 @@ _IMAGE_STYLE_MODELS = {
     "z_image": {"repo": "Tongyi-MAI/Z-Image", "is_lora": False, "pipeline": "zimage"},
     "hidream_o1": {"repo": "HiDream-ai/HiDream-O1-Image", "is_lora": False},
     "flux2_klein_4b": {"repo": "black-forest-labs/FLUX.2-klein-4B", "is_lora": False},
+    "ideogram_4_nf4": {"repo": "ideogram-ai/ideogram-4-nf4", "is_lora": False},
 }
 
 
@@ -203,11 +204,12 @@ def _get_pipeline(repo_id: str, is_lora: bool = False):
             _pipe_type = _cfg.get("pipeline", "")
             break
 
-    # Z-Image / Qwen-Image / FLUX / SD3.5 / HiDream all need bfloat16
+    # Z-Image / Qwen-Image / FLUX / SD3.5 / HiDream / Ideogram all need bfloat16
     is_bf16_model = (
         "flux" in repo_id.lower()
         or "stable-diffusion-3" in repo_id.lower()
         or "hidream" in repo_id.lower()
+        or "ideogram" in repo_id.lower()
         or _pipe_type == "zimage"
     )
     if is_bf16_model:
@@ -231,6 +233,15 @@ def _get_pipeline(repo_id: str, is_lora: bool = False):
                 local_files_only=_should_use_local_files(base_model), token=hf_token,
             )
             _pipeline.load_lora_weights(repo_id, token=hf_token)
+
+        elif "ideogram" in repo_id.lower():
+            # Ideogram family (Ideogram 4) — uses DiffusionPipeline with device_map="cuda"
+            from diffusers import DiffusionPipeline
+            device_map = "cuda" if torch.cuda.is_available() else "auto"
+            _pipeline = DiffusionPipeline.from_pretrained(
+                repo_id, dtype=dtype, device_map=device_map,
+                local_files_only=_should_use_local_files(repo_id), token=hf_token,
+            )
 
         elif "hidream" in repo_id.lower():
             # HiDream family (UiT pixel-space generation) — uses DiffusionPipeline
@@ -284,6 +295,13 @@ def _get_pipeline(repo_id: str, is_lora: bool = False):
                     local_files_only=_should_use_local_files(base_model), token=hf_token,
                 )
                 _pipeline.load_lora_weights(repo_id, token=hf_token)
+            elif "ideogram" in repo_id.lower():
+                from diffusers import DiffusionPipeline
+                device_map = "cuda" if torch.cuda.is_available() else "auto"
+                _pipeline = DiffusionPipeline.from_pretrained(
+                    repo_id, dtype=dtype, variant=None, device_map=device_map,
+                    local_files_only=_should_use_local_files(repo_id), token=hf_token,
+                )
             elif "hidream" in repo_id.lower():
                 from diffusers import DiffusionPipeline
                 _pipeline = DiffusionPipeline.from_pretrained(
@@ -318,7 +336,7 @@ def _get_pipeline(repo_id: str, is_lora: bool = False):
     finally:
         _hf_download_state["active"] = False
 
-    if torch.cuda.is_available():
+    if torch.cuda.is_available() and "ideogram" not in repo_id.lower():
         _pipeline.enable_model_cpu_offload()
 
     _current_image_model = repo_id
@@ -923,6 +941,10 @@ _IMAGE_STYLES = {
         "positive": "",
         "negative": "lowres, bad anatomy, bad hands, text, error, worst quality, low quality, watermark, blurry",
     },
+    "ideogram_4_nf4": {
+        "positive": "",
+        "negative": "",
+    },
 
 }
 
@@ -1182,7 +1204,17 @@ async def _enhance_prompt_with_llm(prompt: str, style: str = "none", model_repo:
     is_flux = "flux" in model_repo.lower() if model_repo else (style in ("none", "flux_schnell", "flux2_klein"))
     is_photo = style in ("photorealistic", "realvis") or "juggernaut" in model_repo.lower() or "realvis" in model_repo.lower()
     is_zimage = style in ("z_image_turbo", "z_image") or "z-image" in model_repo.lower()
-    if is_zimage:
+    is_ideogram = "ideogram" in model_repo.lower() if model_repo else (style == "ideogram_4_nf4")
+    if is_ideogram:
+        model_guidance = (
+            "TARGET MODEL: Ideogram 4 (flow-matching, text rendering). "
+            "Ideogram 4 works best with NATURAL LANGUAGE descriptions or structured JSON-like prompts. "
+            "Write a clear, descriptive sentence (30-60 words). "
+            "Describe layout, text rendering (in double quotes), and color palettes in natural details. "
+            "Do NOT add quality tags like 'masterpiece, best quality, 8k' — Ideogram 4 ignores them. "
+            "Focus on: subject, scene, lighting, mood, composition, camera angle."
+        )
+    elif is_zimage:
         model_guidance = (
             "TARGET MODEL: Z-Image (S3-DiT flow-matching model, 6B params). "
             "Z-Image excels at photorealism and text rendering. "
@@ -1580,7 +1612,7 @@ async def generate_image_core(
 
             import asyncio
             # Distilled / flow-matching models don't support negative_prompt
-            _no_neg = "flux" in repo_id.lower() or "hidream" in repo_id.lower()  # FLUX family & HiDream
+            _no_neg = "flux" in repo_id.lower() or "hidream" in repo_id.lower() or "ideogram" in repo_id.lower()  # FLUX family & HiDream & Ideogram
             # Z-Image-Turbo is distilled — no negative prompt
             if _pipe_type == "zimage" and "turbo" in repo_id.lower():
                 _no_neg = True
