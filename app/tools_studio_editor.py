@@ -15,16 +15,25 @@ from fastapi import APIRouter, Request, HTTPException
 from PIL import Image, ImageDraw, ImageFont
 import numpy as np
 import imageio
-from config import DATA_DIR, PEXELS_API_KEY, PIXABAY_API_KEY
+import config
+from config import PEXELS_API_KEY, PIXABAY_API_KEY
 
 logger = logging.getLogger("clawzd.studio_editor")
 router = APIRouter()
 
-IMAGES_DIR = os.path.join(DATA_DIR, "images")
-AUDIO_DIR = os.path.join(DATA_DIR, "audio")
 
-os.makedirs(IMAGES_DIR, exist_ok=True)
-os.makedirs(AUDIO_DIR, exist_ok=True)
+def _images_dir() -> str:
+    """Resolve images directory from live config (supports DATA_DIR overrides in tests)."""
+    path = os.path.join(config.DATA_DIR, "images")
+    os.makedirs(path, exist_ok=True)
+    return path
+
+
+def _audio_dir() -> str:
+    """Resolve audio directory from live config (supports DATA_DIR overrides in tests)."""
+    path = os.path.join(config.DATA_DIR, "audio")
+    os.makedirs(path, exist_ok=True)
+    return path
 
 # Visual filters mapping to FFmpeg video filters
 COLOR_FILTERS = {
@@ -297,7 +306,7 @@ async def export_timeline(request: Request):
                 speed = max(0.5, min(speed, 2.0)) # Clamp speed to standard FFmpeg limits
                 color_filter = clip.get("filter", "none").lower()
 
-                filepath = os.path.join(IMAGES_DIR, filename)
+                filepath = os.path.join(_images_dir(), filename)
                 if not os.path.exists(filepath):
                     continue
 
@@ -423,9 +432,9 @@ async def export_timeline(request: Request):
             speed = max(0.5, min(speed, 2.0))
 
             # Try locating in audio gallery, fallback to image gallery
-            filepath = os.path.join(AUDIO_DIR, filename)
+            filepath = os.path.join(_audio_dir(), filename)
             if not os.path.exists(filepath):
-                filepath = os.path.join(IMAGES_DIR, filename)
+                filepath = os.path.join(_images_dir(), filename)
                 if not os.path.exists(filepath):
                     continue
 
@@ -633,7 +642,7 @@ async def export_timeline(request: Request):
 
         if is_audio_only:
             # Export mixed audio directly to audio gallery
-            out_filepath = os.path.join(AUDIO_DIR, out_filename)
+            out_filepath = os.path.join(_audio_dir(), out_filename)
             if export_format == "wav":
                 shutil.copy(final_audio_track, out_filepath)
             else: # mp3
@@ -659,7 +668,7 @@ async def export_timeline(request: Request):
             gallery_url = f"/data/audio/{out_filename}"
         else:
             # Merge overlaid video track and mixed audio track
-            out_filepath = os.path.join(IMAGES_DIR, out_filename)
+            out_filepath = os.path.join(_images_dir(), out_filename)
             
             # Select proper encoder for format
             vcodec = "libx264" if export_format == "mp4" else "libvpx-vp9"
@@ -718,14 +727,14 @@ async def ai_plan(request: Request):
 
     # Gather all assets from images/audio directories
     images = []
-    if os.path.exists(IMAGES_DIR):
-        for f in os.listdir(IMAGES_DIR):
+    if os.path.exists(_images_dir()):
+        for f in os.listdir(_images_dir()):
             if f.lower().endswith((".png", ".jpg", ".jpeg", ".webp", ".svg", ".mp4", ".webm")):
                 images.append(f)
 
     audios = []
-    if os.path.exists(AUDIO_DIR):
-        for f in os.listdir(AUDIO_DIR):
+    if os.path.exists(_audio_dir()):
+        for f in os.listdir(_audio_dir()):
             if f.lower().endswith((".mp3", ".wav", ".m4a", ".ogg")):
                 audios.append(f)
 
@@ -992,9 +1001,9 @@ async def silence_detect(request: Request):
     if not filename:
         raise HTTPException(400, "Filename is required")
 
-    filepath = os.path.join(AUDIO_DIR, filename)
+    filepath = os.path.join(_audio_dir(), filename)
     if not os.path.exists(filepath):
-        filepath = os.path.join(IMAGES_DIR, filename)
+        filepath = os.path.join(_images_dir(), filename)
         if not os.path.exists(filepath):
             raise HTTPException(404, f"File {filename} not found in audio or video directories.")
 
@@ -1132,9 +1141,9 @@ async def download_stock(request: Request):
     filename = f"stock_{clean_title}_{uuid.uuid4().hex[:4]}{ext}"
     
     if media_type == "audio":
-        dest_dir = AUDIO_DIR
+        dest_dir = _audio_dir()
     else:
-        dest_dir = IMAGES_DIR
+        dest_dir = _images_dir()
 
     dest_path = os.path.join(dest_dir, filename)
 
@@ -1196,9 +1205,9 @@ async def lossless_trim(request: Request):
         if not filename:
             raise HTTPException(400, "Le nom du fichier est requis")
             
-        src_path = os.path.join(IMAGES_DIR, filename)
+        src_path = os.path.join(_images_dir(), filename)
         if not os.path.exists(src_path):
-            src_path = os.path.join(AUDIO_DIR, filename)
+            src_path = os.path.join(_audio_dir(), filename)
             
         if not os.path.exists(src_path):
             raise HTTPException(404, "Fichier source introuvable")
@@ -1206,7 +1215,7 @@ async def lossless_trim(request: Request):
         # Génération du nom de sortie
         ext = os.path.splitext(filename)[1]
         out_filename = f"trimmed_{uuid.uuid4().hex[:6]}{ext}"
-        dest_path = os.path.join(IMAGES_DIR, out_filename) if ext.lower() in [".mp4", ".webm"] else os.path.join(AUDIO_DIR, out_filename)
+        dest_path = os.path.join(_images_dir(), out_filename) if ext.lower() in [".mp4", ".webm"] else os.path.join(_audio_dir(), out_filename)
         
         # Commande FFmpeg de copie directe de flux (lossless)
         cmd = [
@@ -1259,12 +1268,12 @@ async def lossless_merge(request: Request):
         first_ext = os.path.splitext(filenames[0])[1].lower()
         with open(temp_list_path, "w", encoding="utf-8") as f:
             for fname in filenames:
-                path = os.path.join(IMAGES_DIR, fname) if first_ext in [".mp4", ".webm"] else os.path.join(AUDIO_DIR, fname)
+                path = os.path.join(_images_dir(), fname) if first_ext in [".mp4", ".webm"] else os.path.join(_audio_dir(), fname)
                 if os.path.exists(path):
                     f.write(f"file '{path}'\n")
                     
         out_filename = f"merged_{uuid.uuid4().hex[:6]}{first_ext}"
-        dest_path = os.path.join(IMAGES_DIR, out_filename) if first_ext in [".mp4", ".webm"] else os.path.join(AUDIO_DIR, out_filename)
+        dest_path = os.path.join(_images_dir(), out_filename) if first_ext in [".mp4", ".webm"] else os.path.join(_audio_dir(), out_filename)
         
         cmd = [
             "ffmpeg", "-y",
@@ -1296,9 +1305,9 @@ async def stream_info(request: Request):
         data = await request.json()
         filename = os.path.basename(data.get("filename", ""))
         
-        filepath = os.path.join(IMAGES_DIR, filename)
+        filepath = os.path.join(_images_dir(), filename)
         if not os.path.exists(filepath):
-            filepath = os.path.join(AUDIO_DIR, filename)
+            filepath = os.path.join(_audio_dir(), filename)
             
         if not os.path.exists(filepath):
             raise HTTPException(404, "Fichier introuvable")
@@ -1331,12 +1340,12 @@ async def take_snapshot(request: Request):
         filename = os.path.basename(data.get("filename", ""))
         timestamp = float(data.get("time", 0.0))
         
-        filepath = os.path.join(IMAGES_DIR, filename)
+        filepath = os.path.join(_images_dir(), filename)
         if not os.path.exists(filepath):
             raise HTTPException(404, "Vidéo introuvable")
             
         snap_name = f"snap_{os.path.splitext(filename)[0]}_{int(timestamp*1000)}.png"
-        dest_path = os.path.join(IMAGES_DIR, snap_name)
+        dest_path = os.path.join(_images_dir(), snap_name)
         
         cmd = [
             "ffmpeg", "-y",
@@ -1371,9 +1380,9 @@ async def generate_visualizer(request: Request):
         fps = int(data.get("fps", 30))
         
         # Trouver le chemin de l'audio
-        audio_path = os.path.join(AUDIO_DIR, filename)
+        audio_path = os.path.join(_audio_dir(), filename)
         if not os.path.exists(audio_path):
-            audio_path = os.path.join(IMAGES_DIR, filename)
+            audio_path = os.path.join(_images_dir(), filename)
             
         if not os.path.exists(audio_path):
             raise HTTPException(404, "Fichier audio source introuvable")
@@ -1389,7 +1398,7 @@ async def generate_visualizer(request: Request):
 
         # Nom du fichier de sortie
         out_filename = f"viz_{uuid.uuid4().hex[:6]}.mp4"
-        dest_path = os.path.join(IMAGES_DIR, out_filename)
+        dest_path = os.path.join(_images_dir(), out_filename)
         
         # Configurer le filtre FFmpeg selon le style et le theme de couleur
         colors = "green"
@@ -1471,6 +1480,8 @@ async def generate_visualizer(request: Request):
             "url": f"/data/images/{out_filename}",
             "duration": media_info.get("duration", 10.0)
         }
+    except HTTPException:
+        raise
     except Exception as e:
         logger.error(f"Failed to generate audio visualizer: {e}")
         raise HTTPException(500, str(e))

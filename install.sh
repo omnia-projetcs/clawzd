@@ -1,6 +1,10 @@
 #!/bin/bash
 set -e
 
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# shellcheck source=scripts/common.sh
+source "$SCRIPT_DIR/scripts/common.sh"
+
 # ==============================================
 #   Clawzd – Automated Installation Script
 # ==============================================
@@ -63,31 +67,25 @@ if [ -t 0 ]; then
             exit 1
         fi
         
-        # Create default .env if it doesn't exist
-        if [ ! -f ".env" ]; then
-            if [ -f ".env.example" ]; then
-                cp .env.example .env
-            else
-                cat > .env << 'EOF'
-# === Clawzd Configuration ===
-LLM_PROVIDER=local
-OLLAMA_HOST=http://localhost:11434
-OLLAMA_MODEL=qwen3.5:9b
-APP_HOST=0.0.0.0
-APP_PORT=8888
-EOF
-            fi
-            echo "Default .env file created."
-        fi
-
-        # Make sure target directories exist
-        mkdir -p data/sessions data/profiles data/skills data/images data/screenshots data/audit_reports data/snapshots data/playbooks data/playbook_state data/checkpoints workspace chroma_db models
+        clawzd_ensure_env_file
+        clawzd_ensure_data_dirs
 
         echo "Starting Docker Compose (building... this may take a while)..."
-        if docker compose version &> /dev/null; then
-            docker compose up -d --build
+        if clawzd_has_nvidia_gpu; then
+            echo "NVIDIA GPU detected — enabling GPU compose overlay."
         else
-            docker-compose up -d --build
+            echo "No NVIDIA GPU detected — running CPU-only Docker mode."
+        fi
+        clawzd_docker_up
+
+        echo ""
+        echo "--- Pulling default Ollama models (inside container) ---"
+        DEFAULT_MODEL=$(clawzd_read_env_value "OLLAMA_MODEL" "qwen3.5:9b")
+        ENHANCE_MODEL=$(clawzd_read_env_value "ENHANCE_MODEL" "gemma3:4b")
+        sleep 5
+        docker exec ollama ollama pull "$DEFAULT_MODEL" 2>&1 || echo "WARNING: Could not pull $DEFAULT_MODEL yet — retry with: docker exec ollama ollama pull $DEFAULT_MODEL"
+        if [ -n "$ENHANCE_MODEL" ] && [ "$ENHANCE_MODEL" != "$DEFAULT_MODEL" ]; then
+            docker exec ollama ollama pull "$ENHANCE_MODEL" 2>&1 || echo "WARNING: Could not pull $ENHANCE_MODEL yet."
         fi
         
         echo ""
@@ -172,7 +170,10 @@ echo "--- Installing System Dependencies ---"
 if command -v apt-get &> /dev/null; then
     if command -v sudo &> /dev/null; then
         echo "Installing TTS, media and OCR dependencies (requires sudo)..."
-        sudo apt-get update && sudo apt-get install -y espeak espeak-ng espeak-data libespeak-dev ffmpeg tesseract-ocr tesseract-ocr-eng tesseract-ocr-fra
+        sudo apt-get update && sudo apt-get install -y \
+            espeak espeak-ng espeak-data libespeak-dev ffmpeg \
+            tesseract-ocr tesseract-ocr-eng tesseract-ocr-fra \
+            fonts-dejavu-core fonts-dejavu-extra nodejs npm
     else
         echo "WARNING: sudo not available. Please install manually: apt-get install espeak espeak-ng espeak-data libespeak-dev ffmpeg tesseract-ocr tesseract-ocr-eng tesseract-ocr-fra"
     fi
@@ -339,54 +340,16 @@ fi
 # ---------- Download Static Assets ----------
 echo ""
 echo "--- Downloading static assets (offline mode) ---"
-mkdir -p static/css static/js static/fonts
+clawzd_download_static_assets
 
-download_file() {
-    local url="$1"
-    local dest="$2"
-    if [ ! -f "$dest" ]; then
-        echo "Downloading $(basename "$dest")..."
-        if ! curl -L --fail --progress-bar -o "$dest" "$url"; then
-            echo "ERROR: Failed to download $url"
-            exit 1
-        fi
-        echo "OK: $(basename "$dest")"
-    else
-        echo "SKIP: $(basename "$dest") already exists."
-    fi
-}
-
-download_file "https://unpkg.com/htmx.org@1.9.12/dist/htmx.min.js" "static/js/htmx.min.js"
-download_file "https://cdn.jsdelivr.net/npm/@picocss/pico@2/css/pico.min.css" "static/css/pico.min.css"
-download_file "https://github.com/rsms/inter/raw/master/docs/font-files/Inter-Regular.woff2" "static/fonts/inter.woff2"
-download_file "https://raw.githubusercontent.com/paul-norman/codemirror6-prebuilt/main/dist/python.min.js" "static/js/cm6.bundle.js"
-
-# Highlight.js for syntax highlighting (local bundle)
-download_file "https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js" "static/js/highlight.min.js"
-download_file "https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/github-dark.min.css" "static/css/github-dark.min.css"
-
-# Mermaid.js for diagrams (local bundle)
-download_file "https://cdnjs.cloudflare.com/ajax/libs/mermaid/10.9.1/mermaid.min.js" "static/js/mermaid.min.js"
+# ---------- Frontend Build (Vite) ----------
+clawzd_build_frontend
 
 # ---------- .env File and Tokens ----------
 echo ""
 echo "--- Environment Configuration ---"
 
-if [ ! -f ".env" ]; then
-    if [ -f ".env.example" ]; then
-        cp .env.example .env
-    else
-        cat > .env << 'EOF'
-# === Clawzd Configuration ===
-LLM_PROVIDER=local
-OLLAMA_HOST=http://localhost:11434
-OLLAMA_MODEL=qwen3.5:9b
-APP_HOST=0.0.0.0
-APP_PORT=8888
-EOF
-    fi
-    echo "Default .env file created."
-fi
+clawzd_ensure_env_file
 
 if [ -t 0 ]; then
     read -p "Would you like to configure API keys (Tokens) now? (y/n) " -n 1 -r
@@ -497,7 +460,10 @@ if [ -n "$ENHANCE_MODEL_ID" ] && [ "$ENHANCE_MODEL_ID" != "$DEFAULT_MODEL" ]; th
 fi
 
 # ---------- Creating Working Directories ----------
-mkdir -p data/sessions data/profiles data/skills data/images data/screenshots data/audit_reports data/snapshots data/playbooks data/playbook_state data/checkpoints workspace chroma_db
+clawzd_ensure_data_dirs
+
+# ---------- Database Migrations ----------
+clawzd_run_migrations python
 
 echo ""
 # ---------- System Service ----------

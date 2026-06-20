@@ -1,6 +1,7 @@
 # 🌲 Arbor Hypothesis-Tree Refinement Process
 
 ## 1. Configuration
+- **Profile ID**: arbor_htr
 - **Topic**: {query}
 - **Model**: {model}
 - **Provider**: {provider}

@@ -1,0 +1,21 @@
+# GPU overlay — applied automatically when NVIDIA drivers are detected.
+# Manual usage: docker compose -f docker-compose.yml -f docker-compose.gpu.yml up -d
+
+services:
+  clawzd:
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu]
+
+  ollama:
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu]

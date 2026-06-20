@@ -7,8 +7,17 @@ echo "=============================================="
 echo "       Clawzd - Uninstall"
 echo "=============================================="
 
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+if [ -f "$SCRIPT_DIR/scripts/common.sh" ]; then
+    # shellcheck source=scripts/common.sh
+    source "$SCRIPT_DIR/scripts/common.sh"
+    if command -v docker &> /dev/null && [ -f docker-compose.yml ]; then
+        clawzd_docker_down 2>/dev/null || true
+    fi
+fi
+
 # --- Stop running service ---
-PIDS=$(pgrep -f "uvicorn app.gateway:app" 2>/dev/null || true)
+PIDS=$(pgrep -f "python.*main\.py" 2>/dev/null || true)
 if [ -n "$PIDS" ]; then
     echo "Stopping running Clawzd instance..."
     kill $PIDS 2>/dev/null || true

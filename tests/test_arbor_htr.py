@@ -1,5 +1,6 @@
 import os
 import json
+import pytest
 from unittest.mock import patch, AsyncMock
 from app.tools.research_profiles import get_profile
 from app.tools.research_engine import (
@@ -32,6 +33,7 @@ def test_arbor_select_hypotheses():
     assert len(selected) == 1
     assert selected[0]["id"] in ["node_1", "node_2"]
 
+@pytest.mark.asyncio
 async def test_arbor_ideate_hypotheses():
     """Verify coordinator can ideate and parse new hypotheses."""
     mock_llm_response = """
@@ -62,6 +64,7 @@ async def test_arbor_ideate_hypotheses():
     assert new_nodes[0]["priority"] == 0.85
     assert new_nodes[0]["status"] == "pending"
 
+@pytest.mark.asyncio
 async def test_arbor_evaluate_hypothesis_node():
     """Verify evaluator structure and multi-criteria scoring."""
     mock_llm_response = """

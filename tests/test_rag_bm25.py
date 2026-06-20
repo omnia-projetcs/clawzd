@@ -5,6 +5,9 @@ import pytest
 from fastapi import HTTPException
 from unittest.mock import patch
 
+pytest.importorskip("chromadb")
+pytest.importorskip("sentence_transformers")
+
 # Mock settings before importing app modules
 import app.ai_models.rag as rag
 

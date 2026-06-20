@@ -10,10 +10,12 @@ if [ -n "$PIDS" ]; then
 fi
 
 # Ensure child uvicorn workers are also killed
-UVICORN_PIDS=$(pgrep -f "uvicorn app.gateway:app" 2>/dev/null || true)
-if [ -n "$UVICORN_PIDS" ]; then
-    kill -9 $UVICORN_PIDS 2>/dev/null || true
-fi
+for UVICORN_PATTERN in "uvicorn app.gateway:app" "uvicorn.*main:app"; do
+    UVICORN_PIDS=$(pgrep -f "$UVICORN_PATTERN" 2>/dev/null || true)
+    if [ -n "$UVICORN_PIDS" ]; then
+        kill -9 $UVICORN_PIDS 2>/dev/null || true
+    fi
+done
 
 # Load APP_PORT from .env if present
 PORT=8888
@@ -43,12 +45,8 @@ if [ -x ".venv/bin/python3" ]; then
     PYTHON_CMD=".venv/bin/python3"
 elif [ -x ".venv/bin/python" ]; then
     PYTHON_CMD=".venv/bin/python"
-elif command -v python3 >/dev/null 2>&1; then
-    PYTHON_CMD="python3"
-elif command -v python >/dev/null 2>&1; then
-    PYTHON_CMD="python"
 else
-    echo "Python executable not found. Please ensure Python is installed and the virtual environment is valid."
+    echo "Virtual environment not found. Run ./install.sh first."
     exit 127
 fi
 

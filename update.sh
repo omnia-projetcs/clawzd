@@ -4,6 +4,10 @@
 # ==============================================
 set -e
 
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# shellcheck source=scripts/common.sh
+source "$SCRIPT_DIR/scripts/common.sh"
+
 echo "=============================================="
 echo "       Clawzd - Update"
 echo "=============================================="
@@ -11,6 +15,7 @@ echo "=============================================="
 # Activate virtual environment
 if [ -d ".venv" ]; then
     source .venv/bin/activate
+    PYTHON_CMD="python"
 else
     echo "ERROR: .venv not found. Run install.sh first."
     exit 1
@@ -24,41 +29,37 @@ git pull origin main 2>&1 || echo "WARNING: git pull failed (not a git repo or n
 # --- System dependencies ---
 echo ""
 echo "--- Updating System Dependencies ---"
-if command -v apt-get &> /dev/null; then
-    if command -v sudo &> /dev/null; then
-        sudo apt-get update && sudo apt-get install -y espeak espeak-ng espeak-data libespeak-dev ffmpeg tesseract-ocr tesseract-ocr-eng tesseract-ocr-fra || true
-    fi
-fi
+clawzd_install_system_deps
 
 # --- Reinstall dependencies ---
 echo ""
 echo "--- Updating Python dependencies ---"
 pip install -r requirements.txt --upgrade
 
+# --- Playwright browsers ---
+clawzd_install_playwright "$PYTHON_CMD"
+
+# --- Static assets & frontend ---
+echo ""
+echo "--- Updating static assets ---"
+clawzd_download_static_assets
+clawzd_build_frontend
+
 # --- Ensure data directories exist ---
-mkdir -p data/sessions data/profiles data/skills data/images data/screenshots data/audit_reports workspace chroma_db
+clawzd_ensure_data_dirs
 
 # --- Run database migrations ---
-echo ""
-echo "--- Running database migrations ---"
-python3 migrate.py 2>&1 || {
-    echo "WARNING: Database migration failed. The app will attempt to initialize on startup."
-}
+clawzd_run_migrations "$PYTHON_CMD"
 
 # --- Verify Ollama model hash ---
 echo ""
 echo "--- Verifying Ollama model integrity ---"
 if command -v ollama &> /dev/null; then
-    # Read active model from .env
-    if [ -f ".env" ]; then
-        ACTIVE_MODEL=$( (grep -oP 'OLLAMA_MODEL=\K.*' .env 2>/dev/null || echo "") | tr -d "\"'" )
-    fi
-    ACTIVE_MODEL=${ACTIVE_MODEL:-"qwen3:latest"}
+    ACTIVE_MODEL=$(clawzd_read_env_value "OLLAMA_MODEL" "qwen3.5:9b")
 
-    # Check model is present and get its digest
     MODEL_INFO=$(ollama show "$ACTIVE_MODEL" --modelfile 2>/dev/null || echo "")
     if [ -n "$MODEL_INFO" ]; then
-        DIGEST=$(ollama list 2>/dev/null | grep "$(echo $ACTIVE_MODEL | cut -d: -f1)" | awk '{print $2}' | head -1)
+        DIGEST=$(ollama list 2>/dev/null | grep "$(echo "$ACTIVE_MODEL" | cut -d: -f1)" | awk '{print $2}' | head -1)
         if [ -n "$DIGEST" ]; then
             echo "Model: $ACTIVE_MODEL"
             echo "Digest: $DIGEST"
@@ -82,11 +83,9 @@ SERVICE_NAME=""
 USER_MODE=false
 
 if command -v systemctl &> /dev/null; then
-    # Check for active user services first
     if systemctl --user is-active --quiet clawzd.service 2>/dev/null || systemctl --user is-failed --quiet clawzd.service 2>/dev/null; then
         SERVICE_NAME="clawzd.service"
         USER_MODE=true
-    # Then check for active system services
     elif systemctl is-active --quiet clawzd.service 2>/dev/null || systemctl is-failed --quiet clawzd.service 2>/dev/null; then
         SERVICE_NAME="clawzd.service"
     fi
@@ -99,7 +98,6 @@ if [ -n "$SERVICE_NAME" ]; then
         echo "✓ Service restarted via systemd (--user)."
     else
         echo "Systemd service ($SERVICE_NAME) detected and active. Restarting via systemctl..."
-        # Ask for rights if not root
         if [ "$EUID" -ne 0 ]; then
             echo "Administrator rights are required to restart the system service. Requesting sudo..."
             if command -v sudo &> /dev/null; then
@@ -118,16 +116,11 @@ elif [ -f "$HOME/Library/LaunchAgents/com.clawzd.plist" ] && launchctl list | gr
     launchctl start com.clawzd
     echo "✓ Service restarted via launchctl."
 else
-    # Fallback to local background script
-    # run.sh handles killing existing instances internally
-    
-    # Restart in background
     echo "Starting Clawzd via run.sh in background..."
     nohup ./run.sh > /dev/null 2>&1 &
     sleep 2
 
-    # Verify it started
-    if pgrep -f "python.*main\.py" > /dev/null 2>&1 || pgrep -f "uvicorn app.gateway:app" > /dev/null 2>&1; then
+    if pgrep -f "python.*main\.py" > /dev/null 2>&1; then
         echo "✓ Clawzd restarted successfully"
     else
         echo "WARNING: Service may not have started. Check manually: ./run.sh"

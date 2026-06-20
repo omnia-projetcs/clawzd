@@ -53,7 +53,7 @@ def check_ollama_health() -> bool:
 
 
 if __name__ == "__main__":
-    if LLM_PROVIDER == "local":
+    if LLM_PROVIDER in ("local", "ollama"):
         logger.info("LLM backend: Ollama (%s)", OLLAMA_HOST)
         logger.info("Active model: %s", OLLAMA_MODEL)
 

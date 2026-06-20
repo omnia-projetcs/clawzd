@@ -127,6 +127,8 @@ ATTENTION! THIS PROJECT IS CURRENTLY IN ACTIVE DEVELOPMENT (ALPHA VERSION). FEAT
 | 🚀 **Project Studio** | Export | Markdown (TODO.md) exports |
 | ⚙️ **Automation Studio** | Custom workflows | Run custom automation pipelines |
 | 📊 **Presentation Studio** | Dynamic UI | Editable presentation layouts with table customization |
+| 🔬 **Research Studio** | Multi-profile pipelines | Academic, deep research, market watch, blog articles, security audit |
+| 🌲 **Research Studio** | Arbor HTR | [Hypothesis-Tree Refinement](https://github.com/RUC-NLPIR/Arbor) — coordinator ideates branching hypotheses, executors test in isolated worktrees, merge gate consolidates findings |
 | ⚔️ **Arena** | AI Battle Arena | Multi-model response comparison and automated judge evaluation |
 | 🛠️ **Tools** | Code execution | Sandboxed Python with timeout & memory limits |
 | 🛠️ **Tools** | Web search | DuckDuckGo integration |
@@ -816,6 +818,7 @@ We would like to thank the following projects that served as inspiration for Cla
 - [OpenClaw](https://github.com/openclaw/openclaw) — Studio runtime/summary dashboard architecture
 
 ### Research & Deep Analysis
+- [Arbor](https://github.com/RUC-NLPIR/Arbor) — Hypothesis-Tree Refinement (HTR): branching hypothesis trees, coordinator-executor isolation, sandbox worktrees, and merge-gate backpropagation ([paper](https://arxiv.org/abs/2606.11926))
 - [GPT-Researcher](https://github.com/assafelovic/gpt-researcher) — Research progress tracking, cost callbacks, multi-source scraping
 - [open_deep_research](https://github.com/langchain-ai/open_deep_research) — Research brief writing, topic prompt transformation
 - [HyperAgents](https://github.com/agent-labs/hyperagents) — Archive.jsonl, select_next_parent mechanism, ensemble evaluation
