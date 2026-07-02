@@ -57,6 +57,18 @@ VLLM_MODEL = os.getenv("VLLM_MODEL", "")
 FREELLMAPI_URL = os.getenv("FREELLMAPI_URL", "http://localhost:3001")
 FREELLMAPI_KEY = os.getenv("FREELLMAPI_KEY", "")
 
+# --- OpenAI model defaults (fast media-first choices) ---
+# These are intentionally overridable because model availability and deprecation
+# windows can vary by account.
+# Chat provider still uses Chat Completions; keep a fast compatible default.
+OPENAI_TEXT_MODEL = os.getenv("OPENAI_TEXT_MODEL", "gpt-4.1-mini")
+OPENAI_IMAGE_MODEL = os.getenv("OPENAI_IMAGE_MODEL", "gpt-image-2")
+OPENAI_VIDEO_MODEL = os.getenv("OPENAI_VIDEO_MODEL", "sora-2")
+OPENAI_TTS_MODEL = os.getenv("OPENAI_TTS_MODEL", "gpt-4o-mini-tts")
+OPENAI_TRANSCRIBE_MODEL = os.getenv("OPENAI_TRANSCRIBE_MODEL", "gpt-4o-mini-transcribe")
+OPENAI_REALTIME_MODEL = os.getenv("OPENAI_REALTIME_MODEL", "gpt-realtime-2")
+OPENAI_REALTIME_TRANSCRIBE_MODEL = os.getenv("OPENAI_REALTIME_TRANSCRIBE_MODEL", "gpt-realtime-whisper")
+
 # Master toggle for cloud AI providers (OpenAI, Anthropic, Google, Grok, Groq, Mistral, etc.)
 # Set to "false" in .env to run fully offline/local (Ollama only).
 # Can also be toggled at runtime via the Settings panel → "Cloud AI Models".
@@ -77,6 +89,8 @@ OLLAMA_MODEL = os.getenv("OLLAMA_MODEL", "qwen3.5:9b")
 # Must be a non-reasoning instruction model to avoid <think> token budget waste.
 ENHANCE_MODEL = os.getenv("ENHANCE_MODEL", "gemma3:4b")
 CODE_MODEL = os.getenv("CODE_MODEL", OLLAMA_MODEL)
+LOCAL_FAST_IMAGE_MODEL = os.getenv("LOCAL_FAST_IMAGE_MODEL", "z_image_turbo")
+LOCAL_FAST_VIDEO_MODEL = os.getenv("LOCAL_FAST_VIDEO_MODEL", "animatediff")
 OLLAMA_NUM_GPU = _safe_int(os.getenv("OLLAMA_NUM_GPU", "999"), 999)  # 999 = all layers on GPU (100% VRAM)
 OLLAMA_NUM_CTX = _safe_int(os.getenv("OLLAMA_NUM_CTX", "-1"), -1)    # -1 = max context window
 

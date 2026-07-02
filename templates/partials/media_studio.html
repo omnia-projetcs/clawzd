@@ -338,9 +338,14 @@
           </button>
           <button class="media-type-btn"
                   data-backend="api"
-                  {% if not has_hf_token %}disabled title="HUGGINGFACE_API_KEY is missing in your settings" style="opacity: 0.5; cursor: not-allowed;"{% endif %}>
-            <span class="media-icon" data-icon="cloud"></span> API
+                  {% if not has_cloud_media_api %}disabled title="OPENAI_API_KEY or HUGGINGFACE_API_KEY is missing in your settings" style="opacity: 0.5; cursor: not-allowed;"{% endif %}>
+            <span class="media-icon" data-icon="cloud"></span> Cloud API
           </button>
+        </div>
+        <div class="media-capability-status"
+             id="media-capability-status"
+             aria-live="polite">
+          Checking media backends...
         </div>
       </div>
       <!-- Enhance with LLM -->
@@ -397,6 +402,7 @@
         <label class="media-form-label">TTS Engine</label>
         <select class="media-form-select" id="media-tts-engine">
           <option value="edge" selected>🎙️ Edge Neural (HD, multi-langue)</option>
+          <option value="openai" {% if not has_openai_key %}disabled{% endif %}>OpenAI GPT-4o mini TTS (cloud)</option>
         </select>
       </div>
       <!-- Reference Audio Upload (Voice Clone) -->
@@ -1691,4 +1697,3 @@
 </style>
 
 {% include 'partials/studio_editor.html' %}
-

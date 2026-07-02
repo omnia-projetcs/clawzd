@@ -143,7 +143,7 @@ def _default_phase_label(phase: str) -> str:
 
 # ── Cost Tracker ──────────────────────────────────────────────────────────────
 
-# Token pricing per 1M tokens (input / output) in USD — as of 2025
+# Token pricing per 1M tokens (input / output) in USD.
 # Used only for estimation when no exact cost is available from the provider.
 _MODEL_PRICING: dict[str, tuple[float, float]] = {
     # OpenAI

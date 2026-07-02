@@ -2,7 +2,7 @@
 Clawzd — Audio generation tool.
 
 Modes:
-1. TTS (Text-to-Speech) — SpeechT5 or Bark
+1. TTS (Text-to-Speech) — Edge Neural by default
 2. Voice Cloning — Coqui XTTS-v2
 3. Music Generation — MusicGen (instrumental)
 4. Song Generation — MusicGen + melody reference
@@ -38,7 +38,7 @@ import subprocess
 from datetime import datetime
 from fastapi import APIRouter, Request, HTTPException, UploadFile, File, Form
 from fastapi.responses import JSONResponse
-from config import DATA_DIR
+from config import DATA_DIR, OPENAI_API_KEY, OPENAI_TTS_MODEL
 
 logger = logging.getLogger("clawzd.audio")
 router = APIRouter()
@@ -283,6 +283,63 @@ def _save_audio(audio_array, sample_rate, format_type="wav", prompt="", mode="tt
     logger.info("Audio saved: %s (%d samples @ %dHz)", filename, len(audio_array), sample_rate)
     return filename
 
+
+def _save_audio_bytes(audio_bytes: bytes, source_format="wav", format_type="wav", prompt="", mode="tts"):
+    """Save encoded audio bytes, converting with ffmpeg only when needed."""
+    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+    uid = uuid.uuid4().hex[:6]
+    source_format = source_format.lower()
+    format_type = format_type.lower()
+    filename = f"audio_{timestamp}_{uid}.{format_type}"
+    filepath = os.path.join(AUDIO_DIR, filename)
+
+    if source_format == format_type:
+        with open(filepath, "wb") as f:
+            f.write(audio_bytes)
+    else:
+        tmp_path = os.path.join(AUDIO_DIR, f"tmp_{timestamp}_{uid}.{source_format}")
+        with open(tmp_path, "wb") as f:
+            f.write(audio_bytes)
+        try:
+            subprocess.run(
+                ["ffmpeg", "-y", "-i", tmp_path, filepath],
+                capture_output=True, timeout=60, check=True
+            )
+        except Exception as e:
+            logger.warning("ffmpeg conversion %s→%s failed, keeping %s: %s", source_format, format_type, source_format, e)
+            filename = f"audio_{timestamp}_{uid}.{source_format}"
+            filepath = os.path.join(AUDIO_DIR, filename)
+            os.replace(tmp_path, filepath)
+        else:
+            try:
+                os.remove(tmp_path)
+            except OSError:
+                pass
+
+    duration_sec = 0.0
+    try:
+        import soundfile as sf
+        duration_sec = float(sf.info(filepath).duration)
+    except Exception:
+        pass
+
+    meta_path = os.path.join(AUDIO_DIR, filename + ".meta")
+    try:
+        import json
+        with open(meta_path, "w") as f:
+            json.dump({
+                "prompt": prompt,
+                "created": datetime.now().isoformat(),
+                "mode": mode,
+                "duration": duration_sec,
+            }, f)
+    except Exception:
+        pass
+
+    logger.info("Audio saved: %s (%d bytes)", filename, len(audio_bytes))
+    return filename
+
+
 async def _enhance_lyrics_with_llm(prompt: str) -> str:
     """Generate song lyrics from a short prompt using the local LLM."""
     import httpx
@@ -440,6 +497,71 @@ async def _generate_tts_edge(text, voice_style="female_soft", language="auto", d
         for p in (tmp_mp3, tmp_wav):
             if os.path.exists(p):
                 os.remove(p)
+
+
+def _openai_tts_voice(voice_style: str) -> str:
+    """Map existing UI voice presets to OpenAI's fast built-in voices."""
+    style = (voice_style or "").lower()
+    if any(k in style for k in ("male", "mascul", "henri", "remy", "guy", "andrew", "brian", "onyx")):
+        return "cedar"
+    return "marin"
+
+
+def _openai_tts_instructions(voice_style: str, language: str) -> str:
+    lang = "French" if language in ("auto", "fr", "fr-fr") else language
+    style = (voice_style or "").lower()
+    if any(k in style for k in ("narrator", "remy", "brian")):
+        tone = "warm narrator"
+    elif any(k in style for k in ("child", "eloise")):
+        tone = "bright and friendly"
+    elif any(k in style for k in ("robot", "tech")):
+        tone = "clear, precise, slightly futuristic"
+    else:
+        tone = "natural, clear, studio-quality"
+    return f"Speak in {lang} with a {tone} tone. Keep pacing smooth and intelligible."
+
+
+async def _generate_tts_openai_bytes(text, voice_style="female_soft", language="auto", format_type="wav"):
+    """Generate speech with OpenAI's GPT-4o mini TTS model."""
+    if not OPENAI_API_KEY:
+        raise RuntimeError("OPENAI_API_KEY is required for OpenAI TTS.")
+
+    import httpx
+
+    cleaned_text = re.sub(r'__\w+__', ' ', text.replace("__FINISH_STOP__", " "))
+    cleaned_text = re.sub(r'\[[^\]]*\]|\([^)]*\)|<[^>]*>|<<[^>]*>>', ' ', cleaned_text)
+    cleaned_text = cleaned_text.replace("_", " ").replace("*", " ").replace("•", " ")
+    cleaned_text = re.sub(r'\s+', ' ', cleaned_text).strip()
+    if not cleaned_text:
+        raise RuntimeError("No speakable text after cleanup.")
+
+    response_format = "wav" if format_type in ("wav", "ogg") else "mp3"
+    payload = {
+        "model": OPENAI_TTS_MODEL,
+        "voice": _openai_tts_voice(voice_style),
+        "input": cleaned_text[:12000],
+        "instructions": _openai_tts_instructions(voice_style, language),
+        "response_format": response_format,
+    }
+
+    async with httpx.AsyncClient(timeout=120.0, follow_redirects=True) as client:
+        resp = await client.post(
+            "https://api.openai.com/v1/audio/speech",
+            headers={
+                "Authorization": f"Bearer {OPENAI_API_KEY}",
+                "Content-Type": "application/json",
+            },
+            json=payload,
+        )
+
+    if resp.status_code >= 400:
+        try:
+            err = resp.json().get("error", {})
+            msg = err.get("message") if isinstance(err, dict) else str(err)
+        except Exception:
+            msg = resp.text[:500]
+        raise RuntimeError(f"OpenAI TTS failed: {msg or resp.status_code}")
+    return resp.content, response_format
 
 
 
@@ -612,7 +734,7 @@ async def generate_audio(request: Request):
     duration = min(float(data.get("duration", 30)), 300)
     format_type = data.get("format", "wav")
     language = data.get("language", "auto")
-    tts_engine = data.get("tts_engine", "bark")
+    tts_engine = data.get("tts_engine", "edge")
 
     enhance_prompt = data.get("enhance_prompt", False)
 
@@ -643,15 +765,25 @@ async def generate_audio(request: Request):
             _audio_generation_progress = {
                 "active": True, "progress": 20.0, "stage": "generating",
             }
-            # Only Edge TTS is supported for general TTS
-            audio, sr = await _generate_tts_edge(text, voice_style, language, duration)
-            _audio_generation_progress["progress"] = 80.0
+            if tts_engine == "openai":
+                audio_bytes, source_format = await _generate_tts_openai_bytes(
+                    text, voice_style, language, format_type
+                )
+                _audio_generation_progress["progress"] = 80.0
+                _audio_generation_progress = {
+                    "active": True, "progress": 90.0, "stage": "saving",
+                }
+                meta_prompt = f"[TTS/{OPENAI_TTS_MODEL}/{language}/{voice_style}] {text[:200]}"
+                filename = _save_audio_bytes(audio_bytes, source_format, format_type, meta_prompt, mode=mode)
+            else:
+                audio, sr = await _generate_tts_edge(text, voice_style, language, duration)
+                _audio_generation_progress["progress"] = 80.0
 
-            _audio_generation_progress = {
-                "active": True, "progress": 90.0, "stage": "saving",
-            }
-            meta_prompt = f"[TTS/edge/{language}/{voice_style}] {text[:200]}"
-            filename = _save_audio(audio, sr, format_type, meta_prompt, mode=mode)
+                _audio_generation_progress = {
+                    "active": True, "progress": 90.0, "stage": "saving",
+                }
+                meta_prompt = f"[TTS/edge/{language}/{voice_style}] {text[:200]}"
+                filename = _save_audio(audio, sr, format_type, meta_prompt, mode=mode)
 
         elif mode == "voice_clone":
             _audio_generation_progress = {
@@ -748,7 +880,7 @@ async def generate_audio(request: Request):
             raise HTTPException(400, f"Unknown mode: {mode}")
 
         _audio_generation_progress["active"] = False
-        unregister_task(_audio_current_task_id)
+        unregister_task(_audio_current_task_id, status="completed", result={"filename": filename})
         result = {
             "status": "ok",
             "filename": filename,
@@ -761,11 +893,11 @@ async def generate_audio(request: Request):
 
     except HTTPException:
         _audio_generation_progress["active"] = False
-        unregister_task(_audio_current_task_id)
+        unregister_task(_audio_current_task_id, status="failed", error="Audio request failed.")
         raise
     except Exception as e:
         _audio_generation_progress["active"] = False
-        unregister_task(_audio_current_task_id)
+        unregister_task(_audio_current_task_id, status="failed", error=str(e))
         logger.error("Audio generation failed: %s", e, exc_info=True)
         return {"error": str(e)}
 
@@ -988,7 +1120,7 @@ async def delete_audio(request: Request):
 
 
 @router.get("/check-model")
-async def check_audio_model(mode: str = "tts", tts_engine: str = "speecht5"):
+async def check_audio_model(mode: str = "tts", tts_engine: str = "edge"):
     """Check if the audio model is already downloaded."""
     from pathlib import Path
     from config import MODELS_DIR
@@ -996,6 +1128,7 @@ async def check_audio_model(mode: str = "tts", tts_engine: str = "speecht5"):
     cache_dir = Path(MODELS_DIR) / "hub"
 
     model_map = {
+        "tts": {"edge": "", "openai": ""},
         "music": {"default": "facebook/musicgen-small"},
         "voice_clone": {"default": "coqui/XTTS-v2"},
     }
@@ -1038,7 +1171,7 @@ async def estimate_audio(request: Request):
     data = await request.json()
     text = data.get("text", "").strip()
     mode = data.get("mode", "tts")
-    tts_engine = data.get("tts_engine", "speecht5")
+    tts_engine = data.get("tts_engine", "edge")
     duration = float(data.get("duration", 30))  # for music mode
 
     if mode == "music":
@@ -1054,12 +1187,12 @@ async def estimate_audio(request: Request):
     if not text:
         return {"chunks": 0, "audio_duration": 0, "gen_time": 0, "gen_time_label": "0s"}
 
-    if tts_engine == "edge":
-        # Edge TTS: API based, single chunk, very fast
+    if tts_engine in ("edge", "openai"):
+        # Cloud TTS engines: single request, fast
         n = 1
         word_count = len(text.split())
         audio_dur = word_count / 2.5  # ~150 wpm
-        gen_time = max(1.0, len(text) / 200.0)  # fast network call
+        gen_time = max(1.0, len(text) / (350.0 if tts_engine == "openai" else 200.0))
     elif tts_engine == "pyttsx3":
         # Espeak: local binary, single chunk, instant
         n = 1

@@ -1,6 +1,7 @@
 class ResearchStudioV2 {
   constructor() {
     this.currentProject = null;
+    this.projectSummary = null;
     this.projects = [];
     this.profiles = [];
     this._sse = null;
@@ -42,6 +43,7 @@ class ResearchStudioV2 {
       scoreFill: bind('rs-score-fill'),
       scoreLabel: bind('rs-score-label'),
       iterLabel: bind('rs-iteration-label'),
+      projectSummary: bind('rs-project-summary'),
       
       processEditor: bind('rs-process-editor'),
     };
@@ -324,6 +326,7 @@ class ResearchStudioV2 {
       const res = await fetch(`/research/projects/${pid}`);
       const data = await res.json();
       this.currentProject = data.project;
+      this.projectSummary = null;
       
       const procRes = await fetch(`/research/projects/${pid}/process`);
       const procData = await procRes.json();
@@ -331,6 +334,8 @@ class ResearchStudioV2 {
       
       this._renderProjectList();
       this._updateDetails();
+      this._renderProjectSummary();
+      this._loadProjectSummary(pid);
       
       // Bug 7: Don't wipe live logs if research is running and SSE is connected
       const isRunningWithSSE = this.currentProject.status === 'running' && this._sse;
@@ -409,6 +414,7 @@ class ResearchStudioV2 {
       const data = await res.json();
       if (this.currentProject) this.currentProject.current_score = data.score;
       this._updateScore(data.score);
+      this._loadProjectSummary(pid);
       if (window.toast) toast(ICONS.sparkles(14) + ` Score: ${Math.round(data.score*100)}%`);
     } catch(e) { if (window.toast) toast(ICONS.x(14) + ' Evaluation failed'); }
   }
@@ -559,6 +565,7 @@ class ResearchStudioV2 {
       this._renderResults();
       this._renderAssets();
       if (data.project.report_md) this._renderReport();
+      this._loadProjectSummary(pid);
     } catch (_) { /* Silently ignore — next iteration will retry */ }
   }
 
@@ -684,6 +691,57 @@ class ResearchStudioV2 {
         this._loadModelsForProvider(p.provider, p.model);
       }
     }
+  }
+
+  async _loadProjectSummary(pid) {
+    try {
+      const res = await fetch(`/research/projects/${pid}/summary`, { cache: 'no-store' });
+      if (!res.ok) return;
+      const data = await res.json();
+      if (!this.currentProject || this.currentProject.id !== pid) return;
+      this.projectSummary = data.summary || null;
+      this.currentProject.summary = this.projectSummary;
+      this._renderProjectSummary();
+    } catch (_) {
+      /* The detailed tabs still work if the summary endpoint is unavailable. */
+    }
+  }
+
+  _renderProjectSummary() {
+    const el = this.ui.projectSummary;
+    if (!el) return;
+    const s = this.projectSummary || this.currentProject?.summary;
+    if (!this.currentProject) {
+      el.innerHTML = '<span class="rs-summary-empty">No project selected.</span>';
+      return;
+    }
+    if (!s) {
+      el.innerHTML = '<span class="rs-summary-empty">Loading overview...</span>';
+      return;
+    }
+
+    const pct = Math.round((s.score || 0) * 100);
+    const target = Math.round((s.target_score || 0) * 100);
+    const unique = s.sources?.unique_urls || 0;
+    const assets = s.assets?.count || 0;
+    const actions = s.actions?.count || 0;
+    const words = s.report?.word_count || 0;
+    const reportState = s.report?.available ? `${words} words` : 'No report';
+    const domains = (s.sources?.top_domains || []).slice(0, 3)
+      .map(([name, count]) => `<span class="rs-summary-chip">${this._esc(name)} ${this._esc(String(count))}</span>`)
+      .join('');
+
+    el.innerHTML = `
+      <div class="rs-summary-grid">
+        <div class="rs-summary-metric"><span>${pct}%</span><small>Score / ${target}%</small></div>
+        <div class="rs-summary-metric"><span>${unique}</span><small>Sources</small></div>
+        <div class="rs-summary-metric"><span>${assets}</span><small>Assets</small></div>
+        <div class="rs-summary-metric"><span>${actions}</span><small>Actions</small></div>
+      </div>
+      <div class="rs-summary-row"><span>Report</span><strong>${this._esc(reportState)}</strong></div>
+      <div class="rs-summary-row"><span>Iterations</span><strong>${s.iteration_count || 0} / ${s.max_iterations || 0}</strong></div>
+      ${domains ? `<div class="rs-summary-domains">${domains}</div>` : '<div class="rs-summary-empty">No source domains yet.</div>'}
+    `;
   }
 
   _renderLog() {
@@ -903,6 +961,8 @@ class ResearchStudioV2 {
     if (this.ui.assetsGrid) this.ui.assetsGrid.innerHTML = '';
     if (this.ui.resultsWrap) this.ui.resultsWrap.innerHTML = '';
     if (this.ui.processEditor) this.ui.processEditor.value = '';
+    this.projectSummary = null;
+    this._renderProjectSummary();
     this._updateStatus('idle');
     this._updateScore(0);
     this._updateIteration(0);

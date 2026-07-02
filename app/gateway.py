@@ -454,6 +454,19 @@ from app.routers.webdev_sync import router as webdev_sync_router
 app.include_router(webdev_sync_router, prefix="/api/webdev")
 
 
+def _safe_ollama_probe_url(base_url: str) -> str:
+    """Build a fast health-check URL without localhost DNS resolution."""
+    from urllib.parse import urlparse, urlunparse
+
+    parsed = urlparse(base_url)
+    if parsed.hostname in {"localhost", "::1"}:
+        netloc = "127.0.0.1"
+        if parsed.port:
+            netloc = f"{netloc}:{parsed.port}"
+        parsed = parsed._replace(netloc=netloc)
+    return urlunparse(parsed._replace(path="/api/tags", params="", query="", fragment=""))
+
+
 # --- In-memory SSE queues per session ---
 _sse_queues: dict[str, asyncio.Queue] = {}
 _arena_queues: dict[str, asyncio.Queue] = {}
@@ -466,14 +479,16 @@ _generation_tasks: dict[str, asyncio.Task] = {}
 @app.get("/", response_class=HTMLResponse)
 async def index(request: Request):
     """Serve the main application page."""
-    from config import HUGGINGFACE_API_KEY
+    from config import HUGGINGFACE_API_KEY, OPENAI_API_KEY
     
-    # We check if HUGGINGFACE_API_KEY is truthy (exists and not empty)
     has_hf_token = bool(HUGGINGFACE_API_KEY)
+    has_openai_key = bool(OPENAI_API_KEY)
     
     context = {
         "request": request,
         "has_hf_token": has_hf_token,
+        "has_openai_key": has_openai_key,
+        "has_cloud_media_api": has_hf_token or has_openai_key,
         "app_version": APP_VERSION,
     }
     response = templates.TemplateResponse(request=request, name="index.html", context=context)
@@ -502,26 +517,29 @@ async def health_check():
 
     # Check Ollama
     try:
-        async with _httpx.AsyncClient(timeout=3.0) as client:
-            resp = await client.get(f"{OLLAMA_HOST}/api/tags")
+        timeout = _httpx.Timeout(1.0, connect=0.3, read=0.7, write=0.3, pool=0.3)
+        async with _httpx.AsyncClient(timeout=timeout, trust_env=False) as client:
+            resp = await asyncio.wait_for(
+                client.get(_safe_ollama_probe_url(OLLAMA_HOST)),
+                timeout=1.2,
+            )
             deps["ollama"] = "ok" if resp.status_code == 200 else "degraded"
     except Exception:
         deps["ollama"] = "unavailable"
 
     # Check SQLite
     try:
-        def check_sqlite():
-            import sqlite3
-            conn = sqlite3.connect(DB_PATH, timeout=2)
-            conn.execute("SELECT 1")
-            conn.close()
-        await asyncio.to_thread(check_sqlite)
+        import sqlite3
+
+        conn = sqlite3.connect(DB_PATH, timeout=2)
+        conn.execute("SELECT 1")
+        conn.close()
         deps["sqlite"] = "ok"
     except Exception:
         deps["sqlite"] = "error"
 
     # Check ChromaDB directory
-    deps["chromadb"] = "ok" if await asyncio.to_thread(_os.path.isdir, CHROMA_DB_PATH) else "missing"
+    deps["chromadb"] = "ok" if _os.path.isdir(CHROMA_DB_PATH) else "missing"
 
     status["dependencies"] = deps
     if any(v == "error" for v in deps.values()):
@@ -2496,5 +2514,3 @@ async def api_export_zip(request: Request):
         media_type="application/zip",
         headers={"Content-Disposition": "attachment; filename=clawzd_project.zip"},
     )
-
-

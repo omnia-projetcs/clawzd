@@ -1,19 +1,36 @@
 #!/bin/bash
+set -euo pipefail
+
+KILL_EXISTING="${CLAWZD_KILL_EXISTING:-0}"
+if [ "${1:-}" = "--kill-existing" ]; then
+    KILL_EXISTING=1
+    shift
+fi
 
 # Kill any existing instances to avoid "Address already in use"
-PIDS=$(pgrep -f "python.*main\.py" 2>/dev/null || true)
-if [ -n "$PIDS" ]; then
-    echo "Killing existing Clawzd instance(s) (PID: $PIDS)..."
-    kill $PIDS 2>/dev/null || true
-    sleep 0.5
-    kill -9 $PIDS 2>/dev/null || true
+mapfile -t PIDS < <(pgrep -f "python.*main\.py" 2>/dev/null || true)
+if [ "${#PIDS[@]}" -gt 0 ]; then
+    echo "Stopping existing Clawzd instance(s): ${PIDS[*]}"
+    kill "${PIDS[@]}" 2>/dev/null || true
+    sleep 1
+    for PID in "${PIDS[@]}"; do
+        if kill -0 "$PID" 2>/dev/null; then
+            kill -9 "$PID" 2>/dev/null || true
+        fi
+    done
 fi
 
 # Ensure child uvicorn workers are also killed
 for UVICORN_PATTERN in "uvicorn app.gateway:app" "uvicorn.*main:app"; do
-    UVICORN_PIDS=$(pgrep -f "$UVICORN_PATTERN" 2>/dev/null || true)
-    if [ -n "$UVICORN_PIDS" ]; then
-        kill -9 $UVICORN_PIDS 2>/dev/null || true
+    mapfile -t UVICORN_PIDS < <(pgrep -f "$UVICORN_PATTERN" 2>/dev/null || true)
+    if [ "${#UVICORN_PIDS[@]}" -gt 0 ]; then
+        kill "${UVICORN_PIDS[@]}" 2>/dev/null || true
+        sleep 0.5
+        for PID in "${UVICORN_PIDS[@]}"; do
+            if kill -0 "$PID" 2>/dev/null; then
+                kill -9 "$PID" 2>/dev/null || true
+            fi
+        done
     fi
 done
 
@@ -29,15 +46,22 @@ fi
 # Kill any process occupying the target port to guarantee it is free
 PORT_PID=""
 if command -v lsof >/dev/null 2>&1; then
-    PORT_PID=$(lsof -t -i :$PORT 2>/dev/null || true)
+    PORT_PID=$(lsof -t -i :"$PORT" 2>/dev/null || true)
 elif command -v fuser >/dev/null 2>&1; then
-    PORT_PID=$(fuser $PORT/tcp 2>/dev/null | awk '{print $NF}' || true)
+    PORT_PID=$(fuser "$PORT"/tcp 2>/dev/null | awk '{print $NF}' || true)
 fi
 
 if [ -n "$PORT_PID" ]; then
-    echo "Port $PORT is already in use by process(es): $PORT_PID. Killing to free the port..."
-    kill -9 $PORT_PID 2>/dev/null || true
-    sleep 1
+    if [ "$KILL_EXISTING" = "1" ]; then
+        echo "Port $PORT is already in use by process(es): $PORT_PID. CLAWZD_KILL_EXISTING=1, freeing the port..."
+        # shellcheck disable=SC2086
+        kill $PORT_PID 2>/dev/null || true
+        sleep 1
+    else
+        echo "ERROR: Port $PORT is already in use by process(es): $PORT_PID."
+        echo "Set CLAWZD_KILL_EXISTING=1 or run ./run.sh --kill-existing to free the port automatically."
+        exit 1
+    fi
 fi
 
 
@@ -56,4 +80,4 @@ if [ -f ".venv/bin/activate" ]; then
 fi
 
 export PYTHONUNBUFFERED=1
-exec $PYTHON_CMD main.py "$@"
+exec "$PYTHON_CMD" main.py "$@"

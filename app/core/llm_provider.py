@@ -33,6 +33,7 @@ from config import (
     VLLM_MODEL,
     FREELLMAPI_URL,
     FREELLMAPI_KEY,
+    OPENAI_TEXT_MODEL,
 )
 
 logger = logging.getLogger("clawzd.llm")
@@ -342,6 +343,10 @@ PROVIDER_MODELS_STATIC = {
     "ollama": [],  # dynamic via _get_local_models()
     "freellmapi": [],  # dynamic via _get_freellmapi_models()
     "openai": [
+        {"id": "gpt-5.5", "label": "GPT-5.5 (Flagship)"},
+        {"id": "gpt-5.4", "label": "GPT-5.4"},
+        {"id": "gpt-5.4-mini", "label": "GPT-5.4 Mini (Fast)"},
+        {"id": "gpt-5.4-nano", "label": "GPT-5.4 Nano (Lowest latency)"},
         {"id": "gpt-4.1", "label": "GPT-4.1"},
         {"id": "gpt-4.1-mini", "label": "GPT-4.1 Mini"},
         {"id": "gpt-4.1-nano", "label": "GPT-4.1 Nano"},
@@ -1107,14 +1112,14 @@ class MistralLLM(LLMProvider):
 
 class OpenAILLM(LLMProvider):
     """OpenAI API (GPT-4o, GPT-4.1, o3, etc.)."""
-    default_model = "gpt-4o-mini"
+    default_model = OPENAI_TEXT_MODEL
 
     def __init__(self):
         self.client = openai.AsyncOpenAI(
             api_key=OPENAI_API_KEY,
         )
 
-    async def chat_stream(self, messages, model="gpt-4o-mini", **kwargs):
+    async def chat_stream(self, messages, model=None, **kwargs):
         if not OPENAI_API_KEY:
             yield (
                 "⚠️ **OpenAI API key not configured.**\n\n"
@@ -1122,6 +1127,7 @@ class OpenAILLM(LLMProvider):
                 "Get a key at https://platform.openai.com/api-keys"
             )
             return
+        model = model or self.default_model
         t0 = time.perf_counter()
         tokens = 0
         stream = await self.client.chat.completions.create(

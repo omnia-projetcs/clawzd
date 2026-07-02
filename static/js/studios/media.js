@@ -20,7 +20,10 @@ class MediaStudio {
     this.referenceImage = null; // for image-to-image
     this.audioSubMode = 'tts'; // 'tts', 'voice_clone', 'music', 'song'
     this.referenceAudio = null; // for voice cloning
+    this.capabilities = null;
+    this._capabilitiesLoaded = false;
     this._bind();
+    this._loadCapabilities();
   }
 
   _bind() {
@@ -41,6 +44,7 @@ class MediaStudio {
         btn.classList.add('active');
         this.type = btn.dataset.type;
         this._updateFormVisibility();
+        this._updateCapabilitiesUI();
       });
     });
 
@@ -75,9 +79,7 @@ class MediaStudio {
     // Backend toggle
     $$('#media-backend-toggle .media-type-btn').forEach(btn => {
       btn.addEventListener('click', () => {
-        $$('#media-backend-toggle .media-type-btn').forEach(b => b.classList.remove('active'));
-        btn.classList.add('active');
-        this.backend = btn.dataset.backend;
+        this._setBackend(btn.dataset.backend);
       });
     });
 
@@ -844,6 +846,144 @@ class MediaStudio {
       else if (isClone) audioText.placeholder = 'Enter the text you want to convert to speech...';
       else if (isSong) audioText.placeholder = 'Enter the lyrics or theme of the song...';
     }
+
+    this._updateCapabilitiesUI();
+  }
+
+  async _loadCapabilities() {
+    try {
+      const resp = await fetch('/image/capabilities', { cache: 'no-store' });
+      if (!resp.ok) throw new Error('Capabilities unavailable');
+      this.capabilities = await resp.json();
+      this._capabilitiesLoaded = true;
+    } catch (err) {
+      this.capabilities = null;
+      this._capabilitiesLoaded = false;
+    } finally {
+      this._updateCapabilitiesUI();
+    }
+  }
+
+  _setBackend(backend) {
+    const next = backend === 'api' ? 'api' : 'local';
+    const btn = document.querySelector(`#media-backend-toggle .media-type-btn[data-backend="${next}"]`);
+    if (btn && btn.disabled && next === 'api') {
+      const reason = btn.title || 'Cloud backend is not available.';
+      toast((window.icon ? window.icon('x', 14) : '') + ' ' + reason);
+      return false;
+    }
+    this.backend = next;
+    this._syncBackendButtons();
+    this._updateCapabilitiesUI();
+    return true;
+  }
+
+  _syncBackendButtons() {
+    $$('#media-backend-toggle .media-type-btn').forEach(btn => {
+      btn.classList.toggle('active', btn.dataset.backend === this.backend);
+    });
+  }
+
+  _currentModeCapabilities() {
+    if (!this.capabilities || !this.capabilities.modes) return null;
+    if (this.type === 'audio') return this.capabilities.modes.audio;
+    if (this.type === 'video') return this.capabilities.modes.video;
+    if (this.type === 'image') return this.capabilities.modes.image;
+    return null;
+  }
+
+  _updateCapabilitiesUI() {
+    const status = $('#media-capability-status');
+    const apiBtn = document.querySelector('#media-backend-toggle .media-type-btn[data-backend="api"]');
+    const modeCaps = this._currentModeCapabilities();
+    const visible = this.type === 'image' || this.type === 'video';
+
+    if (!status || !apiBtn) return;
+    if (this.capabilities?.modes?.audio) {
+      const audioCloud = this.capabilities.modes.audio.cloud || {};
+      const openAiOption = $('#media-tts-engine option[value="openai"]');
+      if (openAiOption) {
+        openAiOption.disabled = !audioCloud.available;
+        openAiOption.title = audioCloud.available ? '' : (audioCloud.reason || 'OPENAI_API_KEY is missing.');
+      }
+    }
+    if (!visible) {
+      status.className = 'media-capability-status';
+      status.textContent = '';
+      return;
+    }
+
+    if (!this._capabilitiesLoaded || !modeCaps) {
+      status.className = 'media-capability-status active warning';
+      status.textContent = 'Checking media backends...';
+      return;
+    }
+
+    const cloud = modeCaps.cloud || {};
+    const local = modeCaps.local || {};
+    const cloudReady = !!cloud.available;
+    apiBtn.disabled = !cloudReady;
+    apiBtn.classList.toggle('capability-disabled', !cloudReady);
+    if (cloudReady) {
+      apiBtn.style.opacity = '';
+      apiBtn.style.cursor = '';
+    }
+    apiBtn.title = cloudReady
+      ? `Cloud ready: ${cloud.primary_provider || 'provider'} ${cloud.model || ''}`.trim()
+      : (cloud.reason || 'Cloud backend is not available.');
+
+    if (this.backend === 'api' && !cloudReady) {
+      this.backend = 'local';
+      this._syncBackendButtons();
+    }
+
+    const localModel = local.model || this.capabilities?.local?.fast_image_model || '';
+    const localText = local.gpu_available
+      ? `Local GPU ready: ${localModel}`
+      : `Local mode: GPU not detected, ${localModel} may be slow`;
+    const provider = cloud.primary_provider ? cloud.primary_provider.toUpperCase() : 'Cloud';
+    const cloudText = cloudReady
+      ? `Cloud ready: ${provider} ${cloud.model || ''}`.trim()
+      : `Cloud unavailable: ${cloud.reason || 'missing provider configuration'}`;
+
+    let state = 'ready';
+    let text = this.backend === 'api' ? cloudText : `${localText}. ${cloudReady ? cloudText : cloud.reason || ''}`.trim();
+    if (this.backend === 'local' && !local.gpu_available) state = 'warning';
+    if (!cloudReady && !local.gpu_available) state = 'warning';
+    if (this.backend === 'api' && !cloudReady) {
+      state = 'error';
+      text = cloudText;
+    }
+
+    status.className = `media-capability-status active ${state}`;
+    status.textContent = text;
+  }
+
+  async _validateMediaCapabilities() {
+    if (!this._capabilitiesLoaded) {
+      await this._loadCapabilities();
+    }
+
+    const modeCaps = this._currentModeCapabilities();
+    if (!modeCaps) return true;
+
+    if ((this.type === 'image' || this.type === 'video') && this.backend === 'api' && !modeCaps.cloud?.available) {
+      const reason = modeCaps.cloud?.reason || 'Cloud backend is not available.';
+      toast((window.icon ? window.icon('x', 14) : '') + ' ' + reason);
+      this._setBackend('local');
+      return false;
+    }
+
+    if (this.type === 'audio') {
+      const ttsEngine = ($('#media-tts-engine') || {}).value || 'edge';
+      if (this.audioSubMode === 'tts' && ttsEngine === 'openai' && !modeCaps.cloud?.available) {
+        const reason = modeCaps.cloud?.reason || 'OpenAI TTS is not available.';
+        toast((window.icon ? window.icon('x', 14) : '') + ' ' + reason);
+        return false;
+      }
+    }
+
+    return true;
   }
 
   // ── Audio estimation helpers ─────────────────────────────────────
@@ -855,7 +995,7 @@ class MediaStudio {
   async _updateEstimate() {
     const textEl = $('#media-audio-text');
     const text = textEl ? textEl.value.trim() : '';
-    const ttsEngine = ($('#media-tts-engine') || {}).value || 'bark';
+    const ttsEngine = ($('#media-tts-engine') || {}).value || 'edge';
     const estimateEl = $('#media-audio-estimate-text');
     const estimateGrp = $('#media-audio-estimate-group');
 
@@ -1353,6 +1493,8 @@ class MediaStudio {
       if (this.audioSubMode !== 'music' && !audioText.trim()) { toast(ICONS.circle(14) + ' Veuillez entrer du texte'); return; }
     } else if (!prompt || !prompt.value.trim()) { toast(ICONS.circle(14) + ' ️ Please enter a prompt'); return; }
 
+    if (!(await this._validateMediaCapabilities())) return;
+
     // Cinema Studio Prompt Expansion
     let finalPrompt = '';
     if (prompt) finalPrompt = prompt.value.trim();
@@ -1452,7 +1594,7 @@ class MediaStudio {
       if (this.backend !== 'api') {
         try {
           const style = ($('#media-style') || {}).value || 'none';
-          const videoModel = ($('#media-model-video') || {}).value || 'cogvideox';
+          const videoModel = ($('#media-model-video') || {}).value || 'animatediff';
           const checkResp = await fetch(`/image/check-model?type=${this.type}&style=${style}&video_model=${videoModel}`);
           if (checkResp.ok) {
             const checkData = await checkResp.json();
@@ -1586,14 +1728,14 @@ class MediaStudio {
           }
         } else if (this.type === 'video') {
           const format = ($('#media-format-video') || {}).value || 'gif';
-          const videoModel = ($('#media-model-video') || {}).value || 'cogvideox';
+          const videoModel = ($('#media-model-video') || {}).value || 'animatediff';
           const duration = parseFloat(($('#media-duration') || {}).value) || 2.0;
           const videoSize = ($('#media-size-video') || {}).value || '1216x832';
           const [vidW, vidH] = videoSize.split('x').map(Number);
 
           // Warn if reference image is set but model doesn't support I2V
           const i2vModels = ['svd_xt', 'cogvideox', 'wan22'];
-          if (this.referenceImage && !i2vModels.includes(videoModel)) {
+          if (this.backend !== 'api' && this.referenceImage && !i2vModels.includes(videoModel)) {
             toast(`⚠️ Model ${videoModel} does not support Image→Video. The image will be ignored. Use CogVideoX 5B or Wan 14B.`, 6000);
           }
 
@@ -1662,7 +1804,7 @@ class MediaStudio {
           const audioText = ($('#media-audio-text') || {}).value || '';
           const audioFmt = ($('#media-format-audio') || {}).value || 'wav';
           const voiceStyle = ($('#media-voice-style') || {}).value || 'female_soft';
-          const ttsEngine = ($('#media-tts-engine') || {}).value || 'bark';
+          const ttsEngine = ($('#media-tts-engine') || {}).value || 'edge';
           const genre = ($('#media-genre') || {}).value || '';
           const tempoBpm = parseInt(($('#media-tempo') || {}).value) || 120;
           const audioDur = parseFloat(($('#media-audio-duration') || {}).value) || 30;

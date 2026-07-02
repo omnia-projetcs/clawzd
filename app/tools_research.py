@@ -5,9 +5,11 @@ web scraping, asset downloading, and multi-format report export.
 V2: Multi-phase process, editable Markdown process, research profiles,
 sandbox execution with venv, chat-to-research integration.
 """
-import os, json, uuid, logging, asyncio, hashlib, shutil, subprocess, sys
+import os, json, uuid, logging, asyncio, hashlib, shutil, subprocess, sys, re
+from collections import Counter
 from typing import Callable
 from datetime import datetime, timezone
+from urllib.parse import urlparse
 from fastapi import APIRouter, Request, HTTPException
 from fastapi.responses import FileResponse, StreamingResponse
 from sse_starlette.sse import EventSourceResponse
@@ -222,6 +224,136 @@ def _list_projects() -> list:
             except Exception:
                 pass
     return sorted(projects, key=lambda x: x.get("updated_at", ""), reverse=True)
+
+
+def _domain_from_url(url: str) -> str:
+    try:
+        host = urlparse(url or "").netloc.lower()
+        if host.startswith("www."):
+            host = host[4:]
+        return host or "unknown"
+    except Exception:
+        return "unknown"
+
+
+def _build_project_summary(proj: dict) -> dict:
+    """Build a compact, deterministic summary for a research project."""
+    iterations = proj.get("iterations", []) or []
+    results = proj.get("search_results", []) or []
+    assets = proj.get("assets", []) or []
+    report_md = proj.get("report_md", "") or ""
+
+    unique_urls: dict[str, dict] = {}
+    for result in results:
+        url = (result.get("url") or "").strip()
+        key = url or f"result:{len(unique_urls)}"
+        if key not in unique_urls:
+            unique_urls[key] = result
+
+    domains = Counter()
+    source_types = Counter()
+    for result in unique_urls.values():
+        url = result.get("url", "")
+        if url:
+            domains[_domain_from_url(url)] += 1
+        source_types[(result.get("source") or "web").lower()] += 1
+
+    asset_types = Counter((a.get("type") or "file").lower() for a in assets)
+    total_asset_bytes = sum(int(a.get("size") or 0) for a in assets)
+
+    action_types = Counter()
+    best_iteration_score = 0.0
+    last_iteration = {}
+    for iteration in iterations:
+        best_iteration_score = max(best_iteration_score, float(iteration.get("score") or 0.0))
+        for action in iteration.get("actions", []) or []:
+            action_types[action.get("type", "action")] += 1
+        last_iteration = iteration
+
+    word_count = len(re.findall(r"\b[\w'-]+\b", report_md))
+    top_results = []
+    for result in list(unique_urls.values())[:5]:
+        top_results.append({
+            "title": result.get("title") or "Untitled",
+            "url": result.get("url") or "",
+            "source": result.get("source") or "web",
+            "snippet": (result.get("snippet") or "")[:240],
+        })
+
+    brief = proj.get("research_brief") or {}
+    return {
+        "id": proj.get("id", ""),
+        "title": proj.get("title", ""),
+        "query": proj.get("query", ""),
+        "status": proj.get("status", "idle"),
+        "score": float(proj.get("current_score") or 0.0),
+        "target_score": float(proj.get("target_score") or 0.0),
+        "max_iterations": int(proj.get("max_iterations") or 0),
+        "iteration_count": len(iterations),
+        "best_iteration_score": best_iteration_score,
+        "last_iteration": {
+            "num": last_iteration.get("num"),
+            "score": last_iteration.get("score"),
+            "completed_at": last_iteration.get("completed_at"),
+            "action_count": len(last_iteration.get("actions", []) or []),
+        } if last_iteration else {},
+        "report": {
+            "available": bool(report_md.strip()),
+            "word_count": word_count,
+            "section_count": len(re.findall(r"^#{1,3}\s+", report_md, flags=re.MULTILINE)),
+        },
+        "sources": {
+            "total_results": len(results),
+            "unique_urls": len(unique_urls),
+            "top_domains": domains.most_common(6),
+            "types": source_types.most_common(6),
+            "top_results": top_results,
+        },
+        "assets": {
+            "count": len(assets),
+            "total_bytes": total_asset_bytes,
+            "types": asset_types.most_common(6),
+        },
+        "actions": {
+            "count": sum(action_types.values()),
+            "types": action_types.most_common(8),
+        },
+        "brief": {
+            "available": bool(brief),
+            "scope": brief.get("scope", ""),
+            "language": brief.get("output_language", ""),
+            "key_dimensions": brief.get("key_dimensions", [])[:6],
+            "preferred_sources": brief.get("preferred_sources", [])[:6],
+        },
+        "updated_at": proj.get("updated_at", ""),
+    }
+
+
+def _project_with_assets(pid: str) -> dict | None:
+    proj = _load(pid)
+    if not proj:
+        return None
+
+    assets = list(proj.get("assets", []) or [])
+    known_names = {a.get("name") for a in assets if a.get("name")}
+    assets_dir = os.path.join(_proj_dir(pid), "assets")
+    if os.path.isdir(assets_dir):
+        for fname in os.listdir(assets_dir):
+            if fname in known_names:
+                continue
+            fpath = os.path.join(assets_dir, fname)
+            if os.path.isfile(fpath):
+                ext = os.path.splitext(fname)[1].lstrip(".") or "bin"
+                assets.append({
+                    "name": fname,
+                    "path": fpath,
+                    "type": ext,
+                    "url": "local",
+                    "size": os.path.getsize(fpath),
+                    "timestamp": datetime.now(timezone.utc).isoformat(),
+                })
+    proj["assets"] = assets
+    return proj
 
 
 def _read_process(pid: str) -> str:
@@ -1086,7 +1218,7 @@ async def _run_arbor_htr_loop(
 
 
 async def _research_loop(pid: str):
-    from app.tools.task_manager import register_task, unregister_task
+    from app.tools.task_manager import register_task, unregister_task, update_task
     from config import (
         RESEARCH_SUMMARIZATION_MODEL, RESEARCH_MAIN_MODEL,
         RESEARCH_COMPRESSION_MODEL, RESEARCH_REPORT_MODEL,
@@ -1097,10 +1229,19 @@ async def _research_loop(pid: str):
     proj["status"] = "running"
     _save(proj)
     await _emit(pid, "status", {"status": "running"})
-    register_task(pid, "research", proj.get("title", pid)[:60])
-
     provider = proj.get("provider", "")
     model = proj.get("model", "")
+    register_task(
+        pid,
+        "research",
+        proj.get("title", pid)[:60],
+        {
+            "provider": provider,
+            "model": model,
+            "profile_id": proj.get("profile_id", ""),
+        },
+    )
+
     query = proj["query"]
 
     # Use differentiated models per pipeline role (open_deep_research-inspired)
@@ -1124,6 +1265,20 @@ async def _research_loop(pid: str):
         progress_data = _progress.to_dict()
         progress_data["cost"] = _cost_tracker.get_summary()
         progress_data.update(extra)
+        iteration_pct = progress_data.get("iteration_progress_pct") or 0
+        query_pct = progress_data.get("query_progress_pct") or 0
+        update_task(
+            pid,
+            progress=max(iteration_pct, query_pct),
+            stage=progress_data.get("phase_label") or progress_data.get("phase", ""),
+            metadata={
+                "phase": progress_data.get("phase", ""),
+                "quality_score": progress_data.get("quality_score", 0),
+                "current_iteration": progress_data.get("current_iteration", 0),
+                "max_iterations": progress_data.get("max_iterations", 0),
+                "cost": progress_data.get("cost", {}),
+            },
+        )
         await _emit(pid, "progress", progress_data)
     # ─────────────────────────────────────────────────────────────────────────
 
@@ -1901,14 +2056,14 @@ async def _research_loop(pid: str):
             logger.warning("Failed to archive strategy: %s", _e)
         # ──────────────────────────────────────────────────────────────────
 
-        unregister_task(pid)
+        unregister_task(pid, status="completed")
 
     except asyncio.CancelledError:
         proj = _load(pid) or proj
         proj["status"] = "paused"
         _save(proj)
         await _emit(pid, "status", {"status": "paused"})
-        unregister_task(pid)
+        unregister_task(pid, status="paused")
     except Exception as e:
         logger.error("Research loop error for %s: %s", pid, e, exc_info=True)
         proj = _load(pid) or proj
@@ -1917,7 +2072,7 @@ async def _research_loop(pid: str):
         _save(proj)
         await _emit(pid, "status", {"status": "error"})
         await _emit(pid, "log", {"msg": f"❌ Error: {e}"})
-        unregister_task(pid)
+        unregister_task(pid, status="failed", error=str(e))
     finally:
         _running.pop(pid, None)
         _stop_requested.discard(pid)
@@ -2141,31 +2296,17 @@ async def create_project(request: Request):
 
 @router.get("/projects/{pid}")
 async def get_project(pid: str):
-    proj = _load(pid)
+    proj = _project_with_assets(pid)
     if not proj:
         raise HTTPException(404, "Project not found")
-        
-    assets = proj.get("assets", [])
-    known_names = {a.get("name") for a in assets}
-    assets_dir = os.path.join(_proj_dir(pid), "assets")
-    if os.path.isdir(assets_dir):
-        for fname in os.listdir(assets_dir):
-            if fname not in known_names:
-                fpath = os.path.join(assets_dir, fname)
-                if os.path.isfile(fpath):
-                    ext = os.path.splitext(fname)[1].lstrip(".") or "bin"
-                    size = os.path.getsize(fpath)
-                    assets.append({
-                        "name": fname,
-                        "path": fpath,
-                        "type": ext,
-                        "url": "local",
-                        "size": size,
-                        "timestamp": datetime.now(timezone.utc).isoformat()
-                    })
-    proj["assets"] = assets
-    
     return {"project": proj}
+
+@router.get("/projects/{pid}/summary")
+async def get_project_summary(pid: str):
+    proj = _project_with_assets(pid)
+    if not proj:
+        raise HTTPException(404, "Project not found")
+    return {"summary": _build_project_summary(proj)}
 
 @router.delete("/projects/{pid}")
 async def delete_project(pid: str):
@@ -2227,7 +2368,7 @@ async def stop_research(pid: str):
     if proj:
         proj["status"] = "paused"
         _save(proj)
-    unregister_task(pid)
+    unregister_task(pid, status="paused")
     return {"status": "stopped"}
 
 @router.get("/projects/{pid}/status")

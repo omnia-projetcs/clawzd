@@ -161,6 +161,7 @@ def _process_effects_with_pedalboard(input_path: str, output_path: str, model_na
 def _process_in_thread(task_id: str, task_type: str, model_name: str, input_path: str, output_path: str, reference_path: str = None):
     """Worker thread running ClearVoice, Pedalboard or HeartTranscriptor inference."""
     global _audio_lab_progress
+    from app.tools.task_manager import update_task, unregister_task
     
     _audio_lab_progress.update({
         "active": True,
@@ -170,6 +171,7 @@ def _process_in_thread(task_id: str, task_type: str, model_name: str, input_path
         "result_url": None,
         "error": None,
     })
+    update_task(task_id, progress=10.0, stage="loading_model")
     
     try:
         # 1. Release competing pipelines
@@ -514,6 +516,23 @@ def _process_in_thread(task_id: str, task_type: str, model_name: str, input_path
             "stage": "failed",
             "error": str(e),
         })
+        update_task(task_id, status="failed", stage="failed", error=str(e))
+    finally:
+        if _audio_lab_progress.get("task_id") == task_id:
+            stage = _audio_lab_progress.get("stage", "")
+            result_url = _audio_lab_progress.get("result_url")
+            if stage == "completed":
+                unregister_task(
+                    task_id,
+                    status="completed",
+                    result={"url": result_url} if result_url else None,
+                )
+            elif stage == "failed":
+                unregister_task(
+                    task_id,
+                    status="failed",
+                    error=_audio_lab_progress.get("error") or "Audio Lab processing failed.",
+                )
 
 
 @router.post("/process")

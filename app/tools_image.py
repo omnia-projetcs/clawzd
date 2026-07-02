@@ -16,7 +16,17 @@ from datetime import datetime
 
 warnings.filterwarnings("ignore", category=UserWarning, message=".*local_dir_use_symlinks.*")
 from fastapi import APIRouter, Request, HTTPException
-from config import DATA_DIR
+from config import (
+    DATA_DIR,
+    ENABLE_CLOUD_MODELS,
+    HUGGINGFACE_API_KEY,
+    LOCAL_FAST_IMAGE_MODEL,
+    LOCAL_FAST_VIDEO_MODEL,
+    OPENAI_API_KEY,
+    OPENAI_IMAGE_MODEL,
+    OPENAI_TTS_MODEL,
+    OPENAI_VIDEO_MODEL,
+)
 
 logger = logging.getLogger("clawzd.image")
 router = APIRouter()
@@ -180,6 +190,123 @@ def _get_hf_token():
         except ImportError:
             pass
     return hf_token if hf_token else None
+
+
+def _configured(value: str | None) -> bool:
+    return bool((value or "").strip())
+
+
+def _media_cloud_reason(mode: str, openai_ready: bool, hf_ready: bool, cloud_enabled: bool) -> str:
+    if not cloud_enabled:
+        return "Cloud media providers are disabled by ENABLE_CLOUD_MODELS."
+    if mode == "video" and not openai_ready:
+        return "OPENAI_API_KEY is required for cloud video generation."
+    if mode == "audio" and not openai_ready:
+        return "OPENAI_API_KEY is required for OpenAI TTS."
+    if mode == "image" and not (openai_ready or hf_ready):
+        return "OPENAI_API_KEY or HUGGINGFACE_API_KEY is required for cloud image generation."
+    return ""
+
+
+def _build_media_capabilities() -> dict:
+    """Return media backend/model readiness without performing network calls."""
+    openai_ready = _configured(OPENAI_API_KEY)
+    hf_ready = _configured(HUGGINGFACE_API_KEY) or _configured(os.environ.get("HF_TOKEN"))
+    cloud_enabled = bool(ENABLE_CLOUD_MODELS)
+    gpu_available = _check_gpu()
+
+    fast_image_key = (LOCAL_FAST_IMAGE_MODEL or "z_image_turbo").strip().lower().replace("-", "_")
+    fast_image_info = _IMAGE_STYLE_MODELS.get(fast_image_key) or _IMAGE_STYLE_MODELS.get("z_image_turbo") or _IMAGE_STYLE_MODELS["none"]
+    fast_video_key = _resolve_video_model(LOCAL_FAST_VIDEO_MODEL)
+    fast_video_info = _VIDEO_MODELS.get(fast_video_key, {})
+
+    image_cloud = cloud_enabled and (openai_ready or hf_ready)
+    video_cloud = cloud_enabled and openai_ready
+    audio_cloud = cloud_enabled and openai_ready
+
+    providers = {
+        "openai": {
+            "configured": openai_ready,
+            "image_model": OPENAI_IMAGE_MODEL,
+            "video_model": OPENAI_VIDEO_MODEL,
+            "tts_model": OPENAI_TTS_MODEL,
+        },
+        "huggingface": {
+            "configured": hf_ready,
+        },
+    }
+
+    warnings_list: list[str] = []
+    if not gpu_available:
+        warnings_list.append("Local GPU was not detected. Local image/video generation can be slow or unavailable.")
+    if not image_cloud:
+        warnings_list.append(_media_cloud_reason("image", openai_ready, hf_ready, cloud_enabled))
+    if not video_cloud:
+        warnings_list.append(_media_cloud_reason("video", openai_ready, hf_ready, cloud_enabled))
+
+    return {
+        "status": "ok" if (gpu_available or image_cloud or video_cloud or audio_cloud) else "degraded",
+        "cloud_enabled": cloud_enabled,
+        "local": {
+            "gpu_available": gpu_available,
+            "fast_image_model": fast_image_key,
+            "fast_image_repo": fast_image_info.get("repo", ""),
+            "fast_video_model": fast_video_key,
+            "fast_video_repo": fast_video_info.get("repo", ""),
+        },
+        "providers": providers,
+        "modes": {
+            "image": {
+                "recommended_backend": "api" if image_cloud and openai_ready else "local",
+                "local": {
+                    "available": True,
+                    "gpu_recommended": True,
+                    "gpu_available": gpu_available,
+                    "model": fast_image_key,
+                    "repo": fast_image_info.get("repo", ""),
+                },
+                "cloud": {
+                    "available": image_cloud,
+                    "providers": [name for name, data in providers.items() if data.get("configured")],
+                    "primary_provider": "openai" if openai_ready else ("huggingface" if hf_ready else ""),
+                    "model": OPENAI_IMAGE_MODEL if openai_ready else fast_image_info.get("repo", ""),
+                    "reason": _media_cloud_reason("image", openai_ready, hf_ready, cloud_enabled),
+                },
+            },
+            "video": {
+                "recommended_backend": "api" if video_cloud else "local",
+                "local": {
+                    "available": True,
+                    "gpu_recommended": True,
+                    "gpu_available": gpu_available,
+                    "model": fast_video_key,
+                    "repo": fast_video_info.get("repo", ""),
+                },
+                "cloud": {
+                    "available": video_cloud,
+                    "providers": ["openai"] if openai_ready and cloud_enabled else [],
+                    "primary_provider": "openai" if video_cloud else "",
+                    "model": OPENAI_VIDEO_MODEL,
+                    "reason": _media_cloud_reason("video", openai_ready, hf_ready, cloud_enabled),
+                },
+            },
+            "audio": {
+                "recommended_backend": "local",
+                "local": {
+                    "available": True,
+                    "engine": "edge",
+                },
+                "cloud": {
+                    "available": audio_cloud,
+                    "providers": ["openai"] if openai_ready and cloud_enabled else [],
+                    "primary_provider": "openai" if audio_cloud else "",
+                    "model": OPENAI_TTS_MODEL,
+                    "reason": _media_cloud_reason("audio", openai_ready, hf_ready, cloud_enabled),
+                },
+            },
+        },
+        "warnings": [w for w in warnings_list if w],
+    }
 
 def _get_pipeline(repo_id: str, is_lora: bool = False):
     """Lazy-load the image generation pipeline with CPU offload.
@@ -602,6 +729,17 @@ _VIDEO_MODELS = {
         "dtype": "bfloat16",
     },
 }
+
+
+def _resolve_video_model(model_key: str | None) -> str:
+    """Return a valid local video model key, preferring the configured fast default."""
+    key = (model_key or "").strip().lower()
+    if key in _VIDEO_MODELS:
+        return key
+    configured = (LOCAL_FAST_VIDEO_MODEL or "").strip().lower()
+    if configured in _VIDEO_MODELS:
+        return configured
+    return "animatediff"
 
 _video_pipeline = None
 _current_video_model = None
@@ -1290,7 +1428,7 @@ async def _enhance_prompt_with_llm(prompt: str, style: str = "none", model_repo:
     return prompt
 
 
-async def _enhance_video_prompt_with_llm(prompt: str, video_model: str = "cogvideox") -> str:
+async def _enhance_video_prompt_with_llm(prompt: str, video_model: str = "animatediff") -> str:
     """Enhance a video prompt using the local LLM (Ollama).
     
     Video prompts need different treatment than image prompts:
@@ -1431,6 +1569,196 @@ async def _generate_via_hf_api(prompt: str, negative_prompt: str = "", repo_id: 
     raise RuntimeError(f"All HF API models failed. Last error: {last_error}")
 
 
+def _openai_image_size(width: int, height: int) -> str:
+    """Map arbitrary UI dimensions to GPT Image's fast standard aspect sizes."""
+    if width > height * 1.15:
+        return "1536x1024"
+    if height > width * 1.15:
+        return "1024x1536"
+    return "1024x1024"
+
+
+def _openai_video_size(width: int, height: int) -> str:
+    """Map arbitrary UI dimensions to Sora's common fast HD sizes."""
+    return "1280x720" if width >= height else "720x1280"
+
+
+def _openai_error(resp) -> str:
+    """Extract a readable OpenAI error message from an HTTP response."""
+    try:
+        data = resp.json()
+        err = data.get("error", {})
+        if isinstance(err, dict):
+            return err.get("message") or str(err)
+        if err:
+            return str(err)
+    except Exception:
+        pass
+    return resp.text[:500] if getattr(resp, "text", "") else f"HTTP {resp.status_code}"
+
+
+async def _generate_via_openai_image_api(
+    prompt: str,
+    width: int = 1024,
+    height: int = 1024,
+    reference_image: str | None = None,
+) -> bytes:
+    """Generate or edit an image with OpenAI's fast GPT Image model."""
+    if not OPENAI_API_KEY:
+        raise RuntimeError("OPENAI_API_KEY is required for OpenAI image generation.")
+
+    import httpx
+    import mimetypes
+
+    size = _openai_image_size(width, height)
+    headers = {"Authorization": f"Bearer {OPENAI_API_KEY}"}
+    base_url = "https://api.openai.com/v1"
+
+    async with httpx.AsyncClient(timeout=180.0) as client:
+        if reference_image:
+            ref_path = os.path.join(IMAGES_DIR, os.path.basename(reference_image))
+            if not os.path.exists(ref_path):
+                raise RuntimeError(f"Reference image not found: {reference_image}")
+            mime = mimetypes.guess_type(ref_path)[0] or "image/png"
+            with open(ref_path, "rb") as f:
+                resp = await client.post(
+                    f"{base_url}/images/edits",
+                    headers=headers,
+                    data={"model": OPENAI_IMAGE_MODEL, "prompt": prompt, "size": size},
+                    files={"image": (os.path.basename(ref_path), f, mime)},
+                )
+        else:
+            resp = await client.post(
+                f"{base_url}/images/generations",
+                headers={**headers, "Content-Type": "application/json"},
+                json={"model": OPENAI_IMAGE_MODEL, "prompt": prompt, "size": size},
+            )
+
+    if resp.status_code >= 400:
+        raise RuntimeError(f"OpenAI image generation failed: {_openai_error(resp)}")
+
+    data = resp.json()
+    image_b64 = (data.get("data") or [{}])[0].get("b64_json")
+    if not image_b64:
+        raise RuntimeError("OpenAI image generation returned no image data.")
+    return base64.b64decode(image_b64)
+
+
+async def _generate_via_openai_video_api(
+    prompt: str,
+    width: int = 1280,
+    height: int = 720,
+    duration: float = 8.0,
+    reference_image: str | None = None,
+) -> dict:
+    """Generate an MP4 video with OpenAI Sora 2 via the Videos API."""
+    if not OPENAI_API_KEY:
+        raise RuntimeError("OPENAI_API_KEY is required for OpenAI video generation.")
+
+    import asyncio
+    import httpx
+    import mimetypes
+
+    size = _openai_video_size(width, height)
+    seconds = max(4, min(20, int(round(duration))))
+    headers = {"Authorization": f"Bearer {OPENAI_API_KEY}"}
+    base_url = "https://api.openai.com/v1"
+
+    _generation_progress.update({
+        "active": True, "type": "video", "step": 0, "total_steps": 100,
+        "progress": 1.0, "stage": "submitting",
+    })
+
+    async with httpx.AsyncClient(timeout=60.0, follow_redirects=True) as client:
+        if reference_image:
+            ref_path = os.path.join(IMAGES_DIR, os.path.basename(reference_image))
+            if not os.path.exists(ref_path):
+                raise RuntimeError(f"Reference image not found: {reference_image}")
+            mime = mimetypes.guess_type(ref_path)[0] or "image/png"
+            with open(ref_path, "rb") as f:
+                create_resp = await client.post(
+                    f"{base_url}/videos",
+                    headers=headers,
+                    data={
+                        "model": OPENAI_VIDEO_MODEL,
+                        "prompt": prompt,
+                        "size": size,
+                        "seconds": str(seconds),
+                    },
+                    files={"input_reference": (os.path.basename(ref_path), f, mime)},
+                )
+        else:
+            create_resp = await client.post(
+                f"{base_url}/videos",
+                headers={**headers, "Content-Type": "application/json"},
+                json={
+                    "model": OPENAI_VIDEO_MODEL,
+                    "prompt": prompt,
+                    "size": size,
+                    "seconds": seconds,
+                },
+            )
+
+        if create_resp.status_code >= 400:
+            raise RuntimeError(f"OpenAI video generation failed: {_openai_error(create_resp)}")
+
+        video = create_resp.json()
+        video_id = video.get("id")
+        if not video_id:
+            raise RuntimeError("OpenAI video generation returned no job id.")
+
+        status = video.get("status", "queued")
+        for _ in range(300):
+            progress = float(video.get("progress") or 0)
+            _generation_progress.update({
+                "active": True, "type": "video", "step": int(progress),
+                "total_steps": 100, "progress": min(progress, 95.0),
+                "stage": "queued" if status == "queued" else "generating",
+            })
+            if status in ("completed", "succeeded"):
+                break
+            if status == "failed":
+                err = video.get("error") or {}
+                msg = err.get("message") if isinstance(err, dict) else str(err)
+                raise RuntimeError(msg or "OpenAI video generation failed.")
+            await asyncio.sleep(2)
+            retrieve_resp = await client.get(f"{base_url}/videos/{video_id}", headers=headers)
+            if retrieve_resp.status_code >= 400:
+                raise RuntimeError(f"OpenAI video status check failed: {_openai_error(retrieve_resp)}")
+            video = retrieve_resp.json()
+            status = video.get("status", status)
+        else:
+            raise RuntimeError("OpenAI video generation timed out while polling.")
+
+        _generation_progress.update({
+            "active": True, "type": "video", "step": 100,
+            "total_steps": 100, "progress": 96.0, "stage": "downloading",
+        })
+        content_resp = await client.get(f"{base_url}/videos/{video_id}/content", headers=headers)
+        if content_resp.status_code >= 400:
+            raise RuntimeError(f"OpenAI video download failed: {_openai_error(content_resp)}")
+
+    out_filename = f"anim_{datetime.now().strftime('%Y%m%d_%H%M%S')}_{uuid.uuid4().hex[:6]}.mp4"
+    out_filepath = os.path.join(IMAGES_DIR, out_filename)
+    with open(out_filepath, "wb") as f:
+        f.write(content_resp.content)
+    with open(out_filepath + ".txt", "w", encoding="utf-8") as f:
+        f.write(f"[{OPENAI_VIDEO_MODEL}] {prompt}")
+
+    b64 = base64.b64encode(content_resp.content).decode()
+    _generation_progress["active"] = False
+    return {
+        "status": "ok",
+        "method": "openai_video",
+        "format": "mp4",
+        "filename": out_filename,
+        "path": out_filepath,
+        "base64": b64,
+        "prompt": prompt,
+        "duration": seconds,
+    }
+
+
 # ---------------------------------------------------------------------------
 # Unified generation function
 # ---------------------------------------------------------------------------
@@ -1453,11 +1781,11 @@ async def generate_image_core(
 
     Strategy order:
     - backend='local': SVG (LLM) or Local GPU only (no API fallback)
-    - backend='api': SVG (LLM) or HuggingFace API only
+    - backend='api': SVG (LLM) or OpenAI image API, then HuggingFace fallback
 
     Args:
         format: 'auto' (classify prompt), 'svg' (force SVG), 'png' (force raster)
-        backend: 'local' (default, uses GPU) or 'api' (uses HuggingFace)
+        backend: 'local' (default, uses GPU) or 'api' (uses OpenAI/HuggingFace)
         reference_image: filename of the image to use as starting point (Img2Img)
         strength: (0.1-1.0) how much to change the reference image
     """
@@ -1684,6 +2012,41 @@ async def generate_image_core(
             _release_pipeline()
             raise RuntimeError(f"Local GPU generation failed: {e}")
 
+    # --- Remote API (OpenAI first, HuggingFace fallback) ---
+    if OPENAI_API_KEY:
+        try:
+            logger.info("Using OpenAI image API with %s", OPENAI_IMAGE_MODEL)
+            img_bytes = await _generate_via_openai_image_api(
+                prompt,
+                width=width,
+                height=height,
+                reference_image=reference_image,
+            )
+
+            if format == "transparent_png":
+                try:
+                    img_bytes = _remove_bg_enhanced(img_bytes)
+                except ImportError:
+                    logger.warning("rembg not installed, cannot remove background.")
+
+            with open(filepath, "wb") as f:
+                f.write(img_bytes)
+            with open(filepath + ".txt", "w", encoding="utf-8") as f:
+                f.write(f"[{OPENAI_IMAGE_MODEL}/{style}] {prompt}")
+
+            b64 = base64.b64encode(img_bytes).decode()
+            return {
+                "status": "ok",
+                "method": "openai_image",
+                "format": "transparent_png" if format == "transparent_png" else "png",
+                "filename": filename,
+                "path": filepath,
+                "base64": b64,
+                "prompt": prompt,
+            }
+        except Exception as e:
+            logger.warning("OpenAI image API failed, trying HuggingFace fallback: %s", e)
+
     # --- Remote API (HuggingFace) ---
     try:
         model_info = _IMAGE_STYLE_MODELS.get(style, _IMAGE_STYLE_MODELS["none"])
@@ -1725,7 +2088,7 @@ async def generate_animation_core(
     fps: int = 8,
     width: int = 704,
     height: int = 480,
-    video_model: str = "cogvideox",
+    video_model: str = "animatediff",
     enhance_prompt: bool = False,
     backend: str = "local",
     reference_image: str = None,
@@ -1737,7 +2100,7 @@ async def generate_animation_core(
         fps: Frames per second (default 8).
         width: Video width in pixels (should be divisible by 32).
         height: Video height in pixels (should be divisible by 32).
-        backend: 'local' (default, uses GPU pipeline) or 'api' (reserved for future use).
+        backend: 'local' (default, uses GPU pipeline) or 'api' (OpenAI Sora via Videos API).
     """
     # --- ALWAYS translate non-English prompts for video models ---
     if _detect_non_english(prompt):
@@ -1751,8 +2114,19 @@ async def generate_animation_core(
         # Safety net: if still non-English after translation, try once more
         prompt = await _translate_prompt(prompt)
 
+    if backend == "api":
+        return await _generate_via_openai_video_api(
+            prompt=prompt,
+            width=width,
+            height=height,
+            duration=duration,
+            reference_image=reference_image,
+        )
+
+    video_model = _resolve_video_model(video_model)
+
     # Get model config with defaults
-    model_cfg = _VIDEO_MODELS.get(video_model, _VIDEO_MODELS["cogvideox"])
+    model_cfg = _VIDEO_MODELS[video_model]
     repo_id = model_cfg["repo"]
     model_fps = model_cfg.get("fps", fps)
     max_frames = model_cfg.get("max_frames", 64)
@@ -1775,9 +2149,6 @@ async def generate_animation_core(
         # Lance prefers odd frame counts (default 121 = 5s × 24fps + 1)
         if num_frames % 2 == 0:
             num_frames += 1
-
-    if backend == "api":
-        raise RuntimeError("Remote API video generation is not yet supported. Please use local mode.")
 
     # SVD is I2V-only — require a reference image
     if pipeline_type == "svd" and not reference_image:
@@ -2017,7 +2388,7 @@ async def generate_animation_core(
 
 
 @router.get("/check-model")
-async def check_model(type: str = "image", style: str = "none", video_model: str = "cogvideox"):
+async def check_model(type: str = "image", style: str = "none", video_model: str = "animatediff"):
     """Check if the local HuggingFace model is already downloaded in cache."""
     try:
         import os
@@ -2027,7 +2398,7 @@ async def check_model(type: str = "image", style: str = "none", video_model: str
             model_info = _IMAGE_STYLE_MODELS.get(style, _IMAGE_STYLE_MODELS["none"])
             repo_id = model_info["repo"]
         else:
-            model_cfg = _VIDEO_MODELS.get(video_model, _VIDEO_MODELS["cogvideox"])
+            model_cfg = _VIDEO_MODELS[_resolve_video_model(video_model)]
             repo_id = model_cfg["repo"]
         
         if repo_id.startswith("http"):
@@ -2051,6 +2422,12 @@ async def check_model(type: str = "image", style: str = "none", video_model: str
         logger.warning(f"Failed to check local cache for {repo_id}: {e}")
         return {"downloaded": True} # Fallback to assume true if check fails
 
+
+@router.get("/capabilities")
+async def media_capabilities():
+    """Return media backend/provider readiness for the frontend preflight."""
+    return _build_media_capabilities()
+
 @router.get("/download-status")
 async def get_download_status():
     """Return the current progress of HuggingFace model download."""
@@ -2073,7 +2450,7 @@ async def cancel_image_generation(request: Request):
         _generation_progress["active"] = False
     from app.tools.task_manager import unregister_task
     if task_id:
-        unregister_task(task_id)
+        unregister_task(task_id, status="stopped")
     return {"status": "cancelled"}
 
 @router.post("/animate")
@@ -2101,9 +2478,7 @@ async def animate_image(request: Request):
     duration = min(max(data.get("duration", 2.0), 0.5), 20.0)
     fps = data.get("fps", 8)
 
-    video_model = data.get("video_model", "cogvideox").lower()
-    if video_model not in _VIDEO_MODELS:
-        video_model = "cogvideox"
+    video_model = _resolve_video_model(data.get("video_model"))
 
     # Video resolution
     width = min(data.get("width", 1216), 1920)
@@ -2115,7 +2490,7 @@ async def animate_image(request: Request):
     import time as _time
 
     async def sse_generator():
-        from app.tools.task_manager import register_task, unregister_task
+        from app.tools.task_manager import register_task, unregister_task, update_task
         import uuid as _uuid
         _task_id = f"video_{_uuid.uuid4().hex[:8]}"
         register_task(_task_id, "video", prompt[:60], {"model": video_model})
@@ -2156,7 +2531,7 @@ async def animate_image(request: Request):
                     logger.info("Video generation cancelled by user — stopping task %s", _task_id)
                     task.cancel()
                     _release_video_pipeline()
-                    unregister_task(_task_id)
+                    unregister_task(_task_id, status="stopped")
                     yield f"data: {json.dumps({'status': 'cancelled'})}\n\n"
                     return
 
@@ -2164,6 +2539,7 @@ async def animate_image(request: Request):
                 gp = _generation_progress
                 if gp.get("active") and gp.get("progress", 0) != last_progress:
                     last_progress = gp["progress"]
+                    update_task(_task_id, progress=last_progress, stage=gp.get("stage", ""))
                     yield f"data: {json.dumps({'status': 'progress', 'progress': last_progress, 'stage': gp.get('stage', ''), 'step': gp.get('step', 0), 'total_steps': gp.get('total_steps', 0)})}\n\n"
                     last_keepalive = now
                 elif now - last_keepalive > 2.0:
@@ -2175,16 +2551,16 @@ async def animate_image(request: Request):
             try:
                 result = await task
                 yield f"data: {json.dumps({'status': 'done', 'result': result})}\n\n"
-                unregister_task(_task_id)
+                unregister_task(_task_id, status="completed", result={"filename": result.get("filename")})
             except RuntimeError as e:
                 yield f"data: {json.dumps({'status': 'error', 'message': str(e)})}\n\n"
-                unregister_task(_task_id)
+                unregister_task(_task_id, status="failed", error=str(e))
             except Exception as e:
                 yield f"data: {json.dumps({'status': 'error', 'message': str(e)})}\n\n"
-                unregister_task(_task_id)
+                unregister_task(_task_id, status="failed", error=str(e))
         except Exception as e:
             logger.error("SSE animate generator crashed: %s", e, exc_info=True)
-            unregister_task(_task_id)
+            unregister_task(_task_id, status="failed", error=str(e))
             try:
                 yield f"data: {json.dumps({'status': 'error', 'message': str(e)})}\n\n"
             except Exception:
@@ -2230,7 +2606,7 @@ async def generate_image(request: Request):
             q = queue.Queue()
             
             async def generator():
-                from app.tools.task_manager import register_task, unregister_task
+                from app.tools.task_manager import register_task, unregister_task, update_task
                 import uuid as _uuid
                 _task_id = f"img_{_uuid.uuid4().hex[:8]}"
                 register_task(_task_id, "image", prompt[:60], {"style": style})
@@ -2258,7 +2634,13 @@ async def generate_image(request: Request):
 
                     while not task.done() or not q.empty():
                         try:
-                            item = await asyncio.to_thread(q.get, timeout=0.5)
+                            item = q.get_nowait()
+                            if item.get("status") == "generating":
+                                update_task(
+                                    _task_id,
+                                    progress=item.get("progress"),
+                                    stage="generating",
+                                )
                             yield f"data: {json.dumps(item)}\n\n"
                             _last_keepalive = _time.monotonic()
                         except queue.Empty:
@@ -2273,21 +2655,21 @@ async def generate_image(request: Request):
                     try:
                         result = await task
                         yield f"data: {json.dumps({'status': 'done', 'result': result})}\n\n"
-                        unregister_task(_task_id)
+                        unregister_task(_task_id, status="completed", result={"filename": result.get("filename")})
                     except RuntimeError as e:
                         error_msg = str(e)
                         if "403 Forbidden" in error_msg or "401 Unauthorized" in error_msg or "private repository" in error_msg:
                             error_msg = f"Hugging Face Token is invalid or does not have access to this model. Please check your token permissions: {error_msg}"
                         yield f"data: {json.dumps({'status': 'error', 'message': error_msg})}\n\n"
-                        unregister_task(_task_id)
+                        unregister_task(_task_id, status="failed", error=error_msg)
                     except Exception as e:
                         yield f"data: {json.dumps({'status': 'error', 'message': str(e)})}\n\n"
-                        unregister_task(_task_id)
+                        unregister_task(_task_id, status="failed", error=str(e))
                 except Exception as e:
                     # Top-level catch: ensure we ALWAYS send an error event
                     # instead of silently dropping the connection
                     logger.error("SSE generator crashed: %s", e, exc_info=True)
-                    unregister_task(_task_id)
+                    unregister_task(_task_id, status="failed", error=str(e))
                     try:
                         yield f"data: {json.dumps({'status': 'error', 'message': str(e)})}\n\n"
                     except Exception:
@@ -3425,4 +3807,3 @@ async def suggest_prompt(request: Request):
 
     # Fallback on failure
     return {"prompt": f"A professional {target} for the project, minimal design, flat vector graphic, clean background"}
-
