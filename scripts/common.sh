@@ -23,9 +23,71 @@ clawzd_has_nvidia_gpu() {
     command -v nvidia-smi &> /dev/null && nvidia-smi &> /dev/null
 }
 
+clawzd_docker_supports_nvidia() {
+    command -v docker &> /dev/null || return 1
+
+    # Docker can list an NVIDIA runtime even when GPU device requests still fail.
+    # Trust the runtime only after a real local --gpus smoke test succeeds.
+    local image
+    for image in clawzd-clawzd:latest ollama/ollama:latest python:3.11-slim-bookworm busybox:latest alpine:latest; do
+        if docker image inspect "$image" &>/dev/null; then
+            docker run --rm --pull=never --gpus all --entrypoint sh "$image" -c 'true' &>/dev/null
+            return $?
+        fi
+    done
+
+    return 1
+}
+
+clawzd_should_use_gpu_compose() {
+    local mode
+    mode=$(printf '%s' "${CLAWZD_DOCKER_GPU:-auto}" | tr '[:upper:]' '[:lower:]')
+
+    case "$mode" in
+        1|true|yes|on|gpu|nvidia|force)
+            return 0
+            ;;
+        0|false|no|off|cpu|none)
+            return 1
+            ;;
+        auto|"")
+            ;;
+        *)
+            echo "WARNING: Unknown CLAWZD_DOCKER_GPU='$CLAWZD_DOCKER_GPU' — using auto detection." >&2
+            ;;
+    esac
+
+    clawzd_has_nvidia_gpu && clawzd_docker_supports_nvidia
+}
+
+clawzd_print_docker_gpu_status() {
+    local mode
+    mode=$(printf '%s' "${CLAWZD_DOCKER_GPU:-auto}" | tr '[:upper:]' '[:lower:]')
+
+    case "$mode" in
+        1|true|yes|on|gpu|nvidia|force)
+            echo "CLAWZD_DOCKER_GPU=$CLAWZD_DOCKER_GPU — forcing GPU compose overlay."
+            return 0
+            ;;
+        0|false|no|off|cpu|none)
+            echo "CLAWZD_DOCKER_GPU=$CLAWZD_DOCKER_GPU — running CPU-only Docker mode."
+            return 0
+            ;;
+    esac
+
+    if clawzd_should_use_gpu_compose; then
+        echo "NVIDIA Docker GPU smoke test passed — enabling GPU compose overlay."
+    elif clawzd_has_nvidia_gpu; then
+        echo "NVIDIA GPU detected, but Docker GPU smoke test failed — running CPU-only Docker mode."
+        echo "To force the GPU overlay after installing NVIDIA Container Toolkit, run with CLAWZD_DOCKER_GPU=1."
+    else
+        echo "No NVIDIA GPU detected — running CPU-only Docker mode."
+    fi
+}
+
 clawzd_compose_files() {
     local files="-f docker-compose.yml"
-    if clawzd_has_nvidia_gpu; then
+    if clawzd_should_use_gpu_compose; then
         files="$files -f docker-compose.gpu.yml"
     fi
     echo "$files"
@@ -50,6 +112,7 @@ clawzd_ensure_env_file() {
 # === Clawzd Configuration ===
 LLM_PROVIDER=ollama
 OLLAMA_HOST=http://localhost:11434
+OLLAMA_HOST_PORT=11435
 OLLAMA_MODEL=qwen3.5:9b
 ENHANCE_MODEL=gemma3:4b
 APP_HOST=0.0.0.0
@@ -192,7 +255,7 @@ clawzd_docker_up() {
     clawzd_ensure_env_file
     clawzd_ensure_data_dirs
     # shellcheck disable=SC2086
-    $compose_cmd $compose_files up -d --build "$@"
+    $compose_cmd $compose_files up -d --build --force-recreate "$@"
 }
 
 clawzd_docker_down() {

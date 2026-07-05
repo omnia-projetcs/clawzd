@@ -30,15 +30,14 @@ services:
     image: ollama/ollama:latest
     container_name: ollama
     restart: unless-stopped
-    # If host port 11434 is already in use by a native Ollama service on the host:
-    # Option A: Comment out the ports mapping below so Ollama runs inside Docker network only.
-    # Option B: Map it to a different host port, e.g. - "11435:11434".
+    # Host port defaults to 11435 to avoid clashing with a native Ollama service on 11434.
+    # Override with OLLAMA_HOST_PORT=11434 if you want the container exposed there.
     ports:
-      - "11434:11434"
+      - "${OLLAMA_HOST_PORT:-11435}:11434"
     volumes:
       - ./models:/root/.ollama
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:11434/api/tags"]
+      test: ["CMD", "ollama", "list"]
       interval: 30s
       timeout: 10s
       retries: 5

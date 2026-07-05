@@ -219,6 +219,8 @@ __marimo__/
 
 #
 data/*
+chroma_db/
+models/
 profil/user/*
 *.db
 node_modules/*

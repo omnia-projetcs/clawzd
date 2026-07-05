@@ -230,6 +230,31 @@ nano .env
 
 Then open **http://localhost:8888** in your browser.
 
+### Docker GPU Mode
+
+Docker installs use the base `docker-compose.yml` by default. The optional
+`docker-compose.gpu.yml` overlay is only enabled automatically when an NVIDIA GPU
+is detected and a local Docker `--gpus all` smoke test succeeds.
+
+If Docker fails with `could not select device driver "nvidia" with capabilities:
+[[gpu]]`, start in CPU mode:
+
+```bash
+CLAWZD_DOCKER_GPU=0 ./install.sh
+# or manually:
+docker compose -f docker-compose.yml up -d --build
+```
+
+After installing and configuring NVIDIA Container Toolkit, force GPU mode with:
+
+```bash
+CLAWZD_DOCKER_GPU=1 ./install.sh
+```
+
+The Ollama container exposes host port `11435` by default to avoid clashing with
+a native Ollama service on `11434`. Override it with `OLLAMA_HOST_PORT=11434` if
+you want Docker Ollama exposed on the standard host port.
+
 ### Manual Installation
 
 If you prefer to install step by step:

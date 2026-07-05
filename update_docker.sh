@@ -25,6 +25,7 @@ DOCKER_CMD=$(clawzd_detect_docker_compose) || {
     exit 1
 }
 COMPOSE_FILES=$(clawzd_compose_files)
+clawzd_print_docker_gpu_status
 
 echo ""
 echo "--- Rebuilding Docker Images ---"

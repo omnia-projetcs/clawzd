@@ -71,11 +71,7 @@ if [ -t 0 ]; then
         clawzd_ensure_data_dirs
 
         echo "Starting Docker Compose (building... this may take a while)..."
-        if clawzd_has_nvidia_gpu; then
-            echo "NVIDIA GPU detected — enabling GPU compose overlay."
-        else
-            echo "No NVIDIA GPU detected — running CPU-only Docker mode."
-        fi
+        clawzd_print_docker_gpu_status
         clawzd_docker_up
 
         echo ""
