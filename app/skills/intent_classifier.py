@@ -157,7 +157,7 @@ async def classify_intent(message: str) -> list[str]:
     if len(text) > 400:
         text = text[:400]
 
-    from app.llm_provider import get_llm_provider
+    from app.core.llm_provider import get_llm_provider
     from config import LLM_PROVIDER
 
     llm = get_llm_provider()

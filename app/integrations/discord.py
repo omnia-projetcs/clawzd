@@ -46,9 +46,9 @@ async def start_discord_bot():
         if not content:
             return
 
-        from app.llm_provider import get_llm_provider
-        from app.preprompts import get_preprompt
-        from app.database import create_session, add_message
+        from app.core.llm_provider import get_llm_provider
+        from app.core.preprompts import get_preprompt
+        from app.core.database import create_session, add_message
         import uuid
 
         session_id = f"discord-{message.channel.id}-{uuid.uuid4().hex[:6]}"

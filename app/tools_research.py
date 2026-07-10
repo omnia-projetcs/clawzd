@@ -92,7 +92,7 @@ _fix_orphan_running_statuses()
 def _get_dev_profile_summary() -> str:
     """Load a condensed dev best practices summary for research script generation."""
     try:
-        from app.preprompts import _load_dev_profile
+        from app.core.preprompts import _load_dev_profile
         profile = _load_dev_profile()
         if profile:
             # Return a condensed version to save tokens in the planning prompt
@@ -800,8 +800,8 @@ def _log_context_budget(
 
 async def _llm_call(messages: list[dict], provider: str = "", model: str = "", pid: str = "") -> str:
 
-    from app.llm_provider import get_llm_provider
-    from app.metrics import get_metrics
+    from app.core.llm_provider import get_llm_provider
+    from app.core.metrics import get_metrics
     import time
     prov = get_llm_provider(provider or None)
     kwargs = {}
@@ -869,7 +869,7 @@ async def _run_arbor_htr_loop(
         render_arbor_tree_ascii
     )
     from app.tools_market import fetch_market_data
-    from app.rag import explicit_rag_search
+    from app.ai_models.rag import explicit_rag_search
     
     # 1. Initialize Hypothesis Tree if not present
     if "hypothesis_tree" not in proj:
@@ -1722,7 +1722,7 @@ async def _research_loop(pid: str):
 
                 elif action_type == "query_rag":
                     try:
-                        from app.rag import explicit_rag_search
+                        from app.ai_models.rag import explicit_rag_search
                         rag_q = params.get("query", query)
                         rag_ctx = explicit_rag_search(rag_q, k=3)
                         if rag_ctx:

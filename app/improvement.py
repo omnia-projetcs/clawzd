@@ -39,7 +39,7 @@ async def add_feedback(request: Request):
     enriched = False
     if entry["rating"] <= 2 and entry["correction"].strip():
         try:
-            from app.rag import _get_rag
+            from app.ai_models.rag import _get_rag
             collection, encoder = _get_rag()
             correction_text = (
                 f"User question: {entry['original_query']}\n\n"

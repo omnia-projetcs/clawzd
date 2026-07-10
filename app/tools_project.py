@@ -288,7 +288,7 @@ async def ai_generate_project(request: Request):
     if not prompt:
         raise HTTPException(400, "Prompt is required")
 
-    from app.llm_provider import get_llm_provider
+    from app.core.llm_provider import get_llm_provider
     provider = get_llm_provider()
 
     system_prompt = """You are a project management AI assistant.
@@ -981,7 +981,7 @@ async def project_research(proj_id: str, request: Request):
 
     if all_results:
         try:
-            from app.llm_provider import get_llm_provider
+            from app.core.llm_provider import get_llm_provider
             provider = get_llm_provider()
 
             results_text = "\n".join(

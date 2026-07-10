@@ -7,10 +7,9 @@ import json
 import uuid
 import logging
 from datetime import datetime, timezone
-from fastapi import APIRouter, Request, HTTPException
+from fastapi import Request, HTTPException
 from config import DATA_DIR
 
-router = APIRouter()
 logger = logging.getLogger("clawzd.cron")
 
 CRON_FILE = os.path.join(DATA_DIR, "cron_jobs.json")
@@ -50,9 +49,9 @@ def _get_scheduler():
 
 async def _run_cron_job(job_id: str, prompt: str, preprompt: str, provider: str, model: str, reactions: list = None):
     """Execute a scheduled LLM prompt, log the result, and send notifications/trigger reactions."""
-    from app.llm_provider import get_llm_provider
-    from app.preprompts import get_preprompt
-    from app.database import create_session, add_message
+    from app.core.llm_provider import get_llm_provider
+    from app.core.preprompts import get_preprompt
+    from app.core.database import create_session, add_message
 
     session_id = f"cron-{job_id}-{datetime.now().strftime('%Y%m%d%H%M')}"
     create_session(session_id, title=f"[Cron] {prompt[:50]}", provider=provider, model=model, preprompt=preprompt)
@@ -184,90 +183,5 @@ async def _notify_cron_completion(job_id: str, prompt: str, result: str, session
                 logger.error("Failed to execute reaction '%s' for cron job %s: %s", reaction, job_id, e)
 
 
-@router.post("/jobs")
-async def create_job(request: Request):
-    """Create a new cron job with a prompt and schedule."""
-    data = await request.json()
-    prompt = data.get("prompt", "")
-    if not prompt.strip():
-        raise HTTPException(400, "Prompt is required")
-
-    job_id = str(uuid.uuid4())[:8]
-    job = {
-        "id": job_id,
-        "prompt": prompt,
-        "preprompt": data.get("preprompt", "none"),
-        "provider": data.get("provider", "local"),
-        "model": data.get("model", ""),
-        "schedule": {
-            "type": data.get("schedule_type", "interval"),  # interval or cron
-            "hours": data.get("hours", 24),
-            "minutes": data.get("minutes", 0),
-            "cron_expr": data.get("cron_expr", ""),  # e.g. "0 9 * * *"
-        },
-        "reactions": data.get("reactions", []), # e.g. ["twitter", "email"]
-        "enabled": True,
-        "created_at": datetime.now(timezone.utc).isoformat(),
-        "last_run": None,
-    }
-
-    # Schedule with APScheduler
-    scheduler = _get_scheduler()
-    sched = job["schedule"]
-    if sched["type"] == "cron" and sched["cron_expr"]:
-        from apscheduler.triggers.cron import CronTrigger
-        parts = sched["cron_expr"].split()
-        trigger = CronTrigger(minute=parts[0], hour=parts[1],
-                              day=parts[2], month=parts[3], day_of_week=parts[4])
-        scheduler.add_job(_run_cron_job, trigger, id=job_id,
-                          args=[job_id, prompt, job["preprompt"], job["provider"], job["model"], job["reactions"]])
-    else:
-        scheduler.add_job(_run_cron_job, "interval",
-                          hours=sched["hours"], minutes=sched["minutes"], id=job_id,
-                          args=[job_id, prompt, job["preprompt"], job["provider"], job["model"], job["reactions"]])
-
-    jobs = _load_jobs()
-    jobs.append(job)
-    _save_jobs(jobs)
-
-    return {"status": "created", "job": job}
-
-
-@router.get("/jobs")
-async def list_jobs():
-    """List all scheduled cron jobs."""
-    return {"jobs": _load_jobs()}
-
-
-@router.delete("/jobs/{job_id}")
-async def delete_job(job_id: str):
-    """Delete a cron job."""
-    jobs = _load_jobs()
-    jobs = [j for j in jobs if j["id"] != job_id]
-    _save_jobs(jobs)
-    try:
-        scheduler = _get_scheduler()
-        scheduler.remove_job(job_id)
-    except Exception as e:
-        logger.warning("Failed to remove cron job %s from scheduler: %s", job_id, e)
-    return {"status": "deleted"}
-
-
-@router.post("/jobs/{job_id}/toggle")
-async def toggle_job(job_id: str):
-    """Enable or disable a cron job."""
-    jobs = _load_jobs()
-    for j in jobs:
-        if j["id"] == job_id:
-            j["enabled"] = not j["enabled"]
-            try:
-                scheduler = _get_scheduler()
-                if j["enabled"]:
-                    scheduler.resume_job(job_id)
-                else:
-                    scheduler.pause_job(job_id)
-            except Exception as e:
-                logger.warning("Failed to toggle cron job %s in scheduler: %s", job_id, e)
-            _save_jobs(jobs)
-            return {"status": "toggled", "enabled": j["enabled"]}
-    raise HTTPException(404, "Job not found")
+# All router endpoints have been migrated to app/routers/cron.py
+# This file retains only the core cron execution helpers.

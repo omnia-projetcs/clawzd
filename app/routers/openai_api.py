@@ -17,7 +17,7 @@ from fastapi import APIRouter, Header, HTTPException, Request
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, Field
 
-from app.llm_provider import get_llm_provider, _get_provider_models
+from app.core.llm_provider import get_llm_provider, _get_provider_models
 from config import API_SECRET_TOKEN, LLM_PROVIDER, OLLAMA_MODEL
 
 router = APIRouter()

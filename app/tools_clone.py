@@ -440,7 +440,7 @@ async def test_clone_reply(request: Request):
 
 async def _generate_reply(message: str, channel: str, knowledge: str) -> dict:
     """Core clone reply generation pipeline."""
-    from app.llm_provider import get_llm_provider
+    from app.core.llm_provider import get_llm_provider
     provider = get_llm_provider()
 
     # Step 1 — Classify intent

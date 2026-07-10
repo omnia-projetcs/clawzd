@@ -10,7 +10,7 @@ import re
 import httpx
 from fastapi import APIRouter, Request, UploadFile, File
 
-from app.llm_provider import get_llm_provider
+from app.core.llm_provider import get_llm_provider
 
 logger = logging.getLogger("clawzd.autocomplete")
 router = APIRouter()

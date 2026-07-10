@@ -63,7 +63,9 @@
 
 Clawzd is a self-hosted, modular AI assistant that combines multiple LLM providers with an extensible tool/skill system. Built on Agentic / Plugin architecture, it features a plugin system, tool replay engine, app builder, and a dark-themed IDE-like web interface with real-time streaming, code editing, code audit, RAG, browser automation, image generation, and more.
 
-ATTENTION! THIS PROJECT IS CURRENTLY IN ACTIVE DEVELOPMENT (ALPHA VERSION). FEATURES MAY BUG OR CHANGE OR BE REMOVED WITHOUT NOTICE. EXPECT ERRORS AND UNEXPECTED BEHAVIOR.
+**ATTENTION!** THIS PROJECT IS CURRENTLY IN ACTIVE DEVELOPMENT (ALPHA VERSION).  
+Refactoring in progress (see `REFACTOR_PLAN.md`): legacy flat modules (`app/tools_*.py`) + large gateway are being split per `CONVENTIONS.md`.  
+Features may change. Expect some rough edges during the transition.
 
 **Key Design Principles:**
 - 🔌 **Multi-Provider** — Switch between Ollama (local), OpenRouter, Groq, Mistral, Google Gemini, Anthropic seamlessly
@@ -207,15 +209,15 @@ ATTENTION! THIS PROJECT IS CURRENTLY IN ACTIVE DEVELOPMENT (ALPHA VERSION). FEAT
 
 The fastest way to install Clawzd is using our one-line installation script:
 ```bash
-curl -fsSL https://raw.githubusercontent.com/omnia-projetcs/clawsd/main/install.sh | bash
+curl -fsSL https://raw.githubusercontent.com/omnia-projetcs/clawzd/main/install.sh | bash
 ```
 
 Alternatively, you can install it by cloning the repository:
 
 ```bash
 # 1. Clone the repository
-git https://github.com/omnia-projetcs/clawsd.git
-cd clawsd
+git clone https://github.com/omnia-projetcs/clawzd.git
+cd clawzd
 
 # 2. Run the install script (creates venv, installs Ollama, deps, model, assets)
 chmod +x *.sh
@@ -715,10 +717,13 @@ The health report includes:
 
 ## 📁 Project Structure
 
+> **Migration note (2026-07)**: Refactoring ongoing (legacy `tools_*.py` + large files). New modules follow `CONVENTIONS.md`. See `REFACTOR_PLAN.md`.
+
 ```
 Clawzd/
 ├── main.py                  # Entry point — health check + FastAPI launch
 ├── config.py                # Centralized .env configuration
+├── REFACTOR_PLAN.md         # How we are splitting the monoliths
 ├── install.sh / run.sh / update.sh / uninstall.sh
 ├── requirements.txt         # Python dependencies
 ├── .env / .env.example      # Environment configuration

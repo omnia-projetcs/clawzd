@@ -31,7 +31,7 @@
 | Automation, workflows, playbooks | `app/automation/{module}.py` |
 | AI model management | `app/ai_models/{module}.py` |
 | FastAPI routers | `app/routers/{domain}.py` |
-| Agent personas | `agents/{role}.md` |
+| Agent personas | `profiles/agents/{role}.md` |
 | Utility scripts | `scripts/{name}.py` |
 
 ### Frontend
@@ -133,22 +133,25 @@
 ## 7. Legacy Files — Migration Status
 
 > ⚠️ These files are historical monoliths. **Do not add code to them.**  
-> They will be progressively split into the structure described above.
+> They will be progressively split (see `REFACTOR_PLAN.md` at project root).  
+> Current progress: small extractions done (e.g. files router); foundational shims in place.
 
 ### Backend
 
-| File | Lines | Migration Target |
-|------|-------|-----------------|
-| `app/gateway.py` | 2,443 | `app/routers/*.py` |
-| `app/tools_image.py` | 2,057 | `app/tools/image.py` (split) |
-| `app/tools_presentation.py` | 1,810 | `app/tools/presentation.py` (split) |
-| `app/tools_code.py` | 1,345 | `app/tools/code.py` (split) |
-| `app/tools_automation.py` | 1,227 | `app/automation/automation.py` (split) |
-| `app/tool_executor.py` | 1,074 | `app/tools/executor.py` (split) |
+| File | Lines (approx) | Migration Target | Status |
+|------|----------------|------------------|--------|
+| `app/gateway.py` | ~2 500 → reduced | `app/routers/*.py` + core middleware | Partial (files.py extracted) |
+| `app/tools_image.py` | 3 800+ | `app/tools/image_*.py` (generation / utils / router) | Planned (see REFACTOR_PLAN.md) |
+| `app/tools_presentation.py` | 2 900+ | Split builder / export / renderer | Planned |
+| `app/tools_research.py` | 2 900+ | Already partially in `app/tools/research_*.py` | In progress (migrate call sites) |
+| `app/tools_code.py` | 1 500+ | `app/tools/code.py` | Planned |
+| `app/tool_executor.py` (legacy) + `app/tools/executor.py` | 2 200+ | Consolidate | Critical |
+| `static/js/app.js` | ~6 000+ | studios/ + core/ | Partial |
+| `static/css/style.css` | ~6 000+ | base/components/studios/ | Partial |
 
 ### Frontend
 
 | File | Size | Migration Target |
 |------|------|-----------------|
-| `static/js/app.js` | 560 KB (~14,000 lines) | `static/js/studios/*.js` |
-| `static/css/style.css` | 197 KB | `static/css/{category}/_*.css` |
+| `static/js/app.js` | ~6 170 lines | `static/js/studios/*.js` + core/ (partial progress) |
+| `static/css/style.css` | ~6 000 lines | `static/css/{category}/_*.css` (partial progress) |

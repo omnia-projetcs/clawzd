@@ -43,9 +43,9 @@ async def receive_webhook(request: Request):
     logger.info("Telegram msg from %s: %s", sender_id, text[:50])
 
     # Generate response
-    from app.llm_provider import get_llm_provider
-    from app.preprompts import get_preprompt
-    from app.database import create_session, add_message
+    from app.core.llm_provider import get_llm_provider
+    from app.core.preprompts import get_preprompt
+    from app.core.database import create_session, add_message
     import uuid
 
     session_id = f"tg-{sender_id}-{uuid.uuid4().hex[:6]}"

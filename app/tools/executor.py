@@ -849,7 +849,7 @@ async def execute_tool(tool_name: str, params: dict, context: dict = None) -> di
                 return auditor.audit(code)
 
         elif resolved == "rag_search":
-            from app.rag import search
+            from app.ai_models.rag import search
             query = params.get("query", "")
             k = params.get("k", 3)
             return await search(query=query, k=k)
@@ -930,7 +930,7 @@ async def execute_tool(tool_name: str, params: dict, context: dict = None) -> di
             return await trigger_n8n_webhook(payload)
 
         elif resolved == "memory":
-            from app.memory import handle_memory_tool
+            from app.core.memory import handle_memory_tool
             return handle_memory_tool(params)
 
         elif resolved == "rebuild_skill":
@@ -2032,7 +2032,7 @@ def format_tool_result(tool_name: str, result: dict) -> str:
     Uses RTK-style compression (smart filtering, grouping, truncation,
     deduplication) to minimize token consumption without losing quality.
     """
-    from app.output_compressor import (
+    from app.core.output_compressor import (
         compress_command_output,
         compress_search_results,
         compress_code_execution,

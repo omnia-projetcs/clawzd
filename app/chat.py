@@ -9,7 +9,7 @@ import logging
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 
-from app.database import (
+from app.core.database import (
     create_session, list_sessions, get_session, delete_session,
     get_messages, export_session_markdown, clear_all_sessions
 )
@@ -133,7 +133,7 @@ async def reset_session_endpoint(session_id: str):
     _cleanup_session_files(session_id)
 
     # Clear messages only (keep session metadata)
-    from app.database import clear_session_messages
+    from app.core.database import clear_session_messages
     clear_session_messages(session_id)
 
     # Also clear any active generation state

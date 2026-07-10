@@ -28,80 +28,32 @@ from config import (
     OPENAI_VIDEO_MODEL,
 )
 
+# New extracted utilities
+from app.tools.image_utils import (
+    _check_gpu,
+    get_style_models,
+    get_media_capabilities,
+    IMAGES_DIR,
+    _classify_prompt,
+    _detect_non_english,
+    _clean_llm_output,
+    _should_use_local_files,
+    HfProgressTqdm,
+    _get_hf_token,
+    _configured,
+    _media_cloud_reason,
+    _build_media_capabilities,
+    _SVG_KEYWORDS,
+    _RASTER_KEYWORDS,
+    _IMAGE_STYLES,
+    _release_pipeline,
+)
+
 logger = logging.getLogger("clawzd.image")
 router = APIRouter()
 
-IMAGES_DIR = os.path.join(DATA_DIR, "images")
-os.makedirs(IMAGES_DIR, exist_ok=True)
-
-# ---------------------------------------------------------------------------
-# GPU capability check (lazy — re-evaluated on first pipeline load)
-# ---------------------------------------------------------------------------
-_gpu_ok: bool | None = None  # None = not yet checked
-
-
-def _check_gpu() -> bool:
-    """Lazy GPU capability check. Cached after first successful evaluation.
-
-    At import time, ``torch.cuda.is_available()`` can return False due to
-    transient driver initialization issues. This function re-evaluates on
-    demand, allowing CUDA to become available after the initial import.
-    """
-    global _gpu_ok
-    if _gpu_ok is not None:
-        return _gpu_ok
-
-    try:
-        import torch
-        if torch.cuda.is_available():
-            arch_list = torch.cuda.get_arch_list() if hasattr(torch.cuda, "get_arch_list") else []
-            cap = torch.cuda.get_device_capability()
-            cap_str = f"sm_{cap[0]}{cap[1]}0" if cap else ""
-            if not arch_list or cap_str in arch_list or any(a.startswith(f"sm_{cap[0]}") for a in arch_list):
-                _gpu_ok = True
-                logger.info("GPU OK for image generation: %s (cap %s)", torch.cuda.get_device_name(), cap)
-            else:
-                _gpu_ok = False
-                logger.warning(
-                    "GPU %s (cap %s) not in PyTorch arch_list %s — will use API fallback",
-                    torch.cuda.get_device_name(), cap_str, arch_list,
-                )
-        else:
-            _gpu_ok = False
-            logger.info("CUDA not available — will use API fallback for image generation")
-    except Exception as e:
-        _gpu_ok = False
-        logger.info("PyTorch not available (%s) — will use API fallback", e)
-
-    return _gpu_ok
-
-
-# Run initial check (non-blocking — sets _gpu_ok or leaves None for retry)
-try:
-    _check_gpu()
-except Exception:
-    pass
-
-# ---------------------------------------------------------------------------
-# Local pipeline (GPU)
-# ---------------------------------------------------------------------------
-
-# NOTE: Only free open-weights models from Hugging Face are allowed here.
-_IMAGE_STYLE_MODELS = {
-    "none": {"repo": "Tongyi-MAI/Z-Image-Turbo", "is_lora": False, "pipeline": "zimage"},
-    "flux2_klein": {"repo": "black-forest-labs/FLUX.2-klein-9B", "is_lora": False},
-    "photorealistic": {"repo": "RunDiffusion/Juggernaut-XL-v9", "is_lora": False},
-    "realvis": {"repo": "SG161222/RealVisXL_V4.0", "is_lora": False},
-    "pixel_art": {"repo": "nerijs/pixel-art-xl", "is_lora": True},
-    # Unsloth-curated models (using original HF repos via diffusers)
-    "z_image_turbo": {"repo": "Tongyi-MAI/Z-Image-Turbo", "is_lora": False, "pipeline": "zimage"},
-    "z_image": {"repo": "Tongyi-MAI/Z-Image", "is_lora": False, "pipeline": "zimage"},
-    "hidream_o1": {"repo": "HiDream-ai/HiDream-O1-Image", "is_lora": False},
-    "flux2_klein_4b": {"repo": "black-forest-labs/FLUX.2-klein-4B", "is_lora": False},
-    "ideogram_4_nf4": {"repo": "ideogram-ai/ideogram-4-nf4", "is_lora": False},
-}
-
-
+# Use from utils
+_IMAGE_STYLE_MODELS = get_style_models()
 
 _hf_download_state = {
     "active": False,
@@ -109,50 +61,11 @@ _hf_download_state = {
     "repo": "",
 }
 
-# Shared generation progress state (image / video / audio)
-_generation_progress = {
-    "active": False,
-    "type": "",       # 'image', 'video', 'audio'
-    "step": 0,
-    "total_steps": 0,
-    "progress": 0.0,  # 0-100
-    "stage": "",      # e.g. 'loading_model', 'generating', 'encoding'
-}
-
-# Cancel flag for stopping generation mid-flight
-_cancel_requested: set[str] = set()
-
-
-def _cancel_generation(task_id: str):
-    """Request cancellation of a running generation task."""
-    _cancel_requested.add(task_id)
-    _generation_progress["active"] = False
-
-
-def _should_use_local_files(repo_id: str) -> bool:
-    """Whether to force local-only loading (no network).
-
-    Always returns False: HuggingFace Hub's from_pretrained already uses
-    the local cache when available and only downloads missing files.
-    Forcing local_files_only=True on partially-downloaded models blocks
-    downloads and causes silent pipeline failures.
-    """
-    return False
-
 import tqdm
 import tqdm.auto
 orig_tqdm = tqdm.auto.tqdm
 
-class HfProgressTqdm(orig_tqdm):
-    def update(self, n=1):
-        super().update(n)
-        global _hf_download_state
-        _hf_download_state["active"] = True
-        total = getattr(self, "total", 0)
-        if total:
-            # We just want a rough estimate, so we'll just track the last active bar
-            _hf_download_state["progress"] = min(100.0, (getattr(self, "n", 0) / total) * 100)
-
+# delegated
 tqdm.auto.tqdm = HfProgressTqdm
 tqdm.tqdm = HfProgressTqdm
 
@@ -196,20 +109,9 @@ def _configured(value: str | None) -> bool:
     return bool((value or "").strip())
 
 
-def _media_cloud_reason(mode: str, openai_ready: bool, hf_ready: bool, cloud_enabled: bool) -> str:
-    if not cloud_enabled:
-        return "Cloud media providers are disabled by ENABLE_CLOUD_MODELS."
-    if mode == "video" and not openai_ready:
-        return "OPENAI_API_KEY is required for cloud video generation."
-    if mode == "audio" and not openai_ready:
-        return "OPENAI_API_KEY is required for OpenAI TTS."
-    if mode == "image" and not (openai_ready or hf_ready):
-        return "OPENAI_API_KEY or HUGGINGFACE_API_KEY is required for cloud image generation."
-    return ""
-
-
+# _build_media_capabilities kept here for test compatibility during split; heavy logic can move later
 def _build_media_capabilities() -> dict:
-    """Return media backend/model readiness without performing network calls."""
+    """Return media backend/model readiness."""
     openai_ready = _configured(OPENAI_API_KEY)
     hf_ready = _configured(HUGGINGFACE_API_KEY) or _configured(os.environ.get("HF_TOKEN"))
     cloud_enabled = bool(ENABLE_CLOUD_MODELS)
@@ -218,7 +120,7 @@ def _build_media_capabilities() -> dict:
     fast_image_key = (LOCAL_FAST_IMAGE_MODEL or "z_image_turbo").strip().lower().replace("-", "_")
     fast_image_info = _IMAGE_STYLE_MODELS.get(fast_image_key) or _IMAGE_STYLE_MODELS.get("z_image_turbo") or _IMAGE_STYLE_MODELS["none"]
     fast_video_key = _resolve_video_model(LOCAL_FAST_VIDEO_MODEL)
-    fast_video_info = _VIDEO_MODELS.get(fast_video_key, {})
+    fast_video_info = _VIDEO_MODELS.get(fast_video_key, {}) if '_VIDEO_MODELS' in globals() else {}
 
     image_cloud = cloud_enabled and (openai_ready or hf_ready)
     video_cloud = cloud_enabled and openai_ready
@@ -471,18 +373,10 @@ def _get_pipeline(repo_id: str, is_lora: bool = False):
     return _pipeline
 
 
+# _release_pipeline delegated to image_utils
 def _release_pipeline():
-    """Release the pipeline and free VRAM."""
-    global _pipeline, _current_image_model, _current_is_lora
-    if _pipeline is not None:
-        import gc, torch
-        del _pipeline
-        _pipeline = None
-        _current_image_model = None
-        _current_is_lora = False
-        gc.collect()
-        if torch.cuda.is_available():
-            torch.cuda.empty_cache()
+    from app.tools.image_utils import _release_pipeline as _real
+    _real()
 
 
 _rembg_sessions = {}
@@ -1042,88 +936,19 @@ def _release_i2v_pipeline():
 # ---------------------------------------------------------------------------
 # SVG generation via LLM (Ollama)
 # ---------------------------------------------------------------------------
-_SVG_KEYWORDS = {
-    # English
-    "icon", "logo", "badge", "button", "arrow", "shape", "geometric",
-    "symbol", "flat", "vector", "svg", "simple", "minimalist", "outline",
-    "line art", "lineart", "wireframe", "diagram", "chart", "infographic",
-    "pattern", "border", "divider", "separator", "banner", "emblem",
-    "shield", "star", "circle", "square", "triangle", "hexagon",
-    "checkmark", "cross", "plus", "minus", "heart", "flag",
-}
+# SVG keywords now in image_utils.py
+# _IMAGE_STYLES now in image_utils.py
 
-_IMAGE_STYLES = {
-    "photorealistic": {
-        "positive": "masterpiece, best quality, ultra-detailed, photorealistic, RAW photo, 8k uhd, dslr, soft lighting, high quality, intricate details",
-        "negative": "lowres, bad anatomy, bad hands, text, error, missing fingers, extra digit, fewer digits, cropped, worst quality, low quality, normal quality, jpeg artifacts, signature, watermark, username, blurry, illustration, painting, cartoon, anime, 3d render",
-    },
-    "anime": {
-        "positive": "masterpiece, best quality, ultra-detailed, anime style, colorful, studio ghibli, makoto shinkai, beautifully drawn, highly detailed",
-        "negative": "photorealistic, 3d render, realistic, ugly, distorted, poorly drawn, lowres, bad anatomy, bad hands, error, missing fingers, worst quality, low quality, watermark",
-    },
-    "pixel_art": {
-        "positive": "masterpiece, best quality, pixel art, 16-bit, retro, highly detailed, colorful, crisp, sharp",
-        "negative": "high resolution, smooth, realistic, 3d, vector, ugly, blurry, blurry pixels, jpeg artifacts, worst quality, low quality",
-    },
-    "logo": {
-        "positive": "masterpiece, best quality, vector logo, flat design, minimalist, clean lines, solid colors, corporate identity, isolated on white background, sharp edges",
-        "negative": "photorealistic, 3d, realistic, photo, complex, gradients, messy, ugly, text, watermark, low quality, worst quality, blurry",
-    },
-    # Z-Image and Qwen-Image use natural language prompts; no style keyword injection needed.
-    # These entries provide negative prompts only.
-    "z_image_turbo": {
-        "positive": "",
-        "negative": "lowres, bad anatomy, bad hands, text, error, worst quality, low quality, watermark, blurry",
-    },
-    "z_image": {
-        "positive": "",
-        "negative": "lowres, bad anatomy, bad hands, text, error, worst quality, low quality, watermark, blurry",
-    },
-    "ideogram_4_nf4": {
-        "positive": "",
-        "negative": "",
-    },
-
-}
-
-# Keywords that strongly suggest raster (photorealistic) generation
-_RASTER_KEYWORDS = {
-    "photo", "photorealistic", "realistic", "photograph",
-    "painting", "watercolor", "oil",
-    "3d", "render", "texture", "landscape", "portrait", "face", "person",
-    "animal", "nature", "scenery", "cinematic", "detailed", "complex",
-    "intricate", "hdr", "4k", "8k",
-}
+# RASTER keywords now in image_utils.py
 
 
-def _classify_prompt(prompt: str) -> str:
-    """Classify whether a prompt is better suited for SVG or raster.
-
-    Returns 'svg' or 'raster'.
-    """
-    words = set(re.split(r"[\s,;:!?./()\[\]]+", prompt.lower()))
-    # Also check bigrams (e.g. "line art", "flat design")
-    prompt_lower = prompt.lower()
-
-    svg_score = sum(1 for kw in _SVG_KEYWORDS if kw in prompt_lower)
-    raster_score = sum(1 for kw in _RASTER_KEYWORDS if kw in prompt_lower)
-
-    logger.info("Prompt classification: svg=%d, raster=%d", svg_score, raster_score)
-
-    if svg_score > raster_score:
-        return "svg"
-    if raster_score > 0:
-        return "raster"
-    # Default: raster for ambiguous prompts
-    return "raster"
-
-
+# _classify_prompt etc. delegated to image_utils.py
 async def _generate_svg(prompt: str) -> str:
     """Generate SVG markup using the local LLM (Ollama).
 
     Returns clean SVG string.
     """
-    from app.llm_provider import get_llm_provider
+    from app.core.llm_provider import get_llm_provider
     from config import LLM_PROVIDER
 
     svg_system = (
@@ -1171,20 +996,7 @@ async def _generate_svg(prompt: str) -> str:
     return svg_content
 
 
-def _detect_non_english(text: str) -> bool:
-    """Heuristic to detect if text is likely NOT English.
-    
-    Returns True if the text appears to be in a non-English language.
-    """
-    # Check for non-ASCII characters (accented letters common in French, German, etc.)
-    non_ascii_count = sum(1 for c in text if ord(c) > 127)
-    if non_ascii_count > len(text) * 0.05 and non_ascii_count > 2:
-        return True
-    
-    # Common French words/patterns have been removed to comply with English-only codebase rules.
-    # We now rely primarily on the non-ASCII check above for detecting non-English languages.
-    return False
-
+# _detect_non_english now delegated to image_utils (imported)
 
 async def _translate_prompt(prompt: str) -> str:
     """Translate a prompt to English using the local LLM (Ollama).
@@ -1192,7 +1004,7 @@ async def _translate_prompt(prompt: str) -> str:
     This is a lightweight translation-only function (no enrichment).
     Only called when non-English text is detected.
     """
-    from app.llm_provider import get_llm_provider
+    from app.core.llm_provider import get_llm_provider
     from config import LLM_PROVIDER
 
     system_prompt = (
@@ -1226,17 +1038,7 @@ async def _translate_prompt(prompt: str) -> str:
     return prompt
 
 
-def _clean_llm_output(text: str) -> str:
-    """Clean common LLM artifacts from generated prompts.
-
-    Handles reasoning-model leakage (DeepSeek, QwQ, etc.) where the model
-    emits ``<think>…</think>`` blocks — sometimes without the opening tag,
-    sometimes repeated dozens of times.
-    """
-    # 1. Strip full <think>…</think> blocks (greedy to catch nested repeats)
-    text = re.sub(r"<think>.*?</think>", "", text, flags=re.DOTALL).strip()
-    # 2. If an unclosed <think> remains, drop everything from it onward
-    text = re.sub(r"<think>.*$", "", text, flags=re.DOTALL).strip()
+# _clean_llm_output now in image_utils.py (imported at top)
     # 3. If only </think> tags remain (model started thinking implicitly),
     #    keep only the content AFTER the *last* </think>
     if "</think>" in text:
@@ -1252,79 +1054,8 @@ def _clean_llm_output(text: str) -> str:
     # 6. Self-correction extraction: when the LLM revises itself inline it writes
     #    markers like "Final Polish:", "Revised:", "**Correction:**" etc.
     #    We keep ONLY the content after the LAST such marker.
-    _revision_markers = [
-        r"\*\*Final\s+Polish\*\*\s*:\s*",
-        r"Final\s+Polish\s*:\s*",
-        r"\*\*Revised\s*(?:Prompt|Version)?\*\*\s*:\s*",
-        r"Revised\s*(?:Prompt|Version)?\s*:\s*",
-        r"\*\*Correction\*\*\s*:\s*",
-        r"Correction\s*:\s*",
-        r"\*\*Final\s+(?:Prompt|Version|Output)\*\*\s*:\s*",
-        r"Final\s+(?:Prompt|Version|Output)\s*:\s*",
-        r"\*\*Condensed\*\*\s*:\s*",
-        r"Condensed\s+(?:Prompt|Version)?\s*:\s*",
-    ]
-    for _marker in _revision_markers:
-        _parts = re.split(_marker, text, flags=re.IGNORECASE)
-        if len(_parts) > 1:
-            # Take content after the LAST marker occurrence
-            text = _parts[-1].strip()
-    # Also strip everything from the FIRST inline self-correction block
-    # (e.g. "…sentence.` **Correction:** …") — keep only what precedes it.
-    text = re.sub(r"`?\s*\*\*Correction\*\*.*$", "", text, flags=re.IGNORECASE | re.DOTALL).strip()
-    # Strip stray backticks (` used as quote delimiters by some models)
-    text = text.strip("`").strip()
-
-    # Remove conversational prefixes
-    text = re.sub(
-        r"^(here is .*?:|here's .*?:|enhanced prompt:|prompt:|\*\*prompt\*\*.*?:"
-        r"|sure.*?:|of course.*?:|certainly.*?:|the enhanced.*?:|translated.*?:"
-        r"|result.*?:|final polish:|correction:|revised.*?:|condensed.*?:)\s*",
-        "", text, flags=re.IGNORECASE
-    ).strip()
-    # Remove self-commentary (e.g. "43 words. English only. No intro/outro. …")
-    text = re.sub(
-        r"\b\d+\s*words\..*$", "", text, flags=re.IGNORECASE
-    ).strip()
-    # Remove "Word count: N" patterns and everything after
-    text = re.sub(
-        r"\bword\s*count\s*:\s*\d+\.?.*$", "", text, flags=re.IGNORECASE
-    ).strip()
-    # Remove AI reasoning / self-commentary that leaked without <think> tags
-    # Catches patterns like "Okay. I will output this. Wait, I should not..."
-    _reasoning_patterns = [
-        r"\bokay\.?\s+I\s+(will|should|need|can).*$",
-        r"\bwait[,.]?\s+I\s+(should|need|will|must).*$",
-        r"\blet\s+me\s+(think|check|re-?read|reconsider|count|verify|make sure).*$",
-        r"\bI\s+(will|should|need\s+to|must)\s+(output|write|not|include|add|remove|keep|avoid).*$",
-        r"\bI\s+(think|believe|notice|realize|see)\s+.*$",
-        r"\bhmm[,.].*$",
-        r"\bactually[,.]?\s+I\s+.*$",
-        r"\b(note|notes)\s*:\s*.*$",
-        r"\bthis\s+(is|should\s+be|meets|follows|uses)\s+(the\s+)?(prompt|within|under|about|around)\b.*$",
-        r"\b(here|above)\s+is\s+(the|my|a)\s+(enhanced|final|refined|improved|generated|translated).*$",
-        r"\benglis?h\s+only\.?.*$",
-        r"\bno\s+(intro|outro|explanation|markdown|quotes).*$",
-    ]
-    for pat in _reasoning_patterns:
-        text = re.sub(pat, "", text, flags=re.IGNORECASE).strip()
-    # Remove enclosing quotes if any
-    text = re.sub(r'^["\'](.*)["\']$', r'\1', text).strip()
-    # Remove markdown bold/italic wrappers
-    text = re.sub(r'^\*\*(.*?)\*\*$', r'\1', text).strip()
-    text = re.sub(r'^\*(.*?)\*$', r'\1', text).strip()
-    # Remove numbered list prefixes like "1. " or "- "
-    text = re.sub(r'^[\d]+\.\s+', '', text).strip()
-    text = re.sub(r'^[-•]\s+', '', text).strip()
-    # Collapse multiple spaces/newlines
-    text = re.sub(r'\s+', ' ', text).strip()
-
-    # --- Hard cap: keep at most 80 words ---
-    words = text.split()
-    if len(words) > 80:
-        text = " ".join(words[:80])
-
-    return text
+    # _clean_llm_output fully delegated to image_utils (see top level import)
+    return _clean_llm_output(text)
 
 
 async def _enhance_prompt_with_llm(prompt: str, style: str = "none", model_repo: str = "") -> str:
@@ -1335,7 +1066,7 @@ async def _enhance_prompt_with_llm(prompt: str, style: str = "none", model_repo:
         style: The selected image style (e.g. 'none', 'photorealistic', 'anime').
         model_repo: The target diffusion model repo for context-aware enrichment.
     """
-    from app.llm_provider import get_llm_provider
+    from app.core.llm_provider import get_llm_provider
     from config import LLM_PROVIDER
 
     # --- Build model-aware instructions ---
@@ -1436,7 +1167,7 @@ async def _enhance_video_prompt_with_llm(prompt: str, video_model: str = "animat
     - Avoid static image keywords like 'masterpiece, best quality'
     - Be more descriptive about scene and action
     """
-    from app.llm_provider import get_llm_provider
+    from app.core.llm_provider import get_llm_provider
 
     # --- Model-specific guidance ---
     model_hints = {

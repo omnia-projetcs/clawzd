@@ -742,7 +742,7 @@ async def ai_plan(request: Request):
         raise HTTPException(400, "Your gallery is empty. Please upload or generate some images/videos first!")
 
     # Query LLM to organize these assets
-    from app.llm_provider import get_llm_provider
+    from app.core.llm_provider import get_llm_provider
     from config import LLM_PROVIDER
     import json
 

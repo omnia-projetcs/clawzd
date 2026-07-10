@@ -4,7 +4,7 @@ Exposes available tools to the LLM for function-calling.
 Combines static built-in tools with dynamically loaded custom skills.
 """
 from fastapi import APIRouter
-from app.llm_provider import _get_provider_models
+from app.core.llm_provider import _get_provider_models
 
 router = APIRouter()
 
@@ -438,7 +438,7 @@ BUILTIN_TOOL_DEFINITIONS = [
 def _get_dynamic_tool_definitions() -> list[dict]:
     """Fetch tool definitions from dynamically loaded custom skills."""
     try:
-        from app.skill_registry import get_registry
+        from app.skills.registry import get_registry
         return get_registry().get_tool_definitions()
     except Exception:
         return []

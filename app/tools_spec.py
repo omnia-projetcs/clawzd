@@ -331,7 +331,7 @@ async def generate_artifact(
                 f"\n---\n## EXISTING PROJECT SPECS\n{existing[:3000]}"
             )
 
-    from app.llm_provider import get_llm_provider
+    from app.core.llm_provider import get_llm_provider
 
     data = await request.json() if request.headers.get("content-type") == "application/json" else {}
     provider_key = data.get("provider", "")
@@ -360,7 +360,7 @@ async def generate_artifact(
     output_tokens = max(1, count_tokens(response_text, model_key or ""))
 
     # Record in metrics
-    from app.metrics import get_metrics
+    from app.core.metrics import get_metrics
     get_metrics().record_llm_call(
         provider=provider_key or "default",
         model=model_key or "default",
@@ -406,7 +406,7 @@ async def verify_change(proj_id: str, change_id: str, request: Request):
 
     arts = change.get("artifacts", {})
 
-    from app.llm_provider import get_llm_provider
+    from app.core.llm_provider import get_llm_provider
 
     data = await request.json() if request.headers.get("content-type") == "application/json" else {}
     provider_key = data.get("provider", "")
@@ -466,7 +466,7 @@ async def verify_change(proj_id: str, change_id: str, request: Request):
     output_tokens = max(1, count_tokens(raw, model_key or ""))
 
     # Record in metrics
-    from app.metrics import get_metrics
+    from app.core.metrics import get_metrics
     get_metrics().record_llm_call(
         provider=provider_key or "default",
         model=model_key or "default",

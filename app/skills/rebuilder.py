@@ -286,7 +286,7 @@ RULES:
 
 # Append dev best practices to the rebuild prompt
 try:
-    from app.preprompts import _load_dev_profile
+    from app.core.preprompts import _load_dev_profile
     _dev_profile = _load_dev_profile()
     if _dev_profile:
         REBUILD_SYSTEM_PROMPT += f"\nCODING STANDARDS:\n{_dev_profile}\n"
@@ -306,7 +306,7 @@ async def rebuild_skill(
     Returns a dict with status, backup_path, and details.
     """
     from app.skills.registry import get_registry
-    from app.llm_provider import get_llm_provider
+    from app.core.llm_provider import get_llm_provider
     from app.settings import load_settings
 
     registry = get_registry()

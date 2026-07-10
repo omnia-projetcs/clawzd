@@ -228,3 +228,14 @@ node_modules/*
 static/dist/
 package-lock.json
 .vscode/*
+
+# --- Clawzd specific ---
+# Large user-generated or third-party clones inside workspace (keep workspace/ small)
+workspace/bolt_diy/
+workspace/HeartMuLa-Studio/
+workspace/apps  # symlink handled
+data/_archived_clones/
+# Avoid committing huge generated media in bulk (individual files ok if needed)
+data/media/
+data/images/
+# Note: data/ is generally ignored via data/* in other sections, but be explicit

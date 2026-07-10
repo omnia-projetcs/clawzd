@@ -297,7 +297,7 @@ fi
 if command -v graphify &> /dev/null; then
     echo "  ✓ graphify (semantic code graph)"
 else
-    echo "  ✗ graphify — MISSING (pip install graphifyy)"
+    echo "  ✗ graphify — MISSING (optional: pip install graphifyy for graphify_* tools)"
 fi
 
 # Structural code graph (MCP)

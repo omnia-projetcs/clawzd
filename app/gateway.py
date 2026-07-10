@@ -1,20 +1,23 @@
 """
 Clawzd — FastAPI application gateway.
 Main router that wires all modules together and handles chat streaming.
+
+STATUS: Historical monolith under migration (see REFACTOR_PLAN.md).
+- New routers go in app/routers/
+- Legacy tool routers (app/tools_*.py) still wired for compatibility
+- Middleware and core app setup remain here for now
 """
 import asyncio
-import io
 import logging
 import os
 import time
-import zipfile
 import uuid
 import warnings
 
 # Suppress Hugging Face transformers Siglip2ImageProcessorFast deprecation warnings
 warnings.filterwarnings("ignore", message=".*Siglip2ImageProcessor.*")
 
-from fastapi import FastAPI, Request, HTTPException, UploadFile, File, Form, WebSocket, WebSocketDisconnect
+from fastapi import FastAPI, Request, HTTPException, Form, WebSocket, WebSocketDisconnect
 from fastapi.responses import HTMLResponse, JSONResponse, StreamingResponse, FileResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.middleware.cors import CORSMiddleware
@@ -23,47 +26,51 @@ from fastapi.templating import Jinja2Templates
 from sse_starlette.sse import EventSourceResponse
 from datetime import datetime, timezone
 
-from app.database import (
+from app.core.database import (
     init_db, create_session, get_session, add_message, get_messages,
     auto_title,
 )
-from app.llm_provider import get_llm_provider, _get_provider_models
-from app.preprompts import get_preprompt, get_jailbreak_wrapper
+from app.core.llm_provider import get_llm_provider, _get_provider_models
+from app.core.preprompts import get_preprompt, get_jailbreak_wrapper
 from app.chat import router as chat_router
 from app.profiles import router as profiles_router
-from app.tools_code import router as code_router, executor
-from app.tools_web import router as web_router
-from app.tools_local import router as local_router
-from app.tools_quality import router as quality_router
-from app.rag import router as rag_router
+from app.routers.code import router as code_router, executor
+from app.routers.web import router as web_router
+from app.routers.local import router as local_router
+from app.routers.quality import router as quality_router
+from app.ai_models.rag import router as rag_router
 from app.improvement import router as improvement_router
-from app.agent_core import router as agent_router
-from app.settings import router as settings_router
-from app.tools_screenshot import router as screenshot_router
-from app.tools_image import router as image_router
-from app.tools_audio import router as audio_router
-from app.tools_audio_lab import router as audio_lab_router
+from app.routers.agent import router as agent_router
+from app.routers.home import router as home_router
+from app.core.settings import router as settings_router
+from app.routers.screenshot import router as screenshot_router
+from app.routers.image import router as image_router
+from app.routers.audio import router as audio_router
+from app.routers.audio_lab import router as audio_lab_router
 from app.routers.voice_rtvi import router as voice_rtvi_router
-from app.tools_browser import router as browser_router
-from app.tools_cron import router as cron_router
-from app.tools_skills import router as skills_router
-from app.tools_document import router as document_router
+from app.routers.system import router as system_router
+from app.routers.arena import router as arena_router
+from app.routers.chat import router as chat_extra_router
+from app.routers.browser import router as browser_router
+from app.routers.cron import router as cron_router
+from app.routers.skills import router as skills_router
+from app.routers.document import router as document_router
 from app.integrations_telegram import router as telegram_router
-from app.skill_selector import select_skills
-from app.skill_registry import get_registry
-from app.model_manager import router as models_router
-from app.compression import optimize_for_provider
-from app.tools_presentation import router as presentation_router
+from app.skills.selector import select_skills
+from app.skills.registry import get_registry
+from app.ai_models.manager import router as models_router
+from app.core.compression import optimize_for_provider
+from app.routers.presentation import router as presentation_router
 from app.routers.presentation_video import router as presentation_video_router
-from app.tools_automation import router as automation_router
-from app.tools_clone import router as clone_router
-from app.tools_document_gen import router as docgen_router
-from app.tools_studio_editor import router as studio_editor_router
-from app.tool_executor import parse_tool_calls, execute_tool, format_tool_result, resolve_tool_name
+from app.routers.automation import router as automation_router
+from app.routers.clone import router as clone_router
+from app.routers.docgen import router as docgen_router
+from app.routers.studio_editor import router as studio_editor_router
+from app.tools.executor import parse_tool_calls, execute_tool, format_tool_result, resolve_tool_name
 from app.core.tool_permissions import (
     get_tool_permission, request_approval,
 )
-from app.metrics import get_metrics
+from app.core.metrics import get_metrics
 from app.cache import cache_stats
 from app.core.tokens import count_tokens, count_message_tokens
 from config import STATIC_DIR, TEMPLATES_DIR, DATA_DIR, CORS_ORIGINS, RATE_LIMIT, APP_VERSION, OLLAMA_VERIFY_SSL, API_SECRET_TOKEN
@@ -267,13 +274,13 @@ async def startup():
     logger.info("Automation listeners starting...")
 
     # Start skill rebuilder background maintenance (lifecycle transitions)
-    from app.skill_rebuilder import start_maintenance_task
+    from app.skills.rebuilder import start_maintenance_task
     start_maintenance_task()
     logger.info("Skill rebuilder maintenance loop started")
 
     # Scan RAG folder for documents to index
     try:
-        from app.rag import scan_rag_folder
+        from app.ai_models.rag import scan_rag_folder
         rag_report = await asyncio.to_thread(scan_rag_folder)
         added = len(rag_report.get('added', []))
         updated = len(rag_report.get('updated', []))
@@ -286,7 +293,7 @@ async def startup():
 
     # Start daily memory optimization loop
     async def run_daily_optimization():
-        from app.memory import optimize_memory_files
+        from app.core.memory import optimize_memory_files
         while True:
             await asyncio.sleep(24 * 3600)
             try:
@@ -368,13 +375,19 @@ app.include_router(rag_router, prefix="/rag")
 app.include_router(improvement_router, prefix="/improve")
 app.include_router(agent_router, prefix="/agent")
 app.include_router(settings_router, prefix="/api")
-from app.memory import router as memory_router
+from app.core.memory import router as memory_router
 app.include_router(memory_router, prefix="/api")
 app.include_router(screenshot_router, prefix="/screenshot")
 app.include_router(image_router, prefix="/image")
 app.include_router(audio_router, prefix="/audio")
 app.include_router(audio_lab_router, prefix="/audio-lab")
 app.include_router(voice_rtvi_router)
+app.include_router(system_router)  # health, metrics, token-usage, tokenize (extracted from gateway)
+app.include_router(arena_router)  # arena/send, arena/stream, arena/evaluate (extracted)
+app.include_router(chat_extra_router, prefix="")  # /chat/upload-image, /chat/humanize (extracted; paths preserved)
+app.include_router(home_router)  # home page extracted
+
+
 app.include_router(browser_router, prefix="/browser")
 app.include_router(cron_router, prefix="/cron")
 app.include_router(skills_router, prefix="/skills")
@@ -388,14 +401,16 @@ app.include_router(clone_router, prefix="/clone")
 app.include_router(docgen_router, prefix="/docgen")
 app.include_router(studio_editor_router, prefix="/studio")
 
-from app.tools_research import router as research_router
+from app.routers.research import router as research_router
 app.include_router(research_router, prefix="/research")
 
 from app.routers.workspace import router as workspace_router
 app.include_router(workspace_router, prefix="/workspace")
 
 from app.routers.workspace_git import router as workspace_git_router
+from app.routers.files import router as files_router
 app.include_router(workspace_git_router, prefix="/workspace")
+app.include_router(files_router)  # preview + export-zip (extracted from monolithic gateway)
 
 from app.routers.autocomplete import router as autocomplete_router
 app.include_router(autocomplete_router, prefix="/api")
@@ -420,17 +435,17 @@ app.include_router(_local_router)
 from app.tools.task_manager import router as task_manager_router
 app.include_router(task_manager_router, prefix="/api")
 
-from app.tools_twitter import router as twitter_router
+from app.routers.twitter import router as twitter_router
 app.include_router(twitter_router, prefix="/twitter")
 
-from app.tools_project import router as project_router
+from app.routers.project import router as project_router
 app.include_router(project_router, prefix="/project")
 
-from app.tools_spec import router as spec_router
+from app.routers.spec import router as spec_router
 app.include_router(spec_router, prefix="/spec")
 
 # Agent dispatch (multi-agent orchestration)
-from app.agent_dispatch import router as agent_dispatch_router
+from app.routers.agent_dispatch import router as agent_dispatch_router
 app.include_router(agent_dispatch_router, prefix="/agents")
 
 # Playbook engine (multi-step workflow automation)
@@ -453,137 +468,20 @@ app.include_router(dashboard_analytics_router, prefix="/dashboard")
 from app.routers.webdev_sync import router as webdev_sync_router
 app.include_router(webdev_sync_router, prefix="/api/webdev")
 
-
-def _safe_ollama_probe_url(base_url: str) -> str:
-    """Build a fast health-check URL without localhost DNS resolution."""
-    from urllib.parse import urlparse, urlunparse
-
-    parsed = urlparse(base_url)
-    if parsed.hostname in {"localhost", "::1"}:
-        netloc = "127.0.0.1"
-        if parsed.port:
-            netloc = f"{netloc}:{parsed.port}"
-        parsed = parsed._replace(netloc=netloc)
-    return urlunparse(parsed._replace(path="/api/tags", params="", query="", fragment=""))
-
-
 # --- In-memory SSE queues per session ---
 _sse_queues: dict[str, asyncio.Queue] = {}
-_arena_queues: dict[str, asyncio.Queue] = {}
+# _arena_queues moved to app/routers/arena.py
 _active_generations: dict[str, str] = {}
 _cancelled_sessions: set[str] = set()
 _generation_tasks: dict[str, asyncio.Task] = {}
 
 
-# --- Main page ---
-@app.get("/", response_class=HTMLResponse)
-async def index(request: Request):
-    """Serve the main application page."""
-    from config import HUGGINGFACE_API_KEY, OPENAI_API_KEY
-    
-    has_hf_token = bool(HUGGINGFACE_API_KEY)
-    has_openai_key = bool(OPENAI_API_KEY)
-    
-    context = {
-        "request": request,
-        "has_hf_token": has_hf_token,
-        "has_openai_key": has_openai_key,
-        "has_cloud_media_api": has_hf_token or has_openai_key,
-        "app_version": APP_VERSION,
-    }
-    response = templates.TemplateResponse(request=request, name="index.html", context=context)
-    if API_SECRET_TOKEN:
-        response.set_cookie(
-            key="api_secret_token",
-            value=API_SECRET_TOKEN,
-            httponly=True,
-            samesite="lax",
-            secure=False,
-        )
-    else:
-        response.delete_cookie(key="api_secret_token")
-    return response
+# NOTE: home page moved to app/routers/home.py
 
 
 # --- Health Check ---
-@app.get("/health")
-async def health_check():
-    """Health check with dependency status."""
-    import httpx as _httpx
-    from config import OLLAMA_HOST, DB_PATH, CHROMA_DB_PATH
-
-    status = {"status": "ok", "timestamp": datetime.now(timezone.utc).isoformat()}
-    deps = {}
-
-    # Check Ollama
-    try:
-        timeout = _httpx.Timeout(1.0, connect=0.3, read=0.7, write=0.3, pool=0.3)
-        async with _httpx.AsyncClient(timeout=timeout, trust_env=False) as client:
-            resp = await asyncio.wait_for(
-                client.get(_safe_ollama_probe_url(OLLAMA_HOST)),
-                timeout=1.2,
-            )
-            deps["ollama"] = "ok" if resp.status_code == 200 else "degraded"
-    except Exception:
-        deps["ollama"] = "unavailable"
-
-    # Check SQLite
-    try:
-        import sqlite3
-
-        conn = sqlite3.connect(DB_PATH, timeout=2)
-        conn.execute("SELECT 1")
-        conn.close()
-        deps["sqlite"] = "ok"
-    except Exception:
-        deps["sqlite"] = "error"
-
-    # Check ChromaDB directory
-    deps["chromadb"] = "ok" if _os.path.isdir(CHROMA_DB_PATH) else "missing"
-
-    status["dependencies"] = deps
-    if any(v == "error" for v in deps.values()):
-        status["status"] = "degraded"
-    return status
-
-
-# --- Metrics ---
-@app.get("/api/metrics")
-async def metrics_endpoint():
-    """Return system and application metrics."""
-    metrics = get_metrics().get_summary()
-    metrics["cache"] = cache_stats()
-    return metrics
-
-
-@app.get("/api/token-usage")
-async def token_usage_endpoint():
-    """Return lightweight token consumption data for the header counter."""
-    m = get_metrics()
-    with m._lock:
-        calls = list(m._llm_calls)
-    total_input = sum(c.get("input_tokens", 0) for c in calls)
-    total_output = sum(c.get("output_tokens", 0) for c in calls)
-    total_calls = len(calls)
-    return {
-        "input_tokens": total_input,
-        "output_tokens": total_output,
-        "total_tokens": total_input + total_output,
-        "total_calls": total_calls,
-    }
-
-
-# --- Tokenization Prefetch ---
-@app.post("/api/tokenize/prefetch")
-async def prefetch_tokens(request: Request):
-    """Trigger background tokenization for the given text to eliminate latency during generation."""
-    body = await request.json()
-    text = body.get("text", "")
-    model = body.get("model", "gpt-4o")
-    if text:
-        from app.core.tokens import shadow_tokenizer
-        shadow_tokenizer.prefetch(text, model)
-    return {"status": "accepted"}
+# NOTE: /health, /api/metrics, /api/token-usage, /api/tokenize/prefetch
+# have been extracted to app/routers/system.py (included above).
 # --- SSE streaming endpoint ---
 @app.get("/stream/{session_id}")
 async def chat_stream(session_id: str):
@@ -795,7 +693,7 @@ async def _process_chat(session_id: str, data: dict) -> dict:
     try:
         if rag_mode:
             # Explicit RAG mode — user wants to search the knowledge base
-            from app.rag import explicit_rag_search
+            from app.ai_models.rag import explicit_rag_search
             # Strip @rag prefix if present
             rag_query = user_msg
             if rag_query.lower().startswith("@rag"):
@@ -805,7 +703,7 @@ async def _process_chat(session_id: str, data: dict) -> dict:
                 llm_messages.insert(-1, {"role": "system", "content": rag_context})
         else:
             # Auto-RAG: silently inject if relevant context exists
-            from app.rag import auto_rag_context
+            from app.ai_models.rag import auto_rag_context
             rag_context = auto_rag_context(user_msg)
             if rag_context:
                 llm_messages.insert(-1, {"role": "system", "content": rag_context})
@@ -866,7 +764,7 @@ async def _process_chat(session_id: str, data: dict) -> dict:
 
         # Merge manually activated skills from the catalog (always injected)
         try:
-            from app.skill_registry import load_active_skills
+            from app.skills.registry import load_active_skills
             pinned_names = load_active_skills()
             detected_names = {d["skill"] for d in detected}
             for pname in pinned_names:
@@ -888,7 +786,7 @@ async def _process_chat(session_id: str, data: dict) -> dict:
             pass  # Plugin hooks are non-critical
             
     if detected:
-        from app.skill_selector import get_skill_catalog_entry, get_skill_full_instructions
+        from app.skills.selector import get_skill_catalog_entry, get_skill_full_instructions
 
         # For local provider with small ctx, use fewer tools
         is_local = (provider_key in ("local", "ollama"))
@@ -1882,7 +1780,7 @@ async def _process_chat(session_id: str, data: dict) -> dict:
 
                 # --- Auto-populate memory files (background) ---
                 try:
-                    from app.memory import auto_extract_memory, auto_summarize_session
+                    from app.core.memory import auto_extract_memory, auto_summarize_session
                     conv_messages = get_messages(session_id)
                     asyncio.create_task(auto_extract_memory(conv_messages))
                     asyncio.create_task(auto_summarize_session(session_id))
@@ -1905,92 +1803,7 @@ async def send_message(session_id: str, request: Request):
     return await _process_chat(session_id, data)
 
 
-@app.post("/chat/upload-image")
-async def chat_upload_image(file: UploadFile = File(...)):
-    """Upload an image for use in vision chat.
-
-    Returns a base64 data URL that can be embedded in a multimodal message.
-    """
-    if not file.content_type or not file.content_type.startswith("image/"):
-        raise HTTPException(400, "Only image files are accepted")
-
-    import base64
-    content = await file.read()
-
-    # Limit image size to 10 MB
-    if len(content) > 10 * 1024 * 1024:
-        raise HTTPException(413, "Image too large (max 10 MB)")
-
-    b64 = base64.b64encode(content).decode("utf-8")
-    data_url = f"data:{file.content_type};base64,{b64}"
-
-    return {
-        "data_url": data_url,
-        "filename": file.filename,
-        "content_type": file.content_type,
-        "size_bytes": len(content),
-    }
-
-
-@app.post("/chat/humanize")
-async def humanize_text(request: Request):
-    """Rewrite AI-generated text to sound more natural and human.
-
-    Inspired by Abacus.ai's Humanize Text feature.
-    Uses the dedicated humanizer preprompt to reformulate text
-    while preserving meaning, code blocks, and technical accuracy.
-    """
-    data = await request.json()
-    text = data.get("text", "")
-    if not text.strip():
-        raise HTTPException(400, "No text provided")
-
-    # Cap input to avoid excessive token usage
-    if len(text) > 20_000:
-        text = text[:20_000] + "\n\n... (truncated)"
-
-    provider_key = data.get("provider", "")
-    model_key = data.get("model", "")
-    provider = get_llm_provider(provider_key or None)
-
-    from app.core.preprompts import PREPROMPTS
-    humanizer_prompt = PREPROMPTS["humanizer"]["system_prompt"]
-
-    messages = [
-        {"role": "system", "content": humanizer_prompt},
-        {"role": "user", "content": f"Humanize this text:\n\n{text}"},
-    ]
-
-    kwargs = {}
-    if model_key:
-        kwargs["model"] = model_key
-
-    import time as _time
-    t0 = _time.time()
-    result = ""
-    async for chunk in provider.chat_stream(messages, **kwargs):
-        result += chunk
-    elapsed = _time.time() - t0
-
-    # Record metrics
-    input_tokens = count_tokens(text, model=model_key or "")
-    output_tokens = count_tokens(result, model=model_key or "")
-    get_metrics().record_llm_call(
-        provider=provider_key or "default",
-        model=model_key or "default",
-        input_tokens=input_tokens,
-        output_tokens=output_tokens,
-        latency_s=elapsed,
-        session_id="humanize",
-    )
-
-    return {
-        "humanized": result,
-        "original_length": len(text),
-        "humanized_length": len(result),
-        "latency_s": round(elapsed, 2),
-    }
-
+# NOTE: /chat/upload-image and /chat/humanize moved to app/routers/chat.py (included with prefix="")
 
 # --- WebSocket chat endpoint ---
 @app.websocket("/ws/{session_id}")
@@ -2111,406 +1924,14 @@ async def ws_chat(websocket: WebSocket, session_id: str):
             pass
 
 
-@app.get("/notifications")
-async def get_notifications(session_id: str = "", limit: int = 20):
-    """Get recent notifications (REST fallback for non-WebSocket clients)."""
-    try:
-        from app.core.notifications import get_recent
-        return get_recent(limit=limit, session_id=session_id or None)
-    except Exception:
-        return []
+# NOTE: /notifications moved to app/routers/system.py
 
 
-# --- Battle Arena API ---
-
-# Per-model timeout for Arena generation (seconds)
-_ARENA_MODEL_TIMEOUT = 300  # 5 minutes max per model
-
-
-@app.post("/arena/send")
-async def arena_send(request: Request):
-    """Start generation for multiple models in the Arena.
-
-    Ollama/local models are executed **sequentially** in a single coordinator
-    task to prevent VRAM saturation on remote servers (DGx10).  Each Ollama
-    model is unloaded after completion with a pause to let VRAM flush.
-
-    Cloud providers run in parallel since they don't share GPU resources.
-    """
-    data = await request.json()
-    user_msg = _sanitize_input(data.get("message", "").strip())
-    models = data.get("models", [])
-
-    if not user_msg:
-        raise HTTPException(400, "Message is required")
-    if not models or len(models) > 10:
-        raise HTTPException(400, "1 to 10 models required")
-
-    streams = []
-    # Separate Ollama models from cloud providers
-    ollama_entries: list[dict] = []
-    cloud_entries: list[dict] = []
-
-    for m in models:
-        provider_key = m.get("provider", "local")
-        model_key = m.get("model", "")
-        stream_id = str(uuid.uuid4())
-        _arena_queues[stream_id] = asyncio.Queue()
-        entry = {
-            "stream_id": stream_id,
-            "provider": provider_key,
-            "model": model_key,
-        }
-        streams.append(entry)
-        if provider_key in ("ollama", "local"):
-            ollama_entries.append(entry)
-        else:
-            cloud_entries.append(entry)
-
-    # ------------------------------------------------------------------
-    # Shared per-model generation coroutine (no unload — caller handles)
-    # ------------------------------------------------------------------
-    async def _generate_single(s_id: str, p_key: str, m_key: str):
-        """Generate tokens for one model and push them into its queue."""
-        queue = _arena_queues.get(s_id)
-        if queue is None:
-            return
-        try:
-            import time as _t
-            t0 = _t.perf_counter()
-            tokens_count = 0
-
-            provider = get_llm_provider(p_key)
-            kwargs: dict = {}
-            if m_key:
-                kwargs["model"] = m_key
-            kwargs["max_tokens"] = 8192
-
-            messages = [
-                {"role": "system", "content": "You are a helpful and detailed AI assistant. Provide complete and comprehensive answers. Do NOT truncate your response."},
-                {"role": "user", "content": user_msg},
-            ]
-
-            async for token in provider.chat_stream(messages, **kwargs):
-                # Strip special tokens from local models
-                if any(marker in token for marker in ["<|endoftext|>", "<|im_start|>", "<|im_end|>", "<|eot_id|>", "</s>", "<|end|>"]):
-                    for marker in ["<|endoftext|>", "<|im_start|>", "<|im_end|>", "<|eot_id|>", "</s>", "<|end|>"]:
-                        token = token.replace(marker, "")
-                    if not token:
-                        continue
-                tokens_count += 1
-                await queue.put(token)
-
-            total_time = _t.perf_counter() - t0
-            tps = tokens_count / total_time if total_time > 0 else 0
-            import json as _json
-            stats_msg = f'\n\n__STATS__{_json.dumps({"time": round(total_time, 2), "tokens": tokens_count, "tps": round(tps, 1)})}__STATS__\n\n'
-            await queue.put(stats_msg)
-
-            # Track metrics
-            input_tokens = count_tokens(user_msg, model=m_key or "")
-            from app.metrics import get_metrics
-            get_metrics().record_llm_call(
-                provider=p_key,
-                model=m_key or getattr(provider, "default_model", "unknown"),
-                input_tokens=input_tokens,
-                output_tokens=tokens_count,
-                latency_s=total_time,
-                session_id="arena",
-            )
-        except Exception as e:
-            logger.error("Arena LLM error (%s/%s): %s", p_key, m_key, e)
-            await queue.put(f"\n\n❌ **Error**: {e}")
-        finally:
-            await queue.put(None)  # signal end-of-stream
-
-    # ------------------------------------------------------------------
-    # Cloud provider tasks — safe to run in parallel
-    # ------------------------------------------------------------------
-    for entry in cloud_entries:
-        async def _cloud_wrapper(e=entry):
-            try:
-                await asyncio.wait_for(
-                    _generate_single(e["stream_id"], e["provider"], e["model"]),
-                    timeout=_ARENA_MODEL_TIMEOUT,
-                )
-            except asyncio.TimeoutError:
-                q = _arena_queues.get(e["stream_id"])
-                if q:
-                    await q.put("\n\n⏱️ **Timeout** — model took too long.")
-                    await q.put(None)
-        asyncio.create_task(_cloud_wrapper())
-
-    # ------------------------------------------------------------------
-    # Ollama coordinator — runs models ONE AT A TIME with unload between
-    # ------------------------------------------------------------------
-    if ollama_entries:
-        async def _ollama_coordinator():
-            for entry in ollama_entries:
-                s_id = entry["stream_id"]
-                m_key = entry["model"]
-                try:
-                    await asyncio.wait_for(
-                        _generate_single(s_id, entry["provider"], m_key),
-                        timeout=_ARENA_MODEL_TIMEOUT,
-                    )
-                except asyncio.TimeoutError:
-                    logger.error("Arena Ollama timeout for %s after %ds", m_key, _ARENA_MODEL_TIMEOUT)
-                    q = _arena_queues.get(s_id)
-                    if q:
-                        await q.put(f"\n\n⏱️ **Timeout** — `{m_key}` took over {_ARENA_MODEL_TIMEOUT}s.")
-                        await q.put(None)
-                except Exception as e:
-                    logger.error("Arena Ollama coordinator error for %s: %s", m_key, e)
-                finally:
-                    # Unload model to free VRAM before loading the next one
-                    try:
-                        await _unload_ollama_model(m_key)
-                    except Exception:
-                        pass
-                    # Pause to let VRAM actually flush on the remote GPU
-                    await asyncio.sleep(3)
-
-        asyncio.create_task(_ollama_coordinator())
-
-    return {"status": "processing", "streams": streams}
-
-
-@app.get("/arena/stream/{stream_id}")
-async def arena_stream(stream_id: str):
-    """SSE endpoint for Arena columns."""
-    if stream_id not in _arena_queues:
-        raise HTTPException(404, "Stream not found")
-
-    async def event_generator():
-        queue = _arena_queues[stream_id]
-        try:
-            while True:
-                try:
-                    # Keep-alive every 15s to prevent proxy drops while
-                    # waiting behind the Ollama sequential queue.
-                    token = await asyncio.wait_for(queue.get(), timeout=15.0)
-                except asyncio.TimeoutError:
-                    yield {"event": "keepalive", "data": ""}
-                    continue
-
-                if token is None:
-                    yield {"data": "[DONE]"}
-                    break
-                yield {"data": token}
-        finally:
-            # Immediate cleanup — no dangling references
-            _arena_queues.pop(stream_id, None)
-
-    return EventSourceResponse(event_generator())
-
-
-async def _unload_ollama_model(model_name: str):
-    """Unload a specific Ollama model to free up VRAM and prevent saturation."""
-    from app.core.llm_provider import _resolve_ollama_host, _resolve_ollama_api_key, _resolve_ollama_verify
-    import httpx
-    if not model_name:
-        return
-    try:
-        ollama_host = _resolve_ollama_host()
-        ollama_key = _resolve_ollama_api_key()
-        headers = {"Authorization": f"Bearer {ollama_key}"} if ollama_key else {}
-        async with httpx.AsyncClient(verify=_resolve_ollama_verify()) as client:
-            await client.post(
-                f"{ollama_host}/api/generate",
-                json={"model": model_name, "keep_alive": 0},
-                headers=headers,
-                timeout=30.0
-            )
-            logger.info("Unloaded Ollama model: %s", model_name)
-    except Exception as e:
-        logger.warning("Failed to unload Ollama model %s: %s", model_name, e)
-
-
-@app.post("/arena/evaluate")
-async def arena_evaluate(request: Request):
-    """Judge the models' responses."""
-    data = await request.json()
-    prompt = data.get("prompt", "")
-    responses = data.get("responses", {})  # dict of stream_id -> text
-    
-    from config import LLM_PROVIDER
-    provider_key = LLM_PROVIDER
-    provider = get_llm_provider(provider_key)
-    model_key = getattr(provider, "default_model", "")
-    
-    if not prompt or not responses:
-        raise HTTPException(400, "Prompt and responses required")
-        
-    kwargs = {}
-    if model_key:
-        kwargs["model"] = model_key
-
-    if provider_key in ("ollama", "local"):
-        kwargs["response_format"] = {"type": "json_object"}
-    
-    sys_prompt = "You are an impartial AI judge. Your task is to evaluate an AI response to a given prompt. Score it out of 10 and give a 1-sentence explanation."
-    
-    import json
-    import re
-    from app.metrics import get_metrics
-    
-    final_ratings = {}
-    
-    try:
-        # Evaluate each response individually
-        for s_id, text in responses.items():
-            try:
-                user_prompt = f"PROMPT:\n{prompt}\n\nRESPONSE TO EVALUATE:\n{text}\n\n"
-                user_prompt += "Evaluate the response above. Format your output strictly as a JSON object with EXACTLY two keys: 'score' (number from 0 to 10) and 'rationale' (string, 1 short sentence). DO NOT wrap the JSON in markdown blocks or output any extra text. Example: {\"score\": 8, \"rationale\": \"...\"}"
-                
-                t0 = time.perf_counter()
-                result_text = ""
-                async for token in provider.chat_stream([
-                    {"role": "system", "content": sys_prompt},
-                    {"role": "user", "content": user_prompt}
-                ], **kwargs):
-                    result_text += token
-                    
-                latency_s = time.perf_counter() - t0
-                input_tokens = count_message_tokens([{"role": "system", "content": sys_prompt}, {"role": "user", "content": user_prompt}])
-                output_tokens = count_tokens(result_text)
-                
-                get_metrics().record_llm_call(
-                    provider=provider_key,
-                    model=model_key or getattr(provider, "default_model", "unknown"),
-                    input_tokens=input_tokens,
-                    output_tokens=output_tokens,
-                    latency_s=latency_s,
-                    session_id="arena_eval"
-                )
-                
-                # Parse JSON
-                clean_text = re.sub(r'```json\s*', '', result_text, flags=re.IGNORECASE)
-                clean_text = re.sub(r'```\s*', '', clean_text)
-                clean_text = clean_text.strip()
-                
-                parsed = {}
-                parse_success = False
-                
-                try:
-                    match = re.search(r'\{[\s\S]*\}', clean_text)
-                    if match:
-                        parsed = json.loads(match.group(0))
-                    else:
-                        parsed = json.loads(clean_text)
-                    parse_success = True
-                except json.JSONDecodeError:
-                    pass
-                
-                score_val = None
-                rationale_val = None
-                
-                if parse_success and isinstance(parsed, dict):
-                    # Look for variations of keys
-                    score_val = parsed.get("score", parsed.get("Score", parsed.get("note", parsed.get("Note", parsed.get("rating", parsed.get("rating"))))))
-                    rationale_val = parsed.get("rationale", parsed.get("Rationale", parsed.get("justification", parsed.get("Justification", parsed.get("explanation", parsed.get("reasoning"))))))
-                    
-                    if score_val is None and "ratings" in parsed and isinstance(parsed["ratings"], dict):
-                        first_val = list(parsed["ratings"].values())[0] if parsed["ratings"] else {}
-                        score_val = first_val.get("score", first_val.get("Score", first_val.get("note")))
-                        rationale_val = first_val.get("rationale", first_val.get("Rationale", first_val.get("justification")))
-                        
-                # Aggressive fallback if no valid score/rationale found via JSON
-                if score_val is None or rationale_val is None:
-                    # Look for a score in the raw text
-                    score_match = re.search(r'(?:score|note|évaluation|rating)[\s"\'=:]*(\d+(?:\.\d+)?)(?:/10)?', clean_text, re.IGNORECASE)
-                    if score_match:
-                        score_val = float(score_match.group(1))
-                    else:
-                        # Find any obvious score format like "8/10" or "8 sur 10"
-                        any_num = re.search(r'\b([0-9](?:\.[0-9]+)?|10)\b\s*(?:/|sur)\s*10', clean_text)
-                        score_val = float(any_num.group(1)) if any_num else "-"
-                        
-                    # Look for a rationale in the raw text
-                    rat_match = re.search(r'(?:rationale|justification|explanation|raison)[\s"\'=:]*([^"\'\n\{\}]+)', clean_text, re.IGNORECASE)
-                    if rat_match:
-                        rationale_val = rat_match.group(1).strip()
-                    else:
-                        # Grab the first 250 chars of cleaned text as rationale
-                        clean_no_json = re.sub(r'["\{\}\[\]]', '', clean_text).strip()
-                        if re.search(r'^(?:score|note)', clean_no_json, re.IGNORECASE):
-                            clean_no_json = re.sub(r'^(?:score|note).*?\d+.*?\n', '', clean_no_json, flags=re.IGNORECASE).strip()
-                        rationale_val = clean_no_json[:250] + "..." if len(clean_no_json) > 250 else clean_no_json
-                
-                # Sanitize the final values
-                try:
-                    if score_val != "-":
-                        score_val = float(score_val)
-                        if score_val > 10: score_val = 10.0
-                        if score_val < 0: score_val = 0.0
-                except (ValueError, TypeError):
-                    score_val = "-"
-                    
-                if rationale_val is None or str(rationale_val).strip() == "":
-                    rationale_val = clean_text[:250] + "..." if len(clean_text) > 250 else clean_text
-                    
-                error_flag = False
-                if score_val == "-":
-                    error_flag = True
-                    if not rationale_val or rationale_val == "..." or rationale_val.strip() == "":
-                        rationale_val = "The model was unable to evaluate the response (unreadable format)."
-                    
-                final_ratings[s_id] = {"score": score_val, "rationale": str(rationale_val).strip(), "error": error_flag}
-            except Exception as e:
-                logger.error("Arena evaluation error for %s: %s. Last Response: %s", s_id, e, locals().get('result_text', ''))
-                final_ratings[s_id] = {"score": "-", "rationale": f"Generation error: {str(e)[:150]}", "error": True}
-                
-        return {"ratings": final_ratings}
-    except Exception as e:
-        logger.error("Arena evaluation error: %s. Last Response: %s", e, locals().get('result_text', ''))
-        raise HTTPException(500, detail="The AI judge failed to return a valid evaluation JSON (timeout or format error).")
-    finally:
-        # Unload the evaluation model to free VRAM for the next request
-        if provider_key in ("ollama", "local"):
-            try:
-                await _unload_ollama_model(model_key)
-            except Exception:
-                pass
+# NOTE: Arena code fully extracted to app/routers/arena.py (see include above)
 
 
 # --- Preview route (serves workspace files for web preview) ---
 from config import WORKSPACE_DIR as _WORKSPACE_DIR
 
-@app.get("/preview/{path:path}")
-async def workspace_preview_file(path: str):
-    """Serve a workspace file for web preview (allows relative CSS/JS paths)."""
-    base = _os.path.realpath(_WORKSPACE_DIR)
-    full = _os.path.realpath(_os.path.join(base, path))
-    if not full.startswith(base):
-        raise HTTPException(403, "Path traversal not allowed")
-    if not _os.path.isfile(full):
-        raise HTTPException(404, "File not found")
-    import mimetypes
-    mime, _ = mimetypes.guess_type(full)
-    headers = {
-        "Cache-Control": "no-cache, no-store, must-revalidate",
-        "Pragma": "no-cache",
-        "Expires": "0"
-    }
-    return FileResponse(full, media_type=mime or "application/octet-stream", headers=headers)
-
-
-# --- ZIP export API (from chat file tree) ---
-@app.post("/api/export-zip")
-async def api_export_zip(request: Request):
-    """Bundle files into a downloadable ZIP archive."""
-    data = await request.json()
-    files = data.get("files", [])
-    if not files:
-        raise HTTPException(400, "No files to export")
-    buf = io.BytesIO()
-    with zipfile.ZipFile(buf, "w", zipfile.ZIP_DEFLATED) as zf:
-        for f in files:
-            zf.writestr(f["path"], f["content"])
-    buf.seek(0)
-    return StreamingResponse(
-        buf,
-        media_type="application/zip",
-        headers={"Content-Disposition": "attachment; filename=clawzd_project.zip"},
-    )
+# NOTE: /preview/* and /api/export-zip have been extracted to app/routers/files.py
+# (see files_router include above). Legacy definitions removed to avoid duplication.

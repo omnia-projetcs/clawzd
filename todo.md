@@ -99,7 +99,7 @@ Can be used to rebuild from scratch the project with AI assistance.
 - [x] Code audit results saved to audit.md in workspace (visible in file panel)
 - [x] Active agent type indicator (UI display)
 - [x] ClaudeCode editor type in UI (3-panel IDE: file tree, code editor, AI chat + activity feed), + git editor
-- [x] UI should give the ability to change the preprompts of agents and to save new ones in the directory agents/
+- [x] UI should give the ability to change the preprompts of agents and to save new ones in the directory profiles/agents/
 - [x] Studio UI components harmonization (dynamic SVG rendering, consistent branding headers)
 - [x] Centralized SVG icon architecture (replaced inline/emoji icons with sprite sheet)
 - [x] Project Management Studio enhancements:
@@ -167,7 +167,7 @@ Can be used to rebuild from scratch the project with AI assistance.
     - [x] Auditor and quality
     - [x] Enrichment (detailed, well-structured answers)
     - [x] Jailbreak (Obliteratus/Libertas-based architecture-specific bypass prompts)
-- [x] Each agent defined by a Markdown file in agents/:
+- [x] Each agent defined by a Markdown file in profiles/agents/:
     - [x] Orchestrator Agent (Atlas): plans, dispatches, supervises
     - [x] Developer Agent (Codex): generates, fixes, audits
     - [x] Researcher Agent (Nova): web research, analysis, validation
@@ -175,7 +175,7 @@ Can be used to rebuild from scratch the project with AI assistance.
 - [x] All agents share the same tools via function calling (app/agent_dispatch.py)
 - [x] Orchestrator agent auto-routing (keyword detection → dispatch to Codex/Nova/Soul)
 - [x] Agent execution history and traceability (agent_history.jsonl)
-- [x] Agent API: /agents/list, /agents/detect, /agents/history, /agents/reload
+- [x] Agent API: /agents/list, /agents/detect, /agents/history, /agents/reload (profiles/agents/ backend)
 - [x] Agent-to-agent communication protocol (multi-step orchestration)
 - [x] Advanced context compressor (anti-thrashing, protected turn management)
 - [x] Persistent memory system for agent notes and user profiles

@@ -14,7 +14,7 @@ from app.skill_model import (
     SKILL_CATEGORIES,
     generate_skill_template,
 )
-from app.skill_registry import (
+from app.skills.registry import (
     get_registry, SKILLS_DIR,
     get_full_catalog, load_active_skills, activate_skill, deactivate_skill,
 )

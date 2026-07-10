@@ -174,7 +174,7 @@ async def system_health():
 
 @router.get("/preprompts")
 async def get_preprompts():
-    from app.preprompts import list_preprompts
+    from app.core.preprompts import list_preprompts
     return {"preprompts": list_preprompts()}
 
 

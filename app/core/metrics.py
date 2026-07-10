@@ -93,7 +93,7 @@ class MetricsCollector:
         # 2. Try the provider's default_model attribute
         if provider:
             try:
-                from app.llm_provider import get_llm_provider
+                from app.core.llm_provider import get_llm_provider
                 prov = get_llm_provider(provider)
                 dm = getattr(prov, "default_model", "") or getattr(prov, "model", "")
                 if dm:

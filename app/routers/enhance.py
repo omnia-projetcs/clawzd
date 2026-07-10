@@ -6,7 +6,7 @@ import logging
 from fastapi import APIRouter
 from pydantic import BaseModel
 
-from app.llm_provider import get_llm_provider
+from app.core.llm_provider import get_llm_provider
 
 router = APIRouter()
 logger = logging.getLogger("clawzd.enhance")

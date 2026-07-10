@@ -18,11 +18,11 @@ AGENT_HISTORY_FILE = os.path.join(DATA_DIR, "agent_history.jsonl")
 
 
 # ---------------------------------------------------------------------------
-# Agent definitions (loaded from agents/ Markdown files)
+# Agent definitions (loaded from profiles/agents/ Markdown files)
 # ---------------------------------------------------------------------------
 
 class AgentProfile:
-    """An agent loaded from a Markdown file in agents/."""
+    """An agent loaded from a Markdown file in profiles/agents/."""
 
     def __init__(self, name: str, role: str, model: str, skills: str, system_prompt: str):
         self.name = name
@@ -89,7 +89,7 @@ def _parse_agent_md(filepath: str) -> Optional[AgentProfile]:
 
 
 def _load_agents() -> dict[str, AgentProfile]:
-    """Load all agent profiles from agents/ directory."""
+    """Load all agent profiles from profiles/agents/ directory (AGENTS_DIR)."""
     agents = {}
     if not os.path.isdir(AGENTS_DIR):
         return agents

@@ -6,8 +6,8 @@ Thank you for your interest in contributing to Clawzd! This guide will help you 
 
 ```bash
 # 1. Fork and clone the repository
-git clone https://github.com/omnia-projetcs/clawsd.git
-cd clawsd
+git clone https://github.com/omnia-projetcs/clawzd.git
+cd clawzd
 
 # 2. Run the installer
 chmod +x install.sh
@@ -23,10 +23,11 @@ nano .env
 
 ## Project Architecture
 
-> **📋 See [`CONVENTIONS.md`](CONVENTIONS.md) for the complete rules file (AI assistants & developers).**
+> **📋 See [`CONVENTIONS.md`](CONVENTIONS.md) for the complete rules file (AI assistants & developers).**  
+> **Refactoring status**: See root `REFACTOR_PLAN.md`. Prefer new locations. Legacy modules still active for compatibility.
 
 ```
-clawsd/
+clawzd/
 ├── main.py                  # Entry point (Ollama health + uvicorn)
 ├── config.py                # Centralized configuration from .env
 ├── CONVENTIONS.md           # ⚡ Dev & AI conventions (MUST READ)
@@ -82,7 +83,7 @@ clawsd/
 │       ├── admin.py         # /settings, /tokens, /models
 │       └── tools.py         # /execute, /audit
 │
-├── agents/                  # Agent personas (Markdown)
+├── profiles/agents/         # Agent personas (Markdown files: orchestrator.md etc.)
 ├── templates/               # Jinja2 HTML templates
 │
 ├── static/                  # Frontend assets (offline, no CDN)
@@ -114,7 +115,8 @@ clawsd/
 
 ## File Size Limits
 
-> ⚠️ **Enforced by convention** — see [`CONVENTIONS.md`](CONVENTIONS.md) for details.
+> ⚠️ **Enforced by convention** — see [`CONVENTIONS.md`](CONVENTIONS.md) for details.  
+> Current oversized files tracked in `REFACTOR_PLAN.md`. Do not make them worse.
 
 | File Type | Max Lines | Action if exceeded |
 |-----------|-----------|-------------------|

@@ -185,7 +185,7 @@ async def translate_document_upload(
             fh.write(content_bytes)
 
         # Execute via the skill registry
-        from app.skill_registry import get_registry
+        from app.skills.registry import get_registry
         from app.skill_model import SkillContext
 
         registry = get_registry()

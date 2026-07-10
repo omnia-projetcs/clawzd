@@ -196,7 +196,7 @@ async def get_node_types():
     types = dict(NODE_TYPES)
     # Inject registered skills as available skill names for the run_skill node
     try:
-        from app.skill_registry import get_registry
+        from app.skills.registry import get_registry
         registry = get_registry()
         skill_names = registry.get_names()
         if skill_names:
@@ -208,7 +208,7 @@ async def get_node_types():
     # Return models by provider for dynamic frontend logic
     models_by_provider = {}
     try:
-        from app.llm_provider import _get_provider_models
+        from app.core.llm_provider import _get_provider_models
         models_dict = await _get_provider_models()
         for prov, mlist in models_dict.items():
             models_by_provider[prov] = [m["id"] for m in mlist]
@@ -304,7 +304,7 @@ async def ai_generate_workflow(request: Request):
     prompt = data.get("prompt", "")
     current_wf = data.get("current_workflow")
 
-    from app.llm_provider import get_llm_provider
+    from app.core.llm_provider import get_llm_provider
     provider = get_llm_provider()
 
     system_prompt = f"""You are an AI that generates or updates automation workflows.
@@ -550,7 +550,7 @@ async def _exec_node(node: dict, input_data: dict, wf: dict, testing_mode: bool 
             return {"status_code": r.status_code, "response": resp_data}
 
         elif ntype == "ai_prompt":
-            from app.llm_provider import get_llm_provider
+            from app.core.llm_provider import get_llm_provider
             prompt = resolved.get("prompt", "")
             provider_key = resolved.get("provider", "local")
             model = resolved.get("model", "")
@@ -663,7 +663,7 @@ async def _exec_node(node: dict, input_data: dict, wf: dict, testing_mode: bool 
             return input_data
 
         elif ntype == "run_skill":
-            from app.skill_registry import get_registry
+            from app.skills.registry import get_registry
             from app.skill_model import SkillContext
             skill_name = resolved.get("skill_name", "")
             try:
@@ -680,7 +680,7 @@ async def _exec_node(node: dict, input_data: dict, wf: dict, testing_mode: bool 
             return {**input_data, "skill_result": result.to_dict()}
 
         elif ntype == "code_audit":
-            from app.llm_provider import get_llm_provider
+            from app.core.llm_provider import get_llm_provider
             import httpx
             source = resolved.get("source", "")
             provider_key = resolved.get("provider", "local")
@@ -706,7 +706,7 @@ async def _exec_node(node: dict, input_data: dict, wf: dict, testing_mode: bool 
 
             provider = get_llm_provider(provider_key)
             # Inject dev best practices as system context
-            from app.preprompts import _load_dev_profile
+            from app.core.preprompts import _load_dev_profile
             dev_profile = _load_dev_profile()
             messages = []
             if dev_profile:
@@ -720,7 +720,7 @@ async def _exec_node(node: dict, input_data: dict, wf: dict, testing_mode: bool 
             return {**input_data, "code_audit_report": report, "audited_source": source}
 
         elif ntype == "code_fix":
-            from app.llm_provider import get_llm_provider
+            from app.core.llm_provider import get_llm_provider
             source = resolved.get("source", "")
             provider_key = resolved.get("provider", "local")
             model = resolved.get("model", "")
@@ -744,7 +744,7 @@ async def _exec_node(node: dict, input_data: dict, wf: dict, testing_mode: bool 
 
             provider = get_llm_provider(provider_key)
             # Inject dev best practices as system context
-            from app.preprompts import _load_dev_profile
+            from app.core.preprompts import _load_dev_profile
             dev_profile = _load_dev_profile()
             messages = []
             if dev_profile:
@@ -905,7 +905,7 @@ async def _exec_node(node: dict, input_data: dict, wf: dict, testing_mode: bool 
             return input_data or {"triggered": True, "source": ntype}
 
         elif ntype == "rag_search":
-            from app.rag import search as rag_search_fn
+            from app.ai_models.rag import search as rag_search_fn
             query = resolved.get("query", "")
             k = int(resolved.get("k", 5))
             threshold = float(resolved.get("threshold", "0.5"))
@@ -1399,9 +1399,9 @@ def _patch_telegram_listener():
                                 json={"chat_id": chat_id, "action": "typing"},
                             )
 
-                            from app.llm_provider import get_llm_provider
-                            from app.preprompts import get_preprompt
-                            from app.database import create_session, add_message
+                            from app.core.llm_provider import get_llm_provider
+                            from app.core.preprompts import get_preprompt
+                            from app.core.database import create_session, add_message
                             import uuid as _uuid
 
                             session_id = f"tg-{sender_id}-{_uuid.uuid4().hex[:6]}"

@@ -7,7 +7,7 @@ import uuid
 import asyncio
 from fastapi import APIRouter, HTTPException, Request
 from config import PROFILES_DIR as _ROOT_PROFILES_DIR
-from app.llm_provider import get_llm_provider
+from app.core.llm_provider import get_llm_provider
 
 router = APIRouter()
 
@@ -150,7 +150,7 @@ async def analyze_chat_history(request: Request):
     if not session_id:
         raise HTTPException(400, "session_id is required")
 
-    from app.database import get_messages
+    from app.core.database import get_messages
     messages = get_messages(session_id)
     if not messages:
         raise HTTPException(404, f"No messages found for session '{session_id}'")

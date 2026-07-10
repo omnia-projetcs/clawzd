@@ -53,9 +53,11 @@ tweepy>=4.14.0
 mcp>=1.2.0
 
 # --- Agentic Tools (OpenMonoAgent features) ---
-graphifyy>=0.1.0
-code-review-graph
+# graphifyy is OPTIONAL (semantic code graph for tools). Install if you want graphify_* tools.
+# The integration gracefully degrades if missing: pip install graphifyy
+graphifyy>=0.1.0; python_version >= "3.9"
 pyyaml>=6.0
+# code-review-graph removed: not a standard PyPI package (see app/tools for code review features)
 
 # --- Document Processing ---
 PyMuPDF>=1.24.0
@@ -88,7 +90,7 @@ tabulate>=0.9.0
 deepeval>=0.21.0
 
 # --- Security & Performance ---
-slowapi>=0.1.9
+slowapi>=0.1.9          # Rate limiting (used in gateway.py). If missing, rate limiting is disabled gracefully.
 cachetools>=5.3.0
 
 # --- Hybrid RAG Search ---
