@@ -1,12 +1,16 @@
 /* static/css/studios/_voice.css */
 
 .voice-studio-container {
-  display: flex;
+  display: none; /* shown via JS as flex when mode=voice-studio */
+  flex: 1;
   flex-direction: column;
+  min-width: 0;
+  width: 100%;
   padding: 24px;
-  height: calc(100vh - 64px);
+  height: 100%;
   overflow-y: auto;
   background: radial-gradient(circle at 50% -20%, rgba(124, 58, 237, 0.15), transparent 60%);
+  box-sizing: border-box;
 }
 
 .voice-layout {

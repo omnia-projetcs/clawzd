@@ -33,36 +33,25 @@ class VoiceStudio {
     this.micLevel = 0;
     this.speakingLevel = 0;
     
-    // Bind UI elements
+    // Bind UI elements (mode switching is owned by app.js via toggle())
     this.initUI();
-    this.initGlobalEvents();
   }
 
-  initGlobalEvents() {
-    // Listen for tab changes globally to toggle voice mode automatically
-    document.addEventListener('click', (e) => {
-      const modeBtn = e.target.closest('.mode-btn');
-      if (modeBtn) {
-        const mode = modeBtn.dataset.mode;
-        if (mode === 'voice-studio') {
-          this.activate();
-        } else {
-          this.deactivate();
-          const voicePanel = document.getElementById('voice-studio');
-          if (voicePanel) voicePanel.style.display = 'none';
-        }
-      }
-    });
+  /**
+   * Central mode API — same contract as research/media/presentation studios.
+   * Called from app.js mode-toggle so panels never stack.
+   */
+  toggle(show) {
+    if (show) {
+      this.activate();
+    } else {
+      this.deactivate();
+    }
   }
 
   initUI() {
-    // Tab switching
-    const btn = document.getElementById('mode-btn-voice-studio');
-    if (btn) {
-      btn.addEventListener('click', () => this.activate());
-    }
+    // Controls only — do not bind mode-btn here (avoids racing app.js).
 
-    // Controls
     const hfToggle = document.getElementById('voice-handsfree');
     if (hfToggle) {
       hfToggle.addEventListener('change', (e) => {
@@ -150,15 +139,12 @@ class VoiceStudio {
   }
 
   async activate() {
-    // Switch studio panel
-    document.querySelectorAll('.studio-container').forEach(c => c.style.display = 'none');
-    document.querySelectorAll('.mode-btn').forEach(b => b.classList.remove('active'));
-    
+    // Show only this panel (other studios are toggled off by app.js)
     const panel = document.getElementById('voice-studio');
     if (panel) panel.style.display = 'flex';
-    
-    const btn = document.getElementById('mode-btn-voice-studio');
-    if (btn) btn.classList.add('active');
+
+    // Already active: just ensure panel is visible, avoid re-init mic thrash
+    if (this.active) return;
 
     this.active = true;
     this.state = 'idle';
@@ -174,11 +160,14 @@ class VoiceStudio {
     // Request Mic permission and start audio contexts
     try {
       await this.initMicrophone();
+      if (!this.active) return; // user switched mode during permission prompt
       await this.initSpeechRecognition();
+      if (!this.active) return;
       if (this.handsFree) {
         this.startListening();
       }
     } catch (err) {
+      if (!this.active) return;
       console.error('[Voice] Mic setup failed:', err);
       this.log('system', 'Error: Microphone access denied or unsupported.');
       this.setStatus('ERROR');
@@ -186,19 +175,32 @@ class VoiceStudio {
   }
 
   deactivate() {
+    const panel = document.getElementById('voice-studio');
+    if (panel) panel.style.display = 'none';
+
+    if (!this.active) return;
+
     this.active = false;
     this.stopListening();
     this.interruptActiveAudio();
+
+    // Disconnect RTVI pilot if it was running
+    if (window.clawzdVoicePilot) {
+      try { window.clawzdVoicePilot.disconnect(); } catch (_) {}
+    }
+
     if (this.micStream) {
       this.micStream.getTracks().forEach(t => t.stop());
       this.micStream = null;
     }
     if (this.audioContext) {
-      this.audioContext.close();
+      try { this.audioContext.close(); } catch (_) {}
       this.audioContext = null;
+      this.analyser = null;
     }
     if (this.animationFrameId) {
       cancelAnimationFrame(this.animationFrameId);
+      this.animationFrameId = null;
     }
   }
 

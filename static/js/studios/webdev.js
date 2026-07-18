@@ -38,39 +38,22 @@
   });
 
   /**
-   * Switches viewports when the header button is clicked.
+   * Mode panel visibility is owned by app.js central mode-toggle.
+   * Here we only wire WebDev-specific controls / first-open focus.
    */
   function initStudioToggles() {
     const webdevToggleBtn = document.getElementById("mode-btn-webdev");
-    if (!webdevToggleBtn) return;
-
-    webdevToggleBtn.addEventListener("click", () => {
-      // Deactivate all panels
-      document.querySelectorAll(".studio-panel").forEach(panel => {
-        panel.style.display = "none";
+    if (webdevToggleBtn) {
+      webdevToggleBtn.addEventListener("click", () => {
+        // Focus boot control on first open (panel shown by app.js)
+        if (!webcontainerInstance && bootBtn && !bootBtn.disabled) {
+          bootBtn.focus();
+        }
       });
-      document.querySelectorAll(".main-panel").forEach(panel => {
-        panel.style.display = "none";
-      });
-      document.querySelectorAll(".mode-btn").forEach(btn => {
-        btn.classList.remove("active");
-      });
-
-      // Show WebDev Studio
-      const webdevStudioPanel = document.getElementById("webdev-studio");
-      if (webdevStudioPanel) {
-        webdevStudioPanel.style.display = "block";
-      }
-      webdevToggleBtn.classList.add("active");
-      
-      // Auto-trigger Boot on first open if not already booted
-      if (!webcontainerInstance && bootBtn && !bootBtn.disabled) {
-        bootBtn.focus();
-      }
-    });
+    }
 
     // Wire operations buttons
-    bootBtn.addEventListener("click", bootWebContainerSandbox);
+    if (bootBtn) bootBtn.addEventListener("click", bootWebContainerSandbox);
     installBtn.addEventListener("click", runNpmInstall);
     startBtn.addEventListener("click", runNpmStart);
     stopBtn.addEventListener("click", stopDevServer);

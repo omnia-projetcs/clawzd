@@ -3298,6 +3298,14 @@
         window.researchStudio?.toggle(mode === 'research');
         window.projectStudio?.toggle(mode === 'project');
         window.analyticsStudio?.toggle(mode === 'analytics');
+        // Voice Pilot studio (must be in central switcher so panels never stack)
+        window.voiceStudio?.toggle(mode === 'voice-studio');
+
+        // WebDev studio panel (no toggle API — show/hide directly)
+        const webdevPanel = $('#webdev-studio');
+        if (webdevPanel) {
+          webdevPanel.style.display = mode === 'webdev' ? 'flex' : 'none';
+        }
 
         // Handle chat visibility globally
         const chatPanel = $('#chat-panel');
