@@ -142,6 +142,17 @@ class HfProgressTqdm:
     def __exit__(self, *a): pass
     def update(self, *a): pass
 
+    @classmethod
+    def set_lock(cls, *a, **k): pass
+
+    @classmethod
+    def get_lock(cls, *a, **k):
+        import threading
+        return threading.RLock()
+
+    @classmethod
+    def write(cls, *a, **k): pass
+
 
 def _get_hf_token():
     from config import HUGGINGFACE_API_KEY
