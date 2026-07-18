@@ -271,7 +271,19 @@ async def workspace_git_commit(request: Request):
     repo = _find_git_root()
     if not repo:
         return {"status": "error", "error": "No git repository found"}
-    ok, out, err = _git_run(["commit", "-m", message], cwd=repo)
+
+    # Ensure git user name and email are configured, or use defaults
+    env_extra = {}
+    ok_name, name_val, _ = _git_run(["config", "user.name"], cwd=repo)
+    ok_email, email_val, _ = _git_run(["config", "user.email"], cwd=repo)
+    if not (ok_name and name_val):
+        env_extra["GIT_AUTHOR_NAME"] = "Clawzd User"
+        env_extra["GIT_COMMITTER_NAME"] = "Clawzd User"
+    if not (ok_email and email_val):
+        env_extra["GIT_AUTHOR_EMAIL"] = "clawzd@localhost"
+        env_extra["GIT_COMMITTER_EMAIL"] = "clawzd@localhost"
+
+    ok, out, err = _git_run(["commit", "-m", message], cwd=repo, env_extra=env_extra)
     return {"status": "ok" if ok else "error", "output": out, "error": err if not ok else ""}
 
 
