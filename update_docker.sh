@@ -16,7 +16,7 @@ echo "=============================================="
 # --- Git pull ---
 echo ""
 echo "--- Pulling latest changes ---"
-git pull origin main 2>&1 || echo "WARNING: git pull failed (not a git repo or no remote)"
+git pull --no-rebase origin main 2>&1 || echo "WARNING: git pull failed (not a git repo or no remote)"
 
 clawzd_ensure_env_file
 clawzd_ensure_data_dirs
