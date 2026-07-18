@@ -1,16 +1,48 @@
 /* static/css/studios/_voice.css */
 
-.voice-studio-container {
+/* Full-viewport overlay (same pattern as media/research) so no other studio can bleed through */
+.voice-studio-container,
+#voice-studio {
   display: none; /* shown via JS as flex when mode=voice-studio */
-  flex: 1;
   flex-direction: column;
+  position: absolute;
+  inset: 0;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 60;
   min-width: 0;
   width: 100%;
-  padding: 24px;
   height: 100%;
+  padding: 24px;
   overflow-y: auto;
-  background: radial-gradient(circle at 50% -20%, rgba(124, 58, 237, 0.15), transparent 60%);
+  background:
+    radial-gradient(circle at 50% -20%, rgba(124, 58, 237, 0.15), transparent 60%),
+    var(--bg-primary, #0f0f14);
   box-sizing: border-box;
+}
+
+/* When voice mode is active, make sure app-main is a positioning context */
+body[data-app-mode="voice-studio"] #app-main {
+  position: relative;
+}
+
+body[data-app-mode="voice-studio"] #chat-panel,
+body[data-app-mode="voice-studio"] #sidebar,
+body[data-app-mode="voice-studio"] #editor-layout,
+body[data-app-mode="voice-studio"] #media-layout,
+body[data-app-mode="voice-studio"] #presentation-layout,
+body[data-app-mode="voice-studio"] #automation-layout,
+body[data-app-mode="voice-studio"] #auto-subtab-bar,
+body[data-app-mode="voice-studio"] #clone-layout,
+body[data-app-mode="voice-studio"] #paperclip-layout,
+body[data-app-mode="voice-studio"] #vault-layout,
+body[data-app-mode="voice-studio"] #research-layout,
+body[data-app-mode="voice-studio"] #project-layout,
+body[data-app-mode="voice-studio"] #analytics-studio,
+body[data-app-mode="voice-studio"] #webdev-studio {
+  display: none !important;
 }
 
 .voice-layout {

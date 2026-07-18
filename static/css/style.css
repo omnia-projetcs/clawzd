@@ -170,7 +170,7 @@ html, body {
 .btn-sm { padding: 6px 10px; font-size: 11px; }
 
 /* ---- Main Panels ---- */
-.app-main { display: flex; flex: 1; overflow: hidden; }
+.app-main { display: flex; flex: 1; overflow: hidden; position: relative; }
 
 /* ---- Sidebar ---- */
 .sidebar {
@@ -1369,14 +1369,21 @@ pre code .ln::before {
 .mode-toggle {
   display: flex; align-items: center; gap: 2px;
   background: var(--bg-elevated); border: 1px solid var(--border);
-  border-radius: 8px; padding: 2px; overflow: hidden;
+  border-radius: 8px; padding: 2px;
+  max-width: min(72vw, 920px);
+  overflow-x: auto;
+  overflow-y: hidden;
+  scrollbar-width: thin;
 }
+.mode-toggle::-webkit-scrollbar { height: 3px; }
+.mode-toggle::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
 .mode-btn {
   padding: 5px 14px; background: none; border: none;
   color: var(--text-muted); cursor: pointer; font-size: 12px;
   font-weight: 600; font-family: inherit; border-radius: 6px;
   transition: all var(--transition); white-space: nowrap;
   display: flex; align-items: center; gap: 5px;
+  flex-shrink: 0;
 }
 .mode-btn:hover { color: var(--text-secondary); background: var(--bg-hover); }
 .mode-btn.active {

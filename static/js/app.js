@@ -3244,17 +3244,129 @@
     // Task Indicator (persistent task badges on mode buttons)
     if (window.TaskIndicator) window.taskIndicator = new TaskIndicator();
 
-    // Auto-select mode from URL if present
-    const urlParams = new URLSearchParams(window.location.search);
-    const initialMode = urlParams.get('mode') || sessionStorage.getItem('pt-active-mode');
-    if (initialMode) {
-      setTimeout(() => {
-        const initBtn = document.querySelector(`.mode-btn[data-mode="${initialMode}"]`);
-        if (initBtn) initBtn.click();
-      }, 50);
+    // ---- Central mode switcher (single source of truth for panel visibility) ----
+    // Every main panel is forced hidden first, then only the active mode is shown.
+    // This prevents studios from stacking when one toggle fails or is missing.
+    const MODE_PANEL_IDS = [
+      'chat-panel', 'sidebar', 'editor-layout', 'media-layout',
+      'presentation-layout', 'automation-layout', 'auto-subtab-bar',
+      'clone-layout', 'paperclip-layout', 'vault-layout',
+      'research-layout', 'project-layout', 'analytics-studio',
+      'voice-studio', 'webdev-studio',
+    ];
+
+    function hideAllModePanels() {
+      MODE_PANEL_IDS.forEach(id => {
+        const el = document.getElementById(id);
+        if (!el) return;
+        el.style.display = 'none';
+        el.classList.remove('active');
+      });
     }
 
-    // Mode toggle (5 modes: chat, editor, media, presentation, automation)
+    function switchAppMode(mode) {
+      // 1) Hard-hide every main panel (no leftover flex/absolute siblings)
+      hideAllModePanels();
+
+      // 2) Active button state
+      $$('#mode-toggle .mode-btn').forEach(b => b.classList.remove('active'));
+      const activeBtn = document.querySelector(`#mode-toggle .mode-btn[data-mode="${mode}"]`);
+      if (activeBtn) activeBtn.classList.add('active');
+
+      // 3) URL + session
+      const url = new URL(window.location);
+      if (mode === 'chat') url.searchParams.delete('mode');
+      else url.searchParams.set('mode', mode);
+      window.history.replaceState({}, '', url);
+      sessionStorage.setItem('pt-active-mode', mode);
+
+      // 4) Safe studio toggles (errors must not block other modes)
+      const safe = (fn) => { try { fn(); } catch (e) { console.warn('[mode]', e); } };
+
+      safe(() => window.editor?.toggle(mode === 'editor'));
+      safe(() => window.mediaStudio?.toggle(mode === 'media'));
+      safe(() => window.presentationStudio?.toggle(mode === 'presentation'));
+      safe(() => window.researchStudio?.toggle(mode === 'research'));
+      safe(() => window.projectStudio?.toggle(mode === 'project'));
+      safe(() => window.analyticsStudio?.toggle(mode === 'analytics'));
+      safe(() => window.voiceStudio?.toggle(mode === 'voice-studio'));
+
+      // Automation sub-modes
+      const autoSubBar = $('#auto-subtab-bar');
+      if (mode === 'automation') {
+        if (autoSubBar) autoSubBar.style.display = 'flex';
+        const activeSub = document.querySelector('#auto-subtab-bar .auto-subtab.active');
+        const subMode = activeSub?.dataset.submode || 'workflows';
+        safe(() => window.automationStudio?.toggle(subMode === 'workflows'));
+        safe(() => window.paperclipStudio?.toggle(subMode === 'paperclip'));
+        safe(() => window.cloneStudio?.toggle(subMode === 'clone'));
+        safe(() => window.vaultStudio?.toggle(subMode === 'vault'));
+      } else {
+        safe(() => window.automationStudio?.toggle(false));
+        safe(() => window.paperclipStudio?.toggle(false));
+        safe(() => window.cloneStudio?.toggle(false));
+        safe(() => window.vaultStudio?.toggle(false));
+      }
+
+      // 5) Direct panel show for modes without / beyond class-based toggles
+      const chatPanel = $('#chat-panel');
+      const sidebar = $('#sidebar');
+      if (mode === 'chat') {
+        if (chatPanel) chatPanel.style.display = '';
+        if (sidebar) sidebar.style.display = '';
+      }
+
+      if (mode === 'editor') {
+        const ed = $('#editor-layout');
+        if (ed) { ed.style.display = ''; ed.classList.add('active'); }
+      }
+      if (mode === 'media') {
+        const m = $('#media-layout');
+        if (m) { m.style.display = ''; m.classList.add('active'); }
+      }
+      if (mode === 'presentation') {
+        const p = $('#presentation-layout');
+        if (p) p.style.display = 'flex';
+      }
+      if (mode === 'research') {
+        const r = $('#research-layout');
+        if (r) r.style.display = 'flex';
+      }
+      if (mode === 'project') {
+        const p = $('#project-layout');
+        if (p) p.style.display = 'flex';
+      }
+      if (mode === 'analytics') {
+        const a = $('#analytics-studio');
+        if (a) a.style.display = 'flex';
+      }
+      if (mode === 'webdev') {
+        const w = $('#webdev-studio');
+        if (w) w.style.display = 'flex';
+      }
+      if (mode === 'voice-studio') {
+        const v = $('#voice-studio');
+        if (v) v.style.display = 'flex';
+        // activate() may no-op if already active; ensure mic/UI still starts
+        safe(() => {
+          if (window.voiceStudio && !window.voiceStudio.active) {
+            window.voiceStudio.activate();
+          }
+        });
+      } else {
+        safe(() => {
+          if (window.voiceStudio?.active) window.voiceStudio.deactivate();
+        });
+      }
+
+      // Mark app root for mode-specific CSS (e.g. body[data-app-mode])
+      document.body.dataset.appMode = mode;
+    }
+
+    // Expose for other modules (project → editor, etc.)
+    window.switchAppMode = switchAppMode;
+
+    // Mode toggle buttons
     $$('#mode-toggle .mode-btn').forEach(btn => {
       btn.addEventListener('mouseup', e => {
         if (e.button === 1) { // Middle click
@@ -3264,61 +3376,17 @@
         }
       });
       btn.addEventListener('click', () => {
-        $$('#mode-toggle .mode-btn').forEach(b => b.classList.remove('active'));
-        btn.classList.add('active');
-        const mode = btn.dataset.mode;
-
-        // Update URL to preserve state per browser tab
-        const url = new URL(window.location);
-        if (mode === 'chat') url.searchParams.delete('mode');
-        else url.searchParams.set('mode', mode);
-        window.history.replaceState({}, '', url);
-
-        sessionStorage.setItem('pt-active-mode', mode);
-        window.editor.toggle(mode === 'editor');
-        window.mediaStudio.toggle(mode === 'media');
-        window.presentationStudio?.toggle(mode === 'presentation');
-        // Automation: show sub-tab bar + active sub-mode
-        const autoSubBar = $('#auto-subtab-bar');
-        if (mode === 'automation') {
-          if (autoSubBar) autoSubBar.style.display = 'flex';
-          const activeSub = document.querySelector('#auto-subtab-bar .auto-subtab.active');
-          const subMode = activeSub?.dataset.submode || 'workflows';
-          window.automationStudio?.toggle(subMode === 'workflows');
-          window.paperclipStudio?.toggle(subMode === 'paperclip');
-          window.cloneStudio?.toggle(subMode === 'clone');
-          window.vaultStudio?.toggle(subMode === 'vault');
-        } else {
-          if (autoSubBar) autoSubBar.style.display = 'none';
-          window.automationStudio?.toggle(false);
-          window.paperclipStudio?.toggle(false);
-          window.cloneStudio?.toggle(false);
-          window.vaultStudio?.toggle(false);
-        }
-        window.researchStudio?.toggle(mode === 'research');
-        window.projectStudio?.toggle(mode === 'project');
-        window.analyticsStudio?.toggle(mode === 'analytics');
-        // Voice Pilot studio (must be in central switcher so panels never stack)
-        window.voiceStudio?.toggle(mode === 'voice-studio');
-
-        // WebDev studio panel (no toggle API — show/hide directly)
-        const webdevPanel = $('#webdev-studio');
-        if (webdevPanel) {
-          webdevPanel.style.display = mode === 'webdev' ? 'flex' : 'none';
-        }
-
-        // Handle chat visibility globally
-        const chatPanel = $('#chat-panel');
-        const sidebar = $('#sidebar');
-        if (mode === 'chat') {
-          if (chatPanel) chatPanel.style.display = '';
-          if (sidebar) sidebar.style.display = '';
-        } else {
-          if (chatPanel) chatPanel.style.display = 'none';
-          if (sidebar) sidebar.style.display = 'none';
-        }
+        switchAppMode(btn.dataset.mode);
       });
     });
+
+    // Auto-select mode from URL / last session (after switchAppMode exists)
+    {
+      const urlParams = new URLSearchParams(window.location.search);
+      const initialMode = urlParams.get('mode') || sessionStorage.getItem('pt-active-mode') || 'chat';
+      // Use rAF so studio constructors (voice, media, …) finished their DOMContentLoaded work
+      requestAnimationFrame(() => switchAppMode(initialMode));
+    }
 
     // Theme toggle — delegates to ThemeEngine if available
     const themeBtn = $('#btn-theme-toggle');

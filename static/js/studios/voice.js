@@ -139,11 +139,14 @@ class VoiceStudio {
   }
 
   async activate() {
-    // Show only this panel (other studios are toggled off by app.js)
     const panel = document.getElementById('voice-studio');
-    if (panel) panel.style.display = 'flex';
+    if (panel) {
+      panel.style.display = 'flex';
+      panel.setAttribute('aria-hidden', 'false');
+    }
+    document.body.dataset.appMode = 'voice-studio';
 
-    // Already active: just ensure panel is visible, avoid re-init mic thrash
+    // Already active: keep panel visible, skip mic re-init
     if (this.active) return;
 
     this.active = true;
@@ -176,7 +179,10 @@ class VoiceStudio {
 
   deactivate() {
     const panel = document.getElementById('voice-studio');
-    if (panel) panel.style.display = 'none';
+    if (panel) {
+      panel.style.display = 'none';
+      panel.setAttribute('aria-hidden', 'true');
+    }
 
     if (!this.active) return;
 
@@ -795,7 +801,14 @@ class VoiceStudio {
   }
 }
 
-// Global initialization
-document.addEventListener('DOMContentLoaded', () => {
-  window.voiceStudio = new VoiceStudio();
-});
+// Global initialization (works even if script loads after DOMContentLoaded)
+function _initVoiceStudio() {
+  if (!window.voiceStudio) {
+    window.voiceStudio = new VoiceStudio();
+  }
+}
+if (document.readyState === 'loading') {
+  document.addEventListener('DOMContentLoaded', _initVoiceStudio);
+} else {
+  _initVoiceStudio();
+}

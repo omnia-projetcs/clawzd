@@ -1057,13 +1057,16 @@ class MediaStudio {
   toggle(on) {
     this.active = on;
     const mediaLayout = $('#media-layout');
+    if (!mediaLayout) return;
     if (on) {
+      mediaLayout.style.display = '';
       mediaLayout.classList.add('active');
       this.loadGallery();
       // Check for running background tasks
       this._checkActiveTasks();
     } else {
       mediaLayout.classList.remove('active');
+      mediaLayout.style.display = 'none';
     }
   }
 

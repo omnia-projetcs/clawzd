@@ -33,11 +33,14 @@ class EditorMode {
   toggle(on) {
     this.active = on;
     const editorLayout = $('#editor-layout');
+    if (!editorLayout) return;
     if (on) {
+      editorLayout.style.display = '';
       editorLayout.classList.add('active');
       this.loadTree();
     } else {
       editorLayout.classList.remove('active');
+      editorLayout.style.display = 'none';
     }
   }
 
