@@ -117,6 +117,7 @@ OLLAMA_MODEL=qwen3.5:9b
 ENHANCE_MODEL=gemma3:4b
 APP_HOST=0.0.0.0
 APP_PORT=8888
+HF_HUB_DISABLE_PROGRESS_BARS=1
 EOF
     fi
     echo "Default .env file created."

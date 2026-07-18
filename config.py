@@ -9,6 +9,11 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
+# Prevent tqdm AttributeErrors in huggingface_hub in non-TTY/Docker environments
+if "HF_HUB_DISABLE_PROGRESS_BARS" not in os.environ:
+    os.environ["HF_HUB_DISABLE_PROGRESS_BARS"] = "1"
+
+
 
 def _safe_int(value: str, default: int) -> int:
     """Convert a string to int, returning *default* on empty/invalid values."""
