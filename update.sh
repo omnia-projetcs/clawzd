@@ -5,6 +5,7 @@
 set -e
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+cd "$SCRIPT_DIR"
 # shellcheck source=scripts/common.sh
 source "$SCRIPT_DIR/scripts/common.sh"
 

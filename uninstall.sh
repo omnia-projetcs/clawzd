@@ -8,6 +8,7 @@ echo "       Clawzd - Uninstall"
 echo "=============================================="
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+cd "$SCRIPT_DIR"
 if [ -f "$SCRIPT_DIR/scripts/common.sh" ]; then
     # shellcheck source=scripts/common.sh
     source "$SCRIPT_DIR/scripts/common.sh"

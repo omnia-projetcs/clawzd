@@ -2,6 +2,7 @@
 set -e
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+cd "$SCRIPT_DIR"
 # shellcheck source=scripts/common.sh
 source "$SCRIPT_DIR/scripts/common.sh"
 
@@ -84,10 +85,11 @@ if [ -t 0 ]; then
             docker exec ollama ollama pull "$ENHANCE_MODEL" 2>&1 || echo "WARNING: Could not pull $ENHANCE_MODEL yet."
         fi
         
+        PORT=$(clawzd_read_env_value "APP_PORT" "8888")
         echo ""
         echo "=============================================="
         echo "  Docker Installation completed!"
-        echo "  The application should be accessible at: http://localhost:8888"
+        echo "  The application should be accessible at: http://localhost:$PORT"
         echo "  Local shared folders: ./data, ./models, ./workspace"
         echo "=============================================="
         exit 0
@@ -165,13 +167,14 @@ echo ""
 echo "--- Installing System Dependencies ---"
 if command -v apt-get &> /dev/null; then
     if command -v sudo &> /dev/null; then
-        echo "Installing TTS, media and OCR dependencies (requires sudo)..."
+        echo "Installing TTS, media, OCR and Python venv dependencies (requires sudo)..."
         sudo apt-get update && sudo apt-get install -y \
             espeak espeak-ng espeak-data libespeak-dev ffmpeg \
             tesseract-ocr tesseract-ocr-eng tesseract-ocr-fra \
-            fonts-dejavu-core fonts-dejavu-extra nodejs npm
+            fonts-dejavu-core fonts-dejavu-extra nodejs npm \
+            python3-venv python3-pip python3-dev || echo "WARNING: Failed to install system dependencies via apt-get. You may need to install them manually."
     else
-        echo "WARNING: sudo not available. Please install manually: apt-get install espeak espeak-ng espeak-data libespeak-dev ffmpeg tesseract-ocr tesseract-ocr-eng tesseract-ocr-fra"
+        echo "WARNING: sudo not available. Please install manually: apt-get install espeak espeak-ng espeak-data libespeak-dev ffmpeg tesseract-ocr tesseract-ocr-eng tesseract-ocr-fra python3-venv python3-pip python3-dev"
     fi
 fi
 
@@ -179,7 +182,11 @@ fi
 if [ ! -d ".venv" ]; then
     echo ""
     echo "Creating Python virtual environment..."
-    python3 -m venv .venv
+    python3 -m venv .venv || {
+        echo "ERROR: Failed to create virtual environment '.venv' using python3 -m venv."
+        echo "Please install python3-venv (e.g. sudo apt-get install python3-venv) and rerun this script."
+        exit 1
+    }
     source .venv/bin/activate
 else
     source .venv/bin/activate
@@ -228,7 +235,7 @@ else
     else
         if command -v sudo &> /dev/null; then
             # Official method: Aqua Security install script
-            curl -sfL https://raw.githubusercontent.com/aquasecurity/trivy/main/contrib/install.sh | sudo sh -s -- -b /usr/local/bin 2>&1 | tail -3
+            curl -sfL https://raw.githubusercontent.com/aquasecurity/trivy/main/contrib/install.sh | sudo sh -s -- -b /usr/local/bin 2>&1 | tail -3 || echo "WARNING: Trivy installation failed."
             if command -v trivy &> /dev/null; then
                 echo "✓ Trivy installed successfully."
             else

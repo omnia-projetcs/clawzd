@@ -250,6 +250,23 @@ clawzd_docker_up() {
         echo "ERROR: Docker Compose not found."
         exit 1
     }
+
+    # Check if the configured APP_PORT is already in use on the host
+    local port
+    port=$(clawzd_read_env_value "APP_PORT" "8888")
+    local port_pid=""
+    if command -v lsof >/dev/null 2>&1; then
+        port_pid=$(lsof -t -i :"$port" 2>/dev/null || true)
+    elif command -v fuser >/dev/null 2>&1; then
+        port_pid=$(fuser "$port"/tcp 2>/dev/null | awk '{print $NF}' || true)
+    fi
+
+    if [ -n "$port_pid" ]; then
+        echo "WARNING: Port $port is already in use on the host by process(es): $port_pid."
+        echo "If this is an existing Clawzd Docker container, docker compose will recreate it."
+        echo "Otherwise, the container startup might fail because the port is already bound."
+    fi
+
     local compose_files
     compose_files=$(clawzd_compose_files)
     clawzd_ensure_env_file
