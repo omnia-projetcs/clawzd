@@ -240,6 +240,40 @@
               <input type="range" id="prop-volume" min="0.0" max="2.0" step="0.05" class="editor-range">
             </div>
 
+            <!-- Audio Visualizer Section -->
+            <div class="property-group inspector-audio-only" id="prop-visualizer-section" style="border-top: 1px solid var(--border); padding-top: 15px; margin-top: 15px; display:none;">
+              <h3 class="inspector-section-title" style="display:flex; align-items:center; gap:6px; margin-bottom:12px; color:var(--accent);">
+                <span>🎚️</span> Audio Visualizer
+              </h3>
+              <p style="font-size:11px; color:var(--text-secondary); margin-bottom:10px;">Turn the selected audio clip into a timeline-ready MP4 visualizer.</p>
+
+              <div class="property-group">
+                <label class="property-label">Visualizer Style</label>
+                <select id="prop-visualizer-style" class="editor-select">
+                  <option value="waveform_centered" selected>Centered Waveform</option>
+                  <option value="waveform_lines">Waveform Lines</option>
+                  <option value="frequency_bars">Frequency Bars</option>
+                  <option value="retro_oscilloscope">Retro Oscilloscope</option>
+                  <option value="spectrogram">Scrolling Spectrogram</option>
+                </select>
+              </div>
+
+              <div class="property-group">
+                <label class="property-label">Theme</label>
+                <select id="prop-visualizer-theme" class="editor-select">
+                  <option value="matrix_green" selected>Matrix Green</option>
+                  <option value="cyberpunk_purple">Cyberpunk Purple</option>
+                  <option value="gold_glow">Gold Glow</option>
+                  <option value="fire_ice">Fire & Ice</option>
+                  <option value="classic_cyan">Classic Cyan</option>
+                </select>
+              </div>
+
+              <button id="prop-visualizer-btn" class="editor-btn primary" style="width:100%; background: linear-gradient(135deg, #8b5cf6, #06b6d4); color:white; border:none; padding:8px 12px; border-radius:var(--radius-sm);">
+                🎬 Generate Visualizer Clip
+              </button>
+            </div>
+
             <!-- Silence Cutter Section -->
             <div class="property-group inspector-media-only" id="prop-silence-section" style="border-top: 1px solid var(--border); padding-top: 15px; margin-top: 15px;">
               <h3 class="inspector-section-title" style="display: flex; align-items: center; gap: 6px; margin-bottom: 12px; color: var(--accent);">

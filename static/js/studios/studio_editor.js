@@ -176,7 +176,11 @@ window.StudioEditor = {
       snapshotBtn: document.getElementById("btn-snapshot"),
       losslessSection: document.getElementById("prop-lossless-section"),
       losslessTrimBtn: document.getElementById("prop-lossless-trim-btn"),
-      streamInfoDetails: document.getElementById("stream-info-details")
+      streamInfoDetails: document.getElementById("stream-info-details"),
+      visualizerSection: document.getElementById("prop-visualizer-section"),
+      visualizerStyle: document.getElementById("prop-visualizer-style"),
+      visualizerTheme: document.getElementById("prop-visualizer-theme"),
+      visualizerBtn: document.getElementById("prop-visualizer-btn")
     };
 
     if (!this.elements.modal) return;
@@ -362,6 +366,9 @@ window.StudioEditor = {
     }
     if (el.losslessTrimBtn) {
       el.losslessTrimBtn.addEventListener("click", () => this.triggerLosslessTrim());
+    }
+    if (el.visualizerBtn) {
+      el.visualizerBtn.addEventListener("click", () => this.generateVisualizerClip());
     }
 
     // Timeline Ruler playhead seeking
@@ -614,6 +621,7 @@ window.StudioEditor = {
       this.elements.inspectorPlaceholder.style.display = "flex";
       this.elements.inspectorControls.style.display = "none";
       if (this.elements.losslessSection) this.elements.losslessSection.style.display = "none";
+      if (this.elements.visualizerSection) this.elements.visualizerSection.style.display = "none";
       return;
     }
 
@@ -663,6 +671,7 @@ window.StudioEditor = {
       if (textGroup) textGroup.style.display = "none";
       if (this.elements.silenceSection) this.elements.silenceSection.style.display = "block";
       if (this.elements.losslessSection) this.elements.losslessSection.style.display = "block";
+      if (this.elements.visualizerSection) this.elements.visualizerSection.style.display = "none";
       safeSetValue("prop-filter", clip.filter);
       this.loadStreamInfo(clip.filename);
     } else if (trackType === 'audio') {
@@ -671,6 +680,7 @@ window.StudioEditor = {
       if (textGroup) textGroup.style.display = "none";
       if (this.elements.silenceSection) this.elements.silenceSection.style.display = "block";
       if (this.elements.losslessSection) this.elements.losslessSection.style.display = "block";
+      if (this.elements.visualizerSection) this.elements.visualizerSection.style.display = "block";
       safeSetValue("prop-volume", clip.volume);
       safeSetText("prop-vol-val", clip.volume);
       this.loadStreamInfo(clip.filename);
@@ -680,6 +690,7 @@ window.StudioEditor = {
       if (textGroup) textGroup.style.display = "block";
       if (this.elements.silenceSection) this.elements.silenceSection.style.display = "none";
       if (this.elements.losslessSection) this.elements.losslessSection.style.display = "none";
+      if (this.elements.visualizerSection) this.elements.visualizerSection.style.display = "none";
       safeSetValue("prop-text-str", clip.text);
       safeSetValue("prop-text-color", clip.color);
       safeSetValue("prop-text-size", clip.font_size);
@@ -1976,6 +1987,76 @@ window.StudioEditor = {
     } catch (e) {
       console.error(e);
       if (window.toast) window.toast("❌ Snapshot failed: " + e.message);
+    }
+  },
+
+  async generateVisualizerClip() {
+    if (!this.selectedClipId) return;
+    const clip = this.clips.find(c => c.id === this.selectedClipId);
+    if (!clip || this.getTrackType(clip.track) !== 'audio') return;
+
+    const btn = this.elements.visualizerBtn;
+    const originalText = btn ? btn.innerHTML : '';
+    if (btn) {
+      btn.disabled = true;
+      btn.innerHTML = "⏳ Generating...";
+    }
+
+    try {
+      const resolution = document.getElementById("export-res")?.value || "1280x720";
+      const fps = parseInt(document.getElementById("export-fps")?.value || "30", 10);
+      const resp = await fetch("/studio/generate_visualizer", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          filename: clip.filename,
+          style: this.elements.visualizerStyle?.value || "waveform_centered",
+          theme: this.elements.visualizerTheme?.value || "matrix_green",
+          resolution,
+          fps
+        })
+      });
+
+      if (!resp.ok) {
+        const err = await resp.json().catch(() => ({}));
+        throw new Error(err.detail || "Server failed to generate visualizer");
+      }
+
+      const data = await resp.json();
+      await this.loadGalleryAssets();
+
+      const firstVideoTrack = this.tracks.find(t => t.type === 'video');
+      if (firstVideoTrack) {
+        this.clips.push({
+          id: `clip_${Date.now()}_${Math.random().toString(36).substr(2, 5)}`,
+          filename: data.filename,
+          track: firstVideoTrack.id,
+          start: clip.start,
+          duration: data.duration || clip.duration,
+          trim_start: 0.0,
+          speed: 1.0,
+          volume: 1.0,
+          filter: 'none',
+          text: 'Sample Subtitle',
+          color: 'white',
+          font_size: 28,
+          position: 'bottom'
+        });
+        this.renderTimeline();
+        this.syncPreview();
+      }
+
+      const refreshEl = document.getElementById("media-refresh");
+      if (refreshEl) refreshEl.click();
+      if (window.toast) window.toast(`🎬 Visualizer generated: ${data.filename}`);
+    } catch (e) {
+      console.error(e);
+      if (window.toast) window.toast("❌ Visualizer failed: " + e.message);
+    } finally {
+      if (btn) {
+        btn.disabled = false;
+        btn.innerHTML = originalText;
+      }
     }
   },
 
