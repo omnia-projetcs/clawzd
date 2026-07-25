@@ -239,3 +239,4 @@ data/_archived_clones/
 data/media/
 data/images/
 # Note: data/ is generally ignored via data/* in other sections, but be explicit
+data/clawzd.db

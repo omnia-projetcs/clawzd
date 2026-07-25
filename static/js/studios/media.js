@@ -2244,6 +2244,8 @@ class MediaStudio {
 
   async _refreshRembgPreview() {
     if (!this._currentRembgFile) return;
+    if (this._rembgPreviewInFlight) return;
+    this._rembgPreviewInFlight = true;
     const loading = $('#media-rembg-loading');
     if (loading) loading.style.display = 'block';
 
@@ -2255,7 +2257,11 @@ class MediaStudio {
         body: JSON.stringify({ filename: this._currentRembgFile, settings })
       });
 
-      if (!r.ok) throw new Error('Preview generation failed');
+      if (!r.ok) {
+        let detail = `Server returned ${r.status}`;
+        try { const err = await r.json(); detail = err.detail || detail; } catch (_) {}
+        throw new Error(detail);
+      }
       const data = await r.json();
 
       const img = $('#media-rembg-preview-img');
@@ -2264,9 +2270,10 @@ class MediaStudio {
         img.src = 'data:image/png;base64,' + data.image_base64;
       }
     } catch (e) {
-      console.error(e);
-      toast(ICONS.x(14) + ' Preview generation failed');
+      console.error('[Rembg Preview]', e);
+      toast(ICONS.x(14) + ' Remove-BG preview failed: ' + e.message);
     } finally {
+      this._rembgPreviewInFlight = false;
       if (loading) loading.style.display = 'none';
     }
   }
