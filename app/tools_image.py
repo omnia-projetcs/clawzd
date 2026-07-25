@@ -2489,8 +2489,18 @@ async def remove_bg_preview(request: Request):
         
     filepath = os.path.join(IMAGES_DIR, filename)
     if not os.path.exists(filepath):
-        raise HTTPException(404, "File not found")
-        
+        raise HTTPException(404, f"File not found: {filename}")
+
+    # Coerce integer settings that may arrive as strings from JSON
+    for int_key in ("alpha_matting_foreground_threshold",
+                     "alpha_matting_background_threshold",
+                     "alpha_matting_erode_size"):
+        if int_key in settings:
+            try:
+                settings[int_key] = int(settings[int_key])
+            except (ValueError, TypeError):
+                pass
+
     try:
         with open(filepath, "rb") as f:
             input_bytes = f.read()
@@ -2500,9 +2510,12 @@ async def remove_bg_preview(request: Request):
         # Encode to base64
         b64_img = base64.b64encode(output_bytes).decode('utf-8')
         return {"status": "ok", "image_base64": b64_img}
+    except ImportError as e:
+        logger.error("rembg is not installed: %s", e)
+        raise HTTPException(500, "rembg library is not installed. Run: pip install rembg[gpu]")
     except Exception as e:
-        logger.error("Failed to generate remove bg preview for %s: %s", filename, e)
-        raise HTTPException(500, str(e))
+        logger.error("Failed to generate remove bg preview for %s: %s: %s", filename, type(e).__name__, e)
+        raise HTTPException(500, f"{type(e).__name__}: {e}")
 
 def _file_md5(filepath: str) -> str:
     """Compute MD5 hash of a file's content."""
