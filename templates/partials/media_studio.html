@@ -207,6 +207,11 @@
           <optgroup label="HiDream Family">
             <option value="hidream_o1">🌟 HiDream O1 Image (8B)</option>
           </optgroup>
+          <optgroup label="Latest Image Models">
+            <option value="qwen_image_flash">⚡ Qwen Image Flash (4 steps, 20B)</option>
+            <option value="krea_2_turbo">🚀 Krea 2 Turbo (8 steps, 12B)</option>
+            <option value="mage_flow">🪄 Mage Flow (Native resolution, 4B)</option>
+          </optgroup>
           <optgroup label="SDXL Models">
             <option value="photorealistic">📸 Juggernaut XL (Photo)</option>
             <option value="realvis">📷 RealVisXL V4.0 (Natural)</option>
@@ -250,8 +255,12 @@
           <option value="ltx_video">🎬 LTX-Video 0.9.7 (10GB)</option>
           <option value="ltx_23">🏆 LTX 2.3 — 4K+Audio (20GB ⚠️)</option>
           <option value="ltx_23_distilled">⚡ LTX 2.3 Distilled (Fast, 4-8 steps)</option>
-          <option value="hunyuanvideo">✨ HunyuanVideo (14GB ⚠️)</option>
+          <option value="prunavaed">⚡ LTX 2.3 + PrunaVAED (fast decoder)</option>
+          <option value="animegen_t2v">🌸 AnimeGen T2V / Wan 2.2 (24GB ⚠️)</option>
+          <option value="wan21_14b">🌊 Wan 2.1 T2V 14B (24GB ⚠️)</option>
+          <option value="hunyuanvideo">✨ Tencent HunyuanVideo (14GB+ ⚠️)</option>
           <option value="cogvideox">🎥 CogVideoX 5B (16GB ⚠️) — I2V ✓</option>
+          <option value="ltx_face_id">🪪 LTX Best Face ID (20GB ⚠️) — I2V ✓</option>
           <option value="lance_3b">🦄 Lance 3B (12GB ⚠️) — Unified Multimodal</option>
           <option value="wan22">👑 Wan 2.2 MoE 27B (20GB ⚠️) — I2V ✓</option>
         </select>
@@ -370,6 +379,7 @@
           <button class="media-type-btn active" data-submode="tts"><svg class="ic" width="14" height="14"><use href="#icon-volume-2"></use></svg> TTS</button>
           <button class="media-type-btn" data-submode="voice_clone"><svg class="ic" width="14" height="14"><use href="#icon-user"></use></svg> Clone</button>
           <button class="media-type-btn" data-submode="music"><svg class="ic" width="14" height="14"><use href="#icon-music"></use></svg> Music</button>
+          <button class="media-type-btn" data-submode="sfx"><svg class="ic" width="14" height="14"><use href="#icon-waveform"></use></svg> SFX</button>
         </div>
       </div>
       <!-- Audio Text (TTS / Clone / Song) -->
@@ -403,6 +413,19 @@
         <select class="media-form-select" id="media-tts-engine">
           <option value="edge" selected>🎙️ Edge Neural (HD, multi-langue)</option>
           <option value="openai" {% if not has_openai_key %}disabled{% endif %}>OpenAI GPT-4o mini TTS (cloud)</option>
+          <option value="qwen3">🗣️ Qwen3-TTS CustomVoice 1.7B (local)</option>
+        </select>
+      </div>
+      <!-- Local sound-effect model -->
+      <div class="media-form-group"
+           id="media-audio-model-group"
+           style="display:none">
+        <label class="media-form-label">Sound Model</label>
+        <select class="media-form-select" id="media-audio-model">
+          <option value="moss_soundeffect_v2" selected>MOSS SoundEffect v2.0 (48 kHz)</option>
+          <option value="stable_audio_open_small">Stable Audio Open Small</option>
+          <option value="stable_audio_3_small_sfx">Stable Audio 3 Small SFX</option>
+          <option value="ltx_23_foley">LTX 2.3 Foley V2A LoRA (22B ⚠️)</option>
         </select>
       </div>
       <!-- Reference Audio Upload (Voice Clone) -->

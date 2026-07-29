@@ -18,7 +18,7 @@ class MediaStudio {
     this.generating = false;
     this.lightboxIdx = -1;
     this.referenceImage = null; // for image-to-image
-    this.audioSubMode = 'tts'; // 'tts', 'voice_clone', 'music', 'song'
+    this.audioSubMode = 'tts'; // 'tts', 'voice_clone', 'music', 'song', 'sfx'
     this.referenceAudio = null; // for voice cloning
     this.capabilities = null;
     this._capabilitiesLoaded = false;
@@ -121,6 +121,10 @@ class MediaStudio {
     if (ttsEngineEl) {
       ttsEngineEl.addEventListener('change', () => this._debouncedEstimate());
     }
+    const audioModelEl = $('#media-audio-model');
+    if (audioModelEl) {
+      audioModelEl.addEventListener('change', () => this._debouncedEstimate());
+    }
 
     // Dynamic language-specific voice dropdown updater
     const mediaLangEl = $('#media-language');
@@ -129,7 +133,19 @@ class MediaStudio {
       const updateMediaVoices = () => {
         const lang = mediaLangEl.value;
         mediaVoiceEl.innerHTML = '';
-        if (lang === 'fr' || lang === 'auto') {
+        if (ttsEngineEl && ttsEngineEl.value === 'qwen3') {
+          mediaVoiceEl.innerHTML = `
+            <option value="Vivian" selected>Vivian (Chinese / multilingual)</option>
+            <option value="Serena">Serena (English / multilingual)</option>
+            <option value="Ryan">Ryan (English / multilingual)</option>
+            <option value="Aiden">Aiden (English / multilingual)</option>
+            <option value="Dylan">Dylan (Beijing dialect)</option>
+            <option value="Eric">Eric (Sichuan dialect)</option>
+            <option value="Ono_Anna">Ono Anna (Japanese)</option>
+            <option value="Sohee">Sohee (Korean)</option>
+            <option value="Uncle_Fu">Uncle Fu (Cantonese)</option>
+          `;
+        } else if (lang === 'fr' || lang === 'auto') {
           mediaVoiceEl.innerHTML = `
             <option value="fr-FR-EloiseNeural" selected>Eloise (Voix Premium Féminine)</option>
             <option value="fr-FR-RemyMultilingualNeural">Remy (Voix Premium Masculine)</option>
@@ -159,6 +175,7 @@ class MediaStudio {
         }
       };
       mediaLangEl.addEventListener('change', updateMediaVoices);
+      if (ttsEngineEl) ttsEngineEl.addEventListener('change', updateMediaVoices);
       // Run once at initialization to set options
       updateMediaVoices();
     }
@@ -691,7 +708,7 @@ class MediaStudio {
     const videoModelSel = $('#media-model-video');
     if (videoModelSel && isVideo) {
       const hasRefImage = !!this.referenceImage;
-      const i2vModels = ['svd_xt', 'cogvideox', 'wan22']; // Models that support I2V only
+      const i2vModels = ['svd_xt', 'cogvideox', 'wan22', 'ltx_face_id']; // Models that support I2V
       let firstAvailable = null;
 
       Array.from(videoModelSel.options).forEach(opt => {
@@ -791,12 +808,14 @@ class MediaStudio {
     const isClone = sub === 'voice_clone';
     const isMusic = sub === 'music';
     const isSong = sub === 'song';
+    const isSFX = sub === 'sfx';
 
     const audioSubGrp = $('#media-audio-submode-group');
     const audioTextGrp = $('#media-audio-text-group');
     const lyricsGrp = $('#media-lyrics-group');
     const voiceGrp = $('#media-voice-style-group');
     const ttsEngGrp = $('#media-tts-engine-group');
+    const audioModelGrp = $('#media-audio-model-group');
     const audioRefGrp = $('#media-audio-ref-group');
     const advancedAccordion = $('#media-audio-advanced-accordion');
     const genreGrp = $('#media-genre-group');
@@ -806,10 +825,11 @@ class MediaStudio {
     const audioFmtGrp = $('#media-format-audio-group');
 
     if (audioSubGrp) audioSubGrp.style.display = isAudio ? '' : 'none';
-    if (audioTextGrp) audioTextGrp.style.display = isAudio && (isTTS || isClone || isSong) ? '' : 'none';
+    if (audioTextGrp) audioTextGrp.style.display = isAudio && (isTTS || isClone || isSong || isSFX) ? '' : 'none';
     if (lyricsGrp) lyricsGrp.style.display = isAudio && isSong ? '' : 'none';
     if (voiceGrp) voiceGrp.style.display = isAudio && (isTTS || isSong) ? '' : 'none';
     if (ttsEngGrp) ttsEngGrp.style.display = isAudio && isTTS ? '' : 'none';
+    if (audioModelGrp) audioModelGrp.style.display = isAudio && isSFX ? '' : 'none';
     if (audioRefGrp) {
       audioRefGrp.style.display = isAudio && (isClone || isSong) ? '' : 'none';
       const refLabel = $('#media-audio-ref-label');
@@ -826,13 +846,13 @@ class MediaStudio {
 
     // Audio estimation group
     const estimateGrp = $('#media-audio-estimate-group');
-    if (estimateGrp) estimateGrp.style.display = isAudio && (isTTS || isSong) ? '' : 'none';
-    if (isAudio && (isTTS || isSong)) this._debouncedEstimate();
+    if (estimateGrp) estimateGrp.style.display = isAudio && (isTTS || isSong || isSFX) ? '' : 'none';
+    if (isAudio && (isTTS || isSong || isSFX)) this._debouncedEstimate();
 
     // Update audio duration slider max based on sub-mode
     const audioDurSlider = $('#media-audio-duration');
     if (audioDurSlider && isAudio) {
-      audioDurSlider.max = (isMusic || isSong) ? '120' : '300';
+      audioDurSlider.max = isSFX ? '30' : ((isMusic || isSong) ? '120' : '300');
       if (parseInt(audioDurSlider.value) > parseInt(audioDurSlider.max)) {
         audioDurSlider.value = audioDurSlider.max;
         $('#media-audio-duration-value').textContent = audioDurSlider.value + 's';
@@ -845,6 +865,7 @@ class MediaStudio {
       if (isTTS) audioText.placeholder = 'Enter the text you want to convert to speech...';
       else if (isClone) audioText.placeholder = 'Enter the text you want to convert to speech...';
       else if (isSong) audioText.placeholder = 'Enter the lyrics or theme of the song...';
+      else if (isSFX) audioText.placeholder = 'Describe the sound effect (e.g. waves crashing on rocks)...';
     }
 
     this._updateCapabilitiesUI();
@@ -1005,11 +1026,13 @@ class MediaStudio {
     }
 
     try {
-      const mode = this.audioSubMode === 'song' ? 'song' : 'tts';
+      const mode = this.audioSubMode === 'song' ? 'song' : (this.audioSubMode === 'sfx' ? 'sfx' : 'tts');
+      const duration = parseFloat(($('#media-audio-duration') || {}).value) || 30;
+      const audioModel = ($('#media-audio-model') || {}).value || 'moss_soundeffect_v2';
       const resp = await fetch('/audio/estimate', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ text, mode, tts_engine: ttsEngine }),
+        body: JSON.stringify({ text, mode, tts_engine: ttsEngine, duration, audio_model: audioModel }),
       });
       if (!resp.ok) return;
       const d = await resp.json();
@@ -1808,6 +1831,7 @@ class MediaStudio {
           const audioFmt = ($('#media-format-audio') || {}).value || 'wav';
           const voiceStyle = ($('#media-voice-style') || {}).value || 'female_soft';
           const ttsEngine = ($('#media-tts-engine') || {}).value || 'edge';
+          const audioModel = ($('#media-audio-model') || {}).value || 'moss_soundeffect_v2';
           const genre = ($('#media-genre') || {}).value || '';
           const tempoBpm = parseInt(($('#media-tempo') || {}).value) || 120;
           const audioDur = parseFloat(($('#media-audio-duration') || {}).value) || 30;
@@ -1859,6 +1883,7 @@ class MediaStudio {
               lyrics: ($('#media-audio-lyrics') || {}).value || '',
               voice_style: voiceStyle,
               tts_engine: ttsEngine,
+              audio_model: audioModel,
               reference_audio: this.referenceAudio,
               ref_audio_start_sec: this.refAudioStart || 0.0,
               ref_audio_duration: this.refAudioDuration || 10.0,

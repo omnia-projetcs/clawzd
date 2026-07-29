@@ -210,6 +210,52 @@ def _build_media_capabilities() -> dict:
         "warnings": [w for w in warnings_list if w],
     }
 
+class _MageFlowAdapter:
+    """Adapt Mage-Flow's native API to the small Diffusers surface used here."""
+
+    def __init__(self, repo_id: str):
+        try:
+            from mage_flow import MageFlowPipeline
+        except ImportError as exc:
+            raise RuntimeError(
+                "Mage-Flow runtime is missing. Install the advanced media "
+                "dependencies from requirements-media-models.txt."
+            ) from exc
+
+        device = "cuda" if _check_gpu() else "cpu"
+        self._pipe = MageFlowPipeline.from_pretrained(repo_id, device=device)
+
+    def enable_model_cpu_offload(self):
+        # Mage-Flow owns device placement in its native loader.
+        return self
+
+    def __call__(
+        self,
+        prompt,
+        width=1024,
+        height=1024,
+        num_inference_steps=20,
+        guidance_scale=5.0,
+        negative_prompt=" ",
+        image=None,
+        **_,
+    ):
+        from types import SimpleNamespace
+
+        common = {
+            "steps": num_inference_steps,
+            "cfg": guidance_scale,
+            "heights": [height],
+            "widths": [width],
+            "neg_prompts": [negative_prompt or " "],
+        }
+        if image is None:
+            images = self._pipe.generate([prompt], **common)
+        else:
+            images = self._pipe.edit([prompt], [image], **common)
+        return SimpleNamespace(images=images)
+
+
 def _get_pipeline(repo_id: str, is_lora: bool = False):
     """Lazy-load the image generation pipeline with CPU offload.
 
@@ -233,12 +279,15 @@ def _get_pipeline(repo_id: str, is_lora: bool = False):
             _pipe_type = _cfg.get("pipeline", "")
             break
 
-    # Z-Image / Qwen-Image / FLUX / SD3.5 / HiDream / Ideogram all need bfloat16
+    # Modern DiT image families use bfloat16.
     is_bf16_model = (
         "flux" in repo_id.lower()
         or "stable-diffusion-3" in repo_id.lower()
         or "hidream" in repo_id.lower()
         or "ideogram" in repo_id.lower()
+        or "qwen-image" in repo_id.lower()
+        or "krea-2" in repo_id.lower()
+        or _pipe_type == "mage_flow"
         or _pipe_type == "zimage"
     )
     if is_bf16_model:
@@ -262,6 +311,32 @@ def _get_pipeline(repo_id: str, is_lora: bool = False):
                 local_files_only=_should_use_local_files(base_model), token=hf_token,
             )
             _pipeline.load_lora_weights(repo_id, token=hf_token)
+
+        elif _pipe_type == "mage_flow":
+            _pipeline = _MageFlowAdapter(repo_id)
+
+        elif _pipe_type == "qwen_image":
+            from diffusers import QwenImagePipeline
+            _pipeline = QwenImagePipeline.from_pretrained(
+                repo_id,
+                torch_dtype=dtype,
+                local_files_only=_should_use_local_files(repo_id),
+                token=hf_token,
+            )
+
+        elif _pipe_type == "krea2":
+            try:
+                from diffusers import Krea2Pipeline
+            except ImportError as exc:
+                raise RuntimeError(
+                    "Krea 2 requires diffusers>=0.39.0. Upgrade the media dependencies."
+                ) from exc
+            _pipeline = Krea2Pipeline.from_pretrained(
+                repo_id,
+                torch_dtype=dtype,
+                local_files_only=_should_use_local_files(repo_id),
+                token=hf_token,
+            )
 
         elif "ideogram" in repo_id.lower():
             # Ideogram family (Ideogram 4) — uses DiffusionPipeline with device_map="cuda"
@@ -324,6 +399,20 @@ def _get_pipeline(repo_id: str, is_lora: bool = False):
                     local_files_only=_should_use_local_files(base_model), token=hf_token,
                 )
                 _pipeline.load_lora_weights(repo_id, token=hf_token)
+            elif _pipe_type == "mage_flow":
+                _pipeline = _MageFlowAdapter(repo_id)
+            elif _pipe_type == "qwen_image":
+                from diffusers import QwenImagePipeline
+                _pipeline = QwenImagePipeline.from_pretrained(
+                    repo_id, torch_dtype=dtype, variant=None,
+                    local_files_only=_should_use_local_files(repo_id), token=hf_token,
+                )
+            elif _pipe_type == "krea2":
+                from diffusers import Krea2Pipeline
+                _pipeline = Krea2Pipeline.from_pretrained(
+                    repo_id, torch_dtype=dtype, variant=None,
+                    local_files_only=_should_use_local_files(repo_id), token=hf_token,
+                )
             elif "ideogram" in repo_id.lower():
                 from diffusers import DiffusionPipeline
                 device_map = "cuda" if torch.cuda.is_available() else "auto"
@@ -365,7 +454,11 @@ def _get_pipeline(repo_id: str, is_lora: bool = False):
     finally:
         _hf_download_state["active"] = False
 
-    if torch.cuda.is_available() and "ideogram" not in repo_id.lower():
+    if (
+        torch.cuda.is_available()
+        and "ideogram" not in repo_id.lower()
+        and _pipe_type != "mage_flow"
+    ):
         _pipeline.enable_model_cpu_offload()
 
     _current_image_model = repo_id
@@ -412,6 +505,16 @@ def _get_i2i_pipeline(repo_id: str, is_lora: bool = False):
 
     import torch
     from diffusers import AutoPipelineForImage2Image
+
+    model_cfg = next(
+        (cfg for cfg in _IMAGE_STYLE_MODELS.values() if cfg["repo"] == repo_id),
+        {},
+    )
+    if model_cfg.get("pipeline") == "mage_flow":
+        _i2i_pipeline = _MageFlowAdapter(repo_id)
+        _current_i2i_model = repo_id
+        _current_i2i_lora = False
+        return _i2i_pipeline
 
     # FLUX and SD3.5 need bfloat16; SDXL models use float16
     is_bf16_model = "flux" in repo_id.lower() or "stable-diffusion-3" in repo_id.lower()
@@ -540,8 +643,8 @@ _VIDEO_MODELS = {
         "dtype": "bfloat16",
     },
     "cogvideox_2b": {
-        "repo": "THUDM/CogVideoX-2b",
-        "pipeline": "auto",
+        "repo": "zai-org/CogVideoX-2b",
+        "pipeline": "cogvideox",
         "steps": 12,
         "guidance": 6.0,
         "fps": 8,
@@ -560,8 +663,8 @@ _VIDEO_MODELS = {
         "dtype": "bfloat16",
     },
     "ltx_23": {
-        "repo": "Lightricks/LTX-Video-0.9.7-dev",
-        "pipeline": "ltx",
+        "repo": "diffusers/LTX-2.3-Diffusers",
+        "pipeline": "ltx2",
         "steps": 25,
         "guidance": 3.5,
         "fps": 24,
@@ -570,10 +673,10 @@ _VIDEO_MODELS = {
         "dtype": "bfloat16",
     },
     "ltx_23_distilled": {
-        "repo": "Lightricks/LTX-Video-0.9.7-distilled",
-        "pipeline": "ltx",
+        "repo": "diffusers/LTX-2.3-Distilled-Diffusers",
+        "pipeline": "ltx2",
         "steps": 8,
-        "guidance": 3.5,
+        "guidance": 1.0,
         "fps": 24,
         "max_frames": 257,
         "vram_gb": 12,
@@ -593,12 +696,64 @@ _VIDEO_MODELS = {
     },
     "hunyuanvideo": {
         "repo": "hunyuanvideo-community/HunyuanVideo",
+        "source_repo": "tencent/HunyuanVideo",
         "pipeline": "auto",
         "steps": 20,
         "guidance": 6.0,
         "fps": 15,
         "max_frames": 61,
         "vram_gb": 14,
+        "dtype": "bfloat16",
+    },
+    "prunavaed": {
+        "repo": "diffusers/LTX-2.3-Diffusers",
+        "source_repo": "PrunaAI/PrunaVAED",
+        "vae_repo": "PrunaAI/PrunaVAED",
+        "pipeline": "ltx2",
+        "steps": 25,
+        "guidance": 3.5,
+        "fps": 24,
+        "max_frames": 257,
+        "vram_gb": 14,
+        "dtype": "bfloat16",
+    },
+    "ltx_face_id": {
+        "repo": "diffusers/LTX-2.3-Diffusers",
+        "i2v_repo": "diffusers/LTX-2.3-Diffusers",
+        "source_repo": "Alissonerdx/LTX-Best-Face-ID",
+        "adapter_repo": "Alissonerdx/LTX-Best-Face-ID",
+        "adapter_weight": "Best_FaceID_v1.0_LoRA.safetensors",
+        "pipeline": "ltx2",
+        "steps": 25,
+        "guidance": 3.5,
+        "fps": 24,
+        "max_frames": 257,
+        "vram_gb": 20,
+        "dtype": "bfloat16",
+        "i2v_only": True,
+    },
+    "animegen_t2v": {
+        "repo": "Wan-AI/Wan2.2-T2V-A14B-Diffusers",
+        "source_repo": "aidealab/AnimeGen-T2V",
+        "high_noise": "high_noise.safetensors",
+        "low_noise": "low_noise.safetensors",
+        "pipeline": "animegen",
+        "steps": 30,
+        "guidance": 5.0,
+        "fps": 24,
+        "max_frames": 81,
+        "vram_gb": 24,
+        "dtype": "bfloat16",
+    },
+    "wan21_14b": {
+        "repo": "Wan-AI/Wan2.1-T2V-14B-Diffusers",
+        "source_repo": "Wan-AI/Wan2.1-T2V-14B",
+        "pipeline": "wan",
+        "steps": 30,
+        "guidance": 5.0,
+        "fps": 16,
+        "max_frames": 81,
+        "vram_gb": 24,
         "dtype": "bfloat16",
     },
     "wan22": {
@@ -651,7 +806,8 @@ def _get_video_pipeline(repo_id: str, model_key: str = ""):
     - auto/default → DiffusionPipeline (generic)
     """
     global _video_pipeline, _current_video_model
-    if _video_pipeline is not None and _current_video_model == repo_id:
+    cache_key = f"{repo_id}|{model_key}"
+    if _video_pipeline is not None and _current_video_model == cache_key:
         return _video_pipeline
         
     _release_video_pipeline()
@@ -733,6 +889,93 @@ def _get_video_pipeline(repo_id: str, model_key: str = ""):
             if torch.cuda.is_available():
                 _video_pipeline.enable_model_cpu_offload()
 
+        elif pipeline_type == "ltx2":
+            from diffusers import LTX2Pipeline, AutoencoderKLLTX2Video
+
+            load_kwargs = dict(torch_dtype=dtype, token=hf_token)
+            vae_repo = model_cfg.get("vae_repo")
+            if vae_repo:
+                # Pruna's decoder has structurally pruned layers. Its repository
+                # supplies the small Diffusers shape patch required before loading.
+                import importlib.util
+                from huggingface_hub import hf_hub_download
+
+                patch_path = hf_hub_download(
+                    vae_repo, "patch_diffusers.py", token=hf_token
+                )
+                spec = importlib.util.spec_from_file_location(
+                    "clawzd_prunavaed_patch", patch_path
+                )
+                patch_module = importlib.util.module_from_spec(spec)
+                spec.loader.exec_module(patch_module)
+                patch_module.patch_pruna_ltx2_decoder()
+                load_kwargs["vae"] = AutoencoderKLLTX2Video.from_pretrained(
+                    vae_repo, subfolder="vae", torch_dtype=dtype, token=hf_token
+                )
+
+            _video_pipeline = LTX2Pipeline.from_pretrained(repo_id, **load_kwargs)
+            adapter_repo = model_cfg.get("adapter_repo")
+            if adapter_repo:
+                _video_pipeline.load_lora_weights(
+                    adapter_repo,
+                    weight_name=model_cfg["adapter_weight"],
+                    token=hf_token,
+                )
+            if hasattr(_video_pipeline, "vae") and hasattr(_video_pipeline.vae, "enable_tiling"):
+                _video_pipeline.vae.enable_tiling()
+            if torch.cuda.is_available():
+                _video_pipeline.enable_model_cpu_offload()
+
+        elif pipeline_type == "animegen":
+            from diffusers import (
+                AutoencoderKLWan,
+                FlowMatchEulerDiscreteScheduler,
+                WanPipeline,
+                WanTransformer3DModel,
+            )
+            from huggingface_hub import hf_hub_download
+
+            source_repo = model_cfg["source_repo"]
+            common = {"torch_dtype": dtype}
+            transformer = WanTransformer3DModel.from_single_file(
+                hf_hub_download(source_repo, model_cfg["high_noise"], token=hf_token),
+                **common,
+            )
+            transformer_2 = WanTransformer3DModel.from_single_file(
+                hf_hub_download(source_repo, model_cfg["low_noise"], token=hf_token),
+                **common,
+            )
+            vae = AutoencoderKLWan.from_pretrained(
+                repo_id,
+                subfolder="vae",
+                torch_dtype=torch.float32,
+                token=hf_token,
+            )
+            _video_pipeline = WanPipeline.from_pretrained(
+                repo_id,
+                transformer=transformer,
+                transformer_2=transformer_2,
+                scheduler=FlowMatchEulerDiscreteScheduler(shift=3.0),
+                vae=vae,
+                torch_dtype=dtype,
+                token=hf_token,
+            )
+            if hasattr(_video_pipeline, "vae") and hasattr(_video_pipeline.vae, "enable_tiling"):
+                _video_pipeline.vae.enable_tiling()
+            if torch.cuda.is_available():
+                _video_pipeline.enable_model_cpu_offload()
+
+        elif pipeline_type == "cogvideox":
+            from diffusers import CogVideoXPipeline
+            _video_pipeline = CogVideoXPipeline.from_pretrained(
+                repo_id, torch_dtype=dtype, token=hf_token
+            )
+            if hasattr(_video_pipeline, "vae"):
+                _video_pipeline.vae.enable_slicing()
+                _video_pipeline.vae.enable_tiling()
+            if torch.cuda.is_available():
+                _video_pipeline.enable_model_cpu_offload()
+
         elif pipeline_type == "wan":
             # Wan2.x — WanPipeline
             from diffusers import WanPipeline
@@ -796,7 +1039,7 @@ def _get_video_pipeline(repo_id: str, model_key: str = ""):
             if torch.cuda.is_available():
                 _video_pipeline.enable_model_cpu_offload()
 
-        _current_video_model = repo_id
+        _current_video_model = cache_key
         _hf_download_state["active"] = False
         return _video_pipeline
 
@@ -817,7 +1060,7 @@ def _release_video_pipeline():
         if torch.cuda.is_available():
             torch.cuda.empty_cache()
 
-def _get_i2v_pipeline(repo_id: str, pipeline_type: str = "auto"):
+def _get_i2v_pipeline(repo_id: str, pipeline_type: str = "auto", model_key: str = ""):
     """Lazy-load the Image-to-Video pipeline.
 
     Args:
@@ -827,7 +1070,8 @@ def _get_i2v_pipeline(repo_id: str, pipeline_type: str = "auto"):
                        otherwise CogVideoXImageToVideoPipeline.
     """
     global _i2v_pipeline, _current_i2v_model
-    if _i2v_pipeline is not None and _current_i2v_model == repo_id:
+    cache_key = f"{repo_id}|{model_key}"
+    if _i2v_pipeline is not None and _current_i2v_model == cache_key:
         return _i2v_pipeline
 
     _release_i2v_pipeline()
@@ -887,6 +1131,26 @@ def _get_i2v_pipeline(repo_id: str, pipeline_type: str = "auto"):
             if torch.cuda.is_available():
                 _i2v_pipeline.enable_model_cpu_offload()
 
+        elif pipeline_type == "ltx2":
+            from diffusers import LTX2ConditionPipeline
+
+            dtype = torch.bfloat16 if torch.cuda.is_available() else torch.float32
+            _i2v_pipeline = LTX2ConditionPipeline.from_pretrained(
+                repo_id, torch_dtype=dtype, token=hf_token
+            )
+            model_cfg = _VIDEO_MODELS.get(model_key, {})
+            adapter_repo = model_cfg.get("adapter_repo")
+            if adapter_repo:
+                _i2v_pipeline.load_lora_weights(
+                    adapter_repo,
+                    weight_name=model_cfg["adapter_weight"],
+                    token=hf_token,
+                )
+            if hasattr(_i2v_pipeline, "vae") and hasattr(_i2v_pipeline.vae, "enable_tiling"):
+                _i2v_pipeline.vae.enable_tiling()
+            if torch.cuda.is_available():
+                _i2v_pipeline.enable_model_cpu_offload()
+
         else:
             # CogVideoX family
             from diffusers import CogVideoXImageToVideoPipeline
@@ -913,7 +1177,7 @@ def _get_i2v_pipeline(repo_id: str, pipeline_type: str = "auto"):
             if torch.cuda.is_available():
                 _i2v_pipeline.enable_model_cpu_offload()
 
-        _current_i2v_model = repo_id
+        _current_i2v_model = cache_key
         _hf_download_state["active"] = False
         return _i2v_pipeline
     except Exception as e:
@@ -1612,6 +1876,11 @@ async def generate_image_core(
             _pipe_type = model_info.get("pipeline", "")
             _extra_kwargs = {}
 
+            if model_info.get("default_steps"):
+                steps = int(model_info["default_steps"])
+            if model_info.get("default_guidance") is not None:
+                guidance = float(model_info["default_guidance"])
+
             # Z-Image-Turbo: distilled, guidance=0.0, 4 steps (faster)
             if _pipe_type == "zimage" and "turbo" in repo_id.lower():
                 guidance = 0.0
@@ -1671,12 +1940,22 @@ async def generate_image_core(
 
             import asyncio
             # Distilled / flow-matching models don't support negative_prompt
-            _no_neg = "flux" in repo_id.lower() or "hidream" in repo_id.lower() or "ideogram" in repo_id.lower()  # FLUX family & HiDream & Ideogram
+            _no_neg = (
+                "flux" in repo_id.lower()
+                or "hidream" in repo_id.lower()
+                or "ideogram" in repo_id.lower()
+                or _pipe_type in ("qwen_image", "krea2")
+            )
             # Z-Image-Turbo is distilled — no negative prompt
             if _pipe_type == "zimage" and "turbo" in repo_id.lower():
                 _no_neg = True
 
             if reference_image:
+                    if not model_info.get("supports_i2i", True):
+                        raise RuntimeError(
+                            f"{model_info['repo']} is text-to-image only. "
+                            "Clear the reference image or select an image-edit capable model."
+                        )
                     # Standard Img2Img
                     from PIL import Image
                     ref_path = os.path.join(IMAGES_DIR, os.path.basename(reference_image))
@@ -1710,6 +1989,9 @@ async def generate_image_core(
                     callback_on_step_end=step_callback,
                     **_extra_kwargs,
                 )
+                if _pipe_type == "qwen_image":
+                    pipe_kwargs["guidance_scale"] = None
+                    pipe_kwargs["true_cfg_scale"] = 1.0
                 if not _no_neg:
                     pipe_kwargs["negative_prompt"] = negative_prompt
                 result = await asyncio.to_thread(pipe, **pipe_kwargs)
@@ -1868,11 +2150,11 @@ async def generate_animation_core(
     num_frames = max(4, min(max_frames, int(duration * model_fps)))
     # Some models require frames divisible by 8+1
     pipeline_type = model_cfg.get("pipeline", "auto")
-    if pipeline_type == "ltx":
+    if pipeline_type in {"ltx", "ltx2"}:
         # LTX requires (frames - 1) % 8 == 0
         num_frames = ((num_frames - 1) // 8) * 8 + 1
         num_frames = max(9, num_frames)
-    elif pipeline_type == "wan":
+    elif pipeline_type in {"wan", "animegen"}:
         # Wan prefers odd frame counts
         if num_frames % 2 == 0:
             num_frames += 1
@@ -1884,6 +2166,10 @@ async def generate_animation_core(
     # SVD is I2V-only — require a reference image
     if pipeline_type == "svd" and not reference_image:
         raise RuntimeError("SVD is an Image-to-Video only model. Please provide a reference image or select a different model.")
+    if model_cfg.get("i2v_only") and not reference_image:
+        raise RuntimeError(
+            f"{model_cfg.get('source_repo', video_model)} requires a reference image."
+        )
 
     try:
         import asyncio
@@ -1907,7 +2193,9 @@ async def generate_animation_core(
                     raise RuntimeError(f"Reference image not found: {reference_image}")
                 init_img = Image.open(ref_path).convert("RGB")
 
-                pipe = await asyncio.to_thread(_get_i2v_pipeline, i2v_repo, pipeline_type)
+                pipe = await asyncio.to_thread(
+                    _get_i2v_pipeline, i2v_repo, pipeline_type, video_model
+                )
                 logger.info("Starting image-to-video [%s] for prompt: '%s' (%d frames, %.1fs)",
                             video_model, prompt, num_frames, duration)
         else:
@@ -1969,7 +2257,18 @@ async def generate_animation_core(
             gen_kwargs["width"] = width
             gen_kwargs["height"] = height
             gen_kwargs["num_frames"] = num_frames
-        elif pipeline_type == "wan":
+        elif pipeline_type == "ltx2":
+            gen_kwargs["negative_prompt"] = negative_prompt
+            gen_kwargs["guidance_scale"] = guidance
+            gen_kwargs["width"] = width
+            gen_kwargs["height"] = height
+            gen_kwargs["num_frames"] = num_frames
+            gen_kwargs["frame_rate"] = model_fps
+            gen_kwargs["output_type"] = "np"
+            if model_cfg.get("distilled"):
+                from diffusers.pipelines.ltx2.utils import DISTILLED_SIGMA_VALUES
+                gen_kwargs["sigmas"] = DISTILLED_SIGMA_VALUES
+        elif pipeline_type in {"wan", "animegen"}:
             gen_kwargs["negative_prompt"] = negative_prompt
             gen_kwargs["guidance_scale"] = guidance
             gen_kwargs["num_frames"] = num_frames
@@ -2025,7 +2324,15 @@ async def generate_animation_core(
             # Resize the PIL image to the target dimensions (preserves aspect ratio)
             if init_img.size != (target_w, target_h):
                 init_img = init_img.resize((target_w, target_h), Image.LANCZOS)
-            gen_kwargs["image"] = init_img
+            if pipeline_type == "ltx2":
+                from diffusers.pipelines.ltx2.pipeline_ltx2_condition import (
+                    LTX2VideoCondition,
+                )
+                gen_kwargs["conditions"] = [
+                    LTX2VideoCondition(frames=init_img, index=0, strength=1.0)
+                ]
+            else:
+                gen_kwargs["image"] = init_img
 
         result = await asyncio.to_thread(pipe, **gen_kwargs)
 
@@ -2033,6 +2340,18 @@ async def generate_animation_core(
         fps = model_fps
         
         video_frames = result.frames[0]
+        result_audio = getattr(result, "audios", None)
+        if result_audio is None:
+            result_audio = getattr(result, "audio", None)
+        if isinstance(result_audio, (list, tuple)) and result_audio:
+            result_audio = result_audio[0]
+        vocoder = getattr(pipe, "vocoder", None)
+        vocoder_cfg = getattr(vocoder, "config", None)
+        result_audio_rate = int(getattr(
+            result,
+            "audio_sample_rate",
+            getattr(vocoder_cfg, "output_sampling_rate", 24000),
+        ))
 
         # Progress: encoding stage
         _generation_progress = {
@@ -2052,7 +2371,21 @@ async def generate_animation_core(
         if format.lower() == "mp4":
             out_filename = f"{base_name}.mp4"
             out_filepath = os.path.join(IMAGES_DIR, out_filename)
-            export_to_video(video_frames, out_filepath, fps=fps)
+            if pipeline_type == "ltx2" and result_audio is not None:
+                try:
+                    from diffusers.pipelines.ltx2.export_utils import encode_video
+                    encode_video(
+                        video_frames,
+                        fps=fps,
+                        audio=result_audio,
+                        audio_sample_rate=result_audio_rate,
+                        output_path=out_filepath,
+                    )
+                except Exception as exc:
+                    logger.warning("LTX2 audio mux failed; exporting silent MP4: %s", exc)
+                    export_to_video(video_frames, out_filepath, fps=fps)
+            else:
+                export_to_video(video_frames, out_filepath, fps=fps)
             with open(out_filepath + ".txt", "w", encoding="utf-8") as f:
                 f.write(f"[{video_model}] {prompt}")
 

@@ -274,6 +274,10 @@ ollama pull qwen3.5:9b
 # Install all other dependencies
 pip install -r requirements.txt --pre
 
+# Optional: runtimes for Qwen3-TTS, MOSS/Stable Audio and Mage-Flow
+# (MOSS SoundEffect v2 requires Python 3.12 or newer)
+pip install -r requirements-media-models.txt
+
 # Install Playwright browsers
 python -m playwright install chromium
 sudo python -m playwright install-deps chromium

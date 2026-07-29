@@ -41,8 +41,12 @@ apscheduler>=3.10.4
 # PyTorch is installed automatically as a dependency, but you can install a specific CUDA version manually if needed.
 torch>=2.0.0
 torchvision>=0.15.0
-diffusers>=0.27.0
+diffusers>=0.39.0
 accelerate>=0.28.0
+transformers>=4.57.3
+huggingface-hub>=0.28.0
+soundfile>=0.13.0
+torchaudio>=2.0.0
 peft>=0.10.0
 bitsandbytes>=0.43.0
 rembg>=2.0.50

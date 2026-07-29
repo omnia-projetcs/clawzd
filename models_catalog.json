@@ -509,5 +509,258 @@
       "image"
     ],
     "backend": "hf"
+  },
+  {
+    "id": "forkjoin-ai/qwen3-tts-12hz-1.7b-customvoice",
+    "vendor": "Audio",
+    "name": "Qwen3 TTS 12Hz 1.7B CustomVoice",
+    "ollama_id": "forkjoin-ai/qwen3-tts-12hz-1.7b-customvoice",
+    "size_gb": 4.2,
+    "params": "1.7B",
+    "quant": "BF16",
+    "vram_min_gb": 8,
+    "description": "Expressive multilingual text-to-speech with preset custom voices, optimized for local and edge inference.",
+    "recommended": true,
+    "token_limit": "N/A",
+    "release_date": "2026-03",
+    "capabilities": [
+      "audio"
+    ],
+    "backend": "hf"
+  },
+  {
+    "id": "OpenMOSS-Team/MOSS-SoundEffect-v2.0",
+    "vendor": "Audio",
+    "name": "MOSS SoundEffect v2.0",
+    "ollama_id": "OpenMOSS-Team/MOSS-SoundEffect-v2.0",
+    "size_gb": 10.5,
+    "params": "1.3B",
+    "quant": "FP32",
+    "vram_min_gb": 16,
+    "description": "High-fidelity bilingual text-to-sound generation for environmental, urban, creature and action effects up to 30 seconds at 48 kHz.",
+    "recommended": true,
+    "token_limit": "N/A",
+    "release_date": "2026-05",
+    "capabilities": [
+      "audio"
+    ],
+    "backend": "hf"
+  },
+  {
+    "id": "stabilityai/stable-audio-open-small",
+    "vendor": "Audio",
+    "name": "Stable Audio Open Small",
+    "ollama_id": "stabilityai/stable-audio-open-small",
+    "size_gb": 4.7,
+    "params": "0.5B",
+    "quant": "FP32",
+    "vram_min_gb": 4,
+    "description": "Compact text-to-audio model for sound effects, field recordings and short musical samples up to 11 seconds at 44.1 kHz.",
+    "recommended": true,
+    "token_limit": "N/A",
+    "release_date": "2025-05",
+    "capabilities": [
+      "audio"
+    ],
+    "backend": "hf"
+  },
+  {
+    "id": "stabilityai/stable-audio-3-small-sfx",
+    "vendor": "Audio",
+    "name": "Stable Audio 3 Small SFX",
+    "ollama_id": "stabilityai/stable-audio-3-small-sfx",
+    "size_gb": 3.3,
+    "params": "0.6B",
+    "quant": "FP32",
+    "vram_min_gb": 8,
+    "description": "Small Stable Audio 3 checkpoint specialized in fast, high-quality text-to-sound-effect generation.",
+    "recommended": true,
+    "token_limit": "N/A",
+    "release_date": "2026-05",
+    "capabilities": [
+      "audio"
+    ],
+    "backend": "hf"
+  },
+  {
+    "id": "Lightricks/LTX-2.3-22b-LoRA-Foley-V2A",
+    "vendor": "Video",
+    "name": "LTX 2.3 22B Foley V2A LoRA",
+    "ollama_id": "Lightricks/LTX-2.3-22b-LoRA-Foley-V2A",
+    "size_gb": 0.3,
+    "params": "LoRA (22B base)",
+    "quant": "BF16",
+    "vram_min_gb": 32,
+    "description": "Foley adapter for LTX-2.3 22B that generates synchronized, music-free sound effects from silent video or text prompts. Requires the LTX-2.3 22B base model.",
+    "recommended": false,
+    "token_limit": "N/A",
+    "release_date": "2026-07",
+    "capabilities": [
+      "video",
+      "audio"
+    ],
+    "backend": "hf"
+  },
+  {
+    "id": "nvidia/Qwen-Image-Flash",
+    "vendor": "Image",
+    "name": "Qwen Image Flash",
+    "ollama_id": "nvidia/Qwen-Image-Flash",
+    "size_gb": 53.7,
+    "params": "20B",
+    "quant": "BF16",
+    "vram_min_gb": 48,
+    "description": "NVIDIA-distilled Qwen-Image checkpoint for high-quality four-step text-to-image generation with low inference latency.",
+    "recommended": true,
+    "token_limit": "N/A",
+    "release_date": "2026-07",
+    "capabilities": [
+      "image"
+    ],
+    "backend": "hf"
+  },
+  {
+    "id": "krea/Krea-2-Turbo",
+    "vendor": "Image",
+    "name": "Krea 2 Turbo",
+    "ollama_id": "krea/Krea-2-Turbo",
+    "size_gb": 57.7,
+    "params": "12B",
+    "quant": "BF16",
+    "vram_min_gb": 32,
+    "description": "Distilled Krea 2 text-to-image model for high-resolution creative generation in eight inference steps.",
+    "recommended": true,
+    "token_limit": "N/A",
+    "release_date": "2026-06",
+    "capabilities": [
+      "image"
+    ],
+    "backend": "hf"
+  },
+  {
+    "id": "mage-flow-community/Mage-Flow",
+    "vendor": "Image",
+    "name": "Mage Flow 4B",
+    "ollama_id": "mage-flow-community/Mage-Flow",
+    "size_gb": 16.3,
+    "params": "4B",
+    "quant": "BF16",
+    "vram_min_gb": 20,
+    "description": "Compact native-resolution text-to-image diffusion model supporting flexible aspect ratios and resolutions from 512 to 2048 pixels.",
+    "recommended": true,
+    "token_limit": "N/A",
+    "release_date": "2026-07",
+    "capabilities": [
+      "image"
+    ],
+    "backend": "hf"
+  },
+  {
+    "id": "PrunaAI/PrunaVAED",
+    "vendor": "Video",
+    "name": "PrunaVAED for LTX 2.3",
+    "ollama_id": "PrunaAI/PrunaVAED",
+    "size_gb": 1.3,
+    "params": "0.7B VAE",
+    "quant": "BF16",
+    "vram_min_gb": 24,
+    "description": "Pruned drop-in VAE decoder for LTX-2.3 with faster decoding and lower peak VRAM. Requires the LTX-2.3 base model.",
+    "recommended": true,
+    "token_limit": "N/A",
+    "release_date": "2026-07",
+    "capabilities": [
+      "video"
+    ],
+    "backend": "hf"
+  },
+  {
+    "id": "zai-org/CogVideoX-2b",
+    "vendor": "Video",
+    "name": "CogVideoX 2B",
+    "ollama_id": "zai-org/CogVideoX-2b",
+    "size_gb": 12.8,
+    "params": "2B",
+    "quant": "FP16",
+    "vram_min_gb": 10,
+    "description": "Compact CogVideoX text-to-video model optimized for consumer GPUs with CPU offload and VAE tiling.",
+    "recommended": true,
+    "token_limit": "N/A",
+    "release_date": "2024-08",
+    "capabilities": [
+      "video"
+    ],
+    "backend": "hf"
+  },
+  {
+    "id": "Alissonerdx/LTX-Best-Face-ID",
+    "vendor": "Video",
+    "name": "LTX Best Face ID",
+    "ollama_id": "Alissonerdx/LTX-Best-Face-ID",
+    "size_gb": 3.7,
+    "params": "LoRA (22B base)",
+    "quant": "BF16",
+    "vram_min_gb": 32,
+    "description": "Identity-preserving reference-to-video LoRA for LTX-2.3. Requires a reference portrait and the LTX-2.3 base model.",
+    "recommended": false,
+    "token_limit": "N/A",
+    "release_date": "2026-07",
+    "capabilities": [
+      "video"
+    ],
+    "backend": "hf"
+  },
+  {
+    "id": "aidealab/AnimeGen-T2V",
+    "vendor": "Video",
+    "name": "AnimeGen T2V",
+    "ollama_id": "aidealab/AnimeGen-T2V",
+    "size_gb": 53.3,
+    "params": "A14B",
+    "quant": "BF16",
+    "vram_min_gb": 24,
+    "description": "Wan 2.2 A14B fine-tune specialized in Japanese anime motion, character rendering and temporal consistency.",
+    "recommended": true,
+    "token_limit": "N/A",
+    "release_date": "2026-06",
+    "capabilities": [
+      "video"
+    ],
+    "backend": "hf"
+  },
+  {
+    "id": "Wan-AI/Wan2.1-T2V-14B",
+    "vendor": "Video",
+    "name": "Wan 2.1 T2V 14B",
+    "ollama_id": "Wan-AI/Wan2.1-T2V-14B",
+    "size_gb": 64.3,
+    "params": "14B",
+    "quant": "BF16",
+    "vram_min_gb": 32,
+    "description": "High-quality Wan 2.1 text-to-video model supporting dynamic 480p and 720p generation with English and Chinese text rendering.",
+    "recommended": false,
+    "token_limit": "N/A",
+    "release_date": "2025-02",
+    "capabilities": [
+      "video"
+    ],
+    "backend": "hf"
+  },
+  {
+    "id": "tencent/HunyuanVideo",
+    "vendor": "Video",
+    "name": "Tencent HunyuanVideo",
+    "ollama_id": "tencent/HunyuanVideo",
+    "size_gb": 37.1,
+    "params": "13B",
+    "quant": "BF16/FP8",
+    "vram_min_gb": 45,
+    "description": "Tencent's original high-quality text-to-video checkpoint. Runtime inference uses its official Diffusers-compatible conversion.",
+    "recommended": false,
+    "token_limit": "N/A",
+    "release_date": "2024-12",
+    "capabilities": [
+      "video"
+    ],
+    "backend": "hf"
   }
 ]

@@ -1,0 +1,12 @@
+# Optional local-media runtimes. The core application starts without these;
+# install this file on machines that will execute the newest audio/image models.
+-r requirements.txt
+
+qwen-tts>=0.1.0
+stable-audio-tools>=0.0.19
+moss-soundeffect-v2 @ git+https://github.com/OpenMOSS/MOSS-TTS.git#subdirectory=moss_soundeffect_v2 ; python_version >= "3.12"
+mage-flow @ git+https://github.com/microsoft/Mage.git#subdirectory=mage_flow
+
+# Recommended by Qwen/Mage on Ampere-or-newer NVIDIA GPUs. Kept optional
+# because building it requires a CUDA compiler matching the installed PyTorch.
+# flash-attn>=2.8.0

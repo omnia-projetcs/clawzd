@@ -65,6 +65,35 @@ _IMAGE_STYLE_MODELS: dict[str, dict[str, Any]] = {
     "z_image": {"repo": "Tongyi-MAI/Z-Image", "is_lora": False, "pipeline": "zimage"},
     "hidream_o1": {"repo": "HiDream-ai/HiDream-O1-Image", "is_lora": False},
     "flux2_klein_4b": {"repo": "black-forest-labs/FLUX.2-klein-4B", "is_lora": False},
+    "ideogram_4_nf4": {
+        "repo": "ideogram-ai/ideogram-4-nf4",
+        "is_lora": False,
+        "pipeline": "ideogram",
+    },
+    "qwen_image_flash": {
+        "repo": "nvidia/Qwen-Image-Flash",
+        "is_lora": False,
+        "pipeline": "qwen_image",
+        "default_steps": 4,
+        "default_guidance": 1.0,
+        "supports_i2i": False,
+    },
+    "krea_2_turbo": {
+        "repo": "krea/Krea-2-Turbo",
+        "is_lora": False,
+        "pipeline": "krea2",
+        "default_steps": 8,
+        "default_guidance": 0.0,
+        "supports_i2i": False,
+    },
+    "mage_flow": {
+        "repo": "mage-flow-community/Mage-Flow",
+        "is_lora": False,
+        "pipeline": "mage_flow",
+        "default_steps": 20,
+        "default_guidance": 5.0,
+        "supports_i2i": False,
+    },
     # add more as needed
 }
 
@@ -237,4 +266,3 @@ def _build_media_capabilities() -> dict:
         "cloud_enabled": cloud_enabled,
         "reason": _media_cloud_reason("auto", openai_ready, hf_ready, cloud_enabled),
     }
-

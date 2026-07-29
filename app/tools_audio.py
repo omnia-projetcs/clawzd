@@ -6,6 +6,7 @@ Modes:
 2. Voice Cloning — Coqui XTTS-v2
 3. Music Generation — MusicGen (instrumental)
 4. Song Generation — MusicGen + melody reference
+5. Sound Effects — MOSS, Stable Audio, Stable Audio 3, or LTX Foley
 """
 import os
 import re
@@ -105,6 +106,38 @@ _tts_pipeline = None
 _tts_model_name = None
 _music_pipeline = None
 _music_model_name = None
+_sfx_pipeline = None
+_sfx_model_name = None
+
+QWEN_TTS_REPO = "forkjoin-ai/qwen3-tts-12hz-1.7b-customvoice"
+SFX_MODELS = {
+    "moss_soundeffect_v2": {
+        "repo": "OpenMOSS-Team/MOSS-SoundEffect-v2.0",
+        "pipeline": "moss",
+        "sample_rate": 48000,
+        "max_duration": 30,
+    },
+    "stable_audio_open_small": {
+        "repo": "stabilityai/stable-audio-open-small",
+        "pipeline": "stable_audio",
+        "sample_rate": 44100,
+        "max_duration": 11,
+    },
+    "stable_audio_3_small_sfx": {
+        "repo": "stabilityai/stable-audio-3-small-sfx",
+        "pipeline": "stable_audio_3",
+        "sample_rate": 44100,
+        "max_duration": 11,
+    },
+    "ltx_23_foley": {
+        "repo": "Lightricks/LTX-2.3-22b-LoRA-Foley-V2A",
+        "base_repo": "diffusers/LTX-2.3-Diffusers",
+        "weight_name": "ltx-2.3-22b-lora-foley-v2a-1.0.safetensors",
+        "pipeline": "ltx2_foley",
+        "sample_rate": 24000,
+        "max_duration": 30,
+    },
+}
 
 _audio_download_state = {
     "active": False,
@@ -132,12 +165,22 @@ def _cancel_audio_generation(task_id: str = ""):
 
 def _release_all_audio():
     """Release all audio pipelines and free VRAM."""
+    global _tts_pipeline, _tts_model_name
     global _music_pipeline, _music_model_name
+    global _sfx_pipeline, _sfx_model_name
     import gc
+    if _tts_pipeline is not None:
+        del _tts_pipeline
+        _tts_pipeline = None
+        _tts_model_name = None
     if _music_pipeline is not None:
         del _music_pipeline
         _music_pipeline = None
         _music_model_name = None
+    if _sfx_pipeline is not None:
+        del _sfx_pipeline
+        _sfx_pipeline = None
+        _sfx_model_name = None
     gc.collect()
     try:
         import torch
@@ -158,6 +201,227 @@ def _release_image_pipelines():
         logger.info("Released image/video pipelines to free VRAM for audio")
     except Exception:
         pass
+
+
+def _audio_hf_token():
+    """Return the configured Hugging Face token without making it mandatory."""
+    return os.getenv("HF_TOKEN") or os.getenv("HUGGING_FACE_HUB_TOKEN") or None
+
+
+def _qwen_language(language: str) -> str:
+    return {
+        "auto": "Auto", "fr": "French", "en": "English", "es": "Spanish",
+        "de": "German", "it": "Italian", "pt": "Portuguese",
+        "ja": "Japanese", "zh": "Chinese",
+    }.get((language or "auto").lower(), "Auto")
+
+
+def _qwen_speaker(voice_style: str) -> str:
+    """Map UI presets to speakers provided by Qwen3-TTS CustomVoice."""
+    preset = {
+        "male_deep": "Ryan", "male_medium": "Aiden", "female_soft": "Vivian",
+        "female_pro": "Serena", "child": "Dylan", "robot": "Ryan",
+        "narrator": "Aiden",
+    }.get(voice_style)
+    if preset:
+        return preset
+    if voice_style in {
+        "Vivian", "Serena", "Ryan", "Aiden", "Dylan", "Eric",
+        "Ono_Anna", "Sohee", "Uncle_Fu",
+    }:
+        return voice_style
+    lowered = (voice_style or "").lower()
+    if any(name in lowered for name in ("remy", "henri", "guy", "andrew", "brian")):
+        return "Aiden"
+    if "eloise" in lowered or "ana" in lowered:
+        return "Dylan"
+    return "Serena" if any(
+        name in lowered for name in ("vivienne", "ava", "denise")
+    ) else "Vivian"
+
+
+def _get_qwen_tts_model():
+    global _tts_pipeline, _tts_model_name, _audio_download_state
+    if _tts_pipeline is not None and _tts_model_name == QWEN_TTS_REPO:
+        return _tts_pipeline
+
+    _release_all_audio()
+    _release_image_pipelines()
+    _audio_download_state = {"active": True, "progress": 0.0, "model": QWEN_TTS_REPO}
+    try:
+        import torch
+        from qwen_tts import Qwen3TTSModel
+
+        dtype = torch.bfloat16 if torch.cuda.is_available() else torch.float32
+        kwargs = {"torch_dtype": dtype}
+        if torch.cuda.is_available():
+            kwargs.update({"device_map": "cuda", "attn_implementation": "flash_attention_2"})
+        try:
+            _tts_pipeline = Qwen3TTSModel.from_pretrained(
+                QWEN_TTS_REPO, token=_audio_hf_token(), **kwargs
+            )
+        except Exception as exc:
+            if "flash" not in str(exc).lower():
+                raise
+            logger.warning("Flash Attention unavailable for Qwen3-TTS; using SDPA")
+            kwargs["attn_implementation"] = "sdpa"
+            _tts_pipeline = Qwen3TTSModel.from_pretrained(
+                QWEN_TTS_REPO, token=_audio_hf_token(), **kwargs
+            )
+        _tts_model_name = QWEN_TTS_REPO
+        return _tts_pipeline
+    except ImportError as exc:
+        raise RuntimeError(
+            "Qwen3-TTS requires the optional media dependencies: "
+            "pip install -r requirements-media-models.txt"
+        ) from exc
+    finally:
+        _audio_download_state["active"] = False
+
+
+async def _generate_tts_qwen(text, voice_style, language, instruct=""):
+    import asyncio
+    import numpy as np
+
+    model = await asyncio.to_thread(_get_qwen_tts_model)
+
+    def _run():
+        wavs, sample_rate = model.generate_custom_voice(
+            text=text,
+            language=_qwen_language(language),
+            speaker=_qwen_speaker(voice_style),
+            instruct=instruct or "Natural, clear studio-quality speech.",
+        )
+        return np.asarray(wavs[0], dtype=np.float32).squeeze(), int(sample_rate)
+
+    return await asyncio.to_thread(_run)
+
+
+def _get_sfx_pipeline(model_key: str):
+    """Load one of the local sound-effect pipelines on demand."""
+    global _sfx_pipeline, _sfx_model_name, _audio_download_state
+    if model_key not in SFX_MODELS:
+        raise RuntimeError(f"Unknown sound-effect model: {model_key}")
+    if _sfx_pipeline is not None and _sfx_model_name == model_key:
+        return _sfx_pipeline
+
+    _release_all_audio()
+    _release_image_pipelines()
+    cfg = SFX_MODELS[model_key]
+    repo = cfg["repo"]
+    _audio_download_state = {"active": True, "progress": 0.0, "model": repo}
+    try:
+        import torch
+        dtype = torch.bfloat16 if torch.cuda.is_available() else torch.float32
+        device = "cuda" if torch.cuda.is_available() else "cpu"
+
+        if cfg["pipeline"] == "moss":
+            from moss_soundeffect_v2 import MossSoundEffectPipeline
+            _sfx_pipeline = MossSoundEffectPipeline.from_pretrained(
+                repo, torch_dtype=dtype, device=device
+            )
+        elif cfg["pipeline"] in {"stable_audio", "stable_audio_3"}:
+            from stable_audio_tools import get_pretrained_model
+            model, model_cfg = get_pretrained_model(repo)
+            model = model.to(device)
+            _sfx_pipeline = {"model": model, "config": model_cfg, "device": device}
+        elif cfg["pipeline"] == "ltx2_foley":
+            from diffusers import LTX2Pipeline
+            pipe = LTX2Pipeline.from_pretrained(
+                cfg["base_repo"], torch_dtype=dtype, token=_audio_hf_token()
+            )
+            pipe.load_lora_weights(
+                repo, weight_name=cfg["weight_name"], token=_audio_hf_token()
+            )
+            if torch.cuda.is_available():
+                pipe.enable_model_cpu_offload()
+            _sfx_pipeline = pipe
+        _sfx_model_name = model_key
+        return _sfx_pipeline
+    except ImportError as exc:
+        raise RuntimeError(
+            f"{repo} requires optional dependencies. Run: "
+            "pip install -r requirements-media-models.txt"
+        ) from exc
+    finally:
+        _audio_download_state["active"] = False
+
+
+async def _generate_sound_effect(prompt: str, model_key: str, duration: float):
+    """Generate mono floating-point audio using the selected local SFX model."""
+    import asyncio
+    import numpy as np
+    import torch
+
+    cfg = SFX_MODELS.get(model_key)
+    if not cfg:
+        raise RuntimeError(f"Unknown sound-effect model: {model_key}")
+    duration = min(max(float(duration), 1.0), cfg["max_duration"])
+    pipe = await asyncio.to_thread(_get_sfx_pipeline, model_key)
+
+    def _run():
+        if cfg["pipeline"] == "moss":
+            output = pipe(
+                prompt=prompt,
+                seconds=duration,
+                num_inference_steps=100,
+                cfg_scale=4.0,
+            )
+            waveform = getattr(output, "audio", output)
+            sample_rate = getattr(output, "sample_rate", cfg["sample_rate"])
+        elif cfg["pipeline"] in {"stable_audio", "stable_audio_3"}:
+            from stable_audio_tools.inference.generation import generate_diffusion_cond
+            model = pipe["model"]
+            sample_rate = int(pipe["config"]["sample_rate"])
+            sample_size = int(sample_rate * duration)
+            waveform = generate_diffusion_cond(
+                model,
+                steps=8 if cfg["pipeline"] == "stable_audio_3" else 50,
+                cfg_scale=1.0 if cfg["pipeline"] == "stable_audio_3" else 7.0,
+                conditioning=[{
+                    "prompt": prompt,
+                    "seconds_start": 0,
+                    "seconds_total": duration,
+                }],
+                sample_size=sample_size,
+                sigma_min=0.3 if cfg["pipeline"] == "stable_audio_3" else 0.01,
+                sigma_max=500 if cfg["pipeline"] == "stable_audio_3" else 100,
+                sampler_type="pingpong" if cfg["pipeline"] == "stable_audio_3" else "dpmpp-3m-sde",
+                device=pipe["device"],
+            )
+        else:
+            output = pipe(
+                prompt=prompt,
+                num_inference_steps=25,
+                guidance_scale=3.5,
+                num_frames=max(9, int(duration * 24) // 8 * 8 + 1),
+                height=512,
+                width=768,
+                output_type="np",
+            )
+            waveform = getattr(output, "audios", None)
+            if waveform is None:
+                waveform = getattr(output, "audio", None)
+            if waveform is None:
+                raise RuntimeError("LTX Foley did not return an audio track")
+            vocoder_cfg = getattr(getattr(pipe, "vocoder", None), "config", None)
+            sample_rate = getattr(
+                output,
+                "audio_sample_rate",
+                getattr(vocoder_cfg, "output_sampling_rate", cfg["sample_rate"]),
+            )
+
+        if torch.is_tensor(waveform):
+            waveform = waveform.detach().float().cpu().numpy()
+        waveform = np.asarray(waveform, dtype=np.float32).squeeze()
+        if waveform.ndim > 1:
+            waveform = waveform.mean(axis=0)
+        peak = float(np.max(np.abs(waveform))) if waveform.size else 0.0
+        if peak > 1.0:
+            waveform /= peak
+        return waveform, int(sample_rate)
+
+    return await asyncio.to_thread(_run)
 
 
 
@@ -723,7 +987,7 @@ def _split_text(text, max_len=500):
 
 @router.post("/generate")
 async def generate_audio(request: Request):
-    """Generate audio (TTS, music, voice clone, or song)."""
+    """Generate audio (TTS, music, voice clone, song, or sound effects)."""
     data = await request.json()
     mode = data.get("mode", "tts")
     text = data.get("text", "").strip()
@@ -735,6 +999,7 @@ async def generate_audio(request: Request):
     format_type = data.get("format", "wav")
     language = data.get("language", "auto")
     tts_engine = data.get("tts_engine", "edge")
+    audio_model = data.get("audio_model", "moss_soundeffect_v2")
 
     enhance_prompt = data.get("enhance_prompt", False)
 
@@ -775,6 +1040,15 @@ async def generate_audio(request: Request):
                 }
                 meta_prompt = f"[TTS/{OPENAI_TTS_MODEL}/{language}/{voice_style}] {text[:200]}"
                 filename = _save_audio_bytes(audio_bytes, source_format, format_type, meta_prompt, mode=mode)
+            elif tts_engine == "qwen3":
+                audio, sr = await _generate_tts_qwen(
+                    text, voice_style, language, data.get("voice_instruct", "")
+                )
+                _audio_generation_progress = {
+                    "active": True, "progress": 90.0, "stage": "saving",
+                }
+                meta_prompt = f"[TTS/{QWEN_TTS_REPO}/{language}/{voice_style}] {text[:200]}"
+                filename = _save_audio(audio, sr, format_type, meta_prompt, mode=mode)
             else:
                 audio, sr = await _generate_tts_edge(text, voice_style, language, duration)
                 _audio_generation_progress["progress"] = 80.0
@@ -862,6 +1136,22 @@ async def generate_audio(request: Request):
                 "active": True, "progress": 90.0, "stage": "saving",
             }
             meta_prompt = f"[Music/{genre or 'auto'}] {desc[:200]}"
+            filename = _save_audio(audio, sr, format_type, meta_prompt, mode=mode)
+
+        elif mode == "sfx":
+            desc = prompt or text
+            if not desc:
+                raise HTTPException(400, "A sound-effect description is required")
+            if audio_model not in SFX_MODELS:
+                raise HTTPException(400, f"Unknown sound-effect model: {audio_model}")
+            _audio_generation_progress = {
+                "active": True, "progress": 15.0, "stage": "loading_model",
+            }
+            audio, sr = await _generate_sound_effect(desc, audio_model, duration)
+            _audio_generation_progress = {
+                "active": True, "progress": 90.0, "stage": "saving",
+            }
+            meta_prompt = f"[SFX/{SFX_MODELS[audio_model]['repo']}] {desc[:200]}"
             filename = _save_audio(audio, sr, format_type, meta_prompt, mode=mode)
 
         elif mode == "song":
@@ -1120,7 +1410,10 @@ async def delete_audio(request: Request):
 
 
 @router.get("/check-model")
-async def check_audio_model(mode: str = "tts", tts_engine: str = "edge"):
+async def check_audio_model(
+    mode: str = "tts", tts_engine: str = "edge",
+    audio_model: str = "moss_soundeffect_v2",
+):
     """Check if the audio model is already downloaded."""
     from pathlib import Path
     from config import MODELS_DIR
@@ -1128,9 +1421,10 @@ async def check_audio_model(mode: str = "tts", tts_engine: str = "edge"):
     cache_dir = Path(MODELS_DIR) / "hub"
 
     model_map = {
-        "tts": {"edge": "", "openai": ""},
+        "tts": {"edge": "", "openai": "", "qwen3": QWEN_TTS_REPO},
         "music": {"default": "facebook/musicgen-small"},
         "voice_clone": {"default": "coqui/XTTS-v2"},
+        "sfx": {"default": SFX_MODELS.get(audio_model, {}).get("repo", "")},
     }
 
     models = model_map.get(mode, {})
@@ -1174,9 +1468,10 @@ async def estimate_audio(request: Request):
     tts_engine = data.get("tts_engine", "edge")
     duration = float(data.get("duration", 30))  # for music mode
 
-    if mode == "music":
+    if mode in {"music", "sfx"}:
         # MusicGen: ~50 tokens/s, generation speed ≈ 0.3-1× realtime on GPU
-        gen_time = duration * (0.5 if _gpu_ok else 3.0)
+        multiplier = 1.5 if mode == "sfx" and _gpu_ok else (6.0 if mode == "sfx" else (0.5 if _gpu_ok else 3.0))
+        gen_time = duration * multiplier
         return {
             "chunks": 1,
             "audio_duration": round(duration, 1),
@@ -1193,6 +1488,12 @@ async def estimate_audio(request: Request):
         word_count = len(text.split())
         audio_dur = word_count / 2.5  # ~150 wpm
         gen_time = max(1.0, len(text) / (350.0 if tts_engine == "openai" else 200.0))
+    elif tts_engine == "qwen3":
+        chunks = _split_text(text, max_len=500)
+        n = len(chunks)
+        word_count = len(text.split())
+        audio_dur = word_count / 2.5
+        gen_time = n * (4.0 if _gpu_ok else 25.0)
     elif tts_engine == "pyttsx3":
         # Espeak: local binary, single chunk, instant
         n = 1
